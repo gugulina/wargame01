@@ -1204,9 +1204,9 @@ const FORT = {
   H: { name: '堑壕', code: 'H', def: 0.15, hp: 0,
        by: ['inf', 'gdn', 'mob', 'mech', 'eng', 'engc'], req: null,
        note: '散兵壕与单人掩体。步兵自己就能挖，与部队自筑工事叠加。无耐久。' },
-  B: { name: '碉堡', code: 'B', def: 0.28, hp: 4,
+  B: { name: '碉堡', code: 'B', def: 0.28, hp: 3,
        by: ['eng'], req: null,
-       note: '钢筋混凝土火力点。装甲部队进攻此格额外 −0.15。耐久 4。' },
+       note: '钢筋混凝土火力点。装甲部队进攻此格额外 −0.15。耐久 3。' },
   P: { name: '要塞炮', code: 'P', def: 0.22, hp: 5,
        by: ['eng'], req: 'high', fire: { rng: 3, dmg: 2, min: 2 },
        note: '固定炮位。驻守炮兵射程 +1；结算阶段自动对 3 格内敌军开火（2 点伤害，不打相邻格）。耐久 5。' },
@@ -1996,6 +1996,15 @@ if (typeof location !== 'undefined') {
     doFort(uid('B2E'), [12, 2], 'P');
     doFort(uid('B1E'), [12, 3], 'H');
     select(uid('B1B'));
+  }
+  else if (q.indexOf('demo=pa') >= 0) {
+    /* 展示炮台：要塞炮打到半血 + 岸防炮 + 旁边一个敌军方便看自动开火 */
+    doFort(uid('B2E'), [12, 2], 'P');
+    const pf = fortAt(12, 2);
+    if (pf) pf.hp = 3;
+    const foe = uid('R3A');
+    if (foe) foe.pos = [10, 2];
+    selectTerrain(12, 2);
   }
   else if (q.indexOf('demo=terrain') >= 0) selectTerrain(6, 9);
 }
