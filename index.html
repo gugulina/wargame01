@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>苍屿战役 · 架空兵棋推演</title>
+<style>
+  :root {
+    --bg: #F4F2EC; --card: #FFFFFF; --ink: #2B2A26; --ink2: #6E6B64;
+    --ink3: #9A968C; --line: #E2DED3; --blue: #3A6EA5; --red: #A83A3A;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; background: var(--bg); color: var(--ink);
+    font: 14px/1.65 -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    display: flex; align-items: center; justify-content: center; padding: 32px 20px;
+  }
+  .wrap { width: 100%; max-width: 860px; }
+  h1 { font-size: 26px; font-weight: 650; margin: 0 0 6px; letter-spacing: .5px; }
+  .sub { color: var(--ink2); font-size: 13.5px; margin-bottom: 4px; }
+  .rule { height: 1px; background: var(--line); margin: 22px 0; }
+  .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 640px) { .cards { grid-template-columns: 1fr; } }
+  a.card {
+    display: block; text-decoration: none; color: inherit; background: var(--card);
+    border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px;
+    transition: border-color .12s, transform .12s;
+  }
+  a.card:hover { border-color: #C9C3B4; transform: translateY(-1px); }
+  a.card .tag {
+    display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px;
+    border-radius: 20px; margin-bottom: 10px;
+  }
+  .tag.main { background: #E8EFF7; color: var(--blue); }
+  .tag.alt  { background: #F1EEE5; color: var(--ink2); }
+  a.card h2 { font-size: 16px; font-weight: 650; margin: 0 0 6px; }
+  a.card p { margin: 0; font-size: 12.5px; color: var(--ink2); }
+  .meta { margin-top: 12px; font-size: 11.5px; color: var(--ink3); }
+  .docs { margin-top: 26px; }
+  .docs h3 { font-size: 13px; font-weight: 650; color: var(--ink2); margin: 0 0 10px; }
+  .docs ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+  .docs a {
+    display: inline-block; font-size: 12px; color: var(--ink2); text-decoration: none;
+    padding: 4px 10px; border: 1px solid var(--line); border-radius: 6px; background: #FBFAF6;
+  }
+  .docs a:hover { color: var(--ink); border-color: #C9C3B4; }
+  .howto { margin-top: 26px; background: #FBFAF6; border: 1px solid var(--line); border-radius: 12px; padding: 16px 20px; }
+  .howto h3 { font-size: 13px; font-weight: 650; color: var(--ink2); margin: 0 0 10px; }
+  .howto ol { margin: 0; padding-left: 20px; font-size: 12.5px; color: var(--ink2); line-height: 1.9; }
+  .howto b { color: var(--ink); font-weight: 650; }
+  footer { margin-top: 28px; font-size: 11.5px; color: var(--ink3); line-height: 1.8; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>苍屿战役</h1>
+  <div class="sub">架空兵棋推演 · 从遭到入侵到反攻的十二关战役</div>
+  <div class="sub" style="color:var(--ink3);font-size:12.5px">纯静态网页，双击即玩，不需要安装</div>
+
+  <div class="rule"></div>
+
+  <div class="cards">
+    <a class="card" href="game/campaign.html">
+      <span class="tag main">主推</span>
+      <h2>战役级 · 岚口要地争夺战</h2>
+      <p>六角格，营级兵牌，单格 15 km，12 回合。三波敌军依次投入，守住岚口市与机场。</p>
+      <div class="meta">20 × 14 格 · 47 个兵牌 · 五类工事（含炮台）· 事件触发器</div>
+    </a>
+    <a class="card" href="game/index.html">
+      <span class="tag alt">对照</span>
+      <h2>战术级 · 岚口机场保卫战</h2>
+      <p>方格，营连排单位，单格 2 km，8 回合。守住跑道三格不失，用于双层结构的局部战斗。</p>
+      <div class="meta">16 × 10 格 · 8 回合 · 跑道争夺</div>
+    </a>
+  </div>
+
+  <div class="docs">
+    <h3>设计文档</h3>
+    <ul>
+      <li><a href="docs/01-战役设定.md">战役设定</a></li>
+      <li><a href="docs/04-战役级规则.md">战役级规则</a></li>
+      <li><a href="docs/06-编制与数值.md">编制与数值</a></li>
+      <li><a href="docs/07-工事体系.md">工事体系</a></li>
+      <li><a href="README.md">README</a></li>
+    </ul>
+  </div>
+
+  <div class="howto">
+    <h3>怎么玩（30 秒上手）</h3>
+    <ol>
+      <li>点自己的兵牌选中，<b>蓝框格</b>是可移动位置，<b>红框格</b>是射程内可攻击目标。</li>
+      <li>点蓝框移动，点红框开火；开火前右下会预览<b>优势比与档位</b>，再决定打不打。</li>
+      <li>右侧面板列出部队数据、能力和工程作业按钮（工兵能修 H 堑壕 / B 碉堡 / P 要塞炮 / A 岸防炮 / F 防空阵地）。</li>
+      <li>全部行动完点<b>结束回合</b>，敌方行动、结算，回合数 +1，上限 12 回合。</li>
+      <li>守住<b>岚口市</b>与<b>机场</b>，撑到第 12 回合。要点一经占领即持久保有，守军前出不会丢城。</li>
+    </ol>
+  </div>
+
+  <footer>
+    全部国家、地名、部队番号均为虚构，不映射任何现实国家或地区。<br>
+    两军编制按「我方 / 敌方」两套体系编写，不绑定任何真实军队。
+  </footer>
+</div>
+</body>
+</html>

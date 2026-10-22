@@ -1,0 +1,16 @@
+# 临时截图与调试脚本
+_s*.png
+_v*.png
+_t*.js
+_e*.png
+_diag.js
+__pycache__/
+*.log
+
+# 系统
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# 项目管理数据（私人笔记，不公开）
+.workbuddy/

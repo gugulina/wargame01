@@ -1,0 +1,885 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>苍屿战役 · 第3关 岚口机场</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 0;
+    background: #F5F4F0;
+    color: #2C2C2A;
+    font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+    font-size: 13px;
+  }
+  .wrap { display: flex; gap: 16px; padding: 16px; height: 100vh; overflow: hidden; }
+  .left { flex: 0 0 auto; display: flex; flex-direction: column; gap: 10px; }
+  .side { flex: 1; min-width: 300px; max-width: 380px; display: flex; flex-direction: column; gap: 10px; }
+
+  .hud { display: flex; align-items: baseline; gap: 12px; }
+  .hud-title { font-size: 16px; font-weight: 600; letter-spacing: .3px; }
+  .hud-sub { font-size: 12px; color: #7A776F; }
+
+  .board {
+    display: grid;
+    grid-template-columns: repeat(16, 46px);
+    grid-template-rows: repeat(10, 46px);
+    gap: 1px;
+    border: 1px solid #C9C5BA;
+    border-radius: 4px;
+    overflow: hidden;
+    background: #D5D1C6;
+    user-select: none;
+  }
+  .cell {
+    position: relative;
+    width: 46px; height: 46px;
+    cursor: pointer;
+  }
+  .t-plain  { background: #E9ECE1; }
+  .t-forest { background: #C9DDB7; }
+  .t-hill   { background: #E0D5BA; }
+  .t-town   { background: #D6D3CC; }
+  .t-air    { background: #DAE4ED; }
+  .t-air::before {
+    content: ""; position: absolute; left: 3px; right: 3px; top: 50%;
+    border-top: 2px dashed #A3B4C6; margin-top: -1px;
+  }
+  .t-oil    { background: #E7DDBF; }
+  .t-ford   { background: #DFE6EE; }
+  .t-river  { background: #9CC5DE; cursor: not-allowed; }
+
+  .cell.move { box-shadow: inset 0 0 0 2px #4C8FD0; }
+  .cell.move::after {
+    content: ""; position: absolute; inset: 15px;
+    background: rgba(76,143,208,.55); border-radius: 50%;
+  }
+  .cell.atk { box-shadow: inset 0 0 0 2px #C24B4B; }
+
+  .unit {
+    position: absolute; inset: 5px;
+    border-radius: 6px;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    line-height: 1.05;
+    color: #fff;
+    border: 1px solid rgba(0,0,0,.22);
+    cursor: pointer;
+    z-index: 2;
+    transition: opacity .15s;
+  }
+  .unit.blue { background: #25649B; }
+  .unit.red  { background: #A33B3B; }
+  .unit.spent { opacity: .5; }
+  .unit.sel { outline: 2px solid #E8A317; outline-offset: 1px; }
+  .u-abbr { font-size: 10px; font-weight: 600; opacity: .95; }
+  .u-str  { font-size: 14px; font-weight: 700; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 10px; font-size: 11px; color: #6E6B64; }
+  .legend span { display: inline-flex; align-items: center; gap: 4px; }
+  .sw { width: 10px; height: 10px; border-radius: 2px; display: inline-block; border: 1px solid rgba(0,0,0,.12); }
+
+  .block { background: #fff; border: 1px solid #DEDAD0; border-radius: 6px; padding: 10px 12px; }
+  .block-h { font-size: 11px; font-weight: 600; color: #8A867D; letter-spacing: .5px; margin-bottom: 8px; }
+  .block.grow { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+
+  .goal { display: flex; flex-direction: column; gap: 6px; }
+  .goal-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .goal-label { color: #57544E; }
+  .goal-val { font-weight: 600; }
+  .ok { color: #2F7A4B; }
+  .warn { color: #B87418; }
+  .bad { color: #A83A3A; }
+
+  .unitbox { display: flex; flex-direction: column; gap: 6px; }
+  .ub-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .ub-name { font-size: 14px; font-weight: 600; }
+  .ub-side { font-size: 10px; padding: 1px 6px; border-radius: 3px; font-weight: 500; }
+  .ub-side.mine { background: #E2EDF7; color: #1D5382; }
+  .ub-side.foe  { background: #F7E3E3; color: #933333; }
+  .ub-meta { color: #6E6B64; font-size: 12px; margin-top: 2px; }
+  .statgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 8px 0 6px; }
+  .sg { text-align: center; background: #F7F5F0; border-radius: 4px; padding: 5px 2px; }
+  .sg b { display: block; font-size: 15px; font-weight: 600; }
+  .sg-max { font-size: 10px; color: #9A968C; font-weight: 400; }
+  .sg i { font-style: normal; font-size: 10px; color: #8A867D; }
+  .kv { display: flex; justify-content: space-between; font-size: 12px; padding: 2px 0; }
+  .kv span { color: #6E6B64; }
+  .kv b { font-weight: 600; }
+  .hint { color: #8A867D; font-size: 12px; line-height: 1.5; }
+  .sec-h { font-size: 11px; color: #8A867D; margin: 8px 0 2px; }
+  .tgt { display: flex; justify-content: space-between; align-items: center; padding: 4px 6px; background: #F7F5F0; border-radius: 4px; margin-top: 3px; font-size: 12px; }
+  .tgt b { color: #A83A3A; }
+
+  .btns { display: flex; gap: 8px; }
+  button {
+    flex: 1; padding: 9px 12px; font-size: 13px; font-weight: 500;
+    border-radius: 6px; border: 1px solid #25649B; background: #25649B; color: #fff;
+    cursor: pointer; font-family: inherit;
+  }
+  button:hover { background: #1D5382; }
+  button:disabled { background: #C6C2B8; border-color: #C6C2B8; cursor: not-allowed; }
+  button.ghost { flex: 0 0 auto; background: #fff; color: #57544E; border-color: #D3CFC5; }
+  button.ghost:hover { background: #F3F1EA; }
+
+  .log { flex: 1; overflow-y: auto; font-size: 12px; line-height: 1.6; min-height: 120px; }
+  .log div { padding: 2px 0; border-bottom: 1px dashed #EFECE4; }
+  .log .b { color: #25649B; }
+  .log .r { color: #A33B3B; }
+  .log .sys { color: #8A867D; font-style: italic; }
+  .log .ev { color: #B87418; font-weight: 500; }
+  .log .win { color: #2F7A4B; font-weight: 600; }
+  .log .lose { color: #A83A3A; font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="left">
+    <div class="hud">
+      <div class="hud-title">第 3 关 · 岚口机场保卫战</div>
+      <div class="hud-sub" id="hudSub"></div>
+    </div>
+    <div class="board" id="board"></div>
+    <div class="legend">
+      <span><i class="sw t-plain"></i>平原</span>
+      <span><i class="sw t-forest"></i>林地</span>
+      <span><i class="sw t-hill"></i>丘陵</span>
+      <span><i class="sw t-town"></i>城镇</span>
+      <span><i class="sw t-air"></i>跑道</span>
+      <span><i class="sw t-oil"></i>油库</span>
+      <span><i class="sw t-ford"></i>渡口</span>
+      <span><i class="sw t-river"></i>河流（不可通行）</span>
+    </div>
+  </div>
+
+  <aside class="side">
+    <div class="block">
+      <div class="block-h">态势</div>
+      <div class="goal" id="goalBox"></div>
+    </div>
+    <div class="block">
+      <div class="block-h">选中单位</div>
+      <div class="unitbox" id="unitBox"></div>
+    </div>
+    <div class="btns">
+      <button id="btnEnd">结束我方阶段</button>
+      <button id="btnReset" class="ghost">重开</button>
+    </div>
+    <div class="block grow">
+      <div class="block-h">战报</div>
+      <div class="log" id="log"></div>
+    </div>
+  </aside>
+</div>
+
+<script>
+const TERRAIN = {
+  '.': { name: '平原', cost: 1,  def: 0.00, cls: 't-plain'  },
+  'f': { name: '林地', cost: 2,  def: 0.25, cls: 't-forest' },
+  'h': { name: '丘陵', cost: 2,  def: 0.50, cls: 't-hill'   },
+  't': { name: '城镇', cost: 2,  def: 0.75, cls: 't-town'   },
+  'a': { name: '跑道', cost: 1,  def: -0.25, cls: 't-air'   },
+  'o': { name: '油库', cost: 2,  def: 0.25, cls: 't-oil'    },
+  '=': { name: '渡口', cost: 2,  def: 0.00, cls: 't-ford'   },
+  '~': { name: '河流', cost: 99, def: 0.00, cls: 't-river'  }
+};
+
+const CRT = [
+  [[0,1],[0,2],[0,2],[1,2],[0,3],[1,3]],
+  [[1,1],[0,1],[0,2],[1,2],[1,3],[2,3]],
+  [[1,0],[1,1],[0,1],[1,2],[2,2],[1,3]],
+  [[1,1],[1,2],[1,1],[2,2],[2,1],[2,2]],
+  [[2,0],[2,1],[2,1],[2,2],[3,2],[2,3]],
+  [[3,0],[2,1],[3,1],[3,2],[4,1],[3,2]],
+  [[3,0],[3,0],[4,1],[4,1],[5,2],[4,2]]
+];
+
+const TIER_LABEL = ['3:1', '2:1', '1.5:1', '1:1', '1:1.5', '1:2', '1:3'];
+
+const LEVEL = {
+  id: 'L3',
+  name: '岚口机场保卫战',
+  maxTurns: 8,
+  seasonName: '秋季',
+  seasonMod: { mov: 0, recon: 1, supply: 0 },
+  cols: 16,
+  rows: 10,
+  runwayLossLimit: 3,
+  map: [
+    '..fhh....ttt....',
+    '..ffh~~=~~.tt...',
+    '.hh.~~~=~~......',
+    '...f...=...hh...',
+    '..ff.....h..hh..',
+    '.ff...tt..hh....',
+    '..f..ttt........',
+    '....o....aaaa...',
+    '...h....aaaaaa..',
+    '........aaaaaa..'
+  ],
+  units: [
+    { id:'B1', side:'blue', abbr:'步2',  name:'守备第 2 营', type:'inf', str:6, mov:3, rng:1, r:6, c:8  },
+    { id:'B2', side:'blue', abbr:'步4',  name:'守备第 4 连', type:'inf', str:4, mov:3, rng:1, r:5, c:9  },
+    { id:'B3', side:'blue', abbr:'装排', name:'装甲排',      type:'arm', str:5, mov:5, rng:1, r:7, c:6  },
+    { id:'B4', side:'blue', abbr:'防空', name:'防空连',      type:'aa',  str:3, mov:2, rng:3, r:6, c:11 },
+    { id:'B5', side:'blue', abbr:'工兵', name:'工程营',      type:'eng', str:2, mov:3, rng:0, r:8, c:7  },
+    { id:'BR', side:'blue', abbr:'雷达', name:'旅属雷达站',  type:'fac', str:3, mov:0, rng:1, r:7, c:14 },
+    { id:'R1', side:'red',  abbr:'摩1',  name:'摩步第 1 营', type:'inf', str:5, mov:4, rng:1, r:0, c:6,  wave:1 },
+    { id:'R2', side:'red',  abbr:'摩3',  name:'摩步第 3 营', type:'inf', str:5, mov:4, rng:1, r:0, c:9,  wave:1 },
+    { id:'R3', side:'red',  abbr:'炮连', name:'炮兵连',      type:'art', str:4, mov:2, rng:2, r:0, c:12, wave:1 },
+    { id:'R4', side:'red',  abbr:'侦察', name:'侦察分队',    type:'inf', str:2, mov:6, rng:1, r:2, c:2,  wave:1 },
+    { id:'R5', side:'red',  abbr:'装营', name:'装甲营',      type:'arm', str:7, mov:4, rng:1, r:0, c:3,  wave:2 },
+    { id:'R6', side:'red',  abbr:'摩5',  name:'摩步第 5 营', type:'inf', str:5, mov:4, rng:1, r:0, c:0,  wave:2 }
+  ]
+};
+
+const DIRS = [[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[-1,1],[1,-1],[1,1]];
+const kk = (r, c) => r + ',' + c;
+const cheb = (a, b) => Math.max(Math.abs(a[0] - b[0]), Math.abs(a[1] - b[1]));
+const sleep = ms => (typeof window !== 'undefined' && window.__FAST__)
+  ? Promise.resolve()
+  : new Promise(res => setTimeout(res, ms));
+
+let state = null;
+
+function terrainAt(r, c) {
+  return TERRAIN[LEVEL.map[r][c]];
+}
+function terrainChar(r, c) {
+  return LEVEL.map[r][c];
+}
+function inBounds(r, c) {
+  return r >= 0 && r < LEVEL.rows && c >= 0 && c < LEVEL.cols;
+}
+function unitAt(r, c) {
+  return state.units.find(u => u.pos[0] === r && u.pos[1] === c) || null;
+}
+function alive(side) {
+  return state.units.filter(u => u.side === side);
+}
+function runwayCells() {
+  const out = [];
+  for (let r = 0; r < LEVEL.rows; r++) {
+    for (let c = 0; c < LEVEL.cols; c++) {
+      if (LEVEL.map[r][c] === 'a') out.push([r, c]);
+    }
+  }
+  return out;
+}
+function runwayOwner(r, c) {
+  const u = unitAt(r, c);
+  return u ? u.side : null;
+}
+function countRunway(side) {
+  return runwayCells().filter(([r, c]) => runwayOwner(r, c) === side).length;
+}
+function oilHeld() {
+  for (let r = 0; r < LEVEL.rows; r++) {
+    for (let c = 0; c < LEVEL.cols; c++) {
+      if (LEVEL.map[r][c] === 'o') {
+        const u = unitAt(r, c);
+        if (u && u.side === 'red') return true;
+      }
+    }
+  }
+  return false;
+}
+
+function effectiveMov(u) {
+  if (u.mov === 0) return 0;
+  return Math.max(1, u.mov + LEVEL.seasonMod.mov);
+}
+function attackRange(u) {
+  if (u.rng === 0) return 0;
+  let r = u.rng;
+  if (u.side === 'blue' && state.flags.radarLost) r -= 1;
+  return Math.max(1, r);
+}
+function supplyMod(side) {
+  if (side === 'red') return 1.0;
+  if (state.flags.oilLost) {
+    return countRunway('red') >= 2 ? 0.5 : 0.8;
+  }
+  return 1.0;
+}
+function moveCost(u, ch) {
+  const t = TERRAIN[ch];
+  if (t.cost >= 99) return Infinity;
+  let cost = t.cost;
+  if (u.type === 'arm' && ch === 't') cost += 1;
+  return cost;
+}
+function terrainDefFor(u) {
+  return terrainAt(u.pos[0], u.pos[1]).def;
+}
+
+function computeReach(u) {
+  const budget = effectiveMov(u);
+  if (budget <= 0) return {};
+  const dist = {};
+  const start = kk(u.pos[0], u.pos[1]);
+  dist[start] = 0;
+  const pool = [[0, u.pos[0], u.pos[1]]];
+
+  while (pool.length) {
+    pool.sort((a, b) => a[0] - b[0]);
+    const [d, r, c] = pool.shift();
+    if (d > (dist[kk(r, c)] === undefined ? Infinity : dist[kk(r, c)])) continue;
+    for (const [dr, dc] of DIRS) {
+      const nr = r + dr, nc = c + dc;
+      if (!inBounds(nr, nc)) continue;
+      const ch = LEVEL.map[nr][nc];
+      const cost = moveCost(u, ch);
+      if (cost === Infinity) continue;
+      if (unitAt(nr, nc)) continue;
+      const nd = d + cost;
+      if (nd > budget) continue;
+      if (dist[kk(nr, nc)] === undefined || nd < dist[kk(nr, nc)]) {
+        dist[kk(nr, nc)] = nd;
+        pool.push([nd, nr, nc]);
+      }
+    }
+  }
+  delete dist[start];
+  return dist;
+}
+
+function previewAttack(att, def) {
+  const a = att.str * supplyMod(att.side);
+  const d = def.str * supplyMod(def.side) * (1 + terrainDefFor(def));
+  const ratio = a / Math.max(d, 0.1);
+  return { ratio, tier: ratioTier(ratio) };
+}
+
+function ratioTier(k) {
+  if (k >= 3.0) return 0;
+  if (k >= 2.0) return 1;
+  if (k >= 1.4) return 2;
+  if (k >= 0.9) return 3;
+  if (k >= 0.65) return 4;
+  if (k >= 0.4) return 5;
+  return 6;
+}
+
+function fmtRatio(k) {
+  if (k >= 1) return k.toFixed(1) + ' : 1';
+  return '1 : ' + (1 / k).toFixed(1);
+}
+
+function targetsFor(u) {
+  const rng = attackRange(u);
+  if (rng === 0) return [];
+  return alive(u.side === 'blue' ? 'red' : 'blue').filter(t => cheb(u.pos, t.pos) <= rng);
+}
+
+function log(text, cls) {
+  state.log.push({ text, cls: cls || '' });
+}
+
+function newGame() {
+  state = {
+    turn: 1,
+    phase: 'blue',
+    units: JSON.parse(JSON.stringify(LEVEL.units)).map(u => ({
+      id: u.id, side: u.side, abbr: u.abbr, name: u.name, type: u.type,
+      str: u.str, max: u.str, mov: u.mov, rng: u.rng,
+      pos: [u.r, u.c], wave: u.wave || 1,
+      moved: false, fired: false
+    })),
+    selected: null,
+    reachable: {},
+    targets: [],
+    log: [],
+    flags: { radarLost: false, oilLost: false, engLost: false, wave2: false },
+    result: null
+  };
+  state.units = state.units.filter(u => u.wave === 1);
+  log('战役开始：灰原第 7 摩步旅自北面推进，目标岚口机场。', 'sys');
+  log('秋季，天气良好。目标：' + LEVEL.maxTurns + ' 回合内不让敌方控制 ' +
+      LEVEL.runwayLossLimit + ' 格跑道。', 'sys');
+  log('操作：点击我方单位，蓝框为可移动格，红框为可攻击目标。', 'sys');
+  log('规则：每单位每回合可移动一次并攻击一次，攻击后不可再移动。', 'sys');
+  render();
+}
+
+function select(u) {
+  state.selected = u;
+  const own = u.side === 'blue' && state.phase === 'blue' && !state.result;
+  state.reachable = (own && !u.moved) ? computeReach(u) : {};
+  state.targets = (own && !u.fired) ? targetsFor(u) : [];
+  render();
+}
+
+function clearSelection() {
+  state.selected = null;
+  state.reachable = {};
+  state.targets = [];
+}
+
+function doMove(u, pos) {
+  const from = u.pos;
+  u.pos = [pos[0], pos[1]];
+  u.moved = true;
+  log(u.abbr + ' 机动至 ' + coordName(pos), u.side === 'blue' ? 'b' : 'r');
+  state.reachable = {};
+  state.targets = (u.side === 'blue' && !u.fired) ? targetsFor(u) : [];
+  render();
+  checkAndSettle();
+}
+
+function coordName(pos) {
+  return String.fromCharCode(65 + pos[1]) + (pos[0] + 1);
+}
+
+function doAttack(att, def) {
+  const pv = previewAttack(att, def);
+  const die = 1 + Math.floor(Math.random() * 6);
+  const row = CRT[pv.tier];
+  const res = row[die - 1];
+  const aLoss = res[0];
+  const dLoss = res[1];
+
+  att.str -= aLoss;
+  def.str -= dLoss;
+  att.fired = true;
+  att.moved = true;
+
+  const sideCls = att.side === 'blue' ? 'b' : 'r';
+  const tdef = terrainAt(def.pos[0], def.pos[1]).name;
+  log(
+    att.abbr + ' 攻击 ' + def.abbr + '（' + tdef + '，' + TIER_LABEL[pv.tier] + '，骰 ' + die + '）→ 攻方 -' + aLoss + '，守方 -' + dLoss,
+    sideCls
+  );
+
+  if (att.str <= 0) {
+    log(att.abbr + ' 战力归零，被歼灭。', sideCls);
+    removeUnit(att);
+    clearSelection();
+  }
+  if (def.str <= 0) {
+    log(def.abbr + ' 战力归零，被歼灭。', sideCls);
+    const deadPos = def.pos;
+    removeUnit(def);
+    if (att.str > 0 && att.rng === 1) {
+      att.pos = [deadPos[0], deadPos[1]];
+      log(att.abbr + ' 推进并占领 ' + coordName(deadPos) + '。', sideCls);
+    }
+  }
+
+  if (state.selected && state.selected.str <= 0) clearSelection();
+  else if (state.selected) {
+    state.targets = (!state.selected.fired) ? targetsFor(state.selected) : [];
+    state.reachable = {};
+  }
+  render();
+  checkAndSettle();
+}
+
+function removeUnit(u) {
+  state.units = state.units.filter(x => x !== u);
+  if (state.selected === u) clearSelection();
+}
+
+function checkAndSettle() {
+  if (!state.flags.radarLost && !state.units.some(u => u.id === 'BR')) {
+    state.flags.radarLost = true;
+    log('事件：雷达站被摧毁。我方失去目标指示，本关剩余回合射程 -1。', 'ev');
+    log('战役后果：下一关侦察值 -1（尚未实现，记录于战役状态）。', 'ev');
+  }
+  if (!state.flags.oilLost && oilHeld()) {
+    state.flags.oilLost = true;
+    log('事件：油库被敌方控制。我方补给降为紧张，战力系数 0.8。', 'ev');
+  }
+  if (!state.flags.engLost && !state.units.some(u => u.id === 'B5')) {
+    state.flags.engLost = true;
+    log('事件：工程营被歼灭。本关跑道无法修复。', 'ev');
+    log('战役后果：后续关卡失去机场修复能力（尚未实现）。', 'ev');
+  }
+
+  const lost = countRunway('red');
+  if (lost >= LEVEL.runwayLossLimit) {
+    endGame('fail');
+    return;
+  }
+  if (alive('blue').length === 0) {
+    log('我方守备部队全部被歼，机场无兵可守。', 'lose');
+    endGame('fail');
+  }
+}
+
+function endGame(kind) {
+  if (state.result) return;
+  state.result = kind;
+  if (kind === 'fail') {
+    log('跑道被敌方控制 ' + countRunway('red') + ' 格，超过失守阈值。机场失守。', 'lose');
+  }
+  render();
+}
+
+function judgeFinal() {
+  const lost = countRunway('red');
+  const redTotal = LEVEL.units.filter(u => u.side === 'red').reduce((s, u) => s + u.str, 0);
+  const redNow = state.units.filter(u => u.side === 'red').reduce((s, u) => s + u.str, 0);
+  const lossRate = 1 - redNow / redTotal;
+
+  if (lost >= LEVEL.runwayLossLimit) {
+    state.result = 'fail';
+    log('终局：机场失守。', 'lose');
+  } else {
+    log('终局：跑道保住（失守 ' + lost + ' 格），雷达站' + (state.flags.radarLost ? '已毁' : '存活') + '。', 'win');
+    log('敌方战力损失 ' + Math.round(lossRate * 100) + '%。', 'sys');
+    if (!state.flags.radarLost && lossRate >= 0.5) {
+      state.result = 'excellent';
+      log('判定：超额达成。', 'win');
+    } else if (!state.flags.radarLost) {
+      state.result = 'ok';
+      log('判定：达成。', 'win');
+    } else {
+      state.result = 'ok';
+      log('判定：达成（惨胜，雷达站已失）。', 'warn');
+    }
+  }
+  render();
+}
+
+async function endBluePhase() {
+  if (state.phase !== 'blue' || state.result) return;
+  clearSelection();
+  state.phase = 'red';
+  render();
+  await sleep(250);
+
+  await aiTurn();
+  if (state.result) { render(); return; }
+
+  checkAndSettle();
+  if (state.result) { render(); return; }
+
+  state.turn++;
+  if (state.turn > LEVEL.maxTurns) {
+    judgeFinal();
+    return;
+  }
+
+  if (state.turn === 4 && !state.flags.wave2) {
+    state.flags.wave2 = true;
+    const wave2 = LEVEL.units.filter(u => u.wave === 2).map(u => ({
+      id: u.id, side: u.side, abbr: u.abbr, name: u.name, type: u.type,
+      str: u.str, max: u.str, mov: u.mov, rng: u.rng,
+      pos: [u.r, u.c], wave: 2, moved: false, fired: false
+    }));
+    state.units.push(...wave2);
+    log('事件：敌方第二波投入战场——装甲营、摩步第 5 营自北面进入。', 'ev');
+  }
+
+  for (const u of state.units) { u.moved = false; u.fired = false; }
+  state.phase = 'blue';
+  log('第 ' + state.turn + ' 回合，我方阶段。', 'sys');
+  render();
+}
+
+async function aiTurn() {
+  const reds = alive('red').slice();
+  for (const u of reds) {
+    if (state.result) return;
+    if (!state.units.includes(u)) continue;
+    u.moved = false;
+    u.fired = false;
+
+    let tg = targetsFor(u);
+    if (tg.length === 0) {
+      const goal = chooseGoal(u);
+      if (goal) {
+        const reach = computeReach(u);
+        let best = null, bestD = Infinity;
+        for (const key in reach) {
+          const parts = key.split(',');
+          const pos = [Number(parts[0]), Number(parts[1])];
+          const ar = bestAttackRatioFrom(u, pos);
+          const d = cheb(pos, goal) * 0.35 - ar * 2.0 + reach[key] * 0.1;
+          if (d < bestD) { bestD = d; best = pos; }
+        }
+        if (best) {
+          u.pos = best;
+          u.moved = true;
+          log(u.abbr + ' 机动至 ' + coordName(best), 'r');
+          render();
+          await sleep(180);
+        }
+      }
+      tg = targetsFor(u);
+    }
+
+    if (tg.length > 0) {
+      if (u.type === 'art' && u.moved) {
+        log(u.abbr + ' 炮兵移动后无法射击。', 'sys');
+        continue;
+      }
+      const evals = tg.map(t => ({ t, r: previewAttack(u, t).ratio }))
+                      .sort((a, b) => b.r - a.r);
+      if (evals[0].r >= 0.35) {
+        doAttack(u, evals[0].t);
+        await sleep(320);
+      }
+    }
+  }
+}
+
+function scoreTarget(att, t) {
+  const pv = previewAttack(att, t);
+  let score = pv.ratio;
+  if (t.type === 'fac') score += 1.5;
+  if (t.type === 'eng') score += 1.0;
+  return score;
+}
+
+function bestAttackRatioFrom(u, pos) {
+  const rng = attackRange(u);
+  if (rng === 0) return -1;
+  let best = -1;
+  const foes = alive(u.side === 'blue' ? 'red' : 'blue');
+  for (const t of foes) {
+    if (cheb(pos, t.pos) <= rng) {
+      const pv = previewAttack(u, t);
+      if (pv.ratio > best) best = pv.ratio;
+    }
+  }
+  return best;
+}
+
+function chooseGoal(u) {
+  const cands = [];
+  for (const t of alive('blue')) {
+    cands.push({ pos: t.pos, w: 1.3 });
+  }
+  for (const cell of runwayCells()) {
+    if (runwayOwner(cell[0], cell[1]) !== 'red') cands.push({ pos: cell, w: 0.6 });
+  }
+  if (cands.length === 0) return null;
+  let best = cands[0], bestScore = Infinity;
+  for (const c of cands) {
+    const s = cheb(u.pos, c.pos) * c.w;
+    if (s < bestScore) { bestScore = s; best = c; }
+  }
+  return best.pos;
+}
+
+function onCellClick(r, c) {
+  if (!state || state.phase !== 'blue' || state.result) return;
+  const u = unitAt(r, c);
+
+  if (u) {
+    const sel = state.selected;
+    if (sel && sel.side === 'blue' && u.side === 'red' && state.targets.includes(u)) {
+      doAttack(sel, u);
+      return;
+    }
+    select(u);
+    return;
+  }
+
+  if (state.selected && state.selected.side === 'blue' && state.reachable[kk(r, c)] !== undefined) {
+    doMove(state.selected, [r, c]);
+    return;
+  }
+
+  clearSelection();
+  render();
+}
+
+function render() {
+  renderBoard();
+  renderHUD();
+  renderGoal();
+  renderUnitBox();
+  renderLog();
+}
+
+function renderBoard() {
+  const board = document.getElementById('board');
+  let html = '';
+  for (let r = 0; r < LEVEL.rows; r++) {
+    for (let c = 0; c < LEVEL.cols; c++) {
+      const ch = LEVEL.map[r][c];
+      const t = TERRAIN[ch];
+      let cls = 'cell ' + t.cls;
+      if (state.reachable[kk(r, c)] !== undefined && !unitAt(r, c)) cls += ' move';
+      const tu = unitAt(r, c);
+      if (tu && state.targets.includes(tu)) cls += ' atk';
+
+      html += '<div class="' + cls + '" data-r="' + r + '" data-c="' + c + '">';
+      if (tu) {
+        let uc = 'unit ' + tu.side;
+        if (tu.moved || tu.fired) uc += ' spent';
+        if (state.selected === tu) uc += ' sel';
+        const tip = tu.name + '｜战力 ' + tu.str + '/' + tu.max +
+                    '｜机动 ' + effectiveMov(tu) + '｜射程 ' + (attackRange(tu) || '无');
+        html += '<div class="' + uc + '" title="' + tip + '"><span class="u-abbr">' + tu.abbr +
+                '</span><span class="u-str">' + Math.max(0, tu.str) + '</span></div>';
+      }
+      html += '</div>';
+    }
+  }
+  board.innerHTML = html;
+}
+
+function renderHUD() {
+  const sub = document.getElementById('hudSub');
+  if (state.result) {
+    const map = { fail: '推演结束 · 失败', ok: '推演结束 · 达成', excellent: '推演结束 · 超额达成' };
+    sub.textContent = map[state.result];
+    return;
+  }
+  sub.textContent = '回合 ' + state.turn + ' / ' + LEVEL.maxTurns + ' · ' + LEVEL.seasonName +
+    ' · ' + (state.phase === 'blue' ? '我方阶段' : '敌方行动中');
+}
+
+function renderGoal() {
+  const box = document.getElementById('goalBox');
+  const lost = countRunway('red');
+  const over = lost >= LEVEL.runwayLossLimit;
+  const radarOk = !state.flags.radarLost;
+
+  let html = '';
+  html += '<div class="goal-row"><span class="goal-label">跑道失守阈值</span>' +
+          '<span class="goal-val ' + (over ? 'bad' : lost > 0 ? 'warn' : 'ok') + '">' +
+          lost + ' / ' + LEVEL.runwayLossLimit + '</span></div>';
+  html += '<div class="goal-row"><span class="goal-label">旅属雷达站</span>' +
+          '<span class="goal-val ' + (radarOk ? 'ok' : 'bad') + '">' +
+          (radarOk ? '存活' : '已毁') + '</span></div>';
+  html += '<div class="goal-row"><span class="goal-label">补给状态</span>' +
+          '<span class="goal-val ' + (state.flags.oilLost ? 'warn' : 'ok') + '">' +
+          (state.flags.oilLost ? (countRunway('red') >= 2 ? '断绝 ×0.5' : '紧张 ×0.8') : '充足 ×1.0') +
+          '</span></div>';
+  html += '<div class="goal-row"><span class="goal-label">敌方在场</span>' +
+          '<span class="goal-val">' +
+          alive('red').reduce((s, u) => s + u.str, 0) + ' 战力</span></div>';
+  html += '<div class="goal-row"><span class="goal-label">我方在场</span>' +
+          '<span class="goal-val">' +
+          alive('blue').reduce((s, u) => s + u.str, 0) + ' 战力</span></div>';
+  if (!state.flags.wave2) {
+    html += '<div class="hint" style="margin-top:4px">情报：敌方第二波预计第 4 回合投入。</div>';
+  }
+  box.innerHTML = html;
+}
+
+const TYPE_NAME = { inf: '步兵', arm: '装甲', art: '炮兵', aa: '防空', eng: '工兵', fac: '设施' };
+
+function fmtPct(v) {
+  if (!v) return '—';
+  return (v > 0 ? '+' : '') + Math.round(v * 100) + '%';
+}
+
+function unitStateText(u) {
+  if (u.type === 'fac') return '固定驻守';
+  if (u.fired) return '本回合已行动';
+  if (u.moved) return '已移动，尚可攻击';
+  return '待命';
+}
+
+function renderUnitBox() {
+  const box = document.getElementById('unitBox');
+  const u = state.selected;
+  if (!u) {
+    box.innerHTML = '<div class="hint">点击任意兵牌查看战斗数据。选中我方单位后，蓝框为可移动格，红框为可攻击目标。</div>';
+    return;
+  }
+
+  const t = terrainAt(u.pos[0], u.pos[1]);
+  const tdef = terrainDefFor(u);
+  const supply = supplyMod(u.side);
+  const effDef = u.str * supply * (1 + tdef);
+  const isMine = u.side === 'blue';
+
+  let html = '';
+  html += '<div class="ub-head"><span class="ub-name">' + u.name + '</span>' +
+          '<span class="ub-side ' + (isMine ? 'mine' : 'foe') + '">' +
+          (isMine ? '我方' : '敌方') + '</span></div>';
+  html += '<div class="ub-meta">' + u.abbr + ' · ' + (TYPE_NAME[u.type] || u.type) +
+          ' · ' + coordName(u.pos) + ' ' + t.name + '</div>';
+
+  html += '<div class="statgrid">' +
+          '<div class="sg"><b>' + u.str + '<span class="sg-max">/' + u.max + '</span></b><i>战力</i></div>' +
+          '<div class="sg"><b>' + effectiveMov(u) + '</b><i>机动</i></div>' +
+          '<div class="sg"><b>' + (attackRange(u) || '—') + '</b><i>射程</i></div>' +
+          '<div class="sg"><b>' + fmtPct(tdef) + '</b><i>地形加成</i></div>' +
+          '</div>';
+
+  html += '<div class="kv"><span>有效防御</span><b>' + effDef.toFixed(1) + '</b></div>';
+  html += '<div class="kv"><span>补给系数</span><b>×' + supply.toFixed(1) + '</b></div>';
+  html += '<div class="kv"><span>当前状态</span><b>' + unitStateText(u) + '</b></div>';
+
+  if (isMine) {
+    const tgs = state.targets.filter(x => x.side === 'red');
+    if (tgs.length > 0) {
+      html += '<div class="sec-h">可攻击目标</div>';
+      for (const tg of tgs) {
+        const pv = previewAttack(u, tg);
+        const tt = terrainAt(tg.pos[0], tg.pos[1]);
+        html += '<div class="tgt"><span>' + tg.abbr + ' · ' + tg.str + ' 战力 · ' + tt.name +
+                '</span><b>' + TIER_LABEL[pv.tier] + '</b></div>';
+      }
+    } else if (u.fired) {
+      html += '<div class="hint" style="margin-top:6px">射程内已无攻击机会（本回合已行动）。</div>';
+    } else {
+      html += '<div class="hint" style="margin-top:6px">射程内暂无可攻击目标。</div>';
+    }
+  } else {
+    const threats = alive('blue').filter(b => attackRange(b) > 0 && cheb(b.pos, u.pos) <= attackRange(b));
+    if (threats.length > 0) {
+      html += '<div class="sec-h">我方在射程内的单位</div>';
+      for (const b of threats) {
+        const pv = previewAttack(b, u);
+        html += '<div class="tgt"><span>' + b.abbr + ' · ' + b.str + ' 战力</span><b>' +
+                TIER_LABEL[pv.tier] + '</b></div>';
+      }
+    } else {
+      html += '<div class="hint" style="margin-top:6px">我方暂无单位能攻击该目标。</div>';
+    }
+  }
+
+  box.innerHTML = html;
+}
+
+function renderLog() {
+  const el = document.getElementById('log');
+  el.innerHTML = state.log.map(l => '<div class="' + l.cls + '">' + l.text + '</div>').join('');
+  el.scrollTop = el.scrollHeight;
+}
+
+document.getElementById('board').addEventListener('click', e => {
+  const cell = e.target.closest('.cell');
+  if (!cell) return;
+  onCellClick(Number(cell.dataset.r), Number(cell.dataset.c));
+});
+
+document.getElementById('btnEnd').addEventListener('click', endBluePhase);
+document.getElementById('btnReset').addEventListener('click', newGame);
+
+window.__WAR__ = {
+  LEVEL, TERRAIN, CRT, TIER_LABEL,
+  newGame,
+  getState: () => state,
+  computeReach, targetsFor, previewAttack, ratioTier,
+  doMove, doAttack, endBluePhase, judgeFinal,
+  alive, cheb, runwayCells, countRunway, attackRange,
+  clearSelection, select, render, checkAndSettle
+};
+
+newGame();
+
+if (typeof location !== 'undefined') {
+  const q = location.search;
+  if (q.indexOf('demo=1') >= 0) {
+    const d = state.units.find(x => x.id === 'B3');
+    if (d) select(d);
+  }
+  if (q.indexOf('demo=2') >= 0) {
+    const d = state.units.find(x => x.id === 'R2');
+    if (d) select(d);
+  }
+}
+</script>
+</body>
+</html>
