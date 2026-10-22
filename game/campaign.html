@@ -791,19 +791,19 @@ const ASSETS = {
   /* 工事图标：键名与 FORT 一致，建议 28×28，与格内字母角标二选一 */
   fort: { H: null, B: null, P: null, A: null, F: null },
 
-  /* 音效：短促可重叠，建议 mp3 单声道 64kbps，单条 < 60KB
-     当前这一套 = 小森平效果音（军事类）+ Kenney（UI / 撞击 / 短乐句），
-     来源与授权记录在 game/assets/sfx/CREDITS.md */
+  /* 音效：短促可重叠，mp3 单声道 112kbps
+     -v2 这一套是实弹录音 / 影视拟音重制版（起振 1-3ms、动态 20-27dB），
+     旧的小森平合成音留在仓库历史里。来源与授权见 game/assets/sfx/CREDITS.md */
   sfx: {
     uiClick: 'sfx/ui-click.ogg',   // 按钮
     select:  'sfx/ui-select.ogg',  // 选中兵牌
     move:    'sfx/ui-move.ogg',    // 移动
-    fire:    'sfx/fire.mp3',       // 直射
-    shell:   'sfx/shell.mp3',      // 炮击
-    hit:     'sfx/hit.mp3',        // 命中
-    kill:    'sfx/kill.mp3',       // 歼灭
+    fire:    'sfx/fire-v2.mp3',    // 直射（.22 实弹录音，起振 0.2ms）
+    shell:   'sfx/shell-v2.mp3',   // 炮击（爆炸拟音，低频冲击 + 宽带爆裂）
+    hit:     'sfx/hit-v2.mp3',     // 命中（173ms 短爆裂）
+    kill:    'sfx/kill-v2.mp3',    // 歼灭（多爆点殉爆）
     build:   'sfx/build.ogg',      // 构筑工事 / 布雷 / 架桥
-    alarm:   'sfx/alarm.mp3',      // 敌方增援
+    alarm:   'sfx/alarm-v2.mp3',   // 敌方增援（连续警报）
     event:   'sfx/event.ogg',      // 剧情事件
     win:     'sfx/win.ogg',
     lose:    'sfx/lose.ogg'

@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>音效候选对比 · 苍屿战役</title>
+<style>
+  :root{
+    --bg:#141312; --panel:#1c1a18; --line:#2e2a26; --txt:#e8e3d8; --dim:#9a9086;
+    --gold:#c8a253; --blue:#5b93c7; --red:#c86a5b;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);
+       font:14px/1.6 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif;padding:24px 20px 60px}
+  h1{font-size:19px;letter-spacing:.06em;margin:0 0 4px;color:var(--gold)}
+  .sub{color:var(--dim);font-size:12.5px;margin-bottom:20px;line-height:1.8}
+  .sub b{color:var(--txt);font-weight:600}
+  section{margin-bottom:26px;border-top:1px solid var(--line);padding-top:14px}
+  h2{font-size:14px;margin:0 0 2px;letter-spacing:.05em}
+  h2 span{color:var(--dim);font-weight:400;font-size:12px;margin-left:8px;letter-spacing:0}
+  .now{color:var(--red);font-size:11.5px;margin-bottom:10px}
+  .row{display:grid;grid-template-columns:78px 1fr 190px 108px;gap:10px;align-items:center;
+       padding:7px 10px;border-radius:5px;background:var(--panel);margin-bottom:6px;
+       border-left:2px solid var(--line)}
+  .row.best{border-left-color:var(--gold);background:#221f1b}
+  .tag{font-weight:600;font-size:12.5px;letter-spacing:.03em}
+  .row.best .tag{color:var(--gold)}
+  .src{color:var(--dim);font-size:11.5px;line-height:1.45}
+  .src b{color:#b9ae9f;font-weight:500}
+  .stat{color:var(--dim);font-size:11px;font-variant-numeric:tabular-nums;text-align:right;line-height:1.5}
+  .stat i{font-style:normal;color:#b9ae9f}
+  audio{width:100%;height:30px}
+  .bad{color:var(--red)}
+  .good{color:#7fbf7f}
+  .hint{margin-top:24px;padding:12px 14px;border:1px solid var(--line);border-radius:6px;
+        background:#191715;font-size:12.5px;color:var(--dim);line-height:1.9}
+  .hint b{color:var(--gold)}
+</style>
+</head>
+<body>
+<h1>音效候选对比</h1>
+<div class="sub">
+  每一组先放<b>上一版（游戏里原来那条）</b>，下面是候选。<b class="good">金色左边线</b>是我按客观指标推荐、并且<b>已经装进游戏</b>的那条。<br>
+  建议戴耳机、外放都听一遍——手机小喇叭会把低频全砍掉，别只在小喇叭上判断。
+</div>
+
+<section>
+  <h2>fire<span>直射交火，一次攻击响一次</span></h2>
+  <div class="now">上一版：小森平 shoot3 —— 起振 20ms（真枪约 1ms），动态 14dB，频谱窄带有音调</div>
+  <div class="row"><div class="tag bad">现用</div>
+    <audio controls preload="metadata" src="../assets/sfx/prev/fire.mp3"></audio>
+    <div class="src"><b>shoot3</b> 210ms</div>
+    <div class="stat">起振 <i>20.0</i>ms<br>动态 <i>14.0</i>dB</div></div>
+  <div class="row best"><div class="tag">A ★</div>
+    <audio controls preload="metadata" src="cand/fire_a.mp3"></audio>
+    <div class="src"><b>.22 Magnum 实弹</b> 580ms<br>96kHz 实录裁单发</div>
+    <div class="stat">起振 <i>0.2</i>ms<br>动态 <i>26.0</i>dB</div></div>
+  <div class="row"><div class="tag">B</div>
+    <audio controls preload="metadata" src="cand/fire_b.mp3"></audio>
+    <div class="src"><b>.22 手枪 三连</b> 1150ms<br>实弹连打，有交火感</div>
+    <div class="stat">起振 <i>0.5</i>ms<br>动态 <i>29.7</i>dB</div></div>
+  <div class="row"><div class="tag">C</div>
+    <audio controls preload="metadata" src="cand/fire_d.mp3"></audio>
+    <div class="src"><b>黑火药枪 实弹</b> 900ms<br>更沉、更"老式"</div>
+    <div class="stat">起振 <i>0.5</i>ms<br>动态 <i>25.7</i>dB</div></div>
+  <div class="row"><div class="tag">D</div>
+    <audio controls preload="metadata" src="cand/fire_c.mp3"></audio>
+    <div class="src"><b>Mixkit 连发</b> 173ms<br>影视素材，五连点射</div>
+    <div class="stat">起振 <i>2.7</i>ms<br>动态 <i>22.6</i>dB</div></div>
+</section>
+
+<section>
+  <h2>shell<span>炮击 / 直瞄炮开火</span></h2>
+  <div class="now">上一版：小森平 cannon1 —— 起振 140ms（闷），75% 能量压在 200Hz 以下，没有爆裂感</div>
+  <div class="row"><div class="tag bad">现用</div>
+    <audio controls preload="metadata" src="../assets/sfx/prev/shell.mp3"></audio>
+    <div class="src"><b>cannon1</b> 2351ms</div>
+    <div class="stat">起振 <i>140</i>ms<br>低频 <i>0.69</i></div></div>
+  <div class="row best"><div class="tag">A ★</div>
+    <audio controls preload="metadata" src="cand/shell_a.mp3"></audio>
+    <div class="src"><b>Mixkit 爆炸</b> 2400ms<br>低频冲击 + 宽带爆裂</div>
+    <div class="stat">起振 <i>4.0</i>ms<br>动态 <i>20.1</i>dB</div></div>
+  <div class="row"><div class="tag">B</div>
+    <audio controls preload="metadata" src="cand/shell_b.mp3"></audio>
+    <div class="src"><b>Mixkit 爆炸 长版</b> 3000ms<br>余音更长</div>
+    <div class="stat">起振 <i>4.9</i>ms<br>动态 <i>20.7</i>dB</div></div>
+  <div class="row"><div class="tag">C</div>
+    <audio controls preload="metadata" src="cand/shell_c.mp3"></audio>
+    <div class="src"><b>黑火药枪</b> 1100ms<br>更短，适合速射</div>
+    <div class="stat">起振 <i>1.3</i>ms<br>动态 <i>26.5</i>dB</div></div>
+</section>
+
+<section>
+  <h2>hit<span>命中，一次伤害响一次</span></h2>
+  <div class="now">上一版：小森平 short_bomb —— 动态 11dB，压缩得太狠，打上去没"砸实"的感觉</div>
+  <div class="row"><div class="tag bad">现用</div>
+    <audio controls preload="metadata" src="../assets/sfx/prev/hit.mp3"></audio>
+    <div class="src"><b>short_bomb</b> 609ms</div>
+    <div class="stat">起振 <i>2.2</i>ms<br>动态 <i>11.3</i>dB</div></div>
+  <div class="row best"><div class="tag">A ★</div>
+    <audio controls preload="metadata" src="cand/hit_b.mp3"></audio>
+    <div class="src"><b>Mixkit 爆裂</b> 173ms<br>极短，不拖</div>
+    <div class="stat">起振 <i>2.7</i>ms<br>动态 <i>22.6</i>dB</div></div>
+  <div class="row"><div class="tag">B</div>
+    <audio controls preload="metadata" src="cand/hit_a.mp3"></audio>
+    <div class="src"><b>Mixkit 中段</b> 420ms<br>稍长，有回声</div>
+    <div class="stat">起振 <i>6.4</i>ms<br>动态 <i>20.2</i>dB</div></div>
+  <div class="row"><div class="tag">C</div>
+    <audio controls preload="metadata" src="cand/hit_c.mp3"></audio>
+    <div class="src"><b>Mixkit 扫频</b> 400ms<br>偏"嗖"，不太像命中</div>
+    <div class="stat">起振 <i>2.7</i>ms<br>动态 <i>16.9</i>dB</div></div>
+</section>
+
+<section>
+  <h2>kill<span>歼灭，兵牌被打掉</span></h2>
+  <div class="now">上一版：小森平 game_explosion1 —— 起振 44ms，偏软</div>
+  <div class="row"><div class="tag bad">现用</div>
+    <audio controls preload="metadata" src="../assets/sfx/prev/kill.mp3"></audio>
+    <div class="src"><b>game_explosion1</b> 1152ms</div>
+    <div class="stat">起振 <i>44</i>ms<br>动态 <i>16.2</i>dB</div></div>
+  <div class="row best"><div class="tag">C ★</div>
+    <audio controls preload="metadata" src="cand/kill_c.mp3"></audio>
+    <div class="src"><b>Mixkit 密集</b> 1600ms<br>多爆点，像弹药殉爆</div>
+    <div class="stat">起振 <i>12.3</i>ms<br>动态 <i>20.7</i>dB</div></div>
+  <div class="row"><div class="tag">B</div>
+    <audio controls preload="metadata" src="cand/kill_b.mp3"></audio>
+    <div class="src"><b>Mixkit 大爆炸</b> 3200ms<br>余音长，有"打穿了"的份量</div>
+    <div class="stat">起振 <i>4.0</i>ms<br>动态 <i>21.3</i>dB</div></div>
+  <div class="row"><div class="tag">A</div>
+    <audio controls preload="metadata" src="cand/kill_a.mp3"></audio>
+    <div class="src"><b>Mixkit 中等</b> 2200ms<br>短一些</div>
+    <div class="stat">起振 <i>8.0</i>ms<br>动态 <i>15.5</i>dB</div></div>
+</section>
+
+<section>
+  <h2>alarm<span>敌方预备队投入</span></h2>
+  <div class="now">上一版：小森平 launcher1 —— 像导弹发射，不像警报</div>
+  <div class="row"><div class="tag bad">现用</div>
+    <audio controls preload="metadata" src="../assets/sfx/prev/alarm.mp3"></audio>
+    <div class="src"><b>launcher1</b> 1305ms</div>
+    <div class="stat">起振 <i>8.0</i>ms<br>动态 <i>16.5</i>dB</div></div>
+  <div class="row best"><div class="tag">A ★</div>
+    <audio controls preload="metadata" src="cand/alarm_a.mp3"></audio>
+    <div class="src"><b>Mixkit 警报</b> 1800ms<br>连续的嚎叫，辨识度高</div>
+    <div class="stat">起振 <i>3.3</i>ms<br>动态 <i>16.1</i>dB</div></div>
+  <div class="row"><div class="tag">B</div>
+    <audio controls preload="metadata" src="cand/alarm_b.mp3"></audio>
+    <div class="src"><b>Mixkit 低频轰鸣</b> 2000ms<br>不像警报，像远方炮声</div>
+    <div class="stat">起振 <i>1.3</i>ms<br>动态 <i>13.8</i>dB</div></div>
+</section>
+
+<div class="hint">
+  <b>怎么定：</b>听完告诉我每组选哪个字母，比如「fire 要 B，其余按你标的」。
+  也可以直接说哪里不对——<b>太轻 / 太闷 / 太电子 / 太长 / 声音太干净缺战场噪</b>，我按方向再找。<br>
+  <b>关于"真实"：</b>fire 的 A/B/C 是<b>实弹录音</b>（96kHz 采样，枪口冲击波和混响都是真的），D 是影视素材。
+  shell / kill 目前<b>没有找到真实火炮实录</b>——维基共享资源、archive.org、SoundBible 在国内全部连不上，
+  只能用影视拟音，听感上"像"，但不是真炮。这一条我没法糊弄过去。
+</div>
+</body>
+</html>
