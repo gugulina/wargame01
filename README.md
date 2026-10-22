@@ -137,7 +137,7 @@ game/
   campaign.html         战役级 v3 引擎 + 关卡数据
   campaign-v1-square.html  战役级 v1（方格 / 旅级），对照用
   index.html            战术级引擎 + 关卡数据
-  assets/               素材目录（图片 / 音效 / 音乐 / 立绘），现为空，规范见其 README
+  assets/               素材目录：sfx/ 已填 12 个音效（含 CREDITS.md 与 preview.html），其余待做
 data/
   L3-airport.json       战术级关卡数据导出
 tools/
@@ -237,8 +237,10 @@ $NODE tools/roster.js                            # 重新生成编制表
 
 ## 未实现
 
-- **UI 美化 / 图片素材 / 音乐 / 剧情演出**：接入口已预留（`ASSETS` 素材表 + `FX` 表现层总线 + `LEVEL.story`），
+- **图片素材 / 音乐 / 剧情演出**：接入口已预留（`ASSETS` 素材表 + `FX` 表现层总线 + `LEVEL.story`），
   素材一放就生效，游戏逻辑不用改。规范与推进顺序见 `docs/08-表现层接入.md`
+- **背景音乐**：4 个槽位（menu / battle / tension / result）还没选曲。音效已经接完了，
+  12 个全部就位 —— 来源与授权见 `game/assets/sfx/CREDITS.md`，试听打开 `game/assets/sfx/preview.html`
 - 战役状态跨关卡存续（12 关串联的核心）
 - 战争迷雾（侦察连目前只提供校射加成，没有视野遮蔽）
 - 工兵破桥（架桥已实现，反向操作没做）

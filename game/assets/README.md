@@ -1,7 +1,10 @@
 # 素材目录
 
-这里放游戏用到的图片、音频、字体。目前是空目录（只有这份说明），
-`game/campaign.html` 里的 `ASSETS` 表已经按下面的结构写好了槽位，
+这里放游戏用到的图片、音频、字体。
+
+**当前状态**：`sfx/` 已经填好了 12 个音效（来源与授权见 `sfx/CREDITS.md`，
+试听打开 `sfx/preview.html`）。`ui/`、`unit/`、`fort/`、`bgm/`、`story/` 还是空的，
+`campaign.html` 里的 `ASSETS` 表已经按下面的结构写好了槽位，
 把文件按名字丢进来、再在 `ASSETS` 里填上文件名就能生效，**不需要改任何游戏逻辑**。
 
 ## 目录结构
@@ -11,12 +14,12 @@ game/assets/
   ui/       六角格贴图、要点徽标、按钮图标
   unit/     兵种图标（按 TYPE 的 key 命名）
   fort/     工事图标（H/B/P/A/F）
-  sfx/      短音效
+  sfx/      短音效（12 个已就位）+ CREDITS.md + preview.html
   bgm/      循环音乐
   story/    剧情背景图与立绘
 ```
 
-目录现在不存在是正常的——Git 不跟踪空目录。放第一个文件时顺手建即可。
+空目录不存在是正常的——Git 不跟踪空目录。放第一个文件时顺手建即可。
 
 ## 五条硬规矩
 
@@ -54,10 +57,10 @@ game/assets/
 ## 当前槽位清单
 
 打开 `game/campaign.html` 搜 `const ASSETS`，全部槽位都在那一张表里，带注释。
-`sfx` 十二个槽位：`uiClick select move fire shell hit kill build alarm event win lose`。
-`bgm` 四首：`menu battle tension result`。
-`fort` 五个：`H B P A F`。
-`unit` 二十一个，键名与 `TYPE` 表严格对齐（自测会校验这一点）。
+`sfx` 十二个槽位已全部填好：`uiClick select move fire shell hit kill build alarm event win lose`。
+`bgm` 四首：`menu battle tension result`（未填）。
+`fort` 五个：`H B P A F`（未填）。
+`unit` 二十一个，键名与 `TYPE` 表严格对齐（自测会校验这一点，未填）。
 
 ## 加素材的完整流程
 

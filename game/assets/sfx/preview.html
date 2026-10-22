@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>音效试听 · 岚口要地争夺战</title>
+<style>
+  :root {
+    --bg: #F4F2EC; --card: #FFFFFF; --ink: #2B2A26; --ink2: #6E6B64;
+    --ink3: #9A968C; --line: #E2DED3; --blue: #3A6EA5; --red: #A83A3A;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 20px; background: var(--bg); color: var(--ink);
+    font: 14px/1.6 -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  .sub { color: var(--ink3); font-size: 12.5px; margin-bottom: 16px; }
+  .sub a { color: var(--blue); }
+  .row {
+    display: flex; align-items: center; gap: 12px;
+    background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+    padding: 10px 14px; margin-bottom: 8px;
+  }
+  .key {
+    flex: 0 0 92px; font: 700 12px/1.2 ui-monospace, Consolas, monospace;
+    color: var(--ink2);
+  }
+  .desc { flex: 1; min-width: 0; font-size: 13px; }
+  .desc em { font-style: normal; color: var(--ink3); font-size: 12px; }
+  audio { width: 220px; flex: 0 0 auto; }
+  .note {
+    margin-top: 18px; padding: 14px 16px; border-radius: 10px;
+    background: #FBF7EC; border: 1px solid #EDE2C8; font-size: 12.5px; color: var(--ink2);
+  }
+  @media (max-width: 620px) {
+    .row { flex-wrap: wrap; }
+    .key { flex: 0 0 100%; }
+    audio { width: 100%; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>音效试听</h1>
+  <div class="sub">
+    12 个槽位，对应 <code>ASSETS.sfx</code>。来源与授权见
+    <a href="CREDITS.md">CREDITS.md</a>。
+  </div>
+  <div id="list"></div>
+  <div class="note">
+    <b>怎么换：</b>不满意哪个，把新文件按同名覆盖到 <code>game/assets/sfx/</code> 就行，代码不用动。<br>
+    <b>怎么调音量：</b><code>campaign.html</code> 里 <code>FX.vol = { sfx: 0.65, bgm: 0.35 }</code>。
+  </div>
+</div>
+<script>
+const LIST = [
+  ['uiClick', 'ui-click.ogg', '按钮', '结束阶段 / 重开 / 结算弹窗'],
+  ['select',  'ui-select.ogg', '选中兵牌', '点任意我方兵牌'],
+  ['move',    'ui-move.ogg',   '移动', '一格一次'],
+  ['fire',    'fire.mp3',      '直射开火', '步兵、坦克、直瞄炮攻击'],
+  ['shell',   'shell.mp3',     '炮击', '重炮攻击、要塞炮/岸防炮自动开火'],
+  ['hit',     'hit.mp3',       '命中', '常规伤害'],
+  ['kill',    'kill.mp3',      '歼灭', '任何兵牌被打到 0 战力'],
+  ['build',   'build.ogg',     '工程作业', '构筑工事、布雷、架桥'],
+  ['alarm',   'alarm.mp3',     '敌方增援', '第 4 / 第 7 回合敌方波次进场'],
+  ['event',   'event.ogg',     '剧情事件', '渡口失守、增援抵达等战役事件'],
+  ['win',     'win.ogg',       '达成', '结算：达成 / 超额'],
+  ['lose',    'lose.ogg',      '失败', '结算：任务失败']
+];
+document.getElementById('list').innerHTML = LIST.map(([k, f, name, when]) =>
+  '<div class="row">' +
+    '<div class="key">' + k + '</div>' +
+    '<div class="desc"><b>' + name + '</b>　<em>' + when + '</em><br>' +
+      '<em>' + f + '</em></div>' +
+    '<audio controls preload="metadata" src="' + f + '"></audio>' +
+  '</div>'
+).join('');
+</script>
+</body>
+</html>

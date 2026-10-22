@@ -791,11 +791,22 @@ const ASSETS = {
   /* 工事图标：键名与 FORT 一致，建议 28×28，与格内字母角标二选一 */
   fort: { H: null, B: null, P: null, A: null, F: null },
 
-  /* 音效：短促可重叠，建议 mp3 单声道 64kbps，单条 < 60KB */
+  /* 音效：短促可重叠，建议 mp3 单声道 64kbps，单条 < 60KB
+     当前这一套 = 小森平效果音（军事类）+ Kenney（UI / 撞击 / 短乐句），
+     来源与授权记录在 game/assets/sfx/CREDITS.md */
   sfx: {
-    uiClick: null, select: null, move: null,
-    fire: null, shell: null, hit: null, kill: null,
-    build: null, alarm: null, event: null, win: null, lose: null
+    uiClick: 'sfx/ui-click.ogg',   // 按钮
+    select:  'sfx/ui-select.ogg',  // 选中兵牌
+    move:    'sfx/ui-move.ogg',    // 移动
+    fire:    'sfx/fire.mp3',       // 直射
+    shell:   'sfx/shell.mp3',      // 炮击
+    hit:     'sfx/hit.mp3',        // 命中
+    kill:    'sfx/kill.mp3',       // 歼灭
+    build:   'sfx/build.ogg',      // 构筑工事 / 布雷 / 架桥
+    alarm:   'sfx/alarm.mp3',      // 敌方增援
+    event:   'sfx/event.ogg',      // 剧情事件
+    win:     'sfx/win.ogg',
+    lose:    'sfx/lose.ogg'
   },
 
   /* 音乐：循环轨，建议 ogg 96kbps 或 mp3 128kbps，单条 1~3 分钟 */
@@ -823,12 +834,34 @@ const FX = {
   vol: { sfx: 0.65, bgm: 0.35 },
   stat: { sfx: 0, pop: 0, banner: 0, shake: 0, cutin: 0, bgm: 0 },
 
+  _pool: {},                // 每种音效复用几个实例，避免连续开火时不断 new Audio
+  /* 每种音效最多同时叠几个。炮声有 2 秒尾音，只允许一个：
+     一回合打三炮时宁可后一炮盖掉前一炮，也不要糊成一团噪音 */
+  _max: { shell: 1, alarm: 1, win: 1, lose: 1, kill: 2, default: 3 },
   _bgmEl: null,
   _bgmName: null,
   _csChain: Promise.resolve(),
 
   reset() {
     this.stat = { sfx: 0, pop: 0, banner: 0, shake: 0, cutin: 0, bgm: 0 };
+  },
+
+  /* ── 预加载：进游戏时把音效全拉进内存，别等第一次开火才去下载 ── */
+  preload() {
+    if (typeof Audio === 'undefined') return 0;
+    let n = 0;
+    for (const name of Object.keys(ASSETS.sfx || {})) {
+      const rel = ASSETS.sfx[name];
+      if (!rel || (this._pool[name] && this._pool[name].length)) continue;
+      try {
+        const a = new Audio(ASSETS.base + rel);
+        a.preload = 'auto';
+        a.load();
+        this._pool[name] = [a];
+        n++;
+      } catch (e) {}
+    }
+    return n;
   },
 
   /* ── 清场：重开局时把残留的飘字、横幅、剧情卡收掉 ── */
@@ -841,18 +874,33 @@ const FX = {
     if (cs) { cs.classList.add('hidden'); cs.innerHTML = ''; }
   },
 
-  /* ── 音效：一次性短音，可重叠 ── */
+  /* ── 音效：小池子复用。同一种音效最多同时叠 4 个，
+        连续开火时不会每次都 new Audio（手机上那样会明显卡顿） ── */
   sfx(name) {
     if (!this.on) return;
     this.stat.sfx++;
     const rel = ASSETS.sfx && ASSETS.sfx[name];
     if (!rel || typeof Audio === 'undefined') return;
+    let list = this._pool[name];
+    if (!list) list = this._pool[name] = [];
+    let a = list.find(x => x.paused || x.ended || x.currentTime === 0);
+    const cap = this._max[name] != null ? this._max[name] : this._max.default;
+    if (!a) {
+      if (list.length >= cap) a = list[0];
+      else {
+        try {
+          a = new Audio(ASSETS.base + rel);
+          a.preload = 'auto';
+          list.push(a);
+        } catch (e) { return; }
+      }
+    }
     try {
-      const a = new Audio(ASSETS.base + rel);
+      a.currentTime = 0;
       a.volume = this.vol.sfx;
       const p = a.play();
       if (p && p.catch) p.catch(() => {});
-    } catch (e) { /* 素材损坏 / 浏览器拦截自动播放：静默 */ }
+    } catch (e) { /* 素材损坏 / 自动播放被拦：静默 */ }
   },
 
   /* ── 背景音乐：同名不重播，换曲先停旧的 ── */
@@ -1557,6 +1605,7 @@ function newGame() {
   refreshFields();
   updateControl(true);
   FX.clear();
+  FX.preload();
   FX.bgm('battle');
   document.getElementById('overlay').classList.add('hidden');
   log('秋季 · 天气良好。西部方面军主力正在后撤，岚江东岸只剩预备役部队与第 205 装甲旅。', 'sys');
@@ -1569,6 +1618,7 @@ function newGame() {
 
 /* ───────────────────────── 选择 ───────────────────────── */
 function select(u) {
+  if (u) FX.sfx('select');
   state.selected = u;
   state.mode = null;
   const my = u.side === 'blue' && state.phase === 'blue';
@@ -1615,6 +1665,7 @@ function doMove(u, pos) {
   }
 
   log(u.abbr + ' ' + u.name + ' 机动至 ' + coordName(pos), u.side === 'blue' ? 'b' : 'r');
+  FX.sfx('move');
   if (u.str <= 0) { removeUnit(u); clearSelection(); refreshFields(); render(); checkEnd(); return; }
   clearSelection();
   refreshFields();
@@ -2736,9 +2787,9 @@ setTimeout(hideZhint, 4200);
 boardWrap.addEventListener('touchstart', hideZhint, { passive: true, once: true });
 
 /* ───────────────────────── 事件绑定 ───────────────────────── */
-document.getElementById('btnEnd').addEventListener('click', endBluePhase);
-document.getElementById('btnReset').addEventListener('click', newGame);
-document.getElementById('mBtn').addEventListener('click', newGame);
+document.getElementById('btnEnd').addEventListener('click', () => { FX.sfx('uiClick'); endBluePhase(); });
+document.getElementById('btnReset').addEventListener('click', () => { FX.sfx('uiClick'); newGame(); });
+document.getElementById('mBtn').addEventListener('click', () => { FX.sfx('uiClick'); newGame(); });
 
 newGame();
 /* 首帧之后按屏幕尺寸决定要不要缩放（移动端竖屏会缩到能看清的倍数） */
