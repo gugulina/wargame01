@@ -1,9 +1,6 @@
-# 临时截图与调试脚本
-_s*.png
-_v*.png
-_t*.js
-_e*.png
-_diag.js
+# 临时截图与调试脚本（下划线开头一律忽略）
+_*.png
+_*.js
 __pycache__/
 *.log
 
