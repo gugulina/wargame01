@@ -7,8 +7,12 @@ function stubEl() {
     textContent: '',
     scrollTop: 0,
     scrollHeight: 0,
+    clientWidth: 1200,
+    clientHeight: 600,
     dataset: {},
     addEventListener() {},
+    removeEventListener() {},
+    getBoundingClientRect() { return { left: 0, top: 0, width: 1200, height: 600 }; },
     style: { setProperty() {} },
     classList: { add() {}, remove() {}, toggle() {}, contains() { return false; } },
     querySelectorAll: () => [],
@@ -34,13 +38,23 @@ function loadGame(htmlPath) {
     String,
     Array,
     Object,
+    /* 视图层用到的浏览器 API：Node 下只保证不抛错，不做真实布局 */
+    requestAnimationFrame: (fn) => setTimeout(fn, 0),
+    cancelAnimationFrame: (t) => clearTimeout(t),
+    getComputedStyle: () => ({ paddingLeft: '0px', paddingRight: '0px' }),
     document: {
       getElementById: stubEl,
       querySelector: stubEl,
       querySelectorAll: () => [],
       createElement: stubEl
     },
-    window: { __FAST__: true }
+    window: {
+      __FAST__: true,
+      innerWidth: 1200,
+      innerHeight: 900,
+      addEventListener() {},
+      removeEventListener() {}
+    }
   };
   sandbox.globalThis = sandbox;
   sandbox.window.document = sandbox.document;

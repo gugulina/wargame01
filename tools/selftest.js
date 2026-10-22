@@ -269,5 +269,24 @@ console.log('\n[5] 直瞄火炮');
      pvArt.counter + '/' + pvArt.counterSoft);
 }
 
+/* ───────── 四、地图视图（移动端缩放/平移） ───────── */
+console.log('\n[4] 地图视图');
+{
+  const v = api.view;
+  ok('view 钩子已导出', !!v && typeof v.fitView === 'function');
+
+  const bs = v.boardSize();
+  const expW = L.cols * Math.sqrt(3) * 27 + Math.sqrt(3) * 27 / 2;
+  const expH = (L.rows - 1) * 54 * 0.75 + 54;
+  ok('棋盘尺寸与格子数学一致',
+     Math.abs(bs.w - expW) < 0.01 && Math.abs(bs.h - expH) < 0.01,
+     bs.w.toFixed(1) + '×' + bs.h.toFixed(1));
+
+  /* Node 环境没有 matchMedia，isNarrow 应为 false，桌面不做任何变换 */
+  ok('桌面模式不缩放', v.isNarrow() === false && v.k === 1, 'k=' + v.k);
+  v.fitView(false);
+  ok('桌面调用 fitView 后仍为 1 倍', v.k === 1 && v.x === 0 && v.y === 0);
+}
+
 console.log('\n通过 ' + pass + ' 项，失败 ' + fail + ' 项');
 process.exit(fail ? 1 : 0);

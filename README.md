@@ -82,6 +82,16 @@
 - 选中辎重可「建立补给点」
 - 「结束我方阶段」交给 AI
 
+### 手机
+
+地图是 20×14 格、宽约 960px，屏幕放不下，所以窄屏（≤860px）单独做了一套：
+
+- **进游戏先看全图**，点任意格子会**自动放大到能操作的倍数**并以该格为中心，不用先找缩放按钮
+- **单指拖动**平移，**双指捏合**缩放，右下角 `＋ / － / ⤢ / ◎` 是放大、缩小、回到全图、回到选中单位
+- 竖屏地图在上、面板在下；**横屏自动切成左右布局**，地图能耗满屏幕高度，比竖屏好用
+- 全图状态下地图没有可拖的余量，此时在地图上竖划是滚页面而不是拖地图
+- 缩放/平移只在窄屏生效，桌面端完全按原来的布局走
+
 ## 发布与分享
 
 仓库根目录的 `index.html` 是入口页（两个引擎 + 文档链接），GitHub Pages 直接指到根目录就能出链接。
@@ -130,7 +140,7 @@ data/
   L3-airport.json       战术级关卡数据导出
 tools/
   check.js              语法校验 + 关卡数据合法性（含重叠、兵种代号、指挥链）
-  selftest.js           机制回归：控制权 / 事件 / 工事 / 直瞄 / 装甲，37 项断言
+  selftest.js           机制回归：控制权 / 事件 / 工事 / 直瞄 / 装甲 / 视图，41 项断言
   autoplay.js           战术级批量自战
   autoplay-campaign.js  战役级批量自战（蓝方启发式 AI）
   roster.js             从引擎数据生成编制表
@@ -144,7 +154,7 @@ tools/
 NODE="C:/Users/泽宇/.workbuddy/binaries/node/versions/22.22.2-6/node.exe"
 
 $NODE tools/check.js game/campaign.html          # 校验战役级（含部署重叠 / 指挥链）
-$NODE tools/selftest.js                          # 机制回归（37 项断言，改规则后必跑）
+$NODE tools/selftest.js                          # 机制回归（41 项断言，改规则后必跑）
 $NODE tools/check.js game/index.html             # 校验战术级
 $NODE tools/autoplay-campaign.js game/campaign.html 200
 $NODE tools/autoplay-campaign.js game/campaign.html 1 --verbose   # 单局战报
