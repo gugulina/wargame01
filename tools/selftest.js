@@ -288,5 +288,92 @@ console.log('\n[4] 地图视图');
   ok('桌面调用 fitView 后仍为 1 倍', v.k === 1 && v.x === 0 && v.y === 0);
 }
 
+/* ───────── 六、表现层接口（FX / ASSETS） ───────── */
+console.log('\n[6] 表现层接口');
+{
+  const FX = api.FX, A = api.ASSETS;
+
+  ok('FX 总线已导出', !!FX);
+  for (const m of ['sfx', 'bgm', 'shake', 'pop', 'banner', 'cutin', 'hit', 'clear', 'reset']) {
+    ok('FX.' + m + ' 可用', typeof FX[m] === 'function');
+  }
+
+  ok('ASSETS 已导出且 base 为相对路径',
+     !!A && typeof A.base === 'string' && !A.base.startsWith('/'), A && A.base);
+  const missUnit = Object.keys(api.TYPE).filter(k => !A.unit || !(k in A.unit));
+  ok('兵种素材槽与 TYPE 表一一对齐', missUnit.length === 0, missUnit.join(','));
+  ok('工事素材槽与 FORT 表一一对齐',
+     api.FORT_KEYS.every(k => A.fort && (k in A.fort)));
+
+  /* 素材全为 null 时，调用链必须静默降级而不是抛错 */
+  let threw = null;
+  try {
+    FX.sfx('fire'); FX.bgm('battle'); FX.pop('-3', [3, 3], 'b');
+    FX.banner('测试横幅', 'hi'); FX.shake();
+    FX.hit({ defLoss: 3, attLoss: 1, defPos: [2, 2], attPos: [2, 3], defSide: 'red', attSide: 'blue' });
+  } catch (e) { threw = e; }
+  ok('素材缺失时全部静默降级', threw === null, threw && threw.message);
+
+  /* 一次攻击要走到表现层：音效 + 震屏 + 飘字 */
+  api.newGame();
+  FX.reset();
+  const a = api.alive('blue').find(u => u.type === 'arm');
+  const d = api.alive('red').find(u => api.canCapture(u));
+  d.pos = api.neighbors(a.pos[0], a.pos[1])[0];
+  api.doAttack(a, d);
+  ok('攻击触发音效', FX.stat.sfx >= 1, 'sfx=' + FX.stat.sfx);
+  ok('攻击触发震屏', FX.stat.shake >= 1, 'shake=' + FX.stat.shake);
+  ok('攻击产生伤害飘字', FX.stat.pop >= 1, 'pop=' + FX.stat.pop);
+
+  /* 歼灭在 removeUnit 里统一埋点，任何死亡都要走到 */
+  api.newGame();
+  FX.reset();
+  const a2 = api.alive('blue').find(u => u.type === 'arm');
+  const d2 = api.alive('red').find(u => api.canCapture(u));
+  d2.pos = api.neighbors(a2.pos[0], a2.pos[1])[0];
+  d2.str = 0;
+  api.doAttack(a2, d2);
+  ok('歼灭触发击杀音效与飘字', FX.stat.sfx >= 2 && FX.stat.pop >= 2,
+     'sfx=' + FX.stat.sfx + ' pop=' + FX.stat.pop);
+
+  /* 事件链要同时推横幅 */
+  api.newGame();
+  FX.reset();
+  const st = api.getState();
+  st.turn = 9;
+  api.updateControl(); api.checkEvents();
+  ok('事件触发时推出横幅', FX.stat.banner >= 1 && !!st.eventsDone.crossing_done,
+     'banner=' + FX.stat.banner);
+
+  /* 新增的 effect 类型不应打断事件链 */
+  api.newGame();
+  FX.reset();
+  let threw2 = null;
+  try {
+    api.applyEffect({ kind: 'sfx', name: 'event' });
+    api.applyEffect({ kind: 'banner', text: '效果测试' });
+    api.applyEffect({ kind: 'bgm', name: 'tension' });
+    api.applyEffect({ kind: 'story', id: '不存在的剧情' });
+    api.applyEffect({ kind: 'say', who: '测试', text: '测' });
+  } catch (e) { threw2 = e; }
+  ok('banner/sfx/bgm/say/story 效果不抛错', threw2 === null, threw2 && threw2.message);
+  ok('say 效果进入剧情卡队列', FX.stat.cutin >= 1, 'cutin=' + FX.stat.cutin);
+
+  /* 总开关：关掉后表现层完全不动，规则照跑 */
+  FX.on = false;
+  FX.reset();
+  api.newGame();
+  const a3 = api.alive('blue').find(u => u.type === 'arm');
+  const d3 = api.alive('red').find(u => api.canCapture(u));
+  d3.pos = api.neighbors(a3.pos[0], a3.pos[1])[0];
+  const before = d3.str;
+  api.doAttack(a3, d3);
+  ok('FX.on=false 时表现层完全静默',
+     FX.stat.sfx === 0 && FX.stat.pop === 0 && FX.stat.shake === 0,
+     JSON.stringify(FX.stat));
+  ok('FX.on=false 不影响战斗结算', d3.str <= before, d3.str + ' vs ' + before);
+  FX.on = true;
+}
+
 console.log('\n通过 ' + pass + ' 项，失败 ' + fail + ' 项');
 process.exit(fail ? 1 : 0);

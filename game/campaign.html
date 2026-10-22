@@ -238,7 +238,108 @@
   .modal button { margin-top: 14px; width: 100%; }
 
   /* ───────── 地图视口：桌面端就是普通滚动容器，移动端改由 JS 控制缩放平移 ───────── */
-  #boardView { transform-origin: 0 0; }
+  /* position:relative 是为了让 #fxLayer 与 #board 共用一套局部坐标，
+     飘字不必再关心当前的缩放/平移是多少 */
+  #boardView { transform-origin: 0 0; position: relative; }
+
+  /* ───────── 表现层（FX）：飘字 / 横幅 / 震屏 / 剧情卡 ─────────
+     这一段只负责"长相"，驱动它们的全部是下面 JS 里的 FX 总线。
+     换成美术资源时，改的是 FX 内部实现，不是这里的结构，更不是游戏逻辑。 */
+
+  /* 覆盖在棋盘上方的一层，随 #boardView 一起缩放平移；不吃点击 */
+  #fxLayer {
+    position: absolute; left: 0; top: 0; width: 100%; height: 100%;
+    pointer-events: none; z-index: 25; overflow: visible;
+  }
+
+  .dmgpop {
+    position: absolute; transform: translate(-50%, -50%);
+    font: 700 15px/1 ui-monospace, "SF Mono", Consolas, monospace;
+    color: var(--red); white-space: nowrap;
+    text-shadow: 0 1px 0 #fff, 0 0 7px rgba(255,255,255,.95);
+    animation: popUp .9s cubic-bezier(.2,.8,.3,1) forwards;
+    will-change: transform, opacity;
+  }
+  .dmgpop.b { color: var(--blue); }
+  .dmgpop.sys { color: var(--ink2); font-size: 11.5px; font-weight: 600; }
+  @keyframes popUp {
+    0%   { opacity: 0; transform: translate(-50%, -50%) scale(.72); }
+    16%  { opacity: 1; transform: translate(-50%, -74%) scale(1.1); }
+    100% { opacity: 0; transform: translate(-50%, -150%) scale(1); }
+  }
+
+  /* 震屏：作用在 #board 上，#board 的 transform 没有被 JS 占用 */
+  @keyframes hexShake {
+    0%, 100% { transform: translate(0, 0); }
+    15% { transform: translate(-3px, 2px); }
+    32% { transform: translate(3px, -1px); }
+    48% { transform: translate(-2px, -2px); }
+    64% { transform: translate(2px, 1px); }
+    82% { transform: translate(-1px, 0); }
+  }
+  #board.shake { animation: hexShake .32s ease-out; }
+
+  /* 阶段 / 事件横幅：固定浮层，不占布局，不挡操作 */
+  #bannerHost {
+    position: fixed; left: 50%; top: 13vh; transform: translateX(-50%);
+    z-index: 60; pointer-events: none;
+    display: flex; flex-direction: column; gap: 8px; align-items: center;
+  }
+  .bn {
+    padding: 8px 22px; border-radius: 4px; white-space: nowrap;
+    background: rgba(43,42,38,.88); color: #fff;
+    font-size: 15px; font-weight: 700; letter-spacing: 1px;
+    box-shadow: 0 6px 24px rgba(0,0,0,.22);
+    animation: bnLife 2.5s ease forwards;
+  }
+  .bn.b { background: rgba(58,110,165,.93); }
+  .bn.r { background: rgba(168,58,58,.93); }
+  .bn.hi { background: rgba(120,86,20,.93); }
+  @keyframes bnLife {
+    0%   { opacity: 0; transform: translateY(-14px) scale(.96); }
+    12%  { opacity: 1; transform: translateY(0) scale(1); }
+    80%  { opacity: 1; transform: translateY(0) scale(1); }
+    100% { opacity: 0; transform: translateY(-8px) scale(.98); }
+  }
+
+  /* 剧情卡：立绘 + 说话人 + 台词（打字机）。素材缺失时立绘位显示占位字 */
+  #cutscene {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 80;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(20,19,17,.55); -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px);
+  }
+  #cutscene.hidden { display: none; }
+  .cs-card {
+    width: min(560px, 88vw); background: var(--card); border-radius: 14px;
+    padding: 20px 22px; box-shadow: 0 22px 64px rgba(0,0,0,.38);
+    display: flex; gap: 16px; align-items: flex-start;
+    animation: csIn .26s ease-out;
+  }
+  @keyframes csIn {
+    from { opacity: 0; transform: translateY(10px) scale(.98); }
+    to   { opacity: 1; transform: none; }
+  }
+  .cs-portrait {
+    flex: 0 0 76px; width: 76px; height: 76px; border-radius: 10px;
+    background: #EDE9DF center/cover no-repeat; border: 1px solid var(--line);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--ink3); font-size: 11px; text-align: center; line-height: 1.3;
+  }
+  .cs-body { flex: 1; min-width: 0; }
+  .cs-who {
+    font-size: 12px; font-weight: 700; letter-spacing: 1px;
+    color: var(--blue); margin-bottom: 5px;
+  }
+  .cs-who.r { color: var(--red); }
+  .cs-text {
+    font-size: 14px; line-height: 1.78; min-height: 3.6em;
+    white-space: pre-wrap; word-break: break-word;
+  }
+  .cs-next {
+    margin-top: 12px; text-align: right; font-size: 11.5px; color: var(--ink3);
+    user-select: none; cursor: pointer;
+  }
+  .cs-next:hover { color: var(--ink2); }
 
   /* 缩放手柄：2×2 放在地图右下角，避免竖向占满整个高度 */
   .zctrl {
@@ -291,6 +392,16 @@
 
     .legend { gap: 8px 10px; font-size: 10.5px; padding-top: 6px; }
     .legend .lg-note { margin-left: 0; flex: 0 0 100%; }
+
+    /* 横幅在窄屏要收窄：15px 字号 + 不换行会占掉半张地图 */
+    #bannerHost { top: 13vh; width: 100%; padding: 0 12px; }
+    .bn {
+      font-size: 12.5px; padding: 6px 14px; letter-spacing: .3px;
+      white-space: normal; text-align: center; max-width: 92vw; line-height: 1.5;
+    }
+    .cs-card { padding: 16px 18px; gap: 12px; }
+    .cs-portrait { flex: 0 0 60px; width: 60px; height: 60px; }
+    .cs-text { font-size: 13.5px; line-height: 1.7; }
 
     /* 触摸目标放大 */
     .btns button { min-height: 40px; font-size: 14px; }
@@ -346,7 +457,7 @@
       <span class="pill" id="phasePill">我方阶段</span>
     </div>
     <div id="boardWrap">
-      <div id="boardView"><div id="board"></div></div>
+      <div id="boardView"><div id="board"></div><div id="fxLayer"></div></div>
       <div class="zctrl">
         <button id="zIn" title="放大">＋</button>
         <button id="zOut" title="缩小">－</button>
@@ -397,6 +508,10 @@
     <button id="mBtn">重新开始</button>
   </div>
 </div>
+
+<!-- 表现层容器：不参与布局，全部由 FX 总线填充 -->
+<div id="bannerHost"></div>
+<div id="cutscene" class="hidden"></div>
 
 <script>
 /* ───────────────────────── 地形 ───────────────────────── */
@@ -565,6 +680,27 @@ const LEVEL = {
       ]
     }
   ],
+
+  /* ───────────────────────── 剧情演出（预留位） ─────────────────────────
+     events 管"规则上发生了什么事"，story 管"这段戏该怎么演"，两者分开写。
+     触发方式一：事件效果里写 { kind:'story', id:'briefing' }
+     触发方式二：关卡脚本里直接 FX.cutin({ who, text })
+     每条 beat：{ who, text, side:'blue'|'red', portrait:'portBlue', speed }
+     beats 按顺序一张一张弹，点一下继续，靠 FX._csChain 排队，不会互相叠。
+     没有素材时立绘位显示"立绘位"三个字，台词照常打字机播放。
+     下面是填好的写法示例，默认注释掉——取消注释就能看到效果：
+  story: {
+    briefing: {
+      beats: [
+        { who: '方面军司令部', side: 'blue', portrait: 'portBlue',
+          text: '第 205 装甲旅留下，连同岚口两个预备役旅，务必守住机场与市区。\n主力渡江之后，不会再有人来增援你们。' },
+        { who: '敌第 3 摩托化步兵旅', side: 'red', portrait: 'portRed',
+          text: '先头营已经抵近岚江东岸。他们来不及修工事。' }
+      ]
+    }
+  },
+  */
+
   units: [
     /* 我方 · 岚口预备役第 1 旅（岚口市，要吃「为了祖国」） */
     { id:'B1H', side:'blue', abbr:'1H',   name:'岚口预备役第 1 旅旅部',       type:'hqb', str:2,  mov:8,  rng:0, r:13, c:2,  corps:'B1', wave:1 },
@@ -622,6 +758,240 @@ const LEVEL = {
     { id:'R8A', side:'red',  abbr:'8-1',   name:'敌第 8 摩步旅第 1 营',       type:'mob', str:9,  mov:8,  rng:1, r:0,  c:7,  corps:'R8', wave:0, group:'RED_RESERVE' },
     { id:'R8B', side:'red',  abbr:'8-2',   name:'敌第 8 摩步旅第 2 营',       type:'mob', str:9,  mov:8,  rng:1, r:0,  c:8,  corps:'R8', wave:0, group:'RED_RESERVE' }
   ]
+};
+
+/* ═══════════════════ 资源清单（唯一真源） ═══════════════════
+   以后加美术、音乐、配音、立绘，只改这张表，游戏逻辑一行都不用动。
+   四条约定，都是为了以后少踩坑：
+   1. 路径相对 game/campaign.html，不带前导斜杠
+      → GitHub Pages 的子目录部署、以后 Tauri 打包 exe 都靠这个前提
+   2. 文件名全小写 ASCII + 连字符，禁止中文、空格、大写
+      → Windows 不区分大小写，Pages 的 Linux 区分；混用必然"本地正常、线上 404"
+   3. 值为 null = 素材还没做。FX 会自动静默降级，不报错、不占位、不留破图
+   4. 换 CDN、加版本号，只改 ASSETS.base 一处
+   ══════════════════════════════════════════════════════════════ */
+const ASSETS = {
+  base: 'assets/',
+
+  /* 界面图形：六角格贴图、要点徽标、按钮图标。建议 96×110 与格子同比例 */
+  ui: {
+    hexPlain: null, hexForest: null, hexHill: null, hexTown: null,
+    hexAir: null, hexFord: null, hexRoad: null, hexRiver: null,
+    icCity: null, icAirport: null, icTown: null, icFord: null
+  },
+
+  /* 兵种图标：键名与 TYPE 一一对应，建议 64×64 透明底 PNG/WebP */
+  unit: {
+    inf: null, gdn: null, mob: null, mech: null, arm: null,
+    art: null, hr: null, sha: null, spa: null, at: null,
+    eng: null, engc: null, rec: null, sup: null, avn: null,
+    aac: null, aab: null, hqd: null, hqb: null, hkg: null, hkc: null
+  },
+
+  /* 工事图标：键名与 FORT 一致，建议 28×28，与格内字母角标二选一 */
+  fort: { H: null, B: null, P: null, A: null, F: null },
+
+  /* 音效：短促可重叠，建议 mp3 单声道 64kbps，单条 < 60KB */
+  sfx: {
+    uiClick: null, select: null, move: null,
+    fire: null, shell: null, hit: null, kill: null,
+    build: null, alarm: null, event: null, win: null, lose: null
+  },
+
+  /* 音乐：循环轨，建议 ogg 96kbps 或 mp3 128kbps，单条 1~3 分钟 */
+  bgm: { menu: null, battle: null, tension: null, result: null },
+
+  /* 剧情：背景图与立绘。立绘建议 300×400 竖构图 */
+  story: {
+    bgBriefing: null, bgVictory: null, bgDefeat: null,
+    portBlue: null, portRed: null
+  }
+};
+
+/* ═══════════════════ FX 表现层总线 ═══════════════════
+   游戏逻辑只调 FX.*，绝不直接碰 DOM / Audio / 动画。
+   以后接素材、接粒子、接音频中间件、甚至换渲染引擎，都只改这一层，
+   上层（规则、AI、结算）一个字都不用动。
+
+   设计原则：
+   - 素材缺失 = 静默降级（不抛错、不阻塞逻辑），所以现在一行素材都没有也能跑
+   - 每个方法都自己处理"容器不存在"的情况，方便在 Node 自测环境里空跑
+   - FX.stat 记调用次数，自测靠它验证"这个动作到底有没有走表现层"
+   ═════════════════════════════════════════════════════════ */
+const FX = {
+  on: true,
+  vol: { sfx: 0.65, bgm: 0.35 },
+  stat: { sfx: 0, pop: 0, banner: 0, shake: 0, cutin: 0, bgm: 0 },
+
+  _bgmEl: null,
+  _bgmName: null,
+  _csChain: Promise.resolve(),
+
+  reset() {
+    this.stat = { sfx: 0, pop: 0, banner: 0, shake: 0, cutin: 0, bgm: 0 };
+  },
+
+  /* ── 清场：重开局时把残留的飘字、横幅、剧情卡收掉 ── */
+  clear() {
+    for (const id of ['fxLayer', 'bannerHost']) {
+      const el = document.getElementById(id);
+      if (el) el.innerHTML = '';
+    }
+    const cs = document.getElementById('cutscene');
+    if (cs) { cs.classList.add('hidden'); cs.innerHTML = ''; }
+  },
+
+  /* ── 音效：一次性短音，可重叠 ── */
+  sfx(name) {
+    if (!this.on) return;
+    this.stat.sfx++;
+    const rel = ASSETS.sfx && ASSETS.sfx[name];
+    if (!rel || typeof Audio === 'undefined') return;
+    try {
+      const a = new Audio(ASSETS.base + rel);
+      a.volume = this.vol.sfx;
+      const p = a.play();
+      if (p && p.catch) p.catch(() => {});
+    } catch (e) { /* 素材损坏 / 浏览器拦截自动播放：静默 */ }
+  },
+
+  /* ── 背景音乐：同名不重播，换曲先停旧的 ── */
+  bgm(name) {
+    if (!this.on) return;
+    if (this._bgmName === name) return;
+    this._bgmName = name;
+    const rel = ASSETS.bgm && ASSETS.bgm[name];
+    if (this._bgmEl) { try { this._bgmEl.pause(); } catch (e) {} this._bgmEl = null; }
+    if (!rel || typeof Audio === 'undefined') return;
+    this.stat.bgm++;
+    try {
+      const a = new Audio(ASSETS.base + rel);
+      a.loop = true;
+      a.volume = this.vol.bgm;
+      const p = a.play();
+      if (p && p.catch) p.catch(() => {});
+      this._bgmEl = a;
+    } catch (e) {}
+  },
+
+  /* ── 震屏：打在地图上，不碰 #boardView 的 transform（那是缩放在用的） ── */
+  shake() {
+    if (!this.on) return;
+    this.stat.shake++;
+    const b = document.getElementById('board');
+    if (!b || !b.classList) return;
+    b.classList.remove('shake');
+    void b.offsetWidth;               // 强制重排，让动画能重播
+    b.classList.add('shake');
+    setTimeout(() => { try { b.classList.remove('shake'); } catch (e) {} }, 340);
+  },
+
+  /* ── 飘字：cell 是 [r,c] 六角格坐标，自动换算成像素 ── */
+  pop(text, cell, cls) {
+    if (!this.on || !cell) return;
+    this.stat.pop++;
+    const host = document.getElementById('fxLayer');
+    if (!host) return;
+    const p = hexToPixel(cell[0], cell[1]);
+    const d = document.createElement('div');
+    d.className = 'dmgpop' + (cls ? ' ' + cls : '');
+    d.textContent = String(text);
+    d.style.left = (p.x + HEX_W / 2).toFixed(1) + 'px';
+    d.style.top = (p.y + HEX_H * 0.42).toFixed(1) + 'px';
+    host.appendChild(d);
+    setTimeout(() => { try { d.remove(); } catch (e) {} }, 950);
+  },
+
+  /* ── 横幅：回合、阶段、事件、增援 ── */
+  banner(text, cls, ms) {
+    if (!this.on || !text) return;
+    this.stat.banner++;
+    const host = document.getElementById('bannerHost');
+    if (!host) return;
+    const d = document.createElement('div');
+    d.className = 'bn' + (cls ? ' ' + cls : '');
+    d.textContent = String(text);
+    host.appendChild(d);
+    setTimeout(() => { try { d.remove(); } catch (e) {} }, ms || 2600);
+  },
+
+  /* ── 剧情卡：立绘 + 说话人 + 打字机台词，点击继续 ──
+     排队执行，两段剧情不会叠在一起。
+     以后要换成带配音的演出：把 timer 换成按音频 currentTime 推进即可，
+     调用方（LEVEL 事件 / 关卡脚本）不用改。 */
+  cutin(spec) {
+    if (!this.on || !spec || !spec.text) return Promise.resolve();
+    this.stat.cutin++;
+    this._csChain = this._csChain.then(() => new Promise(done => this._showCutin(spec, done)));
+    return this._csChain;
+  },
+
+  _showCutin(spec, done) {
+    const host = document.getElementById('cutscene');
+    const who = spec.who || '';
+    const sideCls = spec.side === 'red' ? 'r' : '';
+    const port = ASSETS.story[spec.portrait] || null;
+    if (!host) { done(); return; }
+
+    host.innerHTML =
+      '<div class="cs-card">' +
+        '<div class="cs-portrait"' +
+          (port ? ' style="background-image:url(\'' + ASSETS.base + port + '\')"' : '') + '>' +
+          (port ? '' : '立绘位') +
+        '</div>' +
+        '<div class="cs-body">' +
+          (who ? '<div class="cs-who ' + sideCls + '">' + who + '</div>' : '') +
+          '<div class="cs-text" id="csText"></div>' +
+          '<div class="cs-next" id="csNext">点击继续 ▸</div>' +
+        '</div>' +
+      '</div>';
+    host.classList.remove('hidden');
+
+    const txt = document.getElementById('csText');
+    const next = document.getElementById('csNext');
+    const full = String(spec.text);
+    let i = 0, timer = null, closed = false;
+
+    const close = () => {
+      if (closed) return;
+      closed = true;
+      if (timer) { clearInterval(timer); timer = null; }
+      host.classList.add('hidden');
+      host.innerHTML = '';
+      host.removeEventListener('click', onClick);
+      document.removeEventListener('keydown', onKey);
+      done();
+    };
+    const showAll = () => {
+      if (timer) { clearInterval(timer); timer = null; }
+      i = full.length;
+      if (txt) txt.textContent = full;
+      if (next) next.textContent = '点击继续 ▸';
+    };
+    const onClick = () => { if (i < full.length) showAll(); else close(); };
+    const onKey = (e) => { if (e && e.key === 'Escape') close(); };
+
+    host.addEventListener('click', onClick);
+    document.addEventListener('keydown', onKey);
+
+    if (txt) txt.textContent = '';
+    timer = setInterval(() => {
+      i += (spec.speed || 1);
+      if (txt) txt.textContent = full.slice(0, i);
+      if (i >= full.length) { clearInterval(timer); timer = null; }
+    }, 32);
+  },
+
+  /* ── 战斗表现：一个攻击动作的统一出口 ──
+     规则层只报"谁打谁、各掉多少"，怎么响、怎么闪、怎么飘全在这里决定。 */
+  hit(o) {
+    if (!this.on) return;
+    this.sfx(o.defLoss >= 3 ? 'shell' : 'fire');
+    this.shake();
+    if (o.defLoss > 0 && o.defPos) this.pop('-' + o.defLoss, o.defPos, o.defSide === 'blue' ? 'b' : '');
+    if (o.attLoss > 0 && o.attPos) this.pop('-' + o.attLoss, o.attPos, o.attSide === 'blue' ? 'b' : '');
+    if (o.kill) { this.sfx('kill'); this.pop('歼灭', o.killPos, 'sys'); }
+  }
 };
 
 /* ───────────────────────── 六角格数学 ───────────────────────── */
@@ -1108,6 +1478,28 @@ function applyEffect(ef) {
     return;
   }
   if (ef.kind === 'spawn') { spawnGroup(ef.group); return; }
+
+  /* ── 以下四种只影响"看起来怎么样"，不改任何规则数值 ──
+     banner : { kind:'banner', text, cls, ms }      横幅提示
+     sfx    : { kind:'sfx',    name }                音效，键名对应 ASSETS.sfx
+     bgm    : { kind:'bgm',    name }                换背景音乐，键名对应 ASSETS.bgm
+     say    : { kind:'say',    who, text, side, portrait }  单人剧情卡
+     story  : { kind:'story',  id }                  播放 LEVEL.story[id] 的整段演出
+     素材没做时这些效果全部静默跳过，不会卡住事件链、也不会报错 */
+  if (ef.kind === 'banner') { FX.banner(ef.text, ef.cls, ef.ms); return; }
+  if (ef.kind === 'sfx') { FX.sfx(ef.name); return; }
+  if (ef.kind === 'bgm') { FX.bgm(ef.name); return; }
+  if (ef.kind === 'say') {
+    FX.cutin({ who: ef.who, text: ef.text, side: ef.side, portrait: ef.portrait });
+    return;
+  }
+  if (ef.kind === 'story') {
+    const s = (LEVEL.story || {})[ef.id];
+    if (!s || (state.storySeen && state.storySeen[ef.id])) return;
+    if (state.storySeen) state.storySeen[ef.id] = true;
+    for (const beat of (s.beats || [])) FX.cutin(beat);
+    return;
+  }
 }
 
 function checkEvents() {
@@ -1116,6 +1508,8 @@ function checkEvents() {
     if (!triggerMet(ev.when)) continue;
     state.eventsDone[ev.id] = true;
     log('◆ ' + ev.desc, 'hi');
+    FX.banner('◆ ' + ev.desc, 'hi', 3000);
+    FX.sfx('event');
     for (const ef of ev.effects) applyEffect(ef);
   }
 }
@@ -1151,6 +1545,7 @@ function newGame() {
     ctrl: {},            // 要点控制权：持久化
     mods: [],            // 事件产生的常驻修正
     eventsDone: {},      // 已触发事件
+    storySeen: {},       // 已播放过的剧情演出
     everSeen: {},        // 曾进入战场的兵牌（用于判定阵亡）
     initStr: {}          // 各编制初始战力，用于伤亡比例判定
   };
@@ -1161,6 +1556,8 @@ function newGame() {
   }
   refreshFields();
   updateControl(true);
+  FX.clear();
+  FX.bgm('battle');
   document.getElementById('overlay').classList.add('hidden');
   log('秋季 · 天气良好。西部方面军主力正在后撤，岚江东岸只剩预备役部队与第 205 装甲旅。', 'sys');
   log('敌军先头部队已抢在撤退主力之前抵达岚江东岸，目标岚口市与岚口机场。', 'sys');
@@ -1272,6 +1669,14 @@ function doAttack(att, def) {
     }
   }
 
+  /* 表现层：一个攻击动作的统一出口。规则层只说"谁掉多少"，
+     响什么、闪几下、飘什么字，全交给 FX 决定 */
+  FX.hit({
+    defLoss, attLoss,
+    defPos: def.pos.slice(), attPos: att.pos.slice(),
+    defSide: def.side, attSide: att.side
+  });
+
   if (def.str <= 0) { removeUnit(def); }
   if (att.str <= 0) { removeUnit(att); }
 
@@ -1297,6 +1702,9 @@ function retreatDir(from, to) {
 function removeUnit(u) {
   state.units = state.units.filter(x => x !== u);
   log('  ' + u.abbr + ' ' + u.name + ' 被歼灭。', 'hi');
+  /* 所有死亡都走这里，所以歼灭表现只在这一处埋一次 */
+  FX.sfx('kill');
+  FX.pop('歼灭', u.pos.slice(), 'sys');
   updateControl();
 }
 
@@ -1410,6 +1818,8 @@ function doFort(u, pos, kind) {
       '）· 防御 +' + Math.round(spec.def * 100) + '%' +
       (spec.hp ? ' · 耐久 ' + spec.hp : ''),
       u.side === 'blue' ? 'b' : 'r');
+  FX.sfx('build');
+  FX.pop(spec.name, pos.slice(), 'sys');
   clearSelection(); render();
 }
 
@@ -1417,12 +1827,15 @@ function doMine(u, pos) {
   state.mines.push({ r: pos[0], c: pos[1], side: u.side });
   u.moved = true; u.fired = true;
   log(u.abbr + ' 在 ' + coordName(pos) + ' 布设雷区。', u.side === 'blue' ? 'b' : 'r');
+  FX.sfx('build');
+  FX.pop('雷区', pos.slice(), 'sys');
   clearSelection(); render();
 }
 function doClearMine(u, pos) {
   state.mines = state.mines.filter(m => !(m.r === pos[0] && m.c === pos[1]));
   u.moved = true; u.fired = true;
   log(u.abbr + ' 清除了 ' + coordName(pos) + ' 的雷区。', u.side === 'blue' ? 'b' : 'r');
+  FX.sfx('build');
   clearSelection(); render();
 }
 function doBridge(u, pos) {
@@ -1430,6 +1843,8 @@ function doBridge(u, pos) {
   LEVEL.map[pos[0]] = row.substring(0, pos[1]) + '=' + row.substring(pos[1] + 1);
   u.moved = true; u.fired = true;
   log(u.abbr + ' 在 ' + coordName(pos) + ' 架桥，河流变为渡口。', u.side === 'blue' ? 'b' : 'r');
+  FX.sfx('build');
+  FX.pop('架桥', pos.slice(), 'sys');
   clearSelection(); refreshFields(); render();
 }
 function doDepot(u) {
@@ -1481,6 +1896,7 @@ function endBluePhase() {
   if (state.phase !== 'blue' || state.result) return Promise.resolve();
   clearSelection();
   state.phase = 'ai';
+  FX.banner('敌 方 行 动', 'r', 1800);
   render();
   return runAI().then(() => {
     settlePhase();
@@ -1491,6 +1907,7 @@ function endBluePhase() {
     state.units.forEach(u => { u.moved = false; u.fired = false; });
     refreshFields();
     render();
+    FX.banner('第 ' + state.turn + ' 回合 · 我方行动', 'b', 1800);
     checkEnd();
   });
 }
@@ -1523,6 +1940,8 @@ function fortFire() {
     t.org = Math.max(0, t.org - 4);
     log('  ' + FORT[f.kind].name + '（' + coordName([f.r, f.c]) + '）炮击 ' + t.abbr + ' ' +
         t.name + '，损失 ' + spec.fire.dmg + ' 战力。', f.side === 'blue' ? 'b' : 'r');
+    FX.sfx('shell');
+    FX.pop('-' + spec.fire.dmg, t.pos.slice(), t.side === 'blue' ? 'b' : '');
     if (t.str <= 0) removeUnit(t);
   }
 }
@@ -1575,6 +1994,8 @@ function settlePhase() {
     state.flags['wave' + w] = true;
     for (const u of LEVEL.units.filter(x => x.wave === w)) state.units.push(makeUnit(u, true));
     log(WAVE_TEXT[w], 'r');
+    FX.banner(WAVE_TEXT[w], 'r', 3200);
+    FX.sfx('alarm');
   }
 
   refreshFields();
@@ -1623,6 +2044,8 @@ function showOverlay() {
     '<div class="stat"><span>我方剩余战力</span><b>' + now + ' / ' + lost + '</b></div>' +
     '<div class="stat"><span>结束回合</span><b>' + state.turn + '</b></div>';
   el.classList.remove('hidden');
+  FX.bgm('result');
+  FX.sfx(state.result === 'fail' ? 'lose' : 'win');
 }
 
 /* ───────────────────────── 红方 AI ───────────────────────── */
@@ -2348,12 +2771,12 @@ if (typeof location !== 'undefined') {
 
 /* 测试钩子 */
 window.__WAR__ = {
-  LEVEL, TERRAIN, TYPE, CRT, TIER_LABEL,
+  LEVEL, TERRAIN, TYPE, CRT, TIER_LABEL, ASSETS, FX,
   getState: () => state,
   newGame, alive, uid, unitAt, terrainAt, cheb, hexDist, neighbors,
   computeReach, previewAttack, targetsFor, supplyOf, effStr,
   doMove, doAttack, endBluePhase, settlePhase, judgeFinal, render,
-  objectiveControl, ctrlState, updateControl, checkEvents, modAtk, modDef, spawnGroup,
+  objectiveControl, ctrlState, updateControl, checkEvents, applyEffect, modAtk, modDef, spawnGroup,
   fortAt, fortDef, doFort, FORT, FORT_KEYS, fortKindsFor, fortKind, fortReqOk,
   fortFire, fortAlive, fortWorking, fortSuppressed, damageFort, ARM_FIRE,
   isDirectArty, attackRange, aaPenalty, minRange, canCounter,
