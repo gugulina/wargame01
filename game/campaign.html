@@ -190,6 +190,8 @@
   }
   button:hover { opacity: .87; }
   button.ghost { background: #fff; color: var(--ink2); border: 1px solid var(--line); }
+  /* 二次确认态：有存档之后，"重开"一键就能覆盖一局进度，得让它自己喊一声 */
+  button.ghost.danger { background: var(--red-bg); color: var(--red); border-color: #D9B7B7; }
   button:disabled { opacity: .4; cursor: default; }
 
   .ub-head { display: flex; align-items: baseline; gap: 7px; margin-bottom: 2px; }
@@ -236,6 +238,58 @@
   .modal p { color: var(--ink2); font-size: 12.5px; margin: 6px 0; }
   .modal .stat { display: flex; justify-content: space-between; padding: 3px 0; font-size: 12.5px; }
   .modal button { margin-top: 14px; width: 100%; }
+
+  /* ───────── 开始页 ─────────
+     存在的两个理由：① 浏览器要求用户交互后才允许播音频，没有这一步 BGM 永远放不出来；
+     ② 第一次打开的人得先知道自己在打什么，而不是一进来就被 280 个格子糊一脸。 */
+  .start {
+    position: fixed; inset: 0; z-index: 60;
+    display: flex; align-items: center; justify-content: center; padding: 20px;
+    background: radial-gradient(120% 90% at 50% 0%, #FBFAF6 0%, var(--bg) 55%, #ECE9E0 100%);
+    overflow-y: auto;
+  }
+  .start.hidden { display: none; }
+  .start-card {
+    width: min(460px, 100%);
+    background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+    padding: 30px 30px 20px;
+    box-shadow: 0 18px 50px rgba(43,42,38,.10), 0 2px 6px rgba(43,42,38,.04);
+  }
+  .start-kicker {
+    font-size: 10.5px; letter-spacing: 2.4px; text-transform: uppercase;
+    color: var(--ink3); margin-bottom: 10px;
+  }
+  .start-card h1 {
+    margin: 0 0 12px; font-size: 25px; line-height: 1.28;
+    font-weight: 700; letter-spacing: .6px;
+  }
+  .start-lead { margin: 0 0 20px; color: var(--ink2); font-size: 12.5px; line-height: 1.85; }
+  .start-lead b { color: var(--ink); font-weight: 650; }
+  .start-btns { display: flex; flex-direction: column; gap: 8px; }
+  .start-btns button {
+    width: 100%; padding: 11px 14px; border-radius: 8px; font: inherit;
+    font-size: 13.5px; cursor: pointer; border: 1px solid transparent;
+    transition: background .15s, border-color .15s, color .15s;
+  }
+  .start-primary { background: var(--blue); color: #fff; font-weight: 600; }
+  .start-primary:hover { background: #325F8F; }
+  .start-ghost { background: #fff; color: var(--ink2); border-color: var(--line); }
+  .start-ghost:hover { border-color: #CFC9BC; color: var(--ink); }
+  .start-ghost[disabled] { opacity: .45; cursor: default; }
+  .start-ghost[disabled]:hover { border-color: var(--line); color: var(--ink2); }
+  .start-meta { display: block; margin-top: 1px; font-size: 11px; color: var(--ink3); }
+  .start-hint {
+    margin-top: 14px; font-size: 11px; line-height: 1.75; color: var(--ink3);
+  }
+  .start-hint kbd {
+    background: #F1EEE6; border: 1px solid var(--line); border-radius: 3px;
+    padding: 0 4px; font: inherit; font-size: 10.5px; color: var(--ink2);
+  }
+  .start-foot {
+    margin-top: 16px; padding-top: 11px; border-top: 1px solid var(--line);
+    display: flex; justify-content: space-between; gap: 10px;
+    font-size: 10.5px; color: var(--ink3);
+  }
 
   /* ───────── 地图视口：桌面端就是普通滚动容器，移动端改由 JS 控制缩放平移 ───────── */
   /* position:relative 是为了让 #fxLayer 与 #board 共用一套局部坐标，
@@ -379,6 +433,15 @@
     .topbar h1 { font-size: 14px; }
     .topbar .sub { font-size: 11px; }
     .topbar .spacer { flex: 0 0 100%; height: 0; }
+
+    /* 开始页：改 flex-start 而不是居中 —— 内容高于屏幕时居中会把顶部裁掉 */
+    .start { padding: 14px; align-items: flex-start; }
+    .start-card { padding: 22px 18px 16px; margin-top: 4vh; }
+    .start-card h1 { font-size: 21px; }
+    .start-lead { font-size: 12px; line-height: 1.75; }
+    .start-hint { font-size: 10.5px; }
+    .start-foot { flex-wrap: wrap; }
+    .start-btns button { padding: 12px 14px; }
     .pill { font-size: 11px; padding: 2px 8px; }
 
     /* 地图：固定高度，内部由 transform 缩放，禁用原生滚动与页面手势干扰 */
@@ -491,13 +554,42 @@
     </div>
     <div class="btns">
       <button id="btnEnd">结束我方阶段</button>
-      <button id="btnReset" class="ghost" style="flex:0 0 72px">重开</button>
+      <button id="btnReset" class="ghost" style="flex:0 0 88px">重开</button>
     </div>
     <div class="block">
       <div class="block-h">战报</div>
       <div class="log" id="log"></div>
     </div>
   </aside>
+</div>
+
+<!-- 开始页：音频解锁的唯一入口，也是第一次进游戏的信息台。
+     默认 hidden，只有 showStart() 会把它放出来；这样 demo / 自测跳过时不会误显示 -->
+<div class="start hidden" id="startScreen">
+  <div class="start-card">
+    <div class="start-kicker">战役第 3 关 · 防御</div>
+    <h1>岚口要地争夺战</h1>
+    <p class="start-lead">
+      1941 年秋，西部方面军主力正在渡江东撤。岚江东岸只剩岚口预备役部队与第 205 装甲旅，
+      而敌军先头部队已抢在撤退主力之前抵达。没有援军会再来。<br>
+      <b>12 回合</b>内控制 <b>≥ 26 分</b>要点。岚口市与机场各 15 分，青溪镇 10 分，两处渡口各 5 分。
+    </p>
+    <div class="start-btns">
+      <button class="start-primary" id="btnNewGame">开始新的战役</button>
+      <button class="start-ghost" id="btnResume" disabled>
+        继续上次战役
+        <span class="start-meta" id="resumeMeta">没有存档</span>
+      </button>
+    </div>
+    <div class="start-hint">
+      点兵牌选中，再点目标格移动或攻击 · <kbd>结束我方阶段</kbd> 把回合交给敌方 ·
+      手机可单指拖动、双指缩放，点格子会自动放大
+    </div>
+    <div class="start-foot">
+      <span>音效 OpenGameArt (CC0) · Mixkit · Kenney (CC0)</span>
+      <span id="verTag">v3.5</span>
+    </div>
+  </div>
 </div>
 
 <div class="overlay hidden" id="overlay">
@@ -844,6 +936,28 @@ const FX = {
 
   reset() {
     this.stat = { sfx: 0, pop: 0, banner: 0, shake: 0, cutin: 0, bgm: 0 };
+  },
+
+  /* ── 解锁音频：必须在用户手势的同步调用栈里跑 ──
+     浏览器规定没有用户交互就不许播音频，开始页那个按钮的点击就是这次交互。
+     现在 FX 用的是 <audio> 元素，点过之后 play() 本身就放行；
+     这里顺手把 WebAudio 上下文也激活，将来换音效引擎时调用方不用动。 */
+  unlock() {
+    if (this._unlocked) return;
+    this._unlocked = true;
+    try {
+      const AC = (typeof AudioContext !== 'undefined') ? AudioContext
+               : (typeof webkitAudioContext !== 'undefined' ? webkitAudioContext : null);
+      if (!AC) return;
+      const ac = new AC();
+      const buf = ac.createBuffer(1, 1, 22050);
+      const src = ac.createBufferSource();
+      src.buffer = buf;
+      src.connect(ac.destination);
+      src.start(0);
+      if (ac.state === 'suspended') ac.resume();
+      this._ac = ac;
+    } catch (e) {}
   },
 
   /* ── 预加载：进游戏时把音效全拉进内存，别等第一次开火才去下载 ── */
@@ -1573,7 +1687,103 @@ function makeUnit(u, spent) {
   };
 }
 
-function newGame() {
+/* ───────────────────────── 存档 ─────────────────────────
+   只存"会变的东西"：
+   - LEVEL.map 必须存：架桥会就地改写它（见 doBridge），不存的话读回来桥就没了
+   - selected / reachable / targets / mode / fields 都是每帧重算的，不存
+   所有读写包在 try 里：隐私模式、file:// 直开、配额满都可能让 localStorage 抛错。
+   存档失效只该降级成"不能续关"，不该让游戏崩。 */
+const SAVE_KEY = 'wargame.lankou.save';
+const SAVE_VER = 1;      // 关卡数据或 state 结构变了就 +1；旧档自动作废——宁可不续，不能读坏
+
+function saveSnapshot() {
+  if (!state) return null;
+  return {
+    v: SAVE_VER,
+    lv: LEVEL.id,
+    at: Date.now(),
+    turn: state.turn,
+    score: blueScore(),
+    map: LEVEL.map.slice(),
+    units: JSON.parse(JSON.stringify(state.units)),
+    mines: JSON.parse(JSON.stringify(state.mines)),
+    depots: JSON.parse(JSON.stringify(state.depots)),
+    forts: JSON.parse(JSON.stringify(state.forts)),
+    ctrl: { ...state.ctrl },
+    mods: JSON.parse(JSON.stringify(state.mods)),
+    flags: { ...state.flags },
+    eventsDone: { ...state.eventsDone },
+    storySeen: { ...state.storySeen },
+    everSeen: { ...state.everSeen },
+    initStr: { ...state.initStr },
+    log: state.log.slice(-80)     // 战报只留最近 80 条，整局全存会让档越滚越大
+  };
+}
+
+function saveGame() {
+  if (!state || state.result) return false;      // 已分胜负的局不再更新存档
+  try {
+    if (typeof localStorage === 'undefined' || !localStorage) return false;
+    localStorage.setItem(SAVE_KEY, JSON.stringify(saveSnapshot()));
+    return true;
+  } catch (e) { return false; }
+}
+
+/* 读档：任何一项对不上就当没有存档（宁可让玩家重开，也不能载入半个坏局） */
+function readSave() {
+  try {
+    if (typeof localStorage === 'undefined' || !localStorage) return null;
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return null;
+    const s = JSON.parse(raw);
+    if (!s || s.v !== SAVE_VER) return null;
+    if (s.lv !== LEVEL.id) return null;
+    if (!Array.isArray(s.map) || s.map.length !== LEVEL.rows) return null;
+    if (!Array.isArray(s.units) || !s.units.length) return null;
+    return s;
+  } catch (e) { return null; }
+}
+
+function clearSave() {
+  try {
+    if (typeof localStorage !== 'undefined' && localStorage) localStorage.removeItem(SAVE_KEY);
+  } catch (e) {}
+}
+
+function restoreGame(s) {
+  LEVEL.map = s.map.slice();                    // 恢复架桥 / 任何地形改动
+  state = {
+    turn: s.turn,
+    phase: 'blue',                              // 存档只在"我方阶段静止时"写，强制回我方
+    units: JSON.parse(JSON.stringify(s.units)),
+    mines: s.mines || [],
+    depots: s.depots || [],
+    forts: s.forts || [],
+    log: s.log || [],
+    selected: null,
+    reachable: {},
+    targets: [],
+    mode: null,
+    fortKind: 'H',
+    flags: s.flags || {},
+    result: null,
+    fields: { blue: {}, red: {} },
+    ctrl: s.ctrl || {},
+    mods: s.mods || [],
+    eventsDone: s.eventsDone || {},
+    storySeen: s.storySeen || {},
+    everSeen: s.everSeen || {},
+    initStr: s.initStr || {}
+  };
+  refreshFields();
+  updateControl(true);
+  log('已载入存档：第 ' + state.turn + ' 回合，得分 ' + blueScore() + ' / ' + LEVEL.winScore + '。', 'sys');
+  render();
+  fitView(true);
+  return true;
+}
+
+function newGame(opt) {
   state = {
     turn: 1,
     phase: 'blue',
@@ -1614,6 +1824,9 @@ function newGame() {
   log('要点一经占领即持久保有，只有敌军实际占据才会易手；守军前出不会丢城。', 'sys');
   log('守备营在本方城市、机场要点内或相邻格作战时触发「为了祖国」：战力 8 → 9，防御 +0.10。', 'sys');
   render();
+  /* 开局就落一份档，这样"继续上次战役"不会因为还没走第一步而变灰。
+     opt.noSave 给截图 / 自动化跑局用 —— 那些场景不该覆盖玩家进度 */
+  if (!(opt && opt.noSave)) saveGame();
 }
 
 /* ───────────────────────── 选择 ───────────────────────── */
@@ -1666,13 +1879,14 @@ function doMove(u, pos) {
 
   log(u.abbr + ' ' + u.name + ' 机动至 ' + coordName(pos), u.side === 'blue' ? 'b' : 'r');
   FX.sfx('move');
-  if (u.str <= 0) { removeUnit(u); clearSelection(); refreshFields(); render(); checkEnd(); return; }
+  if (u.str <= 0) { removeUnit(u); clearSelection(); refreshFields(); render(); checkEnd(); saveGame(); return; }
   clearSelection();
   refreshFields();
   updateControl();
   checkEvents();
   render();
   checkEnd();
+  saveGame();
 }
 
 function doAttack(att, def) {
@@ -1737,6 +1951,7 @@ function doAttack(att, def) {
   checkEvents();
   render();
   checkEnd();
+  saveGame();
 }
 
 function retreatDir(from, to) {
@@ -1872,6 +2087,7 @@ function doFort(u, pos, kind) {
   FX.sfx('build');
   FX.pop(spec.name, pos.slice(), 'sys');
   clearSelection(); render();
+  saveGame();
 }
 
 function doMine(u, pos) {
@@ -1881,6 +2097,7 @@ function doMine(u, pos) {
   FX.sfx('build');
   FX.pop('雷区', pos.slice(), 'sys');
   clearSelection(); render();
+  saveGame();
 }
 function doClearMine(u, pos) {
   state.mines = state.mines.filter(m => !(m.r === pos[0] && m.c === pos[1]));
@@ -1888,6 +2105,7 @@ function doClearMine(u, pos) {
   log(u.abbr + ' 清除了 ' + coordName(pos) + ' 的雷区。', u.side === 'blue' ? 'b' : 'r');
   FX.sfx('build');
   clearSelection(); render();
+  saveGame();
 }
 function doBridge(u, pos) {
   const row = LEVEL.map[pos[0]];
@@ -1897,12 +2115,14 @@ function doBridge(u, pos) {
   FX.sfx('build');
   FX.pop('架桥', pos.slice(), 'sys');
   clearSelection(); refreshFields(); render();
+  saveGame();
 }
 function doDepot(u) {
   state.depots.push({ side: u.side, r: u.pos[0], c: u.pos[1] });
   u.moved = true; u.fired = true;
   log(u.abbr + ' 在 ' + coordName(u.pos) + ' 建立补给点。', u.side === 'blue' ? 'b' : 'r');
   clearSelection(); refreshFields(); render();
+  saveGame();
 }
 
 /* ───────────────────────── 点击 ───────────────────────── */
@@ -1960,6 +2180,7 @@ function endBluePhase() {
     render();
     FX.banner('第 ' + state.turn + ' 回合 · 我方行动', 'b', 1800);
     checkEnd();
+    saveGame();          // 回合边界是最有价值的存档点：敌方结算完、我方尚未行动
   });
 }
 
@@ -2095,6 +2316,7 @@ function showOverlay() {
     '<div class="stat"><span>我方剩余战力</span><b>' + now + ' / ' + lost + '</b></div>' +
     '<div class="stat"><span>结束回合</span><b>' + state.turn + '</b></div>';
   el.classList.remove('hidden');
+  clearSave();                 // 分胜负了，这一局的存档作废，下次进来是新局
   FX.bgm('result');
   FX.sfx(state.result === 'fail' ? 'lose' : 'win');
 }
@@ -2786,15 +3008,89 @@ function hideZhint() {
 setTimeout(hideZhint, 4200);
 boardWrap.addEventListener('touchstart', hideZhint, { passive: true, once: true });
 
+/* ───────────────────────── 开始页 ─────────────────────────
+   它同时干两件事：① 解锁音频（浏览器要求先有用户交互，否则 BGM 永远放不出来）；
+   ② 在 280 个格子糊一脸之前，先告诉玩家这是哪一场仗、要守到什么时候。 */
+function showStart() {
+  const s = readSave();
+  const btn = document.getElementById('btnResume');
+  const meta = document.getElementById('resumeMeta');
+  if (s) {
+    btn.disabled = false;
+    meta.textContent = '第 ' + s.turn + ' / ' + LEVEL.maxTurns + ' 回合 · 当前 ' +
+                       (s.score == null ? '—' : s.score) + ' 分';
+  } else {
+    btn.disabled = true;
+    meta.textContent = '没有存档';
+  }
+  document.getElementById('startScreen').classList.remove('hidden');
+}
+
+function closeStart() {
+  document.getElementById('startScreen').classList.add('hidden');
+}
+
+function startNew() {
+  closeStart();
+  FX.unlock();              // 必须留在这次点击的同一个调用栈里，脱离手势就解锁不了
+  newGame();
+  fitView(false);
+}
+
+function startResume() {
+  const s = readSave();
+  if (!s) { startNew(); return; }
+  closeStart();
+  FX.unlock();
+  FX.clear();
+  if (!restoreGame(s)) { newGame(); fitView(false); return; }
+  FX.preload();
+  FX.bgm('battle');
+  fitView(true);
+}
+
 /* ───────────────────────── 事件绑定 ───────────────────────── */
 document.getElementById('btnEnd').addEventListener('click', () => { FX.sfx('uiClick'); endBluePhase(); });
-document.getElementById('btnReset').addEventListener('click', () => { FX.sfx('uiClick'); newGame(); });
 document.getElementById('mBtn').addEventListener('click', () => { FX.sfx('uiClick'); newGame(); });
+document.getElementById('btnNewGame').addEventListener('click', startNew);
+document.getElementById('btnResume').addEventListener('click', startResume);
 
-newGame();
-/* 首帧之后按屏幕尺寸决定要不要缩放（移动端竖屏会缩到能看清的倍数） */
-if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => fitView(false));
-else fitView(false);
+/* 重开要点两下。有存档之后误触一次就丢一局进度，不值得 */
+let _resetArm = 0;
+document.getElementById('btnReset').addEventListener('click', (e) => {
+  const btn = e.currentTarget;
+  if (Date.now() > _resetArm) {
+    _resetArm = Date.now() + 3000;
+    btn.textContent = '确认重开';
+    btn.classList.add('danger');
+    setTimeout(() => {
+      if (btn.classList.contains('danger')) {
+        btn.textContent = '重开';
+        btn.classList.remove('danger');
+      }
+    }, 3000);
+    return;
+  }
+  _resetArm = 0;
+  btn.textContent = '重开';
+  btn.classList.remove('danger');
+  FX.sfx('uiClick');
+  newGame();
+});
+
+/* ───────────────────────── 启动 ─────────────────────────
+   demo / nointro / 自动化跑局跳过开始页，并且不写存档 —— 调试不该覆盖玩家进度 */
+function boot() {
+  const q = (typeof location !== 'undefined' && location.search) ? location.search : '';
+  const skip = !!window.__FAST__ || q.indexOf('nointro') >= 0 || q.indexOf('demo=') >= 0;
+  if (skip) { closeStart(); newGame({ noSave: true }); }
+  else showStart();
+  /* 首帧之后按屏幕尺寸决定要不要缩放（移动端竖屏会缩到能看清的倍数） */
+  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => fitView(false));
+  else fitView(false);
+}
+
+boot();
 
 /* 截图 / 演示用锚点 */
 if (typeof location !== 'undefined') {
@@ -2825,10 +3121,14 @@ window.__WAR__ = {
   LEVEL, TERRAIN, TYPE, CRT, TIER_LABEL, ASSETS, FX,
   getState: () => state,
   newGame, alive, uid, unitAt, terrainAt, cheb, hexDist, neighbors,
+  /* 存档：selftest 会用 saveSnapshot / restoreGame 做往返一致性校验 */
+  saveGame, readSave, clearSave, restoreGame, saveSnapshot,
+  SAVE_KEY, SAVE_VER,
   computeReach, previewAttack, targetsFor, supplyOf, effStr,
   doMove, doAttack, endBluePhase, settlePhase, judgeFinal, render,
   objectiveControl, ctrlState, updateControl, checkEvents, applyEffect, modAtk, modDef, spawnGroup,
   fortAt, fortDef, doFort, FORT, FORT_KEYS, fortKindsFor, fortKind, fortReqOk,
+  doMine, doClearMine, doBridge, doDepot,
   fortFire, fortAlive, fortWorking, fortSuppressed, damageFort, ARM_FIRE,
   isDirectArty, attackRange, aaPenalty, minRange, canCounter,
   blueScore, redScore, canCounter, isArty, canCapture,

@@ -8,7 +8,7 @@ const file = process.argv[2] && !process.argv[2].startsWith('-')
   ? path.resolve(process.argv[2])
   : path.join(__dirname, '..', 'game', 'campaign.html');
 
-const { api } = loadGame(file);
+const { api, sandbox } = loadGame(file);
 const L = api.LEVEL;
 
 let pass = 0, fail = 0;
@@ -373,6 +373,85 @@ console.log('\n[6] 表现层接口');
      JSON.stringify(FX.stat));
   ok('FX.on=false 不影响战斗结算', d3.str <= before, d3.str + ' vs ' + before);
   FX.on = true;
+}
+
+/* ───────── 存档 ───────── */
+console.log('\n[13] 存档往返');
+{
+  const LS = sandbox.localStorage;
+  LS.clear();
+
+  api.newGame();
+  ok('开局即建档（"继续"按钮不会空着）', !!api.readSave(), 'save=' + JSON.stringify(!!api.readSave()));
+
+  /* 走一步 → 存 → 读，比对位置 / 得分 / 行动标记 */
+  const bu = api.alive('blue').find(u => u.type === 'gdn');
+  const from = bu.pos.slice();
+  const to = api.neighbors(from[0], from[1]).find(p =>
+    api.terrainAt(p[0], p[1]).cost < 99 && !api.unitAt(p[0], p[1]));
+  api.doMove(bu, to);
+  const scoreA = api.blueScore();
+  const s1 = api.readSave();
+  api.restoreGame(s1);
+  const bu2 = api.uid(bu.id);
+  ok('读档后单位位置一致', !!bu2 && bu2.pos[0] === to[0] && bu2.pos[1] === to[1],
+     bu2 && bu2.pos.join(','));
+  ok('读档后得分一致', api.blueScore() === scoreA, api.blueScore() + ' vs ' + scoreA);
+  ok('读档后"已行动"标记保留', bu2.moved === true);
+
+  /* 地形改动（架桥）必须一起存 —— 这是最容易漏的一项 */
+  api.newGame();
+  const row8 = L.map[8];
+  const riverC = row8.indexOf('~');
+  ok('测试前提：河行存在河流格', riverC >= 0, row8);
+  api.doBridge(api.alive('blue')[0], [8, riverC]);
+  ok('架桥改写了地形', L.map[8][riverC] === '=', L.map[8]);
+  const s2 = api.readSave();
+  ok('存档记录了地形改动', !!s2 && s2.map[8][riverC] === '=');
+  /* 把内存里的桥拆掉，再从档里恢复 */
+  L.map[8] = L.map[8].substring(0, riverC) + '~' + L.map[8].substring(riverC + 1);
+  ok('测试前提：内存中的桥已被拆回', L.map[8][riverC] === '~');
+  api.restoreGame(s2);
+  ok('读档把桥恢复回来', L.map[8][riverC] === '=', L.map[8]);
+
+  /* 工事与雷区属于"玩家自己布的局"，也必须活过读档 */
+  api.newGame();
+  const eng = api.alive('blue').find(u => u.type === 'eng');
+  api.doFort(eng, eng.pos.slice(), 'B');
+  const nf = api.getState().forts.length;
+  api.restoreGame(api.readSave());
+  ok('读档后工事数量一致', api.getState().forts.length === nf, api.getState().forts.length + ' vs ' + nf);
+  ok('读档后工事耐久保留',
+     api.getState().forts.every(f => f.hp === undefined || f.hp <= f.maxHp));
+
+  /* 已分胜负的局不该继续覆盖存档 */
+  api.newGame();
+  api.getState().result = 'win';
+  ok('已分胜负的局不再写档', api.saveGame() === false);
+
+  /* 版本 / 关卡不符一律拒绝，宁可让玩家重开也不能读半个坏局 */
+  api.newGame();
+  const raw = JSON.parse(LS.getItem(api.SAVE_KEY));
+  raw.v = 999;
+  LS.setItem(api.SAVE_KEY, JSON.stringify(raw));
+  ok('版本不符的旧档被拒绝', api.readSave() === null);
+  const raw2 = JSON.parse(LS.getItem(api.SAVE_KEY));
+  raw2.v = api.SAVE_VER; raw2.lv = '别的关卡';
+  LS.setItem(api.SAVE_KEY, JSON.stringify(raw2));
+  ok('关卡不符的档被拒绝', api.readSave() === null);
+
+  api.clearSave();
+  ok('clearSave 之后没有存档', api.readSave() === null);
+
+  /* 降级：隐私模式 / file:// 直开时 localStorage 会抛错，游戏不能因此崩 */
+  api.newGame();
+  const had = sandbox.localStorage;
+  delete sandbox.localStorage;
+  let threw = null, ret = null;
+  try { ret = api.saveGame(); } catch (e) { threw = e; }
+  ok('没有 localStorage 时存档静默失败', threw === null && ret === false, threw && threw.message);
+  ok('没有 localStorage 时读档返回 null', api.readSave() === null);
+  sandbox.localStorage = had;
 }
 
 console.log('\n通过 ' + pass + ' 项，失败 ' + fail + ' 项');

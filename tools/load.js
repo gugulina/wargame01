@@ -32,8 +32,18 @@ function loadGame(htmlPath) {
   if (!m) throw new Error('未找到 <script> 块：' + htmlPath);
   const code = m[1];
 
+  /* localStorage：纯内存实现，只为让存档往返测试能跑通。
+     真实浏览器里隐私模式 / file:// 直开可能直接抛错，代码本身有 typeof 保护，
+     测试端删掉这个属性就能验证降级路径。 */
+  const _ls = {};
   const sandbox = {
     console,
+    localStorage: {
+      getItem: k => (Object.prototype.hasOwnProperty.call(_ls, k) ? _ls[k] : null),
+      setItem: (k, v) => { _ls[k] = String(v); },
+      removeItem: k => { delete _ls[k]; },
+      clear: () => { for (const k of Object.keys(_ls)) delete _ls[k]; }
+    },
     setTimeout,
     setInterval,
     clearTimeout,
