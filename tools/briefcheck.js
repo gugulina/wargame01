@@ -104,7 +104,7 @@ function ok(name, cond, extra) {
 
   console.log('[8] 已进入战场');
   ok('棋盘已渲染', doc.getElementById('board').innerHTML.length > 500);
-  ok('顶栏版本号存在', /v3\.\d/.test(doc.getElementById('verTag').textContent));
+  ok('顶栏版本号存在', /v\d+\.\d+/.test(doc.getElementById('verTag').textContent));
 
   console.log('');
   console.log('通过 ' + pass + ' 项，失败 ' + fail + ' 项');

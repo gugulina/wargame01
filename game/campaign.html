@@ -269,7 +269,20 @@
   .modal h2 { margin: 0 0 6px; font-size: 18px; }
   .modal p { color: var(--ink2); font-size: 12.5px; margin: 6px 0; }
   .modal .stat { display: flex; justify-content: space-between; padding: 3px 0; font-size: 12.5px; }
-  .modal button { margin-top: 14px; width: 100%; }
+  /* 结算按钮组：通关时"下一关"是主按钮，重开降为次要。
+     只做一个按钮盒子的原因——下一关可能还不存在，得能整块消失。 */
+  .m-acts { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+  .m-acts button { width: 100%; margin: 0; }
+  #mNext { background: #2B2A26; color: #FBF9F3; border-color: #2B2A26; font-weight: 600; }
+  #mNext:hover { background: #403E38; }
+  .m-acts #mBtn { order: 2; }        /* 有"下一关"时，重开永远排后面 */
+  .m-acts #mNext { order: 1; }
+  /* .hidden 在这个项目里没有全局规则，只有 .overlay/.start/.brief/#cutscene
+     各自写了专属的 display:none。任何新加的元素挂 class="hidden" 都不会生效——
+     结算面板的"下一关"按钮和下方说明就踩到了这一点（一直显示）。
+     这里补上通用规则：后者更具体的专属规则优先级更高，不受影响。 */
+  .hidden { display: none; }
+  .m-note { font-size: 11.5px; color: var(--ink3); margin: 8px 0 0; text-align: center; }
 
   /* ───────── 操作说明 ─────────
      和结果弹窗共用遮罩，内容更长、可滚动。窄屏单列，宽屏双列。 */
@@ -310,7 +323,7 @@
   }
   .start.hidden { display: none; }
   .start-card {
-    width: min(460px, 100%);
+    width: min(520px, 100%);
     background: var(--card); border: 1px solid var(--line); border-radius: 14px;
     padding: 30px 30px 20px;
     box-shadow: 0 18px 50px rgba(43,42,38,.10), 0 2px 6px rgba(43,42,38,.04);
@@ -325,6 +338,46 @@
   }
   .start-lead { margin: 0 0 20px; color: var(--ink2); font-size: 12.5px; line-height: 1.85; }
   .start-lead b { color: var(--ink); font-weight: 650; }
+
+  /* ───────── 战役线时间轴 ─────────
+     竖排一条线，每关一个节点。刻意不做成一行卡片：
+     卡片并排只表达"有三个关"，纵向时间轴才表达"这是同一场战役的第几天"。
+     圆点的 left 是相对 .lvl-row 算的，负数把它拉回到竖线上——
+     改 padding-left 时这个数要跟着改。 */
+  .lvl-list { position: relative; margin: 0 0 18px; padding-left: 20px; }
+  .lvl-list::before {
+    content: ''; position: absolute; left: 5px; top: 14px; bottom: 14px;
+    width: 1px; background: var(--line);
+  }
+  .lvl-row {
+    position: relative; display: flex; align-items: center; gap: 10px;
+    padding: 8px 9px; border-radius: 8px; border: 1px solid transparent;
+    cursor: pointer; transition: background .12s, border-color .12s;
+  }
+  .lvl-row:hover { background: #FAF8F2; border-color: var(--line); }
+  .lvl-row .dot {
+    position: absolute; left: -20px; top: 14px; width: 11px; height: 11px;
+    border-radius: 50%; background: #fff; border: 2px solid #D3CCBC;
+  }
+  .lvl-row.done .dot { background: var(--blue); border-color: var(--blue); }
+  .lvl-row.cur .dot { border-color: var(--red); box-shadow: 0 0 0 3px rgba(168,58,58,.12); }
+  .lvl-row.locked { cursor: default; opacity: .55; }
+  .lvl-row.locked:hover { background: none; border-color: transparent; }
+  .lvl-main { flex: 1; min-width: 0; }
+  .lvl-head { display: flex; align-items: baseline; gap: 7px; flex-wrap: wrap; }
+  .lvl-head b { font-size: 13px; font-weight: 650; color: var(--ink); }
+  .lvl-head em {
+    font-style: normal; font-size: 10px; letter-spacing: .5px;
+    padding: 1px 5px; border-radius: 3px; background: #F1EEE6; color: var(--ink3);
+  }
+  .lvl-when { margin-top: 2px; font-size: 10.5px; color: var(--ink3); letter-spacing: .3px; }
+  .lvl-teaser { margin-top: 3px; font-size: 11.5px; line-height: 1.55; color: var(--ink2); }
+  .lvl-state {
+    flex: 0 0 auto; font-size: 10.5px; color: var(--ink3);
+    text-align: right; white-space: nowrap; padding-left: 4px;
+  }
+  .lvl-row.cur .lvl-state { color: var(--red); }
+
   .start-btns { display: flex; flex-direction: column; gap: 8px; }
   .start-btns button {
     width: 100%; padding: 11px 14px; border-radius: 8px; font: inherit;
@@ -692,8 +745,8 @@
 <div class="app">
   <main>
     <div class="topbar">
-      <h1>岚口要地争夺战</h1>
-      <span class="sub">战役第 3 关 · 防御</span>
+      <h1 id="lvName">岚口要地争夺战</h1>
+      <span class="sub" id="lvSub">第 3 关 · 防御</span>
       <span class="spacer"></span>
       <span class="pill" id="turnPill">第 1 / 12 回合</span>
       <span class="pill" id="seasonPill">秋季</span>
@@ -750,17 +803,18 @@
      默认 hidden，只有 showStart() 会把它放出来；这样 demo / 自测跳过时不会误显示 -->
 <div class="start hidden" id="startScreen">
   <div class="start-card">
-    <div class="start-kicker">战役第 3 关 · 防御</div>
-    <h1>岚口要地争夺战</h1>
+    <div class="start-kicker">架空兵棋 · 单机战役</div>
+    <h1>苍屿战役</h1>
     <p class="start-lead">
-      1941 年秋，西部方面军主力正在渡江东撤。岚江东岸只剩岚口预备役部队与第 205 装甲旅，
-      而敌军先头部队已抢在撤退主力之前抵达。没有援军会再来。<br>
-      <b>12 回合</b>内控制 <b>≥ 26 分</b>要点。岚口市与机场各 15 分，青溪镇 10 分，两处渡口各 5 分。
+      北部边防在七十二小时内崩溃，西部方面军主力正在渡江东撤。<br>
+      你能指挥的，只有被留下来的人。
     </p>
+    <!-- 战役线时间轴：由 LEVELS 渲染，加一关这里自动多一行 -->
+    <div class="lvl-list" id="lvlList"></div>
     <div class="start-btns">
-      <button class="start-primary" id="btnNewGame">开始新的战役</button>
+      <button class="start-primary" id="btnNewGame">开始推演</button>
       <button class="start-ghost" id="btnResume" disabled>
-        继续上次战役
+        继续上次
         <span class="start-meta" id="resumeMeta">没有存档</span>
       </button>
     </div>
@@ -770,7 +824,7 @@
     </div>
     <div class="start-foot">
       <span>音效 OpenGameArt (CC0) · Mixkit · Kenney (CC0)</span>
-      <span id="verTag">v3.9</span>
+      <span id="verTag">v4.0</span>
     </div>
   </div>
 </div>
@@ -784,7 +838,11 @@
     <h2 id="mTitle">—</h2>
     <p id="mDesc">—</p>
     <div id="mStats"></div>
-    <button id="mBtn">重新开始</button>
+    <div class="m-acts">
+      <button id="mNext" class="hidden">进入下一关</button>
+      <button id="mBtn">重新开始</button>
+    </div>
+    <p class="m-note hidden" id="mNextNote"></p>
   </div>
 </div>
 
@@ -956,9 +1014,63 @@ const CRT = [
 const TIER_LABEL = ['3:1', '2:1', '1.5:1', '1:1', '1:1.5', '1:2', '1:3'];
 
 /* ───────────────────────── 关卡 ───────────────────────── */
-const LEVEL = {
-  id: 'C3',
-  name: '岚口要地争夺战',
+/* ═══════════════════ 关卡数据（多关框架） ═══════════════════
+   每个关卡是一份完整数据表，引擎只认当前那一份（变量 LEVEL）。
+   切关只改 LEVEL 的指向，74 处 LEVEL.xxx 引用一行都不用动。
+
+   元信息字段（前六个是关卡选择页用的，引擎不读）：
+     no      序号，同时决定时间线顺序
+     when    战役时间点。**这是跨关连续性的锚**——关卡选择页按它排成时间轴，
+             玩家一眼能看出"第 1 天 → 第 2 天 → 第 3 天"是同一场战役
+     where   地点
+     type    关卡类型（教学 / 迟滞 / 防御 / 相持 / 进攻 / 终局）
+     teaser  一句话提要，关卡选择页显示
+     ready   false = 只在时间线上占位，地图与编制还没做
+
+     prev    与上一关的衔接。按上一关的结果分叉，newGame 时写进战报。
+             win / fail 各自一句；上一关没打过就不出。
+             **这是"剧情连续"的落点**：不在关卡里硬编码前史，而是由上一关的结果生成。
+
+   地图副本 mapSrc 在下面统一生成。doBridge 会就地改写 LEVEL.map（架桥），
+   所以每局开局必须从 mapSrc 重新拷一份，否则架过的桥会留到下一局。
+*/
+const LEVELS = [
+{
+  /* ── C1 · 占位：元信息已定，地图与编制等制作时再填 ── */
+  id: 'C1', no: 1, name: '北岭哨所', type: '教学',
+  when: '第 1 天 · 10 月 6 日', where: '北岭 · 边防第 3 营哨所',
+  teaser: '边境的第一枪。守住哨所四个回合，把还能走的人都带回来。',
+  ready: false,
+  maxTurns: 4, cols: 10, rows: 8,
+  map: [], objectives: [], events: [], units: [], story: {}
+},
+{
+  /* ── C2 · 占位 ── */
+  id: 'C2', no: 2, name: '青溪渡口', type: '迟滞',
+  when: '第 2 天 · 10 月 7 日', where: '青溪 · 上游渡口',
+  teaser: '主力要过江，渡口必须再撑六个回合。撑不住，岚口就没有侧翼了。',
+  ready: false,
+  maxTurns: 6, cols: 10, rows: 8,
+  map: [], objectives: [], events: [], units: [], story: {}
+},
+{
+  id: 'C3', no: 3, name: '岚口要地争夺战', type: '防御',
+  when: '第 3 天 · 10 月 8 日', where: '岚口 · 岚江东岸',
+  teaser: '主力东撤，你们留下。守住岚口市与机场十二个回合。',
+  ready: true,
+  /* 上一关（青溪渡口）做完之后，这两句才会真的出现在战报里 */
+  prev: {
+    win:  '青溪渡口撑够了六个回合，主力昨夜过江。岚口依然等不到援军。',
+    fail: '青溪渡口提前失守，敌先头部队比预计早了一天抵近岚口。'
+  },
+  /* 开场战报。数据驱动：换一关就换一组，newGame 里不再写死任何本关文案 */
+  intro: [
+    '秋季 · 天气良好。西部方面军主力正在后撤，岚江东岸只剩预备役部队与第 205 装甲旅。',
+    '敌军先头部队已抢在撤退主力之前抵达岚江东岸，目标岚口市与岚口机场。',
+    '任务：12 回合内控制 ≥26 分要点。岚口市 15 分、机场 15 分、青溪镇 10 分、两处渡口各 5 分。',
+    '要点一经占领即持久保有，只有敌军实际占据才会易手；守军前出不会丢城。',
+    '守备营在本方城市、机场要点内或相邻格作战时触发「为了祖国」：战力 7 → 10，防御 +0.20。'
+  ],
   maxTurns: 12,
   cols: 20,
   rows: 14,
@@ -1177,7 +1289,16 @@ const LEVEL = {
     { id:'R8A', side:'red',  abbr:'8-1',   name:'敌第 8 摩步旅第 1 营',       type:'mob', str:9,  mov:8,  rng:1, r:0,  c:7,  corps:'R8', wave:0, group:'RED_RESERVE' },
     { id:'R8B', side:'red',  abbr:'8-2',   name:'敌第 8 摩步旅第 2 营',       type:'mob', str:9,  mov:8,  rng:1, r:0,  c:8,  corps:'R8', wave:0, group:'RED_RESERVE' }
   ]
-};
+}
+];
+
+/* 地图原始副本。doBridge 会就地改写 LEVEL.map，每局开局从 mapSrc 重拷一份，
+   架过的桥才不会留到下一局（这个 bug 在单关时代就存在，多关之后必须修）。 */
+LEVELS.forEach(l => { l.mapSrc = (l.map || []).slice(); });
+
+/* 当前关卡。默认进最后一个已制作的关——开发期这样最省事：
+   新关做到一半不 ready，也不会把玩家扔进空地图。 */
+let LEVEL = LEVELS.filter(l => l.ready).slice(-1)[0] || LEVELS[0];
 
 /* ═══════════════════ 资源清单（唯一真源） ═══════════════════
    以后加美术、音乐、配音、立绘，只改这张表，游戏逻辑一行都不用动。
@@ -2137,6 +2258,97 @@ function makeUnit(u, spent) {
 const SAVE_KEY = 'wargame.lankou.save';
 const SAVE_VER = 2;      // v2：加 packed（火炮展收状态）与射程换算，旧档直接作废
 
+/* ───────────────────────── 战役进度 ─────────────────────────
+   和局内存档（SAVE_KEY）是两层东西，必须分开存：
+   - SAVE_KEY    "这一局现在打成什么样"。回合中反复覆盖，分胜负立刻 clearSave()。
+   - PROGRESS_KEY "整条战役走到哪一关"。只增不减，一局打完不能被清掉。
+   混在一起的后果很实在：通关会 clearSave()，如果进度也写在那份档里，
+   玩家一通关进度就跟着没了，下次进来又回到第一关。
+
+   失败不入账。理由：失败后关卡仍然可以重打，把它记成"已通关"会让
+   后面的关卡提前解锁，玩家进下一关会看到一堆没讲过的剧情。 */
+const PROGRESS_KEY = 'wargame.campaign.progress';
+
+function readProgress() {
+  const empty = { cleared: {}, played: {}, last: null };
+  try {
+    if (typeof localStorage === 'undefined' || !localStorage) return empty;
+    const raw = localStorage.getItem(PROGRESS_KEY);
+    if (!raw) return empty;
+    const p = JSON.parse(raw);
+    if (!p || typeof p !== 'object') return empty;
+    return {
+      cleared: (p.cleared && typeof p.cleared === 'object') ? p.cleared : {},
+      played:  (p.played  && typeof p.played  === 'object') ? p.played  : {},
+      last: typeof p.last === 'string' ? p.last : null
+    };
+  } catch (e) { return empty; }
+}
+
+function writeProgress(p) {
+  try {
+    if (typeof localStorage === 'undefined' || !localStorage) return false;
+    localStorage.setItem(PROGRESS_KEY, JSON.stringify(p));
+    return true;
+  } catch (e) { return false; }
+}
+
+/* 记录一局的结局。cleared 与 played 是两种用途，别合并：
+   - cleared 决定"下一关能不能进"，只记通关
+   - played  决定"下一关开场引用哪句前情"，失败也要记
+   合并的后果：青溪渡口打输了也解锁岚口，玩家会看到一段"渡口失守"的前情，
+   却不知道自己什么时候打过那一关。 */
+function markResult(lvId, result) {
+  if (!lvId || !result) return;
+  const p = readProgress();
+  p.played[lvId] = result;
+  /* 只升不降：先达成 win、后来重打只拿到 fail，不该把通关记录抹掉 */
+  if (result !== 'fail' && (!p.cleared[lvId] || result === 'perfect')) p.cleared[lvId] = result;
+  p.last = lvId;
+  writeProgress(p);
+}
+
+function levelById(lvId) { return LEVELS.find(l => l.id === lvId) || null; }
+
+/* 解锁规则：前面最近的一个"已制作"关卡必须已通关。
+   中间没做出来的关跳过不看——所以现在只有 C3 可玩时它自己就是第一关。
+   返回 { ok, why }：why 给关卡选择页显示"先通过 XX"用 */
+function levelAccess(lvId) {
+  const lv = levelById(lvId);
+  if (!lv) return { ok: false, why: '没有这一关' };
+  if (!lv.ready) return { ok: false, why: '制作中' };
+  const p = readProgress();
+  const idx = LEVELS.indexOf(lv);
+  for (let k = idx - 1; k >= 0; k--) {
+    const pre = LEVELS[k];
+    if (!pre.ready) continue;
+    if (!p.cleared[pre.id]) return { ok: false, why: '先通过「' + pre.name + '」' };
+    return { ok: true, why: '' };
+  }
+  return { ok: true, why: '' };
+}
+
+/* 前一个已制作的关卡：既是"解锁前置"，也是 prev 衔接文字的来源 */
+function prevReadyLevel(lvId) {
+  const lv = levelById(lvId);
+  if (!lv) return null;
+  for (let k = LEVELS.indexOf(lv) - 1; k >= 0; k--) {
+    if (LEVELS[k].ready) return LEVELS[k];
+  }
+  return null;
+}
+
+/* 下一个已制作的关卡。没有就返回 null —— 关卡选择页与结算面板据此
+   把"进入下一关"整块藏掉，而不是留一个点不动的灰按钮。 */
+function nextReadyLevel(lvId) {
+  const lv = levelById(lvId);
+  if (!lv) return null;
+  for (let k = LEVELS.indexOf(lv) + 1; k < LEVELS.length; k++) {
+    if (LEVELS[k].ready) return LEVELS[k];
+  }
+  return null;
+}
+
 function saveSnapshot() {
   if (!state) return null;
   return {
@@ -2170,7 +2382,10 @@ function saveGame() {
   } catch (e) { return false; }
 }
 
-/* 读档：任何一项对不上就当没有存档（宁可让玩家重开，也不能载入半个坏局） */
+/* 读档：任何一项对不上就当没有存档（宁可让玩家重开，也不能载入半个坏局）
+   多关之后多一层校验：档里记的是哪一关，就用那一关的尺寸去核对，
+   而不是拿"当前 LEVEL"去比——否则从 C3 的档回到选择页、指针停在 C1 时，
+   一个本来完好的档会被判成损坏。 */
 function readSave() {
   try {
     if (typeof localStorage === 'undefined' || !localStorage) return null;
@@ -2178,9 +2393,11 @@ function readSave() {
     if (!raw) return null;
     const s = JSON.parse(raw);
     if (!s || s.v !== SAVE_VER) return null;
-    if (s.lv !== LEVEL.id) return null;
-    if (!Array.isArray(s.map) || s.map.length !== LEVEL.rows) return null;
+    const lv = levelById(s.lv);
+    if (!lv || !lv.ready) return null;
+    if (!Array.isArray(s.map) || s.map.length !== lv.rows) return null;
     if (!Array.isArray(s.units) || !s.units.length) return null;
+    s._level = lv;
     return s;
   } catch (e) { return null; }
 }
@@ -2192,7 +2409,11 @@ function clearSave() {
 }
 
 function restoreGame(s) {
+  /* 先切关：档里记的关卡就是指针该指的关卡。顺序不能反——
+     下面的 render / refreshFields 全都按 LEVEL 算，切晚了会按错地图画一帧。 */
+  if (s._level && s._level !== LEVEL) LEVEL = s._level;
   LEVEL.map = s.map.slice();                    // 恢复架桥 / 任何地形改动
+  syncLevelHeader();
   state = {
     turn: s.turn,
     phase: 'blue',                              // 存档只在"我方阶段静止时"写，强制回我方
@@ -2298,7 +2519,26 @@ function doUndo() {
   return true;
 }
 
+/* 顶栏关卡名跟着 LEVEL 走。单关时代这两行是写死在 HTML 里的，
+   多关之后不跟着换，玩家打到第 2 关顶栏还写着"岚口要地争夺战"。 */
+function syncLevelHeader() {
+  const n = document.getElementById('lvName');
+  const s = document.getElementById('lvSub');
+  if (n) n.textContent = LEVEL.name;
+  if (s) s.textContent = '第 ' + LEVEL.no + ' 关 · ' + LEVEL.type + ' · ' + LEVEL.when;
+  if (document && document.title) document.title = LEVEL.name + ' · 苍屿战役';
+}
+
 function newGame(opt) {
+  /* 指定关卡就先切指针。LEVEL 一换，下面所有计算自动按新关走。 */
+  if (opt && opt.level) {
+    const lv = levelById(opt.level);
+    if (lv && lv.ready) LEVEL = lv;
+  }
+  /* 地图回到原始状态。doBridge 会就地改写 LEVEL.map，不重置的话
+     上一局架过的桥会留到这一局——单关时代就一直有这个坑，只是没人注意到。 */
+  LEVEL.map = (LEVEL.mapSrc || LEVEL.map).slice();
+  syncLevelHeader();
   state = {
     turn: 1,
     phase: 'blue',
@@ -2334,11 +2574,17 @@ function newGame(opt) {
   FX.preload();
   FX.bgm('battle');
   document.getElementById('overlay').classList.add('hidden');
-  log('秋季 · 天气良好。西部方面军主力正在后撤，岚江东岸只剩预备役部队与第 205 装甲旅。', 'sys');
-  log('敌军先头部队已抢在撤退主力之前抵达岚江东岸，目标岚口市与岚口机场。', 'sys');
-  log('任务：12 回合内控制 ≥' + LEVEL.winScore + ' 分要点。岚口市 15 分、机场 15 分、青溪镇 10 分、两处渡口各 5 分。', 'sys');
-  log('要点一经占领即持久保有，只有敌军实际占据才会易手；守军前出不会丢城。', 'sys');
-  log('守备营在本方城市、机场要点内或相邻格作战时触发「为了祖国」：战力 7 → 10，防御 +0.20。', 'sys');
+  /* ── 开场战报：时间点 → 前情 → 本关引导 ──
+     前情只在这两关都打过时才出。玩家从关卡选择页直接跳到这一关时，
+     不该看到"上一关失守"这种他压根没经历过的事。 */
+  log('【' + LEVEL.when + ' · ' + LEVEL.where + '】', 'hi');
+  const preLv = prevReadyLevel(LEVEL.id);
+  if (preLv) {
+    const res = readProgress().played[preLv.id];
+    const line = res ? ((LEVEL.prev || {})[res === 'fail' ? 'fail' : 'win'] || '') : '';
+    if (line) log('前情 · ' + line, 'hi');
+  }
+  for (const line of (LEVEL.intro || [])) log(line, 'sys');
   render();
   /* 开局就落一份档，这样"继续上次战役"不会因为还没走第一步而变灰。
      opt.noSave 给截图 / 自动化跑局用 —— 那些场景不该覆盖玩家进度 */
@@ -2911,6 +3157,28 @@ function showOverlay() {
     '<div class="stat"><span>要点得分</span><b>' + sc + ' / ' + LEVEL.winScore + '</b></div>' +
     '<div class="stat"><span>我方剩余战力</span><b>' + now + ' / ' + lost + '</b></div>' +
     '<div class="stat"><span>结束回合</span><b>' + state.turn + '</b></div>';
+
+  /* 写战役进度。失败只记 played 不解锁——下一关的开场会因此引用"失守"那句前情 */
+  markResult(LEVEL.id, state.result);
+
+  /* 下一关：只有通关后才给。失败时直接藏掉，连提示都不出——
+     这一关都还没过，谈下一关是打扰。 */
+  const mNext = document.getElementById('mNext');
+  const mNote = document.getElementById('mNextNote');
+  const nxt = nextReadyLevel(LEVEL.id);
+  if (state.result !== 'fail' && nxt) {
+    mNext.classList.remove('hidden');
+    mNext.textContent = '进入第 ' + nxt.no + ' 关 · ' + nxt.name;
+    mNote.classList.add('hidden');
+  } else if (state.result !== 'fail') {
+    mNext.classList.add('hidden');
+    mNote.textContent = '本关之后的内容还在制作中。';
+    mNote.classList.remove('hidden');
+  } else {
+    mNext.classList.add('hidden');
+    mNote.classList.add('hidden');
+  }
+
   el.classList.remove('hidden');
   clearSave();                 // 分胜负了，这一局的存档作废，下次进来是新局
   FX.bgm('result');
@@ -3801,13 +4069,56 @@ async function runBriefing() {
   hide();
 }
 
+/* ───────────────────────── 战役线选择页 ─────────────────────────
+   "开始推演"该进哪一关：第一个可玩且还没通关的；全通了就回最后一关。
+   这样新玩家从第一关起步、老玩家能重打最后一关，谁都不会被扔进空地图。 */
+function recommendLevel() {
+  const p = readProgress();
+  const ready = LEVELS.filter(l => l.ready);
+  if (!ready.length) return null;
+  const fresh = ready.find(l => !p.cleared[l.id] && levelAccess(l.id).ok);
+  return fresh || ready[ready.length - 1];
+}
+
+/* 渲染时间轴。全部由 LEVELS 生成，不写死任何一个关名——
+   以后加关卡只加数据，这里自动多一行。 */
+function renderLevelList() {
+  const host = document.getElementById('lvlList');
+  if (!host) return;
+  const p = readProgress();
+  const rec = recommendLevel();
+  host.innerHTML = LEVELS.map(lv => {
+    const acc = levelAccess(lv.id);
+    const done = !!p.cleared[lv.id];
+    const cls = ['lvl-row'];
+    if (done) cls.push('done');
+    if (rec && rec.id === lv.id) cls.push('cur');
+    if (!acc.ok) cls.push('locked');
+    const stateTxt = done ? (p.cleared[lv.id] === 'perfect' ? '超额达成' : '已达成')
+                  : !lv.ready ? '制作中'
+                  : acc.ok ? '进入'
+                  : '未解锁';
+    return '<div class="' + cls.join(' ') + '" data-lv="' + lv.id + '">' +
+      '<i class="dot"></i>' +
+      '<div class="lvl-main">' +
+        '<div class="lvl-head"><b>第 ' + lv.no + ' 关 · ' + lv.name + '</b><em>' + lv.type + '</em></div>' +
+        '<div class="lvl-when">' + lv.when + ' · ' + lv.where + '</div>' +
+        '<div class="lvl-teaser">' + lv.teaser + '</div>' +
+      '</div>' +
+      '<div class="lvl-state">' + stateTxt + '</div>' +
+    '</div>';
+  }).join('');
+}
+
 function showStart() {
+  renderLevelList();
   const s = readSave();
   const btn = document.getElementById('btnResume');
   const meta = document.getElementById('resumeMeta');
   if (s) {
+    const lv = s._level || LEVEL;
     btn.disabled = false;
-    meta.textContent = '第 ' + s.turn + ' / ' + LEVEL.maxTurns + ' 回合 · 当前 ' +
+    meta.textContent = lv.name + ' · 第 ' + s.turn + ' / ' + lv.maxTurns + ' 回合 · ' +
                        (s.score == null ? '—' : s.score) + ' 分';
   } else {
     btn.disabled = true;
@@ -3820,28 +4131,62 @@ function closeStart() {
   document.getElementById('startScreen').classList.add('hidden');
 }
 
-async function startNew() {
+/* 进入某一关的唯一入口：选择页的行、结算面板的"下一关"、URL 参数全走这里。
+   三条路各写一套的话，"过场播不播""旧存档清不清"迟早会不一致。 */
+async function enterLevel(lvId, opt) {
+  const lv = levelById(lvId);
+  if (!lv) return false;
+  const acc = levelAccess(lvId);
+  if (!acc.ok) return false;
+  LEVEL = lv;
   closeStart();
-  FX.unlock();              // 必须留在这次点击的同一个调用栈里，脱离手势就解锁不了
-  /* 过场演出再好看也只是壳，它抛错绝不能把开局一起拽下来 */
-  try { await runBriefing(); } catch (e) { /* 静默降级：直接开局 */ }
-  newGame();
+  document.getElementById('overlay').classList.add('hidden');
+  try { FX.unlock(); } catch (e) {}   // 必须留在这次点击的同一个调用栈里
+  /* 过场再好看也只是壳，它抛错绝不能把开局一起拽下来 */
+  if (!(opt && opt.noIntro)) {
+    try { await runBriefing(); } catch (e) { /* 静默降级：直接开局 */ }
+  }
+  newGame({ level: lvId, noSave: !!(opt && opt.noSave) });
   fitView(false);
+  return true;
 }
 
-function startResume() {
+async function startNew() {
+  const lv = recommendLevel();
+  if (!lv) return;
+  await enterLevel(lv.id);
+}
+
+async function startResume() {
   const s = readSave();
-  if (!s) { startNew(); return; }
+  if (!s) { await startNew(); return; }
+  const lv = s._level || LEVEL;
+  if (!levelAccess(lv.id).ok) { await startNew(); return; }
+  LEVEL = lv;
   closeStart();
   FX.unlock();
   FX.clear();
-  if (!restoreGame(s)) { newGame(); fitView(false); return; }
+  if (!restoreGame(s)) { newGame({ level: lv.id }); fitView(false); return; }
   FX.preload();
   FX.bgm('battle');
   fitView(true);
 }
 
 /* ───────────────────────── 事件绑定 ───────────────────────── */
+/* 时间轴整行可点。锁定行点了什么都不做——状态文字已经写着"制作中 / 未解锁"，
+   再弹一个提示只是噪音。 */
+document.getElementById('lvlList').addEventListener('click', e => {
+  const row = e.target.closest('.lvl-row');
+  if (!row || row.classList.contains('locked')) return;
+  FX.sfx('uiClick');
+  enterLevel(row.getAttribute('data-lv'));
+});
+/* 结算面板的"下一关"。按钮只在通关且下一关存在时才显示，所以这里不用再判一次 */
+document.getElementById('mNext').addEventListener('click', () => {
+  FX.sfx('uiClick');
+  const nxt = nextReadyLevel(LEVEL.id);
+  if (nxt) enterLevel(nxt.id);
+});
 document.getElementById('btnEnd').addEventListener('click', () => { FX.sfx('uiClick'); endBluePhase(); });
 document.getElementById('btnUndo').addEventListener('click', () => { doUndo(); });
 document.getElementById('mBtn').addEventListener('click', () => { FX.sfx('uiClick'); newGame(); });
@@ -3906,7 +4251,13 @@ document.getElementById('btnReset').addEventListener('click', (e) => {
    demo / nointro / 自动化跑局跳过开始页，并且不写存档 —— 调试不该覆盖玩家进度 */
 function boot() {
   const q = (typeof location !== 'undefined' && location.search) ? location.search : '';
-  const skip = !!window.__FAST__ || q.indexOf('nointro') >= 0 || q.indexOf('demo=') >= 0;
+  /* ?lv=C3 直达某一关。语义就是"分享这一关"，所以一并跳过开始页 */
+  const m = /[?&]lv=([A-Za-z0-9_-]+)/.exec(q);
+  if (m) {
+    const lv = levelById(m[1]);
+    if (lv && lv.ready) LEVEL = lv;
+  }
+  const skip = !!window.__FAST__ || !!m || q.indexOf('nointro') >= 0 || q.indexOf('demo=') >= 0;
   if (skip) { closeStart(); newGame({ noSave: true }); }
   else showStart();
   /* 首帧之后按屏幕尺寸决定要不要缩放（移动端竖屏会缩到能看清的倍数） */
@@ -4000,7 +4351,14 @@ if (typeof location !== 'undefined') {
 
 /* 测试钩子 */
 window.__WAR__ = {
-  LEVEL, TERRAIN, TYPE, CRT, TIER_LABEL, ASSETS, FX,
+  /* LEVEL 用 getter 而不是值拷贝：切关之后 __WAR__.LEVEL 必须跟着变，
+     否则自测与自动化读到的永远是初始那一关，切关的 bug 一条都测不出来 */
+  get LEVEL() { return LEVEL; },
+  TERRAIN, TYPE, CRT, TIER_LABEL, ASSETS, FX,
+  /* 多关框架 */
+  LEVELS, levelById, levelAccess, prevReadyLevel, nextReadyLevel,
+  recommendLevel, readProgress, writeProgress, markResult, enterLevel, renderLevelList,
+  PROGRESS_KEY,
   getState: () => state,
   newGame, alive, uid, unitAt, terrainAt, cheb, hexDist, neighbors,
   /* 存档：selftest 会用 saveSnapshot / restoreGame 做往返一致性校验 */
