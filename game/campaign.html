@@ -166,10 +166,20 @@
     background: rgba(0,0,0,.28); border-radius: 2px; overflow: hidden;
   }
   .unit .orgbar i { display: block; height: 100%; background: rgba(255,255,255,.85); }
-  /* 堆叠：一格两支时斜向错开、各缩到 74%，栈顶压在右下 */
-  .unit.stk { position: absolute; transform: scale(.74); }
-  .unit.stk0 { left: -3px; top: 2px; z-index: 3; }
-  .unit.stk1 { left: 19px; top: 20px; z-index: 4; }
+  /* 堆叠：一格两支时上下排成一列（不是斜向错开——斜向会让右下那支越界，
+     看起来像站在相邻格上）。同一条中轴、各缩到 72%，一眼就是"一摞"。 */
+  .unit.stk { position: absolute; transform: scale(.72); }
+  .unit.stk0 { left: 7px; top: 2px; z-index: 3; }
+  .unit.stk1 { left: 7px; top: 20px; z-index: 4; }
+  /* 堆叠数量角标：放右侧中段。不能放右上角——尖顶六边形的角落在 clip-path
+     之外，会被直接裁掉（踩过一次，只露出一条黑边）。 */
+  .stackTag {
+    position: absolute; left: auto; right: 1px; top: 21px;
+    padding: 0 3px; height: 11px; border-radius: 6px;
+    background: rgba(31,30,26,.80); color: #fff;
+    font-size: 8.5px; font-weight: 800; line-height: 11px;
+    z-index: 7; pointer-events: none; letter-spacing: 0; white-space: nowrap;
+  }
 
   .oLabel {
     position: absolute; z-index: 5; pointer-events: none;
@@ -635,7 +645,7 @@
     </div>
     <div class="start-foot">
       <span>音效 OpenGameArt (CC0) · Mixkit · Kenney (CC0)</span>
-      <span id="verTag">v3.6</span>
+      <span id="verTag">v3.6.1</span>
     </div>
   </div>
 </div>
@@ -664,10 +674,11 @@
 
     <h3>过河：堆叠与穿行</h3>
     <ul>
-      <li>一条河只有 4 格渡口，所以<b>一格最多堆 2 支同阵营部队</b>。</li>
-      <li>有友军挡路的格子<b>可以穿过去</b>（淡蓝色），只是不能停下——因为堆满 2 支了。</li>
+      <li><b>怎么堆：先点自己的部队选中，再点目标友军格。</b>只要那格还没满 2 支，点下去就是「移动过去堆叠」，不会再变成切换选中。</li>
+      <li>一条河只有 4 格渡口，所以<b>一格最多堆 2 支同阵营部队</b>。堆满的那格会显示 <b>×2</b> 角标。</li>
+      <li>有友军挡路的格子<b>可以穿过去</b>（淡蓝色），只是不能停下——这一格已经堆满了。</li>
       <li>堆叠格会被当成一个目标挨打，但<b>同格友军按 50% 计入防御协同</b>（相邻格是 35%）。堆着守比散着守硬，但堆着被人打也更疼。</li>
-      <li>点堆叠格可以在这两支之间切换选中。</li>
+      <li>格里有 2 支时，<b>再点同一格</b>就在两支之间轮换选中——用来操作被压在下面的那一支。</li>
       <li>工兵营还能<b>架桥</b>：把相邻河流格直接改成渡口，比抢渡口稳。</li>
     </ul>
 
@@ -2113,6 +2124,17 @@ function clearSelection() {
 
 /* ───────────────────────── 行动 ───────────────────────── */
 function doMove(u, pos) {
+  /* 堆叠兜底：computeReach 已把满格从 stop 里排除，但事件增援、脚本调用、
+     击退等路径会直接改坐标。原来这里没有任何校验，自测里能一路塞进 3 支。
+     拒绝时返回 false，不写撤销栈——调用方忽略返回值也是安全的。 */
+  if (pos[0] !== u.pos[0] || pos[1] !== u.pos[1]) {
+    const occ = unitsAt(pos[0], pos[1]);
+    if (occ.some(x => x.side !== u.side)) return false;
+    if (occ.length >= STACK_MAX) {
+      log(u.abbr + ' 进不了 ' + coordName(pos) + '：该格已有 ' + STACK_MAX + ' 支。', 'sys');
+      return false;
+    }
+  }
   pushUndo();
   u.pos = pos;
   u.moved = true;
@@ -2133,7 +2155,7 @@ function doMove(u, pos) {
 
   log(u.abbr + ' ' + u.name + ' 机动至 ' + coordName(pos), u.side === 'blue' ? 'b' : 'r');
   FX.sfx('move');
-  if (u.str <= 0) { removeUnit(u); clearSelection(); refreshFields(); render(); checkEnd(); saveGame(); return; }
+  if (u.str <= 0) { removeUnit(u); clearSelection(); refreshFields(); render(); checkEnd(); saveGame(); return true; }
   clearSelection();
   refreshFields();
   updateControl();
@@ -2141,6 +2163,7 @@ function doMove(u, pos) {
   render();
   checkEnd();
   saveGame();
+  return true;
 }
 
 function doAttack(att, def) {
@@ -2410,7 +2433,15 @@ function onHexClick(r, c) {
     }
 
     if (u && u.side === 'blue') {
-      /* 堆叠格：已经选中格内某一支时，再点一次换到下一支，避免点不到下层 */
+      /* 移动优先：目标格有友军但还有空位时，点它 = 把当前选中单位移过去堆叠。
+         这一条必须放在"选中"之前——以前这里无条件 select(u) 就 return，
+         有友军的格子永远进不到下面的 doMove 分支，堆叠在界面上等于不存在。 */
+      if (state.selected && state.selected !== u &&
+          state.reachable.stop && state.reachable.stop[kk(r, c)] !== undefined) {
+        doMove(state.selected, [r, c]);
+        return;
+      }
+      /* 已经选中格内某一支时，再点一次换到下一支，避免点不到下层 */
       const st = stackOf(u);
       if (st.length > 1 && state.selected && st.includes(state.selected)) {
         const i = st.indexOf(state.selected);
@@ -2871,6 +2902,11 @@ function renderBoard() {
       });
       const mine = state.mines.find(m => m.r === r && m.c === c);
       if (mine && !here.length) inner += '<span style="font-size:9px;color:#8B5E1A;font-weight:700;z-index:2">雷</span>';
+      /* 堆叠角标：光靠错开不够醒目，直接标数字 */
+      if (here.length > 1) {
+        inner += '<span class="stackTag" title="该格堆叠 ' + here.length + ' 支（上限 ' +
+                 STACK_MAX + '）· 再点一次轮换选中">×' + here.length + '</span>';
+      }
 
       /* 补给点：以前只存在于逻辑里，棋盘上完全看不见，玩家自然觉得"建了没效果" */
       const dep = (state.depots || []).find(d => d.r === r && d.c === c);
@@ -3495,6 +3531,13 @@ if (typeof location !== 'undefined') {
     if (foe) foe.pos = [10, 2];
     selectTerrain(12, 2);
   }
+  else if (q.indexOf('demo=clickstack') >= 0) {
+    /* 端到端：完全按玩家的点击顺序走一遍，不碰 pos。
+       先点自己的部队选中，再点目标友军格——上一版第二步会变成"切换选中"，
+       部队纹丝不动，这就是"堆叠做不出来"的真正原因。 */
+    const a = uid('B2A'), b = uid('B2B');
+    if (a && b) { onHexClick(a.pos[0], a.pos[1]); onHexClick(b.pos[0], b.pos[1]); }
+  }
   else if (q.indexOf('demo=stack') >= 0) {
     /* 堆叠：把 B2B 叠到 B2A 的机场格上，截图看两支兵牌的排布 */
     const a = uid('B2A'), b = uid('B2B');
@@ -3544,6 +3587,9 @@ window.__WAR__ = {
   HQ_TYPES, ARTY_TYPES, CAPTURE_TYPES,
   /* 堆叠 / 撤销 / 补给场：新增机制的测试入口 */
   unitsAt, stackFull, stackOf, STACK_MAX, STACK_COVER,
+  /* 点击层：只测 doMove 会漏掉"界面上根本点不出来"这类 bug，
+     所以把 onHexClick / select 一起暴露，让自测走真实操作路径 */
+  onHexClick, select,
   pushUndo, doUndo, clearUndo, depotPreview, supplyField, supplySources,
   get undoDepth() { return undoStack.length; },
   /* 视图控制（窄屏缩放/平移），供自动化测试读取状态 */

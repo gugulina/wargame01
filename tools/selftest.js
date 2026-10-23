@@ -489,6 +489,67 @@ console.log('\n[14] 堆叠与穿越');
   const defAfter = api.previewAttack(foe, A2, api.getState().fields).defSum;
   ok('同格友军计入防御协同（比相邻更硬）', defAfter > defBefore + 0.01,
      defBefore.toFixed(2) + ' → ' + defAfter.toFixed(2));
+
+  /* ── 以下走真实点击路径 ──
+     上一版只测 doMove（直接改坐标），105 项全绿但玩家点不出来：
+     onHexClick 里"有友军就 select(u) 并 return"，永远进不到 doMove。
+     这一组断言专门守住点击层。 */
+  api.newGame();
+  const P = api.uid('B1A'), Q = api.uid('B1B');
+  const qp = Q.pos.slice();
+  api.select(P);
+  ok('点击前：P 的可停格包含 Q 所在格', api.getState().reachable.stop[k(qp[0], qp[1])] !== undefined);
+  api.onHexClick(qp[0], qp[1]);
+  ok('点友军格 = P 移动过去（而不是切换选中）',
+     api.uid('B1A').pos.join(',') === qp.join(','),
+     'P 在 ' + api.uid('B1A').pos.join(',') + '，Q 在 ' + qp.join(','));
+  ok('点击后真的堆叠成 2 支', api.unitsAt(qp[0], qp[1]).length === 2);
+  ok('移动后 P 被标记为已行动', api.uid('B1A').moved === true);
+
+  /* 堆满之后再点：不该还能塞第三支，而是切换选中 */
+  api.newGame();
+  const X = api.uid('B1A'), Y = api.uid('B1B'), Z = api.uid('B1C');
+  const zp = Z.pos.slice();
+  api.doMove(X, zp);
+  const over = api.doMove(Y, zp);
+  ok('doMove 对满堆叠格有兜底校验（塞不进第三支）',
+     over === false && api.unitsAt(zp[0], zp[1]).length === 2,
+     '返回 ' + over + '，格内 ' + api.unitsAt(zp[0], zp[1]).length + ' 支');
+  ok('前提：Z 所在格已堆满 2 支', api.unitsAt(zp[0], zp[1]).length === 2);
+  const z0 = api.uid('B1C').pos.join(',');
+  const A3 = api.uid('B2A');
+  api.select(A3);
+  api.onHexClick(zp[0], zp[1]);
+  ok('满堆叠格不可再塞人', api.unitsAt(zp[0], zp[1]).length === 2,
+     '现在 ' + api.unitsAt(zp[0], zp[1]).length + ' 支');
+  ok('满堆叠格点击退回"切换选中"语义', api.uid('B2A').pos.join(',') !== zp.join(','));
+
+  /* 格内两支时，再点同一格轮换选中，能选到下层 */
+  api.newGame();
+  const U1 = api.uid('B1A'), U2 = api.uid('B1B');
+  const upp = U2.pos.slice();
+  api.doMove(U1, upp);
+  const top = api.unitAt(upp[0], upp[1]);
+  api.select(top);
+  api.onHexClick(upp[0], upp[1]);
+  const now = api.getState().selected;
+  ok('同格连点可轮换到另一支', now && (now.id === 'B1A' || now.id === 'B1B'), now && now.id);
+
+  /* 渡口：玩家实际卡住的位置。地图第 8 行是河，列 6/7 与 12/13 是渡口。
+     之前"堆叠做不出来"就是在这种单格瓶颈上暴露的。 */
+  api.newGame();
+  const f1 = api.uid('B1A'), f2 = api.uid('B1B');
+  f1.pos = [7, 6]; f1.moved = false;
+  f2.pos = [7, 7]; f2.moved = false;
+  api.select(f1);
+  api.onHexClick(8, 6);
+  ok('渡口格：第一支点进去能站住', api.unitsAt(8, 6).length === 1,
+     '格内 ' + api.unitsAt(8, 6).length + ' 支');
+  api.select(f2);
+  api.onHexClick(8, 6);
+  ok('渡口格：第二支点同一格能堆叠进去', api.unitsAt(8, 6).length === 2,
+     '格内 ' + api.unitsAt(8, 6).length + ' 支');
+  ok('渡口堆叠后仍标记为满', api.stackFull(8, 6) === true);
 }
 
 /* ───────── 十五、撤销 ───────── */
