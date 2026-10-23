@@ -6834,6 +6834,10 @@ window.__WAR__ = {
   unitOps, syncUnitOps, runOp,
   /* 存档文件 */
   buildSaveFile, applySaveFile, importSaveText, exportSave, SAVE_FILE_APP,
+  /* hqSaveNote 导出是为了让测试能真的打到渲染端。
+     存档导入的 XSS 防线在这一行函数的 textContent 上，光测 applySaveFile
+     返回的 msg 没用——那一步从来不产生 HTML，改回 innerHTML 也不会变红。 */
+  hqSaveNote,
   /* 堆叠 / 撤销 / 补给场：新增机制的测试入口 */
   unitsAt, stackFull, stackOf, STACK_MAX, STACK_COVER,
   /* 点击层：只测 doMove 会漏掉"界面上根本点不出来"这类 bug，

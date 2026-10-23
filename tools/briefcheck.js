@@ -271,6 +271,26 @@ function ok(name, cond, extra) {
     ok('存档页有导出 / 导入两个按钮',
        d3.querySelectorAll('#hqBody [data-saveact]').length === 2);
     ok('没有写档', !W3.readSave());
+
+    /* XSS 的真正防线在这里，不在 selftest 里那条。
+       selftest 断言的是 applySaveFile 返回的 msg 不含 <b>——但 msg 里从来
+       不会有 <b>，那个标签是渲染端拼的。也就是说：哪天有人把 hqSaveNote
+       改回 innerHTML，selftest 那条依然全绿，漏洞照样复活。
+       所以这里必须真调一次渲染函数，看 DOM 里到底有没有长出标签。
+       注意 textContent 赋值后 innerHTML 会把 < 转成 &lt;，
+       所以"不含 <img"这个断言在正确实现下通过、在 innerHTML 实现下失败。 */
+    const noteEl = d3.getElementById('hqSaveNote');
+    if (noteEl && typeof W3.hqSaveNote === 'function') {
+      W3.hqSaveNote('<img src=x onerror=alert(1)>', false);
+      const raw = noteEl.innerHTML;
+      ok('渲染端不产生 HTML 标签（textContent 而非 innerHTML）',
+         raw.indexOf('<img') < 0 && raw.indexOf('&lt;img') >= 0, raw.slice(0, 60));
+      ok('恶意文本仍被完整回显（靠转义而不是靠删掉）',
+         noteEl.textContent.indexOf('onerror') >= 0);
+    } else {
+      ok('渲染端不产生 HTML 标签（textContent 而非 innerHTML）', false,
+         '拿不到 hqSaveNote / #hqSaveNote，防线无法验证');
+    }
     dom3.window.close();
   }
 
