@@ -1,4 +1,4 @@
-/* 开局流程回归测试：开始页 → 战前简报三页 → 对话过场 → 进入战场。
+/* 开局流程回归测试：菜单页选关 → 战前简报三页 → 对话过场 → 进入战场。
    用 jsdom 跑真 DOM，验证的是"点下去会发生什么"，不是纯函数。
 
    跑法（jsdom 装在托管 node 的 workspace 里，不在本仓库）：
@@ -6,7 +6,11 @@
      node tools/briefcheck.js
 
    为什么单独一个文件而不是塞进 selftest.js：selftest 用 vm + stub DOM，
-   碰不到 innerHTML 之外的真实行为；简报这套流程全是 DOM 交互，必须真环境。 */
+   碰不到 innerHTML 之外的真实行为；简报这套流程全是 DOM 交互，必须真环境。
+
+   加载 URL 带 ?lv=T1&nointro=1：模拟"菜单页点了教学关"。
+   引擎自己不再有开始页，开局必须由 URL 或测试显式指定，
+   否则 boot 会走 startNew() 直接把推荐关的简报播出来，这里的第一组断言就全错位了。 */
 
 const fs = require('fs');
 const path = require('path');
@@ -18,7 +22,7 @@ const html = fs.readFileSync(file, 'utf8');
 const dom = new JSDOM(html, {
   runScripts: 'dangerously',
   pretendToBeVisual: true,
-  url: 'http://127.0.0.1/game/campaign.html'
+  url: 'http://127.0.0.1/game/campaign.html?lv=T1&nointro=1'
 });
 const { window } = dom;
 const doc = window.document;
@@ -33,18 +37,38 @@ function ok(name, cond, extra) {
 (async () => {
   await wait(400);
 
-  console.log('[1] 开始页');
-  ok('开始页默认可见', !doc.getElementById('startScreen').classList.contains('hidden'));
+  console.log('[1] 引擎不再自带开始页（选关归菜单页）');
+  ok('没有开始页', !doc.getElementById('startScreen'));
+  ok('没有关卡时间轴', !doc.getElementById('lvlList'));
+  ok('没有「开始推演」按钮', !doc.getElementById('btnNewGame'));
+  ok('顶栏有返回菜单按钮', !!doc.getElementById('btnMenu'));
+  ok('存档导入口还在（HQ 要用）', !!doc.getElementById('fileImport'));
   ok('简报默认隐藏', doc.getElementById('briefScreen').classList.contains('hidden'));
 
-  console.log('[2] 点「开始新的战役」→ 第一页');
-  doc.getElementById('btnNewGame').click();
+  console.log('[2] 进岚口（等价菜单页点第 3 关）→ 简报第一页');
+  /* 这一段测的是岚口（C3）的三页公文 + 三段对话，是全作唯一一段
+     「公文三页 + 对话三段 + 电话符号位」齐全的过场，所以固定跑它。
+     C3 不是 open 关，零进度下进不去——先把前面几关标成已通关，
+     否则 enterLevel 会直接返回 false，整段断言全部错位。 */
+  {
+    const W = window.__WAR__;
+    const idx = W.LEVELS.findIndex(l => l.id === 'C3');
+    W.LEVELS.slice(0, idx).filter(l => l.ready).forEach(l => W.markResult(l.id, 'win'));
+    ok('推荐关卡落到岚口', W.recommendLevel() && W.recommendLevel().id === 'C3',
+       W.recommendLevel() && W.recommendLevel().id);
+    /* 不能 await：enterLevel 要等简报翻完 + 对话走完才 resolve，
+       而翻页正是本测试接下来要做的事。await 在这里会把自己锁死。 */
+    W.enterLevel('C3');
+  }
   await wait(60);
   const brief = doc.getElementById('briefScreen');
+  /* 断言文案一律从关卡数据里取，不在测试里抄一遍——
+     改剧本时测试不该跟着改，它该自己跟着变 */
+  const BP = window.__WAR__.LEVEL.story.briefing;
   ok('简报出现', !brief.classList.contains('hidden'));
-  ok('开始页已收起', doc.getElementById('startScreen').classList.contains('hidden'));
+  ok('关卡指针已切到岚口', window.__WAR__.LEVEL.id === 'C3', window.__WAR__.LEVEL.id);
   const t1 = brief.querySelector('.brief-title').textContent;
-  ok('第一页标题正确', t1 === '主力走了，你们留下', t1);
+  ok('第一页标题与数据一致', t1 === BP.pages[0].title, t1 + ' / ' + BP.pages[0].title);
   ok('含绝密标记', brief.textContent.replace(/\s/g, '').includes('绝密'));
   ok('含三项数值', brief.querySelectorAll('.brief-nums div').length === 3);
   ok('页码第一点高亮', brief.querySelectorAll('.brief-dots i.on').length === 1);
@@ -54,39 +78,45 @@ function ok(name, cond, extra) {
   doc.getElementById('briefNext').click();
   await wait(60);
   const t2 = brief.querySelector('.brief-title').textContent;
-  ok('第二页标题正确', t2 === '敌人也在抢时间', t2);
-  ok('第二页有红字数值', brief.querySelectorAll('.brief-nums b.r').length === 2);
+  ok('第二页标题与数据一致', t2 === BP.pages[1].title, t2 + ' / ' + BP.pages[1].title);
+  const hotN = BP.pages[1].nums.filter(n => n.hot).length;
+  ok('第二页红字数值个数与数据一致', brief.querySelectorAll('.brief-nums b.r').length === hotN,
+     brief.querySelectorAll('.brief-nums b.r').length + ' / ' + hotN);
 
   console.log('[4] 翻到第三页');
   doc.getElementById('briefNext').click();
   await wait(60);
   const t3 = brief.querySelector('.brief-title').textContent;
-  ok('第三页标题正确', t3 === '守住十二个回合', t3);
+  ok('第三页标题与数据一致', t3 === BP.pages[2].title, t3 + ' / ' + BP.pages[2].title);
   ok('末页按钮改名接管指挥', doc.getElementById('briefNext').textContent.indexOf('接管指挥') >= 0);
 
   console.log('[5] 末页点击 → 对话过场，纸张仍在（当暗背景）');
   doc.getElementById('briefNext').click();
   await wait(120);
   const cs = doc.getElementById('cutscene');
+  /* 比对文案时两边都去掉空白：打字机逐字渲染，中间会夹 span 与换行 */
+  const hasTxt = (el, s) => el.textContent.replace(/\s/g, '')
+    .indexOf(String(s).replace(/\s/g, '')) >= 0;
   ok('剧情卡出现', !cs.classList.contains('hidden'));
   ok('纸张未收起（防止闪地图）', !brief.classList.contains('hidden'));
-  ok('第一句是方面军司令部', cs.textContent.indexOf('方面军司令部') >= 0);
+  ok('第一句说话人与数据一致', hasTxt(cs, BP.beats[0].who), BP.beats[0].who);
   /* 司令部那句是「电话」，走符号位而不是"立绘位"占位字。
      这两条要成对断言：只查有没有 svg，会把"退化成占位字"也放过。 */
   const hqPort = cs.querySelector('.cs-portrait');
+  ok('数据上第一句就是符号位', BP.beats[0].portrait === 'portHQ');
   ok('司令部走符号位', !!hqPort && hqPort.classList.contains('sig'));
   ok('符号位有内置电台图标', !!cs.querySelector('.cs-portrait.sig svg'));
   ok('符号位不显示占位字', cs.textContent.indexOf('立绘位') < 0);
   /* 打字机是逐字的，先点一下把整句显示完再断言文本 */
   cs.click();
   await wait(60);
-  ok('台词含守到天亮', cs.textContent.indexOf('守到天亮') >= 0);
+  ok('第一句台词打完', hasTxt(cs, BP.beats[0].text.slice(-8)), BP.beats[0].text.slice(-8));
 
   console.log('[6] 第二句切到人物立绘位');
   cs.click();                       // 打完这句 → 下一句
   await wait(160);
   const cs2 = doc.getElementById('cutscene');
-  ok('第二句是旅长', cs2.textContent.indexOf('旅长') >= 0);
+  ok('第二句说话人与数据一致', hasTxt(cs2, BP.beats[1].who), BP.beats[1].who);
   const p2 = cs2.querySelector('.cs-portrait');
   ok('旅长走立绘位不是符号位', !!p2 && !p2.classList.contains('sig'));
   ok('无素材时退化为占位字', cs2.textContent.indexOf('立绘位') >= 0);
@@ -143,28 +173,36 @@ function ok(name, cond, extra) {
   {
     const W = window.__WAR__;
     const box = doc.getElementById('unitOps');
-    const eng = W.getState().units.find(u => u.id === 'B2E');
-    W.select(eng);
-    await wait(60);
-    ok('选中工兵后气泡出现', !box.classList.contains('hidden'));
-    ok('气泡列出工事选项', box.querySelectorAll('button[data-op^="fort:"]').length >= 2);
-    ok('气泡有布雷与架桥',
-       !!box.querySelector('button[data-op="mine"]') &&
-       !!box.querySelector('button[data-op="bridge"]'));
+    /* 不写死兵牌编号：以前这里找的是 B2E，换一关 / 换编制就变成 undefined，
+       报错信息是"cannot read properties of undefined"——查了半天才知道是测试绑了具体单位。
+       现在按"谁能布雷"筛，编制怎么改都能找到。 */
+    const eng = W.getState().units.find(
+      u => u.side === 'blue' && W.unitOps(u).some(o => o.act === 'mine' && !o.dis));
+    ok('本关有能布雷的工兵', !!eng, eng ? eng.name : '没找到');
+    if (!eng) { console.log('（后面几项跳过）'); }
+    else {
+      W.select(eng);
+      await wait(60);
+      ok('选中工兵后气泡出现', !box.classList.contains('hidden'));
+      ok('气泡列出工事选项', box.querySelectorAll('button[data-op^="fort:"]').length >= 2);
+      ok('气泡有布雷与架桥',
+         !!box.querySelector('button[data-op="mine"]') &&
+         !!box.querySelector('button[data-op="bridge"]'));
 
-    const fbtn = box.querySelector('button[data-op="fort:H"]');
-    fbtn.click();
-    await wait(40);
-    ok('点工事按钮进入施工模式', W.getState().mode === 'fort');
-    const n0 = W.getState().forts.length;
-    W.onHexClick(eng.pos[0], eng.pos[1]);
-    await wait(40);
-    ok('再点格子完成施工', W.getState().forts.length === n0 + 1);
+      const fbtn = box.querySelector('button[data-op="fort:H"]');
+      fbtn.click();
+      await wait(40);
+      ok('点工事按钮进入施工模式', W.getState().mode === 'fort');
+      const n0 = W.getState().forts.length;
+      W.onHexClick(eng.pos[0], eng.pos[1]);
+      await wait(40);
+      ok('再点格子完成施工', W.getState().forts.length === n0 + 1);
 
-    /* 打完仗（fired）之后不该再出现作业按钮 */
-    W.select(eng);
-    await wait(40);
-    ok('行动耗尽后气泡自动收起', box.classList.contains('hidden'));
+      /* 打完仗（fired）之后不该再出现作业按钮 */
+      W.select(eng);
+      await wait(40);
+      ok('行动耗尽后气泡自动收起', box.classList.contains('hidden'));
+    }
 
     /* 辎重队：建补给点是气泡里的专属项 */
     const sup = W.getState().units.find(u => u.type === 'sup' && u.side === 'blue');
@@ -179,6 +217,61 @@ function ok(name, cond, extra) {
     } else {
       ok('本关没有辎重队，跳过补给点气泡', true);
     }
+  }
+
+  console.log('[11] 不带参数直接打开引擎（没人告诉它进哪一关）');
+  /* 开始页撤掉之后，"双击 campaign.html"这条路就只剩一句话：自己挑推荐关。
+     它不在任何自动化路径上（load.js 传 __FAST__，直接跳到 newGame），
+     所以专门开一个干净的 jsdom 实例验一次——这里要是坏了，
+     玩家双击引擎看到的就是一片空棋盘，而测试全绿。 */
+  {
+    const dom2 = new JSDOM(html, {
+      runScripts: 'dangerously',
+      pretendToBeVisual: true,
+      url: 'http://127.0.0.1/game/campaign.html'
+    });
+    const d2 = dom2.window.document;
+    await wait(500);
+    const W2 = dom2.window.__WAR__;
+    ok('引擎自己选了一关', !!W2 && !!W2.LEVEL, W2 && W2.LEVEL && W2.LEVEL.id);
+    ok('选的是推荐关', W2.recommendLevel() && W2.recommendLevel().id === W2.LEVEL.id,
+       W2.LEVEL.id);
+    const b2 = d2.getElementById('briefScreen');
+    ok('推荐关的简报已经弹出来', !b2.classList.contains('hidden'));
+    const skip = d2.getElementById('briefSkip');
+    ok('有跳过按钮', !!skip);
+    if (skip) {
+      skip.click();
+      await wait(120);
+      ok('跳过后简报收起', b2.classList.contains('hidden'));
+    } else {
+      ok('跳过后简报收起', false, '找不到跳过按钮');
+    }
+    await wait(120);
+    ok('棋盘已渲染', d2.getElementById('board').innerHTML.length > 500);
+    dom2.window.close();
+  }
+
+  console.log('[12] 菜单页的「存档管理」（?hq=1）');
+  /* 开始页撤掉之后，导出 / 导入的唯一入口就是这一条。
+     它必须① 真的打开 HQ ② 停在存档页 ③ 不写档（noSave），
+     第三条最容易被忽略：静默开局如果顺手落了存档，
+     玩家只是想导个档，回来却发现上一局进度被覆盖了。 */
+  {
+    const dom3 = new JSDOM(html, {
+      runScripts: 'dangerously',
+      pretendToBeVisual: true,
+      url: 'http://127.0.0.1/game/campaign.html?hq=1'
+    });
+    const d3 = dom3.window.document;
+    await wait(400);
+    const W3 = dom3.window.__WAR__;
+    ok('HQ 直接打开', !d3.getElementById('hqScreen').classList.contains('hidden'));
+    ok('停在存档页', !!d3.querySelector('#hqTabs button[data-tab="save"].on'));
+    ok('存档页有导出 / 导入两个按钮',
+       d3.querySelectorAll('#hqBody [data-saveact]').length === 2);
+    ok('没有写档', !W3.readSave());
+    dom3.window.close();
   }
 
   console.log('');

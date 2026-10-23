@@ -9,6 +9,12 @@ const file = process.argv[2] && !process.argv[2].startsWith('-')
   : path.join(__dirname, '..', 'game', 'campaign.html');
 
 const { api, sandbox } = loadGame(file);
+
+/* 整套自测跑在岚口（C3）上：城区的「为了祖国」、两处渡口、第 205 装甲旅、
+   第 3 坦克军先遣队这些编制都是 C3 独有的。
+   而引擎默认进的 LEVEL 是"最后一个已制作的关"——每加一关它就往前漂一格，
+   测试会毫无征兆地炸在第一条断言上。所以这里显式钉死，不依赖默认值。 */
+api.newGame({ level: 'C3', noSave: true });
 const L = api.LEVEL;
 
 let pass = 0, fail = 0;
@@ -870,6 +876,195 @@ console.log('\n[21] 存档文件（导出 / 导入）');
     return s && s.turn === 7;          // 上一步写进去的还在
   })());
   try { window.localStorage.removeItem(api.PROGRESS_KEY); } catch (e) {}
+}
+
+console.log('\n[22] 三种胜负条件（score / survive / reach）');
+{
+  /* ── 关卡序号文案 ──
+     no:0 是序章，写成"第 0 关"会让玩家以为漏了一关 */
+  ok('序章不写第 0 关', api.levelNoText({ no: 0 }) === '序 · ');
+  ok('普通关写第 N 关', api.levelNoText({ no: 3 }) === '第 3 关 · ');
+  ok('附属关与正关同号，靠前缀区分',
+     api.levelNoText({ no: 3, sub: true }) === '第 3 关 · 附属 · ');
+
+  /* ── survive：北岭要塞 ── */
+  api.newGame({ level: 'C1', noSave: true });
+  ok('C1 是坚守关', api.winSpec().kind === 'survive', api.winSpec().kind);
+  ok('C1 要求保住要塞核心', (api.winSpec().keep || []).indexOf('core') >= 0);
+  ok('C1 预置工事已进场', api.getState().forts.length >= 4, api.getState().forts.length + ' 处');
+  ok('预置工事属于蓝方', api.getState().forts.every(f => f.side === 'blue'));
+  ok('碉堡与要塞炮都在', (() => {
+    const ks = api.getState().forts.map(f => f.kind);
+    return ks.indexOf('B') >= 0 && ks.indexOf('P') >= 0;
+  })());
+  /* 全灭立即判负——这条对所有关卡生效，先于任何胜利判定 */
+  const st1 = api.getState();
+  st1.units = st1.units.filter(u => u.side !== 'blue');
+  api.checkEnd();
+  ok('C1 全灭判负', st1.result === 'fail', st1.result);
+
+  /* ── reach：青溪渡口 ── */
+  api.newGame({ level: 'C2', noSave: true });
+  const w2 = api.winSpec();
+  ok('C2 是突围关', w2.kind === 'reach');
+  ok('需撤出 4 支', api.escapeGoal() === 4, api.escapeGoal());
+  ok('矩形撤离区展开成 8 格', api.escapeCells().length === 8, api.escapeCells().length);
+  ok('渡口格在撤离区内', api.inEscapeZone([4, 15]) === true);
+  ok('出发点不在撤离区', api.inEscapeZone([4, 3]) === false);
+
+  /* 达标数不够 → 判负 */
+  ok('撤出不够判负', api.reachResult() === 'fail', api.reachResult());
+
+  /* 走进撤离区：立刻离场并计数 */
+  const g = api.escapeGoal();
+  const zone = api.escapeCells();
+  const movers = api.alive('blue').slice(0, g);
+  const before = api.alive('blue').length;
+  movers.forEach((u, i) => { u.pos = zone[i].slice(); });
+  const moved = api.checkEscape();
+  ok('走进撤离区即离场计数', moved === g && api.escapedCount() === g,
+     moved + ' / ' + api.escapedCount());
+  ok('撤出的部队已从战场移除',
+     api.alive('blue').length === before - g &&
+     movers.every(u => api.alive('blue').indexOf(u) < 0));
+  ok('撤出部队的战力算得回来', api.escapedStr() > 0, api.escapedStr());
+  ok('达标且基本成建制 → 超额', api.reachResult() === 'perfect', api.reachResult());
+  api.checkEnd();
+  ok('凑够数量立刻结束', api.getState().result !== null, api.getState().result);
+
+  /* 达标但打残了 → 只是达成，不算超额。
+     旧写法用"撤出数 > 目标数"判超额，而 checkEnd 在达标那一刻就结束，
+     那条路永远走不到，perfect 是死代码。 */
+  api.newGame({ level: 'C2', noSave: true });
+  const z2 = api.escapeCells();
+  for (let i = 0; i < g; i++) {
+    const u = api.alive('blue')[0];
+    u.pos = z2[i].slice();
+    api.checkEscape();
+  }
+  const st2 = api.getState();
+  const survivors = api.alive('blue');
+  survivors.slice(1).forEach(u => { u.str = 1; });     // 剩下的全打残
+  ok('打残之后只能算达成', api.reachResult() === 'win', api.reachResult() + '（剩 ' + survivors.length + ' 支）');
+  ok('撤离区之外的格子不算撤出', api.inEscapeZone([9, 15]) === false);
+}
+
+console.log('\n[23] 邻格工具（neighbors 的签名）');
+{
+  /* neighbors(r, c) 吃两个参数。传数组不会报错，会静默返回空表——
+     unitOps 里曾经写成 neighbors(u.pos)，于是布雷 / 排雷 / 架桥三个按钮
+     从上线起一直是灰的，玩家只看到三个点不动的按钮。
+     这两条断言就是给这个坑立的桩。 */
+  ok('neighbors 吃两个参数', api.neighbors(4, 8).length >= 3, api.neighbors(4, 8).length);
+  ok('传数组会静默返回空表（调用方必须拆开）', api.neighbors([4, 8]).length === 0);
+
+  api.newGame({ level: 'C3', noSave: true });
+  const eng = api.alive('blue').find(u => u.type === 'eng');
+  const eops = api.unitOps(eng);
+  ok('工兵的布雷按钮不是灰的', !!eops.find(o => o.act === 'mine') &&
+     !eops.find(o => o.act === 'mine').dis);
+  ok('工兵的架桥按钮按地形置灰', (() => {
+    const b = eops.find(o => o.act === 'bridge');
+    const nearRiver = api.neighbors(eng.pos[0], eng.pos[1])
+      .some(n => api.LEVEL.map[n[0]][n[1]] === '~');
+    return !!b && b.dis === !nearRiver;      // 有河才能架，没河就得灰
+  })());
+
+  const engc = api.alive('blue').find(u => u.type === 'engc');
+  const cops = api.unitOps(engc);
+  ok('工兵连只能挖堑壕', cops.some(o => o.act === 'fort:H') &&
+     !cops.some(o => o.act === 'fort:B') && !cops.some(o => o.act === 'mine'));
+}
+
+console.log('\n[24] 事件触发器（v4.2 新增：跟玩家动作、不跟回合钟）');
+{
+  /* 原来的触发器只有 turn / control / allControl / corpsBelow，
+     只能写"第 N 回合播一句"。这一组断言守的是新增的动作类触发器：
+     id 写错、字段名写错都必须在这里被抓住，而不是上线后"事件一直不响"。 */
+
+  api.newGame({ level: 'C1', noSave: true });
+  const st = api.getState();
+  const u = api.alive('blue').find(x => x.type === 'inf');
+
+  /* — unitActed — */
+  ok('没动过之前，unitActed 为假', api.triggerMet({ kind: 'unitActed', id: u.id }) === false);
+  api.noteAct(u, 'move');
+  ok('动过之后 unitActed 为真', api.triggerMet({ kind: 'unitActed', id: u.id }) === true);
+  ok('act 过滤生效（move 有、fire 没有）',
+     api.triggerMet({ kind: 'unitActed', id: u.id, act: 'move' }) === true &&
+     api.triggerMet({ kind: 'unitActed', id: u.id, act: 'fire' }) === false);
+  ok('times 没到不算', api.triggerMet({ kind: 'unitActed', id: u.id, act: 'move', times: 2 }) === false);
+  api.noteAct(u, 'move');
+  ok('times 到了就算', api.triggerMet({ kind: 'unitActed', id: u.id, act: 'move', times: 2 }) === true);
+  ok('不存在的兵牌不会误触发', api.triggerMet({ kind: 'unitActed', id: 'NOPE' }) === false);
+
+  /* — unitAt — */
+  const core = api.LEVEL.objectives.find(o => o.core);
+  ok('不在要点上时 unitAt 为假',
+     api.triggerMet({ kind: 'unitAt', id: u.id, obj: core.id }) === false);
+  u.pos = core.cells[0].slice();
+  ok('站上要点后 unitAt 为真',
+     api.triggerMet({ kind: 'unitAt', id: u.id, obj: core.id }) === true);
+  ok('unitAt 也认 cells 字面量',
+     api.triggerMet({ kind: 'unitAt', id: u.id, cells: [core.cells[0]] }) === true);
+
+  /* — unitBelow — */
+  ok('满编时 unitBelow 为假', api.triggerMet({ kind: 'unitBelow', id: u.id, ratio: 0.5 }) === false);
+  u.str = Math.max(1, Math.floor(u.str * 0.3));
+  ok('打残后 unitBelow 为真', api.triggerMet({ kind: 'unitBelow', id: u.id, ratio: 0.5 }) === true);
+
+  /* — sideBelow — */
+  ok('没被打垮时 sideBelow 为假',
+     api.triggerMet({ kind: 'sideBelow', side: 'blue', ratio: 0.5 }) === false);
+  for (const x of api.alive('blue')) x.str = 1;
+  ok('全线打残后 sideBelow 为真',
+     api.triggerMet({ kind: 'sideBelow', side: 'blue', ratio: 0.5 }) === true);
+
+  /* — firstBlood — */
+  api.newGame({ level: 'C1', noSave: true });
+  ok('开局 firstBlood 为假', api.triggerMet({ kind: 'firstBlood' }) === false);
+  api.getState().firstBlood = 3;
+  ok('交火之后 firstBlood 为真', api.triggerMet({ kind: 'firstBlood' }) === true);
+
+  /* — turn 窗口 — */
+  api.newGame({ level: 'C1', noSave: true });
+  const w = { kind: 'turn', turn: 3, until: 5 };
+  api.getState().turn = 2;
+  ok('窗口之前不触发', api.triggerMet(w) === false);
+  api.getState().turn = 4;
+  ok('窗口之内触发', api.triggerMet(w) === true);
+  api.getState().turn = 6;
+  ok('窗口之后不再触发', api.triggerMet(w) === false);
+
+  /* — 数组 when（多条件任一成立） — */
+  ok('when 可以是数组（任一成立即触发）',
+     api.triggerMet([{ kind: 'turn', turn: 9 }, { kind: 'firstBlood' }]) === false &&
+     api.triggerMet([{ kind: 'turn', turn: 9 }, { kind: 'turn', turn: 3 }]) === true);
+}
+
+console.log('\n[25] 限时修正（mod + turns）');
+{
+  api.newGame({ level: 'C1', noSave: true });
+  const st = api.getState();
+  const before = api.modAtk(api.alive('blue')[0]);
+
+  api.applyEffect({ kind: 'mod', side: 'blue', atk: 0.06, turns: 2, label: '测试修正' });
+  const u = api.alive('blue')[0];
+  ok('修正加上了攻击', Math.abs(api.modAtk(u) - (before + 0.06)) < 1e-9,
+     api.modAtk(u) + ' vs ' + (before + 0.06));
+  ok('限时修正带剩余回合', st.mods[0].left === 2, st.mods[0].left);
+
+  api.settlePhase();
+  ok('过一回合剩 1', st.mods[0] && st.mods[0].left === 1,
+     st.mods[0] ? st.mods[0].left : '已移除');
+  api.settlePhase();
+  ok('再过一回合自动失效', st.mods.length === 0, '剩 ' + st.mods.length + ' 条');
+  ok('失效后攻击加成归零', Math.abs(api.modAtk(u) - before) < 1e-9);
+
+  /* 常驻修正（不带 turns）不该被回合数吃掉 */
+  api.applyEffect({ kind: 'mod', side: 'blue', def: 0.05, label: '常驻修正' });
+  api.settlePhase(); api.settlePhase(); api.settlePhase();
+  ok('不带 turns 的修正一直留着', st.mods.length === 1, '剩 ' + st.mods.length + ' 条');
 }
 
 console.log('\n通过 ' + pass + ' 项，失败 ' + fail + ' 项');

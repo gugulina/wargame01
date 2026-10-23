@@ -1,28 +1,56 @@
+/* 战役级自战跑局：评估达成率与守备质量。
+
+   跑法：
+     node tools/autoplay-campaign.js                      默认为当前 LEVEL（最后一关）
+     node tools/autoplay-campaign.js game/campaign.html 200 --level=C1
+     加 --verbose 打印首局战报，--diag 打印终局要点归属
+
+   v4.1 起支持三种胜负条件，蓝方策略按 LEVEL.win.kind 分三套：
+     score    守要点（原来那套，岚口）
+     survive  守核心 + 保存兵力（北岭要塞）
+     reach    向撤离区推进（青溪渡口）
+
+   一条纪律写在前面：**这套脚本永远比真人弱。**
+   v3.7 那次"36% 达成率"的复盘结论就是这个——关卡数值一直没问题，
+   是代打脚本不会打仗（守备营扔下机场跑去钻碉堡之类）。
+   所以脚本给出 45–60% 才算达标，而不是 50% 上下。 */
+
 const path = require('path');
 const { loadGame } = require('./load');
 
-const file = process.argv[2] && !process.argv[2].startsWith('-')
-  ? path.resolve(process.argv[2])
+const args = process.argv.slice(2);
+const levelArg = (args.find(a => a.startsWith('--level=')) || '').split('=')[1] || '';
+const roundsArg = args.find(a => /^\d+$/.test(a));
+const file = args.find(a => !a.startsWith('-') && !/^\d+$/.test(a))
+  ? path.resolve(args.find(a => !a.startsWith('-') && !/^\d+$/.test(a)))
   : path.join(__dirname, '..', 'game', 'campaign.html');
-const ROUNDS = Number(process.argv[3] || 200);
-const VERBOSE = process.argv.includes('--verbose');
+const ROUNDS = Number(roundsArg || 200);
+const VERBOSE = args.includes('--verbose');
 
 const { api } = loadGame(file);
-const L = api.LEVEL;
 
-const INIT_BLUE = L.units.filter(u => u.side === 'blue' && u.wave === 1).reduce((s, u) => s + u.str, 0);
-const INIT_RED = L.units.filter(u => u.side === 'red' && u.wave !== 0).reduce((s, u) => s + u.str, 0);
+/* LEVEL 会随 newGame 变，所以这里必须是 let，而且每局开头重取一次 */
+let L = levelArg ? (api.levelById(levelArg) || api.LEVEL) : api.LEVEL;
+if (levelArg && !api.levelById(levelArg)) {
+  console.error('没有这一关：' + levelArg);
+  process.exit(1);
+}
 
+const winKind = () => (L.win || { kind: 'score' }).kind;
+const initStr = side => L.units
+  .filter(u => u.side === side && (side === 'blue' ? u.wave === 1 : u.wave !== 0))
+  .reduce((s, u) => s + u.str, 0);
+
+function passable(pos) {
+  return pos[0] >= 0 && pos[0] < L.rows && pos[1] >= 0 && pos[1] < L.cols &&
+         api.TERRAIN[L.map[pos[0]][pos[1]]].cost < 99;
+}
 function inCore(pos) {
   return L.objectives.some(o => o.core &&
     o.cells.some(c => c[0] === pos[0] && c[1] === pos[1]));
 }
 function isCoreCell(pos) {
   return L.objectives.some(o => o.core && o.cells.some(c => c[0] === pos[0] && c[1] === pos[1]));
-}
-function passable(pos) {
-  return pos[0] >= 0 && pos[0] < L.rows && pos[1] >= 0 && pos[1] < L.cols &&
-         api.TERRAIN[L.map[pos[0]][pos[1]]].cost < 99;
 }
 function nearestCoreCell(pos) {
   let best = null, bd = Infinity;
@@ -38,6 +66,15 @@ function nearestCoreCell(pos) {
    守备营为了钻城区的碉堡把机场让空，人活着但要点没了，比不钻工事更糟。 */
 function objOf(pos) {
   return L.objectives.find(o => o.cells.some(c => c[0] === pos[0] && c[1] === pos[1])) || null;
+}
+function nearestEscape(pos) {
+  const zc = api.escapeCells();
+  let best = null, bd = Infinity;
+  for (const c of zc) {
+    const d = api.cheb(pos, c);
+    if (d < bd) { bd = d; best = c; }
+  }
+  return { cell: best, d: bd };
 }
 
 function stepToward(u, goal) {
@@ -62,17 +99,31 @@ function pickFortKind(u, cell) {
   return kinds[0];
 }
 
-/* 蓝方：守备营与反坦克连据守要点，装甲旅作机动预备队，炮兵原地支援 */
-async function blueTurn() {
+/* 通用：先开火。返回 true 表示这一动已经用掉了 */
+function tryShoot(u, minRatio) {
   const st = api.getState();
+  if (u.fired || u.rng <= 0) return false;
+  const tg = api.targetsFor(u, st.fields);
+  if (!tg.length) return false;
+  const evals = tg.map(t => ({ t, pv: api.previewAttack(u, t, st.fields) }))
+                  .sort((a, b) => b.pv.ratio - a.pv.ratio);
+  if (evals[0].pv.ratio < minRatio) return false;
+  api.doAttack(u, evals[0].t);
+  return true;
+}
+
+/* ───────── 蓝方策略 A：守要点（score / survive） ───────── */
+async function blueTurnHold() {
+  const st = api.getState();
+  const aliveBlue = () => api.alive('blue');
   /* 工兵先动：同一格只能留一处工事，碉堡/要塞炮不能被堑壕占位 */
-  const order = api.alive('blue').slice().sort((a, b) => {
+  const order = aliveBlue().slice().sort((a, b) => {
     const ea = (a.type === 'eng' || a.type === 'engc') ? 0 : 1;
     const eb = (b.type === 'eng' || b.type === 'engc') ? 0 : 1;
     return ea - eb;
   });
   for (const u of order) {
-    if (!api.alive('blue').includes(u)) continue;
+    if (!aliveBlue().includes(u)) continue;
     /* 0. 工兵：优先给核心要点加固，没有可加固格就靠近要点 */
     if (u.type === 'eng' || u.type === 'engc') {
       if (!u.fired) {
@@ -109,14 +160,7 @@ async function blueTurn() {
     if (passive) continue;
 
     /* 1. 有目标先打 */
-    if (!u.fired && u.rng > 0) {
-      const tg = api.targetsFor(u, st.fields);
-      if (tg.length) {
-        const evals = tg.map(t => ({ t, pv: api.previewAttack(u, t, st.fields) }))
-                        .sort((a, b) => b.pv.ratio - a.pv.ratio);
-        if (evals[0].pv.ratio >= 0.70) { api.doAttack(u, evals[0].t); continue; }
-      }
-    }
+    if (tryShoot(u, 0.70)) continue;
 
     /* 2. 炮兵没有目标就留在原地，不冒险前出 */
     if (api.isArty(u)) continue;
@@ -124,7 +168,7 @@ async function blueTurn() {
 
     /* 2b. 步兵挖堑壕：先把自筑工事顶满（+30%）、组织度也满，才拿这一回合换永久 +15%，
           否则等于拿「这一回合的组织度恢复 + 自筑工事成长」去换一个更差的工事。 */
-    const engNear = api.alive('blue').some(e => e.type === 'eng' && api.cheb(e.pos, u.pos) <= 2);
+    const engNear = aliveBlue().some(e => e.type === 'eng' && api.cheb(e.pos, u.pos) <= 2);
     if (!u.fired && !engNear && u.org >= 95 && u.fortify >= 0.30 &&
         inCore(u.pos) && !api.fortAt(u.pos[0], u.pos[1]) &&
         api.fortKindsFor(u, u.pos).includes('H')) {
@@ -151,8 +195,12 @@ async function blueTurn() {
       continue;
     }
 
-    /* 4. 装甲旅：敌人未逼近要点就不动，保存实力做反冲击 */
-    if (u.type === 'arm' || u.type === 'mech') {
+    /* 4. 装甲 / 装步：敌人未逼近要点就不动，保存实力做反冲击。
+          **这里必须用 api.isArmor，不能写 u.type === 'arm'。**
+          坦克分成轻/中/重三型之后，'arm' 这个代号已经不存在了，
+          写死 'arm' 的分支永远不成立，整段"装甲做机动预备队"的逻辑变成死代码，
+          中坦于是跟着步兵一起挪，达成率被严重低估。 */
+    if (api.isArmor(u) || u.type === 'mech') {
       const core0 = nearestCoreCell(u.pos);
       if (core0) {
         let threat = Infinity;
@@ -168,7 +216,7 @@ async function blueTurn() {
       const p = key.split(',').map(Number);
       const t = api.TERRAIN[L.map[p[0]][p[1]]];
       let s;
-      if (u.type === 'arm' || u.type === 'mech') {
+      if (api.isArmor(u) || u.type === 'mech') {
         const core = nearestCoreCell(p);
         const dc = core ? api.cheb(p, core) : 0;
         let td = Infinity;
@@ -193,7 +241,7 @@ async function blueTurn() {
         /* 覆盖优先于加固：核心要点只有 6 格（城区 3 + 机场 3），堆叠上限 2，
            所以「铺满」比「叠厚」值钱得多。两支都挤进同一个碉堡，等于白送一格。
            空格给 +8，压过碉堡的 +6 —— 先把格子占住，再谈工事。 */
-        const held = api.alive('blue').some(x =>
+        const held = aliveBlue().some(x =>
           x.pos[0] === p[0] && x.pos[1] === p[1]);
         const uncovered = (sameObj && pObj && !held) ? 8 : 0;
         s = ((inCore(p) && sameObj) ? 6 : 0) + uncovered + fortBonus + t.def * 3 -
@@ -205,9 +253,90 @@ async function blueTurn() {
   }
 }
 
-async function playOne(idx) {
-  api.newGame();
+/* ───────── 蓝方策略 B：向撤离区推进（reach） ─────────
+   目标只有一个：把足够多的兵牌送进撤离区。
+   优先级按"跑得快不快"排——轻坦先冲，步兵跟上，炮兵和指挥部留下殿后。
+
+   这一套刻意写得很"莽"：它不会组织火力准备，也不会等炮兵展开再冲。
+   真人有战术卡、会集火打掉拦路的那一支，所以脚本的达成率应当偏低，
+   留 15–25 个点的余量给真人。 */
+async function blueTurnBreakout() {
   const st = api.getState();
+  const aliveBlue = () => api.alive('blue');
+
+  const speedRank = u => {
+    if (api.isArmor(u)) return 0;                     // 坦克开路
+    if (u.type === 'inf' || u.type === 'mob' || u.type === 'mech') return 1;
+    if (api.isArty(u)) return 3;
+    if (api.isHQ(u) || u.type === 'sup') return 4;    // 最后走
+    return 2;
+  };
+  const order = aliveBlue().slice().sort((a, b) => speedRank(a) - speedRank(b));
+
+  for (const u of order) {
+    if (!aliveBlue().includes(u)) continue;
+
+    /* 1. 这一步就能踏进撤离区 —— 立刻走，别管别的 */
+    if (!u.moved) {
+      const reach = api.computeReach(u);
+      let esc = null;
+      for (const key in reach.stop) {
+        const p = key.split(',').map(Number);
+        if (api.inEscapeZone(p)) { esc = p; break; }
+      }
+      if (esc) { api.doMove(u, esc); continue; }
+    }
+
+    /* 2. 有便宜就开火（清路）。炮兵门槛低一些——它就是干这个的 */
+    if (tryShoot(u, api.isArty(u) ? 0.65 : 0.85)) continue;
+
+    if (api.isArty(u) || api.isHQ(u) || u.type === 'sup') {
+      /* 殿后组：站着不动，敌人贴上来才走开一格 */
+      if (u.moved) continue;
+      const reach = api.computeReach(u);
+      let best = null, bs = -Infinity;
+      for (const key in reach.stop) {
+        const p = key.split(',').map(Number);
+        let md = Infinity;
+        for (const f of api.alive('red')) md = Math.min(md, api.cheb(p, f.pos));
+        const s = Math.min(md, 5) * 2 + api.TERRAIN[L.map[p[0]][p[1]]].def * 3;
+        if (s > bs) { bs = s; best = p; }
+      }
+      const here = (() => {
+        let md = Infinity;
+        for (const f of api.alive('red')) md = Math.min(md, api.cheb(u.pos, f.pos));
+        return md;
+      })();
+      if (here <= 2 && best) api.doMove(u, best);
+      continue;
+    }
+
+    if (u.moved) continue;
+
+    /* 3. 朝撤离区推进 */
+    const reach = api.computeReach(u);
+    let best = null, bs = -Infinity;
+    for (const key in reach.stop) {
+      const p = key.split(',').map(Number);
+      const t = api.TERRAIN[L.map[p[0]][p[1]]];
+      const esc = nearestEscape(p);
+      let md = Infinity;
+      for (const f of api.alive('red')) md = Math.min(md, api.cheb(p, f.pos));
+      /* 距离是主要项；地形防御与"别贴着敌人"是修正项。
+         贴脸惩罚不能太重——缺口只有一个，就是要硬挤过去的。 */
+      let s = -esc.d * 1.5 + t.def * 2.5 + Math.min(md, 3) * 0.8;
+      if (api.inEscapeZone(p)) s += 50;
+      if (s > bs) { bs = s; best = p; }
+    }
+    if (best) api.doMove(u, best);
+  }
+}
+
+async function playOne(idx) {
+  api.newGame(levelArg ? { level: levelArg, noSave: true } : { noSave: true });
+  const st = api.getState();
+  L = api.LEVEL;
+  const kind = winKind();
   let guard = 0;
   /* 每回合采样：蓝方有多少单位真在工事里、有多少在要点里。
      只看终局快照会被"人都死了"干扰，逐回合累计才能反映守备质量。 */
@@ -215,7 +344,8 @@ async function playOne(idx) {
   while (!st.result && guard < 60) {
     guard++;
     if (st.phase !== 'blue') break;
-    await blueTurn();
+    if (kind === 'reach') await blueTurnBreakout();
+    else await blueTurnHold();
     if (st.result) break;
     const bs = st.units.filter(u => u.side === 'blue');
     fortAcc += bs.filter(u => {
@@ -245,8 +375,23 @@ async function playOne(idx) {
     result: st.result || 'stuck',
     score: api.blueScore(),
     turn: st.turn,
-    blueLoss: 1 - blueNow / INIT_BLUE,
-    redLoss: 1 - redNow / INIT_RED,
+    escaped: api.escapedCount(),
+    goal: api.escapeGoal(),
+    /* 返回"保住了几个 keep 要点"的数字，**不能返回 "1/1" 这种字符串**。
+       上一版返回的是 '0/1'，而 '0/1' 在 JS 里是 truthy——
+       汇总处的 `if (!r.keepHeld) keepNone++` 于是永远不成立，
+       报表上于是永远显示"核心保有 200/200 局"，把一次 0% 达成率掩盖成了"全守住了"。
+       这条统计一旦失真，survive 类关卡的所有平衡结论都不作数。 */
+    keepHeld: (() => {
+      const keep = (api.winSpec().keep || []);
+      if (!keep.length) return null;
+      return keep.filter(id => {
+        const o = L.objectives.find(x => x.id === id);
+        return !!o && api.objectiveControl(o) === 'blue';
+      }).length;
+    })(),
+    blueLoss: 1 - blueNow / initStr('blue'),
+    redLoss: 1 - redNow / initStr('red'),
     starved, avgOrg,
     fortAcc, coreAcc, aliveAcc, samples,
     ctrl: Object.assign({}, st.ctrl),
@@ -263,6 +408,7 @@ async function playOne(idx) {
   const tally = { fail: 0, win: 0, perfect: 0, stuck: 0 };
   const evtTally = {};
   let scoreSum = 0, turnSum = 0, bLoss = 0, rLoss = 0, starveSum = 0, orgSum = 0, fortSum = 0;
+  let escapeSum = 0, keepNone = 0;
   const kindSum = {};
   const ctrlTally = {};
   let blueAliveSum = 0, gdnSum = 0;
@@ -273,6 +419,7 @@ async function playOne(idx) {
     tally[r.result] = (tally[r.result] || 0) + 1;
     for (const e of r.events) evtTally[e] = (evtTally[e] || 0) + 1;
     scoreSum += r.score; turnSum += r.turn;
+    escapeSum += r.escaped; if (!r.keepHeld) keepNone++;
     bLoss += r.blueLoss; rLoss += r.redLoss;
     blueAliveSum += r.blueAlive; gdnSum += r.gdnAlive;
     fortAccSum += r.fortAcc; coreAccSum += r.coreAcc;
@@ -287,9 +434,10 @@ async function playOne(idx) {
 
   const pct = n => (n / ROUNDS * 100).toFixed(1) + '%';
   const achieve = (tally.win + tally.perfect) / ROUNDS * 100;
+  const kind = winKind();
 
   console.log('');
-  console.log(L.name + ' · 自战 ' + ROUNDS + ' 局');
+  console.log(L.name + ' · 自战 ' + ROUNDS + ' 局 · 目标 ' + kind);
   console.log('────────────────────────────────');
   console.log('失败        ' + String(tally.fail).padStart(4) + '   ' + pct(tally.fail));
   console.log('达成        ' + String(tally.win).padStart(4) + '   ' + pct(tally.win));
@@ -297,7 +445,13 @@ async function playOne(idx) {
   if (tally.stuck) console.log('异常卡死    ' + String(tally.stuck).padStart(4) + '   ' + pct(tally.stuck));
   console.log('────────────────────────────────');
   console.log('达成率      ' + achieve.toFixed(1) + '%   （目标区间 45–60%）');
-  console.log('平均得分    ' + (scoreSum / ROUNDS).toFixed(1) + ' / ' + L.winScore);
+  if (kind === 'score') {
+    console.log('平均得分    ' + (scoreSum / ROUNDS).toFixed(1) + ' / ' + L.winScore);
+  } else if (kind === 'reach') {
+    console.log('平均撤出    ' + (escapeSum / ROUNDS).toFixed(2) + ' / ' + api.escapeGoal() + ' 支');
+  } else if (kind === 'survive') {
+    console.log('核心保有    ' + (ROUNDS - keepNone) + ' / ' + ROUNDS + ' 局');
+  }
   console.log('平均回合    ' + (turnSum / ROUNDS).toFixed(2) + ' / ' + L.maxTurns);
   console.log('我方损失    ' + (bLoss / ROUNDS * 100).toFixed(1) + '%');
   console.log('敌方损失    ' + (rLoss / ROUNDS * 100).toFixed(1) + '%');
@@ -311,16 +465,16 @@ async function playOne(idx) {
   console.log('工事利用率  ' + (fortAccSum / Math.max(1, aliveAccSum) * 100).toFixed(1) +
     '%   （要点内 ' + (coreAccSum / Math.max(1, aliveAccSum) * 100).toFixed(1) +
     '%，平均存活 ' + aliveAvg.toFixed(1) + ' 个）');
-  if (process.argv.includes('--diag')) {
+  if (args.includes('--diag')) {
     console.log('────────────────────────────────');
-    const names = { city: '岚口市', air: '机场', town: '青溪镇', fordW: '西渡口', fordE: '东渡口' };
-    for (const k in names) {
+    for (const o of L.objectives) {
       const row = ['blue', 'red', 'contested', 'none']
-        .map(c => c + ' ' + (ctrlTally[k + ':' + c] || 0)).join('  ');
-      console.log(('终局 ' + names[k]).padEnd(12, ' ') + row);
+        .map(c => c + ' ' + (ctrlTally[o.id + ':' + c] || 0)).join('  ');
+      console.log(('终局 ' + o.name).padEnd(14, ' ') + row);
     }
     console.log('终局 我方兵牌 ' + (blueAliveSum / ROUNDS).toFixed(1) +
-                ' 个（守备营 ' + (gdnSum / ROUNDS).toFixed(1) + ' 个）');
+                ' 个（守备营 ' + (gdnSum / ROUNDS).toFixed(1) + ' 个）' +
+                (kind === 'reach' ? ' · 已撤出 ' + (escapeSum / ROUNDS).toFixed(2) : ''));
   }
   if (L.events && L.events.length) {
     console.log('────────────────────────────────');
@@ -328,10 +482,28 @@ async function playOne(idx) {
       const n = evtTally[ev.id] || 0;
       console.log(('事件 · ' + ev.desc).padEnd(24, ' ') + String(n).padStart(4) + '   ' + pct(n));
     }
+    /* 0% 触发的事件基本等于死代码。要么触发条件写错了（id / 编制对不上），
+       要么条件苛刻到玩家永远碰不到——两种情况都该有人看一眼，
+       而不是让它在数据里躺半年（"205 装甲旅伤亡过半"就是这么躺过来的）。 */
+    const dead = (L.events || []).filter(ev => !(evtTally[ev.id] || 0));
+    if (dead.length) {
+      console.log('⚠ 从未触发：' + dead.map(e => e.desc).join('、') +
+                  ' —— 查触发条件是否写死了不存在的兵牌 / 要点 / 编制');
+    }
   }
   console.log('');
 
-  if (achieve > 70) console.log('判定：太简单，红方需要加强');
-  else if (achieve < 35) console.log('判定：太难，蓝方需要加强');
-  else console.log('判定：达成率在可接受区间');
+  /* 教学关不按达成率判定。
+     新手引导的目标是"让所有人都能过"，100% 达成是**设计目标**，不是失衡。
+     用正关的 45–60% 去卡它，只会把教学关一路往"难"的方向调，
+     那正好和引导的目的相反。 */
+  const isTutorial = String(L.type || '').includes('教学') || L.no === 0;
+  if (isTutorial) {
+    console.log('判定：教学关，不以达成率为指标（目标就是能过）');
+    if (achieve < 90) console.log('⚠ 教学关达成率 ' + achieve.toFixed(1) + '% 偏低——引导关不该卡人');
+  } else if (achieve > 70) console.log('判定：偏简单，红方需要加强');
+  else if (achieve > 60) console.log('判定：略简单（目标区间 45–60%）');
+  else if (achieve >= 45) console.log('判定：达标（目标区间 45–60%）');
+  else if (achieve >= 35) console.log('判定：略难（目标区间 45–60%）');
+  else console.log('判定：太难，蓝方需要加强');
 })();

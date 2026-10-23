@@ -38,6 +38,8 @@
   .topbar h1 { font-size: 15px; font-weight: 650; margin: 0; letter-spacing: .2px; }
   .topbar .sub { color: var(--ink3); font-size: 12px; }
   .topbar .spacer { flex: 1; }
+  /* 版本号：一排胶囊中间夹一个朴素小字，跟它们保持同一字号，别抢眼 */
+  #verTag { color: var(--ink3); font-size: 11px; letter-spacing: .3px; }
   .pill {
     padding: 3px 9px; border-radius: 20px; font-size: 12px; font-weight: 600;
     background: #F1EEE5; color: var(--ink2); border: 1px solid var(--line);
@@ -127,6 +129,14 @@
   .hex.pass::after { background: rgba(58,110,165,.09); }
   .hex.bridge::after  { background: rgba(60,140,90,.40); }
   .hex.cur::after { background: rgba(240,200,90,.55); }
+  /* 撤离区（reach 类关卡的出口）。刻意不用伪元素：
+     ::before 已经归要点染色、::after 归移动/攻击高亮，撤离格正好可能同时是可达格。
+     用元素自身的 background 与 inset box-shadow，三层就能叠着看。 */
+  .hex.esczone {
+    background: #C6DCC0;
+    box-shadow: inset 0 0 0 3px rgba(58,116,70,.50);
+  }
+  .oLabel.onObj { color: #34633A; }
   /* 战术卡待选目标：与"可攻击"（红）和"可移动"（蓝）都区分开，用金褐色脉冲 */
   .hex.cardtgt::after {
     background: rgba(214,168,60,.42);
@@ -223,6 +233,24 @@
   .ok { color: #2E7D4F; } .warn { color: #A5762A; } .bad { color: var(--red); }
   .vpbar { height: 5px; background: #EDEAE0; border-radius: 3px; overflow: hidden; margin: 6px 0 4px; }
   .vpbar i { display: block; height: 100%; background: var(--blue); border-radius: 3px; transition: width .3s; }
+  /* 教学关科目清单。三态：done（已讲）/ now（正在讲）/ wait（还没讲）。
+     now 用左边一条蓝色竖条标出来，别再靠加粗——一屏里加粗太多了，看不出重点。 */
+  .dtitle { margin: 10px 0 6px; font-size: 11px; font-weight: 700; letter-spacing: 1px;
+            color: var(--ink3); text-transform: uppercase; }
+  .drills { display: flex; flex-direction: column; gap: 2px; }
+  .drill { display: grid; grid-template-columns: 16px 34px 1fr; align-items: baseline;
+           gap: 6px; padding: 4px 6px 4px 5px; border-left: 2px solid transparent;
+           border-radius: 0 5px 5px 0; font-size: 11.5px; line-height: 1.45; }
+  .drill i { font-style: normal; font-size: 10.5px; font-weight: 700; color: var(--ink3);
+             text-align: center; }
+  .drill b { font-weight: 650; color: var(--ink2); white-space: nowrap; }
+  .drill span { color: var(--ink3); }
+  .drill.wait { opacity: .45; }
+  .drill.done i { color: #2E7D4F; }
+  .drill.done span { color: var(--ink3); }
+  .drill.now { background: #F1F5F8; border-left-color: var(--blue); }
+  .drill.now b { color: var(--blue); }
+  .drill.now span { color: var(--ink); }
 
   .btns { display: flex; gap: 8px; margin-bottom: 10px; }
   button {
@@ -551,109 +579,6 @@
     .hq-grid { grid-template-columns: 1fr; }
   }
 
-  /* ───────── 开始页 ─────────
-     存在的两个理由：① 浏览器要求用户交互后才允许播音频，没有这一步 BGM 永远放不出来；
-     ② 第一次打开的人得先知道自己在打什么，而不是一进来就被 280 个格子糊一脸。 */
-  .start {
-    position: fixed; inset: 0; z-index: 60;
-    display: flex; align-items: center; justify-content: center; padding: 20px;
-    background: radial-gradient(120% 90% at 50% 0%, #FBFAF6 0%, var(--bg) 55%, #ECE9E0 100%);
-    overflow-y: auto;
-  }
-  .start.hidden { display: none; }
-  .start-card {
-    width: min(520px, 100%);
-    background: var(--card); border: 1px solid var(--line); border-radius: 14px;
-    padding: 30px 30px 20px;
-    box-shadow: 0 18px 50px rgba(43,42,38,.10), 0 2px 6px rgba(43,42,38,.04);
-  }
-  .start-kicker {
-    font-size: 10.5px; letter-spacing: 2.4px; text-transform: uppercase;
-    color: var(--ink3); margin-bottom: 10px;
-  }
-  .start-card h1 {
-    margin: 0 0 12px; font-size: 25px; line-height: 1.28;
-    font-weight: 700; letter-spacing: .6px;
-  }
-  .start-lead { margin: 0 0 20px; color: var(--ink2); font-size: 12.5px; line-height: 1.85; }
-  .start-lead b { color: var(--ink); font-weight: 650; }
-
-  /* ───────── 战役线时间轴 ─────────
-     竖排一条线，每关一个节点。刻意不做成一行卡片：
-     卡片并排只表达"有三个关"，纵向时间轴才表达"这是同一场战役的第几天"。
-     圆点的 left 是相对 .lvl-row 算的，负数把它拉回到竖线上——
-     改 padding-left 时这个数要跟着改。 */
-  .lvl-list { position: relative; margin: 0 0 18px; padding-left: 20px; }
-  .lvl-list::before {
-    content: ''; position: absolute; left: 5px; top: 14px; bottom: 14px;
-    width: 1px; background: var(--line);
-  }
-  .lvl-row {
-    position: relative; display: flex; align-items: center; gap: 10px;
-    padding: 8px 9px; border-radius: 8px; border: 1px solid transparent;
-    cursor: pointer; transition: background .12s, border-color .12s;
-  }
-  .lvl-row:hover { background: #FAF8F2; border-color: var(--line); }
-  .lvl-row .dot {
-    position: absolute; left: -20px; top: 14px; width: 11px; height: 11px;
-    border-radius: 50%; background: #fff; border: 2px solid #D3CCBC;
-  }
-  .lvl-row.done .dot { background: var(--blue); border-color: var(--blue); }
-  .lvl-row.cur .dot { border-color: var(--red); box-shadow: 0 0 0 3px rgba(168,58,58,.12); }
-  .lvl-row.locked { cursor: default; opacity: .55; }
-  .lvl-row.locked:hover { background: none; border-color: transparent; }
-  .lvl-main { flex: 1; min-width: 0; }
-  .lvl-head { display: flex; align-items: baseline; gap: 7px; flex-wrap: wrap; }
-  .lvl-head b { font-size: 13px; font-weight: 650; color: var(--ink); }
-  .lvl-head em {
-    font-style: normal; font-size: 10px; letter-spacing: .5px;
-    padding: 1px 5px; border-radius: 3px; background: #F1EEE6; color: var(--ink3);
-  }
-  .lvl-when { margin-top: 2px; font-size: 10.5px; color: var(--ink3); letter-spacing: .3px; }
-  .lvl-teaser { margin-top: 3px; font-size: 11.5px; line-height: 1.55; color: var(--ink2); }
-  .lvl-state {
-    flex: 0 0 auto; font-size: 10.5px; color: var(--ink3);
-    text-align: right; white-space: nowrap; padding-left: 4px;
-  }
-  .lvl-row.cur .lvl-state { color: var(--red); }
-
-  .start-btns { display: flex; flex-direction: column; gap: 8px; }
-  .start-btns button {
-    width: 100%; padding: 11px 14px; border-radius: 8px; font: inherit;
-    font-size: 13.5px; cursor: pointer; border: 1px solid transparent;
-    transition: background .15s, border-color .15s, color .15s;
-  }
-  .start-primary { background: var(--blue); color: #fff; font-weight: 600; }
-  .start-primary:hover { background: #325F8F; }
-  .start-ghost { background: #fff; color: var(--ink2); border-color: var(--line); }
-  .start-ghost:hover { border-color: #CFC9BC; color: var(--ink); }
-  .start-ghost[disabled] { opacity: .45; cursor: default; }
-  .start-ghost[disabled]:hover { border-color: var(--line); color: var(--ink2); }
-  .start-meta { display: block; margin-top: 1px; font-size: 11px; color: var(--ink3); }
-  .start-hint {
-    margin-top: 14px; font-size: 11px; line-height: 1.75; color: var(--ink3);
-  }
-  .start-save {
-    display: flex; align-items: center; gap: 7px; margin-top: 12px;
-    padding-top: 11px; border-top: 1px solid #EAE4D6;
-  }
-  .start-mini {
-    font: inherit; font-size: 11px; padding: 5px 10px; cursor: pointer;
-    background: #fff; border: 1px solid var(--line); border-radius: 5px;
-    color: var(--ink2);
-  }
-  .start-mini:hover { border-color: #CFC9BC; color: var(--ink); }
-  .start-savetip { font-size: 10px; color: var(--ink3); margin-left: auto; }
-  .start-hint kbd {
-    background: #F1EEE6; border: 1px solid var(--line); border-radius: 3px;
-    padding: 0 4px; font: inherit; font-size: 10.5px; color: var(--ink2);
-  }
-  .start-foot {
-    margin-top: 16px; padding-top: 11px; border-top: 1px solid var(--line);
-    display: flex; justify-content: space-between; gap: 10px;
-    font-size: 10.5px; color: var(--ink3);
-  }
-
   /* ───────── 战前简报 ─────────
      点「开始新的战役」之后、真正开局之前的一段过场。
      刻意做成纸质作战命令而不是又一个弹窗：它是戏，不是提示。
@@ -916,15 +841,9 @@
     .topbar .sub { font-size: 11px; }
     .topbar .spacer { flex: 0 0 100%; height: 0; }
 
-    /* 开始页：改 flex-start 而不是居中 —— 内容高于屏幕时居中会把顶部裁掉 */
-    .start { padding: 14px; align-items: flex-start; }
-    .start-card { padding: 22px 18px 16px; margin-top: 4vh; }
-    .start-card h1 { font-size: 21px; }
-    .start-lead { font-size: 12px; line-height: 1.75; }
-    .start-hint { font-size: 10.5px; }
-    .start-foot { flex-wrap: wrap; }
-    .start-btns button { padding: 12px 14px; }
     .pill { font-size: 11px; padding: 2px 8px; }
+    /* 顶栏挤的时候先收版本号，关卡名和回合数比它重要 */
+    #verTag { display: none; }
 
     /* 地图：固定高度，内部由 transform 缩放，禁用原生滚动与页面手势干扰 */
     #boardWrap {
@@ -1001,7 +920,11 @@
       <span class="pill" id="turnPill">第 1 / 12 回合</span>
       <span class="pill" id="seasonPill">秋季</span>
       <span class="pill" id="phasePill">我方阶段</span>
-      <button id="btnHQ" class="hqbtn" title="指挥部：兵种图鉴 / 战术卡 / 副官">HQ</button>
+      <!-- 全项目唯一的版本标记：tools/export-levels.js 按这个 span 的原样文本抓版本号，
+           开始页撤掉之后它挪到了顶栏，标签必须保持 <span id="verTag"> 这个形状 -->
+      <span id="verTag">v4.3</span>
+      <button id="btnMenu" class="hqbtn" title="返回菜单页：换关、看进度、导存档">菜单</button>
+      <button id="btnHQ" class="hqbtn" title="指挥部：兵种图鉴 / 战术卡 / 副官 / 存档">HQ</button>
       <button id="btnTips" class="tipsbtn" title="操作说明">?</button>
     </div>
     <div id="boardWrap">
@@ -1050,47 +973,13 @@
   </aside>
 </div>
 
-<!-- 开始页：音频解锁的唯一入口，也是第一次进游戏的信息台。
-     默认 hidden，只有 showStart() 会把它放出来；这样 demo / 自测跳过时不会误显示 -->
-<div class="start hidden" id="startScreen">
-  <div class="start-card">
-    <div class="start-kicker">架空兵棋 · 单机战役</div>
-    <h1>苍屿战役</h1>
-    <p class="start-lead">
-      北部边防在七十二小时内崩溃，西部方面军主力正在渡江东撤。<br>
-      你能指挥的，只有被留下来的人。
-    </p>
-    <!-- 战役线时间轴：由 LEVELS 渲染，加一关这里自动多一行 -->
-    <div class="lvl-list" id="lvlList"></div>
-    <div class="start-btns">
-      <button class="start-primary" id="btnNewGame">开始推演</button>
-      <button class="start-ghost" id="btnResume" disabled>
-        继续上次
-        <span class="start-meta" id="resumeMeta">没有存档</span>
-      </button>
-    </div>
-    <div class="start-hint">
-      点兵牌选中，再点目标格移动或攻击 · <kbd>结束我方阶段</kbd> 把回合交给敌方 ·
-      手机可单指拖动、双指缩放，点格子会自动放大
-    </div>
-    <!-- 存档文件：localStorage 会被清缓存、换浏览器、隐私模式搞没，
-         能导出成一个文件才算真的"存下来了"。 -->
-    <div class="start-save">
-      <button id="btnExport" class="start-mini">导出存档</button>
-      <button id="btnImport" class="start-mini">导入存档</button>
-      <input type="file" id="fileImport" accept=".json,application/json" hidden>
-      <span class="start-savetip" id="saveTip">存档只在本机浏览器里</span>
-    </div>
-    <div class="start-foot">
-      <span>音效 OpenGameArt (CC0) · Mixkit · Kenney (CC0)</span>
-      <span id="verTag">v4.1</span>
-    </div>
-  </div>
-</div>
-
-<!-- 战前简报：点「开始新的战役」之后、真正开局之前的一段过场。
+<!-- 战前简报：菜单页选定一关之后、真正开局之前的一段过场。
      这里只是空壳，内容全部由 LEVEL.story.briefing 驱动，改剧本不用碰 HTML。 -->
 <div class="brief hidden" id="briefScreen"></div>
+
+<!-- 存档文件的读取口。它必须留在 body 里：HQ 的「导入存档文件」按钮是点它的，
+     开始页撤掉之后这里就是唯一一处。 -->
+<input type="file" id="fileImport" accept=".json,application/json" hidden>
 
 <!-- 地图内操作气泡：选中工兵 / 炮兵 / 辎重时贴在兵牌旁边。
      以前这些按钮在右侧栏，玩家选完单位要横跨整个屏幕去点，
@@ -1347,36 +1236,707 @@ const TIER_LABEL = ['3:1', '2:1', '1.5:1', '1:1', '1:1.5', '1:2', '1:3'];
 */
 const LEVELS = [
 {
-  /* ── C1 · 占位：元信息已定，地图与编制等制作时再填 ── */
-  id: 'C1', no: 1, name: '北岭哨所', type: '教学',
-  when: '第 1 天 · 10 月 6 日', where: '北岭 · 边防第 3 营哨所',
-  teaser: '边境的第一枪。守住哨所四个回合，把还能走的人都带回来。',
-  ready: false,
-  maxTurns: 4, cols: 10, rows: 8,
-  map: [], objectives: [], events: [], units: [], story: {}
+  /* ═══════════ T1 · 教学关：军校沙盘 ═══════════
+     独立于战役编号（no:0），随时能重进。
+     设计原则：**不教赢，教"看懂"**。
+     六支兵牌各代表一种操作，每一回合只点一件事，玩家不会一次被灌满。
+
+     ── v4.2 重做：对面从"敌人"改成"靶标" ──
+     旧版把六支真兵摆在对面，红方第 1 回合就能抢下要点；更要命的是本关
+     winScore 10 = 全部要点分值，于是 checkEnd 里那条
+     `redScore() > maxRed - winScore` 变成 `redScore > 0`——
+     红方一占要点就当场判负。实测 120 局达成率 0%、平均只走到第 1 回合，
+     这不是"偏难"，是**结构上打不赢**：玩家连第 2 条教官提示都没见到就结束了。
+
+     现在按新手引导的通行做法改（安全失败 / 一次只教一件事 / 靶场式练习）：
+       · 红方全部 mov:0、rng:0（只留一个 mov:0、rng:1 的警戒班教"敌人会还手"）
+         ——靶子不会推进、不会抢点、不会主动开火，玩家不可能被打崩
+       · 回合数 6→7，给第六科目留一个复习回合，不作弊也能按时走完
+       · 科目表 drills 常驻左侧面板，不再只靠一条会被刷走的战报
+
+     为什么保留一个会还手的靶标：全静的靶场教不出"看比值"这件事。
+     有一个能反击的对手，攻击预览里的 1:1 / 3:1 才有意义——
+     但它只有 2 点战力，最坏结果也就是掉一点组织度。 */
+  id: 'T1', no: 0, name: '军校沙盘', type: '教学',
+  when: '战前 · 新历 1207 年 8 月下旬', where: '西部军区陆军学校 · 沙盘教室',
+  teaser: '六种兵牌，一个不会推进的靶场。把按钮点一遍，再上真正的战场。',
+  ready: true,
+  /* 序章与第一关都从开局就开放。教学关不该成为"必须先过"的门槛——
+     有经验的玩家直接打第一关，想练手的随时回来，两条路都通。 */
+  open: true,
+  win: { kind: 'score' },
+  intro: [
+    '沙盘演习。你带六支兵牌，对面一排是演习靶标——它们钉在原地，不会推进，也不会主动开火。',
+    '目标：把中央演习要点（10 分）拿下来，并守到演习结束。',
+    '这一局你会用到：步兵营、中型坦克营、旅炮兵营、工兵连、反坦克连、群部。',
+    '这里输一局不花钱。想直接打第一关也行，沙盘随时能回来。'
+  ],
+  /* 科目表：左侧「战役态势」面板把它画成清单，当前该练的那条高亮，练过的打钩。
+     为什么不只靠战报里那一行【教官】：战报会被后来的条目顶上去，
+     玩家一回头就找不着"我现在该干什么"了。常驻清单才查得到。
+     t 是"第几回合讲这一条"，不是通关条件——讲晚了也不影响胜负。 */
+  drills: [
+    { t: 1, k: '移动',   s: '选中兵牌 → 点它脚下的蓝格' },
+    { t: 2, k: '攻击',   s: '点红格，先看比值再决定打不打' },
+    { t: 3, k: '火炮',   s: '兵牌旁气泡 →「展开放列」，下回合才能开火' },
+    { t: 4, k: '工事',   s: '工兵气泡 →「构筑工事」，只保护守在里面的兵' },
+    { t: 5, k: '占领',   s: '走上要点，站住；有人守，要点才归你' },
+    { t: 6, k: '组织度', s: '兵牌下那条细线掉一半，力气只剩六成' }
+  ],
+  maxTurns: 7,
+  cols: 12,
+  rows: 9,
+  blueSources: [[8, 3]],
+  redSource: [1, 9],
+  winScore: 10,
+  perfectScore: 99,
+  map: [
+    '............',
+    '..ff....ff..',
+    '..ff....ff..',
+    '.....hh.....',
+    '.....tt.....',
+    '.....hh.....',
+    '..ff....ff..',
+    '..ff....ff..',
+    '............'
+  ],
+  objectives: [
+    { id: 'drill', name: '演习要点', vp: 10, core: true, kind: 'town', cells: [[4, 5]] }
+  ],
+  events: [
+    { id: 't1_move', desc: '科目 1 · 移动', when: { kind: 'turn', turn: 1 },
+      effects: [{ kind: 'log',
+        text: '【教官】先动一支。点兵牌选中，脚下亮起蓝格——那是它能走到的位置，再点蓝格就过去。靶子不会动，慢点来。',
+        cls: 'b' }] },
+    { id: 't1_atk', desc: '科目 2 · 攻击', when: { kind: 'turn', turn: 2 },
+      effects: [{ kind: 'log',
+        text: '【教官】红格是可打的目标。点之前先看右边那个比值：3:1 是碾过去，1:1 是拼命。别只看能不能打，要看划不划算。',
+        cls: 'b' }] },
+    { id: 't1_arty', desc: '科目 3 · 火炮', when: { kind: 'turn', turn: 3 },
+      effects: [{ kind: 'log',
+        text: '【教官】炮兵兵牌带斜纹，说明还在行军状态、开不了火。点它，在兵牌旁的气泡里选「展开放列」，下回合就能隔着五格砸人了。',
+        cls: 'b' }] },
+    { id: 't1_eng', desc: '科目 4 · 工事', when: { kind: 'turn', turn: 4 },
+      effects: [{ kind: 'log',
+        text: '【教官】工兵选中后，兵牌旁有作业气泡：修工事、布雷、架桥都在里面。工事只保护守在里面的自己人——挖在没人站的地方等于白挖。',
+        cls: 'b' }] },
+    { id: 't1_obj', desc: '科目 5 · 占领', when: { kind: 'turn', turn: 5 },
+      effects: [{ kind: 'log',
+        text: '【教官】步兵、坦克、工兵都能占领要点。把那格清干净再站上去——站住，它就是你的；被人挤进来，就变回争夺。',
+        cls: 'b' }] },
+    { id: 't1_org', desc: '科目 6 · 组织度', when: { kind: 'turn', turn: 6 },
+      effects: [{ kind: 'log',
+        text: '【教官】兵牌底下那条细线是组织度。掉到一半，这支兵只能打出六成力气——人还在，力气没了。打残的部队拉到群部旁边能慢慢缓过来。',
+        cls: 'b' }] },
+    /* 第七回合是"复习"，不是新科目：新手引导的收尾不该再加新东西，
+       给人一个回合把刚才六件事自己串一遍，比塞第七个概念有用。 */
+    { id: 't1_end', desc: '结业 · 自己走一遍', when: { kind: 'turn', turn: 7 },
+      effects: [{ kind: 'log',
+        text: '【教官】最后两分钟。把靶子清完、要点站住——这一局就算你从陆军学校毕业了。真正的战场在第一关等着。',
+        cls: 'b' }] }
+  ],
+  units: [
+    /* 我方 · 学员排（蓝） */
+    { id:'X6', side:'blue', abbr:'群',   name:'演习群部',        type:'hkg',  str:2, mov:8, rng:0, r:7, c:2, corps:'X', wave:1 },
+    { id:'X1', side:'blue', abbr:'步',   name:'学员步兵营',      type:'inf',  str:8, mov:6, rng:1, r:7, c:3, corps:'X', wave:1 },
+    { id:'X2', side:'blue', abbr:'中坦', name:'学员中型坦克营',  type:'marm', str:11, mov:10, rng:1, r:7, c:4, corps:'X', wave:1 },
+    { id:'X3', side:'blue', abbr:'炮',   name:'学员炮兵营',      type:'art',  str:5, mov:6, rng:5, r:8, c:3, corps:'X', wave:1, packed:1 },
+    { id:'X4', side:'blue', abbr:'工',   name:'学员工兵连',      type:'engc', str:2, mov:6, rng:1, r:8, c:4, corps:'X', wave:1 },
+    { id:'X5', side:'blue', abbr:'反',   name:'学员反坦克连',    type:'at',   str:3, mov:5, rng:1, r:7, c:5, corps:'X', wave:1 },
+    /* 靶场 · 演习靶标（红）
+       mov:0 → 走不动；rng:0 → 不还手。它们是"会掉血的标靶"，不是对手。
+       只留「敌·警」一个 rng:1，用来教"打之前先看比值"——
+       真打起来它最多让谁掉几点组织度，翻不了盘。
+       为什么不做成 mov:1 的"龟速敌军"：只要它能走，就有机会挪到要点上，
+       而本关 winScore 等于要点总分，红方一占就当场判负。靶标必须一步都走不了。 */
+    { id:'Y1', side:'red',  abbr:'靶步', name:'演习靶标 · 步兵组',   type:'inf',  str:6, mov:0, rng:0, r:3, c:5, corps:'Y', wave:1 },
+    { id:'Y2', side:'red',  abbr:'靶坦', name:'演习靶标 · 坦克组',   type:'marm', str:9, mov:0, rng:0, r:3, c:7, corps:'Y', wave:1 },
+    { id:'Y3', side:'red',  abbr:'靶反', name:'演习靶标 · 反坦克组', type:'at',   str:3, mov:0, rng:0, r:2, c:4, corps:'Y', wave:1 },
+    { id:'Y4', side:'red',  abbr:'敌警', name:'假想敌警戒班',       type:'inf',  str:2, mov:0, rng:1, r:4, c:7, corps:'Y', wave:1 }
+  ],
+  story: {
+    briefing: {
+      pages: [
+        { order: '陆军学校 · 沙盘教室', kicker: '演习设定',
+          title: '这一次，输了不会有人死',
+          paras: [
+            { t: '沙盘上的六角格代表 1.5 公里。你手里六支兵牌，对面四组演习靶标。' },
+            { t: '靶标钉在原地，不会推进，也不会抢先开火。你可以慢慢试，把每个按钮都点一遍再打。', hl: true }
+          ],
+          nums: [{ k: '回合', v: '7' }, { k: '兵牌', v: '6' }, { k: '目标', v: '中央要点' }] },
+        { order: '讲义 · 第一页', kicker: '胜负',
+          title: '占住中央，演习结束',
+          paras: [
+            { t: '中央那格是演习要点，10 分。站上去，守到演习结束，就算过关。' },
+            { t: '教官不会给你援军，也不会额外加难度——这一关只是让你把按钮点一遍。' +
+                 '打输了不要紧，重来一次就是。' }
+          ],
+          nums: [{ k: '要点分值', v: '10' }, { k: '达成线', v: '10', hot: true }] },
+        { order: '讲义 · 第二页', kicker: '你会用到的',
+          title: '六支兵牌，六种操作',
+          paras: [
+            { t: '步兵营：占领。中坦：突击。炮兵：展开后远程打击。' },
+            { t: '工兵：修工事。反坦克连：专打坦克。群部：恢复周围部队的组织度。' },
+            { t: '左侧「战役态势」里有一张科目表，当前该练哪条会高亮。跟着做就行。', hl: true }
+          ],
+          nums: [{ k: '兵种', v: '6' }, { k: '科目', v: '6' }] }
+      ],
+      beats: [
+        { who: '教官', side: 'blue', portrait: 'portBlue',
+          text: '沙盘上输一百次，战场上就能少死一百个人。\n开始吧——先动一支，随便哪支。' }
+      ]
+    }
+  }
 },
 {
-  /* ── C2 · 占位 ── */
-  id: 'C2', no: 2, name: '青溪渡口', type: '迟滞',
-  when: '第 2 天 · 10 月 7 日', where: '青溪 · 上游渡口',
-  teaser: '主力要过江，渡口必须再撑六个回合。撑不住，岚口就没有侧翼了。',
-  ready: false,
-  maxTurns: 6, cols: 10, rows: 8,
-  map: [], objectives: [], events: [], units: [], story: {}
+  /* ═══════════ C1 · 北岭要塞（坚守） ═══════════
+     用户定的三条：敌军初秋攻势、第 1 边防旅 + 第 103 步兵师被围于要塞、
+     要塞自带工事、坚守够时长即胜、全灭即负。
+
+     胜负条件是 survive 而不是 score —— 这一关的题面是"撑时间"，不是"得分"。
+     keep:['core'] 是唯一附加要求：要塞核心那一格不能落到敌手。
+     没有这条，玩家可以把部队全撤到地图东南角躲八个回合，"坚守"就成了赛跑。
+     全灭判负不写在这里，它写在 checkEnd 里，对所有关卡一律生效。
+
+     关卡设计要点：
+       · 单轴进攻会变成"堵口子"，所以红方两路——第一波从西面正攻（第 4 回合），
+         第二波从南面绕（第 6 回合）。蓝方 11 支部队守 15 格城，必须分兵。
+       · 丘陵脊（第 7 列）在第 4 行断了一个口子，红方自然从这里灌进来，
+         而（4,10）的要塞炮正好覆盖这个缺口——"要塞"的价值被摆在地图上，不用讲。 */
+  id: 'C1', no: 1, name: '北岭要塞', type: '坚守',
+  when: '新历 1207 年 9 月 6 日', where: '西部边陲 · 北岭要塞',
+  teaser: '敌军三个师自西面压向边陲，第 1 边防旅与第 103 步兵师被围在要塞里。守住八个回合。',
+  ready: true,
+  /* 与序章一样开局即开放：这里是战役真正的第一仗 */
+  open: true,
+  win: { kind: 'survive', keep: ['core'] },
+  /* 上一关是军校沙盘。演习结果通向同一场战争，只是档案上好看不好看 */
+  prev: {
+    win:  '沙盘演习通过，成绩记入档案。四十八小时后，你已经在开往边陲的军列上。',
+    fail: '沙盘演习没通过，但战争不等你——四十八小时后，你照样在开往边陲的军列上。'
+  },
+  intro: [
+    '初秋 · 天气良好。灰原联合体三个师自西面沿边陲公路推进，北岭要塞被合围。',
+    '守备力量：第 1 边防旅（3 个守备营）、第 103 步兵师师部与第 309、310 团（各 2 个营）、师属炮兵与反坦克连。',
+    '第 103 步兵师是三团制，第 311 团在边陲公路上被打散，没能退进要塞——所以这里只有两个团。',
+    '要塞自带工事：2 座碉堡封住西面突破口，1 道堑壕与 1 门要塞炮固守核心，南面 2 道堑壕。',
+    '任务：坚守 8 回合。要塞核心（要塞炮所在格）必须始终在我方手中，全部兵牌被歼则判负。'
+  ],
+  maxTurns: 8,
+  cols: 12,
+  rows: 9,
+  blueSources: [[4, 11]],
+  redSource: [3, 2],
+  /* 预置工事。程序不校验地形，但摆法要说得通：
+     碉堡在城墙外沿（第 8 列的"护城河"带），要塞炮在城里，堑壕在南北两翼。 */
+  forts: [
+    { r: 3, c: 8, side: 'blue', kind: 'B' },
+    { r: 5, c: 8, side: 'blue', kind: 'B' },
+    { r: 4, c: 8, side: 'blue', kind: 'H' },
+    { r: 4, c: 10, side: 'blue', kind: 'P' },
+    { r: 7, c: 9, side: 'blue', kind: 'H' },
+    { r: 7, c: 10, side: 'blue', kind: 'H' }
+  ],
+  map: [
+    '............',
+    '..ff..hh....',
+    '..ff..hh.ttt',
+    '......hh.ttt',
+    '..ff.....ttt',
+    '......hh.ttt',
+    '......hh.ttt',
+    '..ff..hh....',
+    '............'
+  ],
+  objectives: [
+    /* kind:'city' 不只是图标——守备营（gdn）的「为了祖国」只在 city / air 要点内触发，
+       要塞用 city 才对得上"守备营守要塞"这件事 */
+    { id: 'core', name: '要塞核心', vp: 20, core: true, kind: 'city', cells: [[4, 9], [4, 10], [4, 11]] }
+  ],
+  events: [
+    {
+      id: 'b1_mauled', desc: '边防第 1 旅伤亡过半',
+      when: { kind: 'corpsBelow', side: 'blue', corps: 'B1', ratio: 0.55 },
+      effects: [
+        { kind: 'log', text: '边防第 1 旅的阵地被打穿了两段，营长们只能各自为战。', cls: 'hi' },
+        { kind: 'org', side: 'blue', corps: 'B1', delta: -8 },
+        { kind: 'mod', side: 'blue', def: -0.04, label: '建制残缺 · 边防第 1 旅防御 -4%',
+          filter: { corps: 'B1' } }
+      ]
+    },
+    {
+      id: 'night_drop', desc: '夜间空投',
+      when: { kind: 'turn', turn: 5 },
+      effects: [
+        { kind: 'log', text: '入夜，一架运输机顶着高炮掠过要塞，投下弹药与血浆。', cls: 'b' },
+        { kind: 'org', side: 'blue', delta: 5 }
+      ]
+    },
+    {
+      id: 'last_push', desc: '敌军总攻',
+      when: { kind: 'turn', turn: 7 },
+      effects: [
+        { kind: 'log', text: '敌军发起最后一次总攻——他们的时间也不多了。', cls: 'r' },
+        { kind: 'mod', side: 'red', atk: 0.08, label: '孤注一掷 · 敌军攻击 +8%' }
+      ]
+    },
+    /* ── 以下四条挂的是"玩家做了什么"，不是回合钟 ── */
+    {
+      id: 'first_shot', desc: '第一枪',
+      when: { kind: 'firstBlood' },
+      effects: [
+        { kind: 'say', beats: [
+          { who: '第 103 步兵师 · 师部', side: 'blue', portrait: 'portBlue',
+            text: '打响了。都听好——要塞在这，我们在，就没有别的退路。' },
+          { who: '副官', side: 'blue', portrait: 'portBlue',
+            text: '师长，二线还在收拢。要不要把 1-1 营拉出来看看正面？' }
+        ] }
+      ]
+    },
+    {
+      id: 'b1a_out', desc: '守备营离开工事',
+      when: { kind: 'unitActed', id: 'B1A', act: 'move' },
+      effects: [
+        { kind: 'log', text: '1-1 营离开工事前出——守备营一旦离开要点，就没有「为了祖国」那层加成了。', cls: 'hi' },
+        { kind: 'say', who: '第 1 边防旅 · 旅长', side: 'blue', portrait: 'portBlue',
+          text: '我让 1-1 前出看看正面。\n提醒一句：他们出了工事，就不比普通步兵强到哪去。' }
+      ]
+    },
+    {
+      id: 'core_breached', desc: '敌军突入要塞核心',
+      when: { kind: 'control', obj: 'core', side: 'red' },
+      effects: [
+        { kind: 'log', text: '敌军已经踩进要塞核心。这是白刃战——打回去，否则这一仗就结束了。', cls: 'r' },
+        { kind: 'org', side: 'blue', delta: -6 },
+        { kind: 'mod', side: 'red', atk: 0.06, turns: 2, label: '突入要塞 · 敌军攻击 +6%' }
+      ]
+    },
+    {
+      id: 'bleed_out', desc: '快打光了',
+      when: { kind: 'sideBelow', side: 'blue', ratio: 0.55 },
+      effects: [
+        { kind: 'say', who: '副官', side: 'blue', portrait: 'portBlue',
+          text: '师长，能站着的人不到一半了。\n再撑两轮就好——运输机已经在路上。' }
+      ]
+    }
+  ],
+
+  story: {
+    briefing: {
+      pages: [
+        {
+          order: '作战命令 · 第 11 号',
+          kicker: '战役态势',
+          title: '一个要塞，两个番号',
+          paras: [
+            { t: '初秋，灰原联合体以「边境事故」为由发动攻势。第一周就推进了四十公里，' +
+                 '西部边陲的三个哨所被逐个拔掉。' },
+            { t: '北岭要塞是这条路线上唯一还有混凝土的地方。', hl: true },
+            { t: '第 1 边防旅和第 103 步兵师的残部昨晚退进要塞，两个番号合起来十二个兵牌。' +
+                 '合围已经完成，援军没有。' }
+          ],
+          nums: [
+            { k: '建制', v: '2 个' },
+            { k: '兵牌', v: '12' },
+            { k: '战力', v: '67' }
+          ]
+        },
+        {
+          order: '要塞要图 · 附页',
+          kicker: '工事',
+          title: '混凝土是这里唯一充裕的东西',
+          paras: [
+            { t: '西面两座碉堡卡住唯一一条能走车的口子，城里一门要塞炮覆盖缺口。' },
+            { t: '南北两翼各有一道堑壕，但都只有一人深——挡得住散兵，挡不住装甲。', hl: true },
+            { t: '工事只对守在里面的己方部队有效。部队一撤，它就只是一堆水泥。' }
+          ],
+          nums: [
+            { k: '碉堡', v: '2' },
+            { k: '堑壕', v: '3' },
+            { k: '要塞炮', v: '1' }
+          ]
+        },
+        {
+          order: '任务简报',
+          kicker: '你的任务',
+          title: '撑够八个回合',
+          paras: [
+            { t: '8 回合结束、要塞核心仍在我手，即为达成。<b>全部兵牌被歼则立即判负。</b>' },
+            { t: '敌军第一波明天从西面正攻，第二波大约两天后从南面绕上来——他们不会只走一条路。' },
+            { t: '守备营在核心要点内或相邻格作战时触发「为了祖国」，战力 7 → 10。' +
+                 '出了城墙，他们只是普通预备役。', hl: true }
+          ],
+          nums: [
+            { k: '回合', v: '8' },
+            { k: '核心', v: '不能丢' },
+            { k: '援军', v: '无' }
+          ]
+        }
+      ],
+      beats: [
+        { who: '第 103 步兵师 · 师长', side: 'blue', portrait: 'portBlue',
+          text: '边防旅的阵地昨天就没了，人退进来了，番号还在。\n现在归我指挥。' },
+        { who: '第 1 边防旅 · 旅长', side: 'blue', portrait: 'portBlue',
+          text: '我的营打剩下两个连。要塞炮还能用，炮弹还有四十发。\n守多久？' },
+        { who: '敌第 14 步兵师 · 前沿无线电', side: 'red', portrait: 'portRed',
+          text: '要塞里有守军，工事没被炸开。\n绕过去太慢——压上去，一天解决。' }
+      ]
+    }
+  },
+
+  units: [
+    /* 我方 · 第 1 边防旅（城墙内沿，吃「为了祖国」） */
+    { id:'B1H', side:'blue', abbr:'1H',    name:'第 1 边防旅旅部',            type:'hqb', str:2, mov:8, rng:0, r:2, c:10, corps:'B1', wave:1 },
+    { id:'B1A', side:'blue', abbr:'1-1',   name:'边防第 1 旅第 1 营',          type:'gdn', str:7, mov:5, rng:1, r:3, c:9,  corps:'B1', wave:1 },
+    { id:'B1B', side:'blue', abbr:'1-2',   name:'边防第 1 旅第 2 营',          type:'gdn', str:7, mov:5, rng:1, r:6, c:10, corps:'B1', wave:1 },
+    { id:'B1C', side:'blue', abbr:'1-3',   name:'边防第 1 旅第 3 营',          type:'gdn', str:7, mov:5, rng:1, r:4, c:9,  corps:'B1', wave:1 },
+    /* 我方 · 第 103 步兵师
+       编制按 docs/06 的「我方两营制团」：师辖 3 团、团辖 2 营，满编 6 个战斗营。
+       被围在这里的是第 309、310 两个团（各 2 营，合计 4 营）；
+       第 311 团在边陲公路上被打散，没能退进要塞——所以三团里少一个团的兵牌。
+       这一层必须在名字里写出来：原来叫「第 103 步兵师第 1 营」，
+       等于一个师直辖三个营，编制表上根本看不出团在哪一级。 */
+    { id:'B2H', side:'blue', abbr:'103H',  name:'第 103 步兵师师部',          type:'hqd', str:2, mov:8, rng:0, r:4, c:11, corps:'B2', wave:1 },
+    { id:'B2A', side:'blue', abbr:'103-1', name:'第 103 步兵师第 309 团第 1 营', type:'inf', str:8, mov:6, rng:1, r:5, c:9,  corps:'B2', wave:1 },
+    { id:'B2B', side:'blue', abbr:'103-2', name:'第 103 步兵师第 309 团第 2 营', type:'inf', str:8, mov:6, rng:1, r:5, c:10, corps:'B2', wave:1 },
+    { id:'B2C', side:'blue', abbr:'103-3', name:'第 103 步兵师第 310 团第 1 营', type:'inf', str:8, mov:6, rng:1, r:3, c:11, corps:'B2', wave:1 },
+    { id:'B2D', side:'blue', abbr:'103-4', name:'第 103 步兵师第 310 团第 2 营', type:'inf', str:8, mov:6, rng:1, r:5, c:11, corps:'B2', wave:1 },
+    /* 师属炮兵直接架在要塞炮位旁边：炮位让驻守炮兵射程 +1，这是要塞最值钱的地方 */
+    { id:'B2F', side:'blue', abbr:'103炮', name:'第 103 步兵师炮兵营',        type:'art', str:5, mov:6, rng:5, r:4, c:10, corps:'B2', wave:1 },
+    { id:'B2T', side:'blue', abbr:'103反', name:'第 103 步兵师反坦克连',      type:'at',  str:3, mov:5, rng:1, r:2, c:9,  corps:'B2', wave:1 },
+    { id:'B2E', side:'blue', abbr:'103工', name:'第 103 步兵师工兵连',        type:'engc',str:2, mov:6, rng:1, r:3, c:10, corps:'B2', wave:1 },
+
+    /* 敌方 · 第一波 · 敌第 14 步兵师（西面正攻）
+       它的编成比同一关的第 31 步兵师（3 个营 + 炮兵营，32 战力）大了一倍：
+       多 1 个摩步营、1 个装甲侦察营、1 个重炮营，共 61 战力。
+       这是主攻方向的加强，不是漏写兵牌——tools/orgcheck.js 会把这种"同型不同量"
+       单独列成提示，每加一关都能确认它到底是设计还是笔误。 */
+    { id:'R1H', side:'red',  abbr:'14H',  name:'敌第 14 步兵师师部',        type:'hqd', str:2, mov:8, rng:0, r:3, c:2,  corps:'R1', wave:1 },
+    { id:'R1A', side:'red',  abbr:'14-1', name:'敌第 14 步兵师第 14 团第 1 营', type:'mob', str:9, mov:8, rng:1, r:2, c:3,  corps:'R1', wave:1 },
+    { id:'R1B', side:'red',  abbr:'14-2', name:'敌第 14 步兵师第 14 团第 2 营', type:'mob', str:9, mov:8, rng:1, r:3, c:3,  corps:'R1', wave:1 },
+    { id:'R1C', side:'red',  abbr:'14-3', name:'敌第 14 步兵师第 14 团第 3 营', type:'inf', str:8, mov:6, rng:1, r:4, c:3,  corps:'R1', wave:1 },
+    { id:'R1D', side:'red',  abbr:'14-4', name:'敌第 14 步兵师第 15 团第 1 营', type:'inf', str:8, mov:6, rng:1, r:5, c:2,  corps:'R1', wave:1 },
+    { id:'R1G', side:'red',  abbr:'14-5', name:'敌第 14 步兵师第 15 团第 2 营', type:'inf', str:8, mov:6, rng:1, r:6, c:3,  corps:'R1', wave:1 },
+    { id:'R1F', side:'red',  abbr:'14炮', name:'敌第 14 步兵师炮兵营',      type:'art', str:5, mov:6, rng:5, r:1, c:2,  corps:'R1', wave:1, packed:1 },
+    { id:'R1T', side:'red',  abbr:'14反', name:'敌第 14 步兵师反坦克连',    type:'at',  str:3, mov:5, rng:1, r:4, c:2,  corps:'R1', wave:1 },
+    { id:'R1E', side:'red',  abbr:'14工', name:'敌第 14 步兵师工兵连',      type:'engc',str:2, mov:6, rng:1, r:6, c:2,  corps:'R1', wave:1 },
+    /* 围城必备：师属重炮。射程 3–9 格，蓝方的要塞炮（3 格）与旅野炮（5 格）都够不到它，
+       所以蓝方只能挨打或者出城拼命——这就是"被围"的真实处境。
+       弹药只有 5 发，用它换掉蓝方几支兵牌的组织度，正好把 8 回合撑满。 */
+    { id:'R1X', side:'red',  abbr:'14重', name:'敌第 14 步兵师重炮营',      type:'hr',  str:5, mov:5, rng:9, r:0, c:4,  corps:'R1', wave:1, packed:1 },
+    /* 初秋的装甲力量：全军只有这一支轻型坦克营，中型坦克一台都没上。
+       临时配属第 14 步兵师（corps 记 R1），否则它没有本部指挥牌，组织度一路掉 */
+    { id:'R2',  side:'red',  abbr:'14侦', name:'敌第 14 步兵师装甲侦察营（轻坦）', type:'larm',str:10,mov:12,rng:1, r:5, c:3,  corps:'R1', wave:1 },
+
+    /* 敌方 · 第二波 · 敌第 31 步兵师（南面绕行，第 6 回合） */
+    { id:'R3H', side:'red',  abbr:'31H',  name:'敌第 31 步兵师师部',        type:'hqd', str:2, mov:8, rng:0, r:8, c:3,  corps:'R3', wave:2 },
+    { id:'R3A', side:'red',  abbr:'31-1', name:'敌第 31 步兵师第 31 团第 1 营', type:'inf', str:8, mov:6, rng:1, r:8, c:4,  corps:'R3', wave:2 },
+    { id:'R3B', side:'red',  abbr:'31-2', name:'敌第 31 步兵师第 32 团第 1 营', type:'inf', str:8, mov:6, rng:1, r:7, c:4,  corps:'R3', wave:2 },
+    { id:'R3C', side:'red',  abbr:'31-3', name:'敌第 31 步兵师第 33 团第 1 营', type:'mob', str:9, mov:8, rng:1, r:8, c:5,  corps:'R3', wave:2 },
+    { id:'R3F', side:'red',  abbr:'31炮', name:'敌第 31 步兵师炮兵营',      type:'art', str:5, mov:6, rng:5, r:8, c:2,  corps:'R3', wave:2, packed:1 },
+
+    /* 敌方 · 第三波 · 敌第 7 步兵旅（北面，第 4 回合）。
+       三面同时压上来，11 支部队守 15 格城才真的守不住每一面——
+       "分兵"这件事必须在玩家手上发生，而不是被数值逼出来。 */
+    { id:'R4H', side:'red',  abbr:'7H',   name:'敌第 7 步兵旅旅部',        type:'hqb', str:2, mov:8, rng:0, r:0, c:8,  corps:'R4', wave:3 },
+    { id:'R4A', side:'red',  abbr:'7-1',  name:'敌第 7 步兵旅第 1 营',      type:'mob', str:9, mov:8, rng:1, r:0, c:9,  corps:'R4', wave:3 },
+    { id:'R4B', side:'red',  abbr:'7-2',  name:'敌第 7 步兵旅第 2 营',      type:'mob', str:9, mov:8, rng:1, r:1, c:8,  corps:'R4', wave:3 },
+    { id:'R4C', side:'red',  abbr:'7-3',  name:'敌第 7 步兵旅第 3 营',      type:'inf', str:8, mov:6, rng:1, r:1, c:9,  corps:'R4', wave:3 },
+    { id:'R4F', side:'red',  abbr:'7炮',  name:'敌第 7 步兵旅炮兵营',      type:'art', str:5, mov:6, rng:5, r:0, c:10, corps:'R4', wave:3, packed:1 }
+  ],
+  waves: [
+    { wave: 3, turn: 4, text: '敌军第三波（敌第 7 步兵旅）自北面投入，要塞三面被围。' },
+    { wave: 2, turn: 6, text: '敌军第二波（敌第 31 步兵师）绕过丘陵自西南方向切断要塞与后方的联系。' }
+  ]
+},
+{
+  /* ═══════════ C2 · 青溪渡口（突围） ═══════════
+     用户定的三条：第三方面军被钳形攻势即将合围、第 107 步兵师与第 201 坦克旅
+     在靠东方向被当作突围主力、一定数量部队抵达指定区域即胜。
+
+     胜负条件是 reach —— 这一关不看得分也不看存活，只看"走出去几支"。
+     这与 C1 的 survive 正好是一对：一个不能动，一个必须动。
+
+     地图结构（三带）：
+       西带 cols 0-6   出发点。第 107 步兵师 + 第 201 坦克旅在这里。
+       中带 cols 7-12  敌军内层封锁线。丘陵脊在第 4-5 行留了唯一一个口子，
+                       口子后面是渡口村——蓝方要打的就是这个点。
+       东带 cols 13-15 撤离区（col 15 是江，只有第 4-5 行两处渡口可涉）。
+
+     红方的"钳形"落在两处：
+       · 内层封锁线已经摆在正面（corps R3），它不动，蓝方必须打穿。
+       · 南北两个装甲/摩步集群从两翼压过来（corps R1 / R2），把合围圈收口。
+     */
+  id: 'C2', no: 2, name: '青溪渡口', type: '突围',
+  when: '新历 1207 年 11 月 27 日', where: '青溪 · 上游渡口',
+  teaser: '第三方面军即将被合围。第 107 步兵师与第 201 坦克旅在东侧，撕开封锁线，至少四支部队过江。',
+  ready: true,
+  /* 需撤出 4 支。这个门槛是量出来的，不是拍的——调参全过程：
+       v1 两翼贴脸摆 (0,3)/(9,3)，回合 10，达成率 0%，平均撤出 0.65 支
+       v2 两翼外移到 (0,7)/(9,7)，回合 12，仍 0%
+       v3 削掉 R3T/R3E/R3G/R1T/R2C/R2F → 4.0%，平均撤出 2.32
+       v4 门槛降到 3 → 15.0%（门槛降了还是低，说明问题在战力不在门槛）
+       v5 再削 R1C/R1D/R2D，红方落到 75 战力 → 95.0%（矫枉过正）
+       v6 门槛回到 4 → 68.3%，平均撤出 3.67 支
+     脚本比真人弱一档：战术卡里强行军能多跑 6 格、突击能开缺口，
+     真人一般会比脚本多撤出半个到一个身位。所以 68.3% 对应真人大概五五开往上。
+     撤出数是双峰的——要么撕开了口子撤出 5–6 支，要么被压在滩头一支都过不去，
+     所以"平均 3.67"和"68.3% 达成"能同时成立。 */
+  win: { kind: 'reach', count: 4, zone: { r0: 3, r1: 6, c0: 14, c1: 15 } },
+  prev: {
+    win:  '北岭要塞守住了，第 1 边防旅与第 103 步兵师残部趁夜东撤，编入第三方面军。',
+    fail: '北岭要塞陷落，第 103 步兵师几乎打光。残部一路东撤，被收编进第三方面军。'
+  },
+  intro: [
+    '初冬 · 阴，江面有雾。敌军自西面突破后一路东推，第三方面军主力被南北两路钳形攻势夹在青溪以西。',
+    '第 107 步兵师与第 201 坦克旅位于包围圈靠东一侧，奉命作为突围主力，向青溪渡口方向撕开封锁线。',
+    '任务：至少 4 支兵牌抵达地图东侧绿色撤离区（渡口与滩头）。走进撤离区即离场，不再返回。',
+    '全部兵牌被歼、或 12 回合结束仍未凑够 4 支，均判失败。撤离后仍保有七成战力为超额达成。'
+  ],
+  /* 12 回合。10 回合那一版自战 0%——蓝方从出发点走到渡口要 4 回合，
+     中间还得打穿一道封锁线，时间根本不够。 */
+  maxTurns: 12,
+  cols: 16,
+  rows: 10,
+  blueSources: [[4, 3]],
+  redSources: [[0, 7], [9, 7]],
+  map: [
+    '................',
+    '..ff........ff..',
+    '..ff...hh...ff..',
+    '.......hh....tt~',
+    '..ff.........tt=',
+    '.............tt=',
+    '..ff...hh....tt~',
+    '..ff...hh...ff..',
+    '..ff........ff..',
+    '................'
+  ],
+  objectives: [
+    /* 这三处要点同时是红方 AI 的目标表。reach 类关卡不看得分，
+       但 AI 完全依赖 LEVEL.objectives 找目标——不给要点，红方会全体呆立不动。
+       所以这里的要点是"封锁线阵地"，语义和机制刚好对得上。 */
+    { id: 'ridge',   name: '青溪北岭',   vp: 10, core: true,  kind: 'hill', cells: [[2, 7], [2, 8], [3, 7], [3, 8]] },
+    { id: 'gap',     name: '封锁线缺口', vp: 10, core: true,  kind: 'road', cells: [[4, 9], [5, 9]] },
+    { id: 'village', name: '渡口村',     vp: 10, core: true,  kind: 'town', cells: [[4, 13], [5, 13], [6, 13]] }
+  ],
+  events: [
+    {
+      id: 'gap_taken', desc: '封锁线被撕开',
+      /* 原来只认"占领缺口那两格"。但缺口不是必经之路——蓝方从北面或江岸绕过去
+         一样能到渡口村，实测 120 局里这条事件一次都没响。
+         改成"只要有部队越过 c10 那条线"，绕过去也算撕开了封锁线。 */
+      when: [
+        { kind: 'control', obj: 'gap', side: 'blue' },
+        { kind: 'inZone', side: 'blue', r0: 0, r1: 9, c0: 10, c1: 12 }
+      ],
+      effects: [
+        { kind: 'log', text: '封锁线缺口被打开，敌军内层阵地出现混乱。', cls: 'b' },
+        { kind: 'org', side: 'red', delta: -6 }
+      ]
+    },
+    {
+      id: 'village_taken', desc: '渡口村易手',
+      when: { kind: 'control', obj: 'village', side: 'blue' },
+      effects: [
+        { kind: 'log', text: '渡口村落到我们手里，前面就是江了。', cls: 'b' },
+        { kind: 'org', side: 'blue', delta: 5 }
+      ]
+    },
+    {
+      id: 'pincer_closed', desc: '钳形攻势收口',
+      when: { kind: 'turn', turn: 4 },
+      effects: [
+        { kind: 'log', text: '南北两路敌军完成合拢，再拖下去就真的出不去了。', cls: 'hi' },
+        { kind: 'org', side: 'blue', delta: -4 }
+      ]
+    },
+    {
+      id: 'b2_mauled', desc: '第 201 坦克旅伤亡过半',
+      when: { kind: 'corpsBelow', side: 'blue', corps: 'B2', ratio: 0.55 },
+      effects: [
+        { kind: 'log', text: '第 201 坦克旅的坦克打剩不到一半，剩下的车组决定不减速。', cls: 'hi' },
+        { kind: 'mod', side: 'blue', atk: 0.10, label: '决死突击 · 第 201 坦克旅攻击 +10%',
+          filter: { corps: 'B2' } }
+      ]
+    },
+
+    /* ── 突围关的时间轴其实由"撤出去几个人"决定，不是回合数。
+          所以这几条挂 escaped / unitBelow，玩家撤得快就早触发、撤不动就一直不响。 ── */
+    {
+      id: 'first_shot', desc: '突围开始',
+      when: { kind: 'firstBlood' },
+      effects: [
+        { kind: 'say', beats: [
+          { who: '第 107 步兵师 · 师部', side: 'blue', portrait: 'portBlue',
+            text: '正面开火了。别恋战——我们的任务不是打赢，是走掉。' },
+          { who: '第 201 坦克旅 · 旅长', side: 'blue', portrait: 'portBlue',
+            text: '坦克在前，步兵跟车。撕开一个口子就往江边跑，不要回头看缺口。' }
+        ] }
+      ]
+    },
+    {
+      id: 'first_out', desc: '第一批部队过江',
+      when: { kind: 'escaped', count: 1 },
+      effects: [
+        { kind: 'log', text: '第一批部队已经过江。封锁线上开始出现松动。', cls: 'b' },
+        { kind: 'org', side: 'blue', delta: 5 },
+        { kind: 'mod', side: 'blue', atk: 0.06, turns: 2, label: '打开缺口 · 我方攻击 +6%' }
+      ]
+    },
+    {
+      id: 'two_out', desc: '两个营过江',
+      when: { kind: 'escaped', count: 2 },
+      effects: [
+        { kind: 'log', text: '敌军发现渡口在用，开始调炮兵封锁江面。', cls: 'r' },
+        { kind: 'mod', side: 'blue', def: -0.05, turns: 3, label: '江面被封锁 · 我方防御 -5%' },
+        { kind: 'say', who: '第 201 坦克旅 · 旅长', side: 'blue', portrait: 'portBlue',
+          text: '对面反应过来了，炮弹开始往渡口砸。\n后面的人抓紧——这个口子撑不了太久。' }
+      ]
+    },
+    {
+      id: 'mid_tank_reach', desc: '中坦营先导车到江边',
+      /* 这条事件原来写"中坦营被打残"，门槛从 0.4 试到 0.7 都是 0% 触发。
+         原因不在门槛：这一关的打通路线是"坦克冲在最前面先撤"，中坦营多半
+         在被打到七成之前就已经走出撤离区，从 state.units 里被移除——
+         之后 unitBelow 根本读不到这支兵牌，条件永远不成立。
+         改成盯"它的先导车到了江边"：这是这支兵真正的高光时刻，
+         只要它按战术这么走就一定会触发。 */
+      when: { kind: 'unitAt', id: 'C2C',
+              cells: [[3, 14], [3, 15], [4, 14], [4, 15],
+                      [5, 14], [5, 15], [6, 14], [6, 15]] },
+      effects: [
+        { kind: 'log', text: '201-3 营的先导车已经下水，江对岸就是接应部队。', cls: 'b' },
+        { kind: 'say', who: '第 201 坦克旅 · 3 营营长', side: 'blue', portrait: 'portBlue',
+          text: '我们到了。\n后面的步兵跟紧——车不走，给他们挡着。' }
+      ]
+    }
+  ],
+
+  story: {
+    briefing: {
+      pages: [
+        {
+          order: '作战命令 · 第 7 号',
+          kicker: '战役态势',
+          title: '圈还有四十公里宽',
+          paras: [
+            { t: '敌军自西面突破后一路东推。北路从青溪北岭压下来，南路沿江岸北上，两把钳子正在合拢。' },
+            { t: '第三方面军主力在青溪以西。上级的命令是：向东突围，过江。', hl: true },
+            { t: '第 107 步兵师和第 201 坦克旅正好在最靠东的位置——离钳口最近，也最可能是唯一能撕开口子的人。' }
+          ],
+          nums: [
+            { k: '建制', v: '2 个' },
+            { k: '兵牌', v: '14' },
+            { k: '战力', v: '85' }
+          ]
+        },
+        {
+          order: '敌情通报',
+          kicker: '当面之敌',
+          title: '封锁线是死的，钳子是活的',
+          paras: [
+            { t: '正面一道内层封锁线已经挖好了：北岭、缺口、渡口村三处阵地，敌军不会主动放弃。' },
+            { t: '南北两个集群正从两翼压上来。第 4 回合左右完成合拢——那时候再想走就晚了。', hl: true },
+            { t: '敌方装甲很少，前线只出现过轻型坦克。这一带的地形也养不起重装甲。' }
+          ],
+          nums: [
+            { k: '封锁阵地', v: '3 处' },
+            { k: '合拢时刻', v: '第 4 回合', hot: true },
+            { k: '敌方坦克', v: '轻 / 中' }
+          ]
+        },
+        {
+          order: '任务简报',
+          kicker: '你的任务',
+          title: '走出去四支',
+          paras: [
+            { t: '地图东侧绿色区域是撤离区（渡口滩头）。<b>至少 4 支兵牌走进去</b>即达成突围。' },
+            { t: '走进撤离区的部队立即离场，不占格、不再参战——所以不要指望它们掩护后面的人。' },
+            { t: '撤离后仍保有全军七成以上战力为超额达成。带不走的装备，就是白送给敌人的。', hl: true }
+          ],
+          nums: [
+            { k: '回合', v: '12' },
+            { k: '达成', v: '3 支撤出' },
+            { k: '超额', v: '保七成战力' }
+          ]
+        }
+      ],
+      beats: [
+        { who: '第三方面军 · 电话', side: 'blue', portrait: 'portHQ',
+          text: '钳子还有四十公里合拢。你们在最东边——口子只能由你们撕。\n过江之后炸桥，别回头。' },
+        { who: '第 201 坦克旅 · 旅长', side: 'blue', portrait: 'portBlue',
+          text: '轻坦跑得快，中坦打得穿。我带车先冲缺口，师里的步兵跟上来就行。' },
+        { who: '第 107 步兵师 · 师长', side: 'blue', portrait: 'portBlue',
+          text: '跟上不等于跟得上。江边那条路只有一个村，村子拿不下来，谁也别想过。' }
+      ]
+    }
+  },
+
+  units: [
+    /* 我方 · 第 107 步兵师 */
+    { id:'C1H', side:'blue', abbr:'107H',  name:'第 107 步兵师师部',        type:'hqd', str:2, mov:8, rng:0, r:4, c:2, corps:'B1', wave:1 },
+    /* 与第 103 师同一套编制：两营制团。
+       渡口这边只有第 321 团两个营、第 322 团一个营；第 322 团欠一个营，第 323 团整团被隔在西岸。
+       为什么不补满：这一关的难度是路口式的——封路的红方一堵就 4%，堵不住就 100%，
+       实测多一个步兵营就把突围率从 63% 顶到 96%。兵力只能按现有的量给。 */
+    { id:'C1A', side:'blue', abbr:'107-1', name:'第 107 步兵师第 321 团第 1 营', type:'inf', str:8, mov:6, rng:1, r:3, c:2, corps:'B1', wave:1 },
+    { id:'C1B', side:'blue', abbr:'107-2', name:'第 107 步兵师第 321 团第 2 营', type:'inf', str:8, mov:6, rng:1, r:5, c:2, corps:'B1', wave:1 },
+    { id:'C1C', side:'blue', abbr:'107-3', name:'第 107 步兵师第 322 团第 1 营', type:'inf', str:8, mov:6, rng:1, r:6, c:2, corps:'B1', wave:1 },
+    { id:'C1F', side:'blue', abbr:'107炮', name:'第 107 步兵师炮兵营',      type:'art', str:5, mov:6, rng:5, r:4, c:1, corps:'B1', wave:1, packed:1 },
+    { id:'C1T', side:'blue', abbr:'107反', name:'第 107 步兵师反坦克连',    type:'at',  str:3, mov:5, rng:1, r:5, c:1, corps:'B1', wave:1 },
+    { id:'C1E', side:'blue', abbr:'107工', name:'第 107 步兵师工兵连',      type:'engc',str:2, mov:6, rng:1, r:6, c:1, corps:'B1', wave:1, packed:1 },
+    /* 我方 · 第 201 坦克旅。初秋的坦克旅：轻坦为主，中坦只有 1 个营。
+       这不是削弱，是编制本来就这样——重装甲在开战第一年还没铺开。 */
+    { id:'C2H', side:'blue', abbr:'201H',  name:'第 201 坦克旅旅部',        type:'hqb', str:2, mov:8, rng:0, r:4, c:3, corps:'B2', wave:1 },
+    { id:'C2A', side:'blue', abbr:'201-1', name:'第 201 坦克旅第 1 营（轻坦）', type:'larm', str:10, mov:12, rng:1, r:3, c:3, corps:'B2', wave:1 },
+    { id:'C2B', side:'blue', abbr:'201-2', name:'第 201 坦克旅第 2 营（轻坦）', type:'larm', str:10, mov:12, rng:1, r:5, c:3, corps:'B2', wave:1 },
+    { id:'C2C', side:'blue', abbr:'201-3', name:'第 201 坦克旅第 3 营（中坦）', type:'marm', str:12, mov:10, rng:1, r:6, c:3, corps:'B2', wave:1 },
+    { id:'C2D', side:'blue', abbr:'201-4', name:'第 201 坦克旅第 4 营（装步）', type:'mech', str:9,  mov:8,  rng:1, r:4, c:4, corps:'B2', wave:1 },
+    { id:'C2F', side:'blue', abbr:'201炮', name:'第 201 坦克旅自行火炮连',  type:'sha', str:4, mov:8, rng:3, r:3, c:4, corps:'B2', wave:1 },
+    { id:'C2S', side:'blue', abbr:'201辎', name:'第 201 坦克旅辎重队',      type:'sup', str:2, mov:8, rng:0, r:4, c:5, corps:'B2', wave:1 },
+
+    /* 敌方 · 北路钳子 · 敌装甲第 2 师先遣群（自北缘压下来）
+       两翼的位置很关键：它们必须在**地图边上**，用三四个回合收口，
+       而不是一开局就贴在蓝方出发点的屁股后面。
+       第一版把南路摆在（9,2）一带，结果钳口还没合拢人已经贴脸了，
+       自战 60 局撤出 0 支——那不是"难"，是结构上出不去。 */
+    { id:'R1H', side:'red', abbr:'2H',   name:'敌装甲第 2 师先遣群群部',   type:'hkg', str:2, mov:8, rng:0, r:0, c:6, corps:'R1', wave:1 },
+    { id:'R1A', side:'red', abbr:'2-1',  name:'敌先遣群第 1 营（摩步）',    type:'mob', str:9, mov:8, rng:1, r:0, c:7, corps:'R1', wave:1 },
+    { id:'R1B', side:'red', abbr:'2-2',  name:'敌先遣群第 2 营（摩步）',    type:'mob', str:9, mov:8, rng:1, r:1, c:7, corps:'R1', wave:1 },
+    { id:'R1T', side:'red', abbr:'2反',  name:'敌先遣群反坦克连',          type:'at',  str:3, mov:5, rng:1, r:1, c:9, corps:'R1', wave:1 },
+    /* 敌方 · 南路钳子 · 敌摩步第 9 旅先遣支队（沿江岸北上）
+       为什么叫"先遣支队"而不是"第 9 旅"：这一关只投入了两个摩步营 + 支队部，
+       20 战力。同一支第 9 旅在第 3 关附属（机场）里是满编 38 战力、六个兵牌。
+       同样一个番号，一处写"旅"、一处只摆两个营，编制表就对不上了。
+       改成先遣支队，既是真实存在的编组形式，也让两个关卡各说各的、互不矛盾。 */
+    { id:'R2H', side:'red', abbr:'9H',   name:'敌摩步第 9 旅先遣支队指挥所',   type:'hqb', str:2, mov:8, rng:0, r:9, c:6, corps:'R2', wave:1 },
+    { id:'R2A', side:'red', abbr:'9-1',  name:'敌第 9 旅先遣支队第 1 营',      type:'mob', str:9, mov:8, rng:1, r:9, c:7, corps:'R2', wave:1 },
+    { id:'R2B', side:'red', abbr:'9-2',  name:'敌第 9 旅先遣支队第 2 营',      type:'mob', str:9, mov:8, rng:1, r:8, c:7, corps:'R2', wave:1 },
+    /* 敌方 · 内层封锁线 · 敌第 5 要塞守备群（已经摆在阵地上，不会主动后撤） */
+    { id:'R3H', side:'red', abbr:'5H',   name:'敌第 5 要塞守备群群部',      type:'hkg', str:2, mov:8, rng:0, r:3, c:10, corps:'R3', wave:1 },
+    { id:'R3A', side:'red', abbr:'5-1',  name:'守备群第 1 营（步兵）',      type:'inf', str:8, mov:6, rng:1, r:2, c:7,  corps:'R3', wave:1 },
+    { id:'R3B', side:'red', abbr:'5-2',  name:'守备群第 2 营（步兵）',      type:'inf', str:8, mov:6, rng:1, r:5, c:9,  corps:'R3', wave:1 },
+    { id:'R3C', side:'red', abbr:'5-3',  name:'守备群第 3 营（摩步）',      type:'mob', str:9, mov:8, rng:1, r:4, c:13, corps:'R3', wave:1 },
+    { id:'R3F', side:'red', abbr:'5炮',  name:'守备群炮兵营',              type:'art', str:5, mov:6, rng:5, r:3, c:11, corps:'R3', wave:1 },
+  ]
 },
 {
   id: 'C3', no: 3, name: '岚口要地争夺战', type: '防御',
-  when: '第 3 天 · 10 月 8 日', where: '岚口 · 岚江东岸',
+  when: '新历 1208 年 2 月 8 日', where: '岚口 · 岚江东岸',
   teaser: '主力东撤，你们留下。守住岚口市与机场十二个回合。',
   ready: true,
-  /* 上一关（青溪渡口）做完之后，这两句才会真的出现在战报里 */
+  /* 上一关（青溪渡口）做完之后，这两句才会真的出现在战报里。
+     注意措辞跟着 C2 的目标类型走：C2 是"突围成功"而不是"撑够回合"——
+     前情文案写错类型，玩家一眼就能看出这两关不是同一条战役。 */
   prev: {
-    win:  '青溪渡口撑够了六个回合，主力昨夜过江。岚口依然等不到援军。',
-    fail: '青溪渡口提前失守，敌先头部队比预计早了一天抵近岚口。'
+    win:  '青溪渡口突围成功，第 107 步兵师与第 201 坦克旅残部昨夜过江。岚口依然等不到援军。',
+    fail: '青溪渡口突围失败，东岸的封锁线终究没能撕开。岚口等到的守备力量比预计少了一个师。'
   },
   /* 开场战报。数据驱动：换一关就换一组，newGame 里不再写死任何本关文案 */
   intro: [
-    '秋季 · 天气良好。西部方面军主力正在后撤，岚江东岸只剩预备役部队与第 205 装甲旅。',
+    '隆冬 · 晴，江面结薄冰。西部方面军主力正在后撤，岚江东岸只剩预备役部队与第 205 装甲旅。',
     '敌军先头部队已抢在撤退主力之前抵达岚江东岸，目标岚口市与岚口机场。',
     '任务：12 回合内控制 ≥26 分要点。岚口市 15 分、机场 15 分、青溪镇 10 分、两处渡口各 5 分。',
     '要点一经占领即持久保有，只有敌军实际占据才会易手；守军前出不会丢城。',
@@ -1389,6 +1949,13 @@ const LEVELS = [
   redSource: [1, 2],
   winScore: 26,
   perfectScore: 35,
+  /* 波次投入时刻。第 4 回合装甲旅、第 8 回合战斗群——数字是"上一回合末"，
+     所以在 settlePhase 里比对的是 state.turn。比原设计各早一回合：
+     炮兵射程上调后蓝方覆盖变宽，红方需要更早形成压力。 */
+  waves: [
+    { wave: 2, turn: 3, text: '敌方第二波（敌装甲第 4 旅）沿河北岸迂回，投入战场。' },
+    { wave: 3, turn: 7, text: '敌方第三波（敌第 6 战斗群）投入战场，攻势达到顶点。' }
+  ],
   map: [
     '....................',
     'ttth..##....##..hh..',
@@ -1434,8 +2001,12 @@ const LEVELS = [
     },
     /* 伤亡比例触发：205 装甲旅战力跌破 45% */
     {
-      id: 'armor_mauled', desc: '205 装甲旅伤亡过半',
-      when: { kind: 'corpsBelow', side: 'blue', corps: 'B3', ratio: 0.45 },
+      id: 'armor_mauled', desc: '205 装甲旅坦克营被打残',
+      /* 这条事件从做出来起触发率一直是 0%，门槛从 0.45 调到 0.7 都没用。
+         原因不在门槛，而在于**伤亡根本没落到 B3 头上**：这关蓝方平均只掉 27%，
+         B3 是 41 战力的装甲军，缩在后面做反冲击，永远摸不到"伤亡过半"。
+         换成盯具体一支营（B3A，9 战力的坦克营）——它真会上去打、真会掉血。 */
+      when: { kind: 'unitBelow', id: 'B3A', ratio: 0.7 },
       effects: [
         { kind: 'log', text: '第 205 装甲旅伤亡过半，残部依托城郊死守。', cls: 'hi' },
         { kind: 'mod', side: 'blue', atk: 0.12, label: '决死反击 · 205 装甲旅攻击 +12%',
@@ -1482,8 +2053,9 @@ const LEVELS = [
           kicker: '战役态势',
           title: '主力走了，你们留下',
           paras: [
-            { t: '1941 年秋，灰原联合体以「边境事故」为由发动突袭。北部边防在七十二小时内崩溃，' +
-                 '西部方面军主力正在渡江东撤。' },
+            { t: '新历 1207 年秋，灰原联合体以「边境事故」为由自西面边陲发动突袭，' +
+                 '两道防线在七十二小时内被撕开，西部方面军主力一路渡江东撤，' +
+                 '到 1208 年 2 月，战线已经退到岚江。' },
             { t: '第 3 坦克军今夜过江。天亮之前，岚江东岸只剩你们。', hl: true },
             { t: '岚口预备役第 1 旅守市区，西部军区独立第 1 旅守机场，第 205 装甲旅在城郊待机。' +
                  '防区内的两座桥头、一片跑道，一处都不能丢——丢了就没有纵深了。' }
@@ -1491,7 +2063,7 @@ const LEVELS = [
           nums: [
             { k: '建制', v: '3 旅' },
             { k: '兵牌', v: '21' },
-            { k: '战力', v: '117' }
+            { k: '战力', v: '112' }
           ]
         },
         {
@@ -1599,6 +2171,285 @@ const LEVELS = [
     { id:'B8B', side:'blue', abbr:'3军-2', name:'第 3 坦克军先遣支队摩步营', type:'mob', str:9,  mov:8,  rng:1, r:13, c:10, corps:'B8', wave:0, group:'BLUE_RESERVE' },
     { id:'R8A', side:'red',  abbr:'8-1',   name:'敌第 8 摩步旅第 1 营',       type:'mob', str:9,  mov:8,  rng:1, r:0,  c:7,  corps:'R8', wave:0, group:'RED_RESERVE' },
     { id:'R8B', side:'red',  abbr:'8-2',   name:'敌第 8 摩步旅第 2 营',       type:'mob', str:9,  mov:8,  rng:1, r:0,  c:8,  corps:'R8', wave:0, group:'RED_RESERVE' }
+  ]
+},
+{
+  /* ═══════════ C3B · 岚口机场保卫战（第 3 关附属 · 坚守跑道） ═══════════
+     这一关是从旧战术级 index.html 的「岚口机场保卫战」翻新过来的。
+     原版用的是另一套地形与兵种代号（arm / aa / fac、跑道计数 runwayLossLimit），
+     直接搬只会搬来一堆对不上的东西；所以**保留骨架、重写数据**：
+       · 保留：16×10 的机场漏斗形地图、跑道是本关唯一命门、油库与雷达的价值
+       · 重写：兵种用战役级代号，胜负用 keep:['runway'] 表达，油库改成一个事件
+
+     为什么挂在第 3 关名下而不是单开一关：它是岚口战役的第二天，
+     和第 3 关是同一场仗的两段（市区 → 机场），不该在时间轴上占一个独立编号。
+     数据上 no 与第 3 关相同，靠 sub:true 区分；排序仍然严格按数组顺序。
+
+     **open:true 是临时的**——先放出来让人试玩。等正式版把"通关第 3 关才解锁"
+     补上，把这个字段删掉就行，解锁逻辑本身不用动。
+
+     命门规则：跑道要**在结束时兵力不少于敌军**才算归我方。
+    跑道有 16 格，红方不必夺走整条道面——蹭上任意一格就够麻烦；
+    但这一关判的不是"跑道上有没有敌人"，而是"道面上谁的兵多"。
+    所以玩家的功课是"往跑道上压人"，把预备队填进去，而不是把跑道当禁区不敢站。 */
+  id: 'C3B', no: 3, sub: true, name: '岚口机场保卫战', type: '附属 · 防御',
+  when: '新历 1208 年 2 月 19 日', where: '岚口 · 机场跑道',
+  teaser: '市区已经丢了，残部退守机场。跑道还要再撑十个回合，直到最后一批运输机起飞。',
+  ready: true,
+  open: true,
+  win: { kind: 'survive', keep: ['runway'] },
+  prev: {
+    win:  '岚口市区守到了第 12 回合，主力趁夜撤过江。机场还在我们手里，最后一班运输机没停。',
+    fail: '岚口市区失守，守备部队边打边退，最后能站的地方只剩机场跑道。'
+  },
+  intro: [
+    '隆冬 · 阴，跑道结霜。岚口市区已经在十天前失守，残部退守机场。',
+    '守备力量：机场守备营 3 个；独立第 1 旅只剩旅部和 2 个营（第 3 营、炮兵营、工兵营都在市区打光了）；' +
+    '第 205 装甲旅只剩前指、侦察营、第 2 营残部和自行火炮连——装步营与第 3 营留在江北。',
+    /* 上面这句是"编制对不上"的正式说明：C3 里独立第 1 旅是 3 个守备营 + 炮兵营 + 工兵营，
+       第 205 装甲旅是装步营 + 2 个中坦营 + 自炮 + 辎重。C3B 少了这些兵牌，
+       不是数据漏了，是这十天打掉的。写清楚，编制表上的差异才不会被当成 bug。
+       tools/orgcheck.js 把这类"数量差异"列成提示而不是错误。 */
+    '任务：坚守 10 回合，且跑道（地图东南侧的硬化道面）在结束时归我方控制。',
+    '跑道能不能交出去，看的是道面上谁的兵多：我方兵力不少于敌军，跑道就归我方；被敌军压过去就成"争夺中"。',
+    '跑道地形防御只有 0.35——没有遮蔽的硬化道面，站在上面挨炮是最亏的。守机场靠的是跑道边的机库群与塔台。'
+  ],
+  maxTurns: 10,
+  cols: 16,
+  rows: 10,
+  blueSources: [[4, 11]],
+  redSource: [3, 1],
+  /* 机场自带工事：机库群北缘那一线本来就挖过掩体，不该让守备营从露天开始打。
+     为什么必须有这个：跑道地形防御 0.35，是全图最差；红方有三门炮。
+     若开局全是露天，蓝方前两回合就在跑道上被炮火磨掉一成战力，
+     等第三波上来时已经没有能反冲击的兵了（首版实测我方损失 68.9%、守备营全灭）。
+     工事只铺在镇区（0.85）与镇缘，不给跑道本身——跑道上站人挨炮是本关要教的东西。 */
+  forts: [
+    { r: 3, c: 10, side: 'blue', kind: 'B' },
+    { r: 3, c: 11, side: 'blue', kind: 'B' },
+    { r: 3, c: 12, side: 'blue', kind: 'B' },
+    { r: 3, c: 13, side: 'blue', kind: 'H' },
+    { r: 4, c: 13, side: 'blue', kind: 'H' },
+    { r: 6, c: 12, side: 'blue', kind: 'B' },
+    { r: 8, c: 11, side: 'blue', kind: 'H' }
+  ],
+  map: [
+    '................',
+    '..ff..hh........',
+    '..ff..hh...hh...',
+    '......hh..tttt..',
+    '..ff..hh..tttt..',
+    '..ff......tttt..',
+    '......hh..ttttaa',
+    '..ff..hh..ttaaaa',
+    '......hh..ttaaaa',
+    '..........aaaaaa'
+  ],
+  objectives: [
+    /* rule:'contest' —— 跑道按兵力对比判归属，不要求"完全清空"。
+       为什么：16 格的道面上，红方只要有一个营站上去，"一方独占"规则就判成
+       争夺中，整个任务瞬间作废。实测 200 局里 99% 是这么输的，
+       而且输的时候跑道上往往还是我方兵更多。这条规则让"往跑道上压预备队"
+       成为一个有效解法，而不是"来一个敌人这局就废了"。 */
+    { id: 'runway', name: '跑道', vp: 25, core: true,  kind: 'air', rule: 'contest',
+      cells: [[6, 14], [6, 15], [7, 12], [7, 13], [7, 14], [7, 15],
+              [8, 12], [8, 13], [8, 14], [8, 15],
+              [9, 10], [9, 11], [9, 12], [9, 13], [9, 14], [9, 15]] },
+    { id: 'tower',  name: '塔台', vp: 10, core: false, kind: 'town', cells: [[4, 11], [5, 11]] },
+    { id: 'oil',    name: '油库', vp: 10, core: false, kind: 'town', cells: [[3, 12], [3, 13]] }
+  ],
+  events: [
+    {
+      id: 'oil_lost', desc: '油库遭到炮击',
+      /* 这条事件改过两次，值得记一笔：
+         1) 最初写"油库被敌军占领" —— 油库在机库群正后方，红方 120 局一次都没走到，
+            这条事件连它带的 -8 组织度等于不存在。
+         2) 改成"敌军逼近油库（3 格）" —— 仍然 0%。红方是从跑道西端往北推的，
+            最东只到 (9,10) 一带，离 (3,12) 差了六格。距离怎么调都是假的。
+         3) 现在挂到"敌军炮兵营第一次开火"上。炮火覆盖纵深、油泵被打烂，
+            本来就是炮兵干的事，而且 120 局里它几乎每局都会开火。 */
+      when: { kind: 'unitActed', id: 'R1F', act: 'fire' },
+      effects: [
+        { kind: 'log', text: '油库失守，油泵被打烂了。剩下的车用油只够再转两趟。', cls: 'hi' },
+        { kind: 'org', side: 'blue', delta: -8 },
+        { kind: 'mod', side: 'blue', def: -0.04, label: '燃料紧缺 · 我方防御 -4%' }
+      ]
+    },
+    {
+      id: 'tower_lost', desc: '敌军逼近塔台',
+      when: { kind: 'nearObj', side: 'red', obj: 'tower', dist: 2 },
+      effects: [
+        { kind: 'log', text: '塔台失守，炮兵校射断了。现在只能靠前沿观察哨报点。', cls: 'hi' },
+        { kind: 'org', side: 'blue', delta: -5 }
+      ]
+    },
+    {
+      id: 'runway_denied', desc: '跑道被敌军踩上',
+      /* 两种都算：红方独占（red），或者红方蹭上一格形成争夺（contested）。
+         实战里绝大多数情况是后者——我方本来就在跑道上，红方只要贴上来一格，
+         控制权就落到 contested，而 contested 会让 keep 判定直接不成立。
+         所以这条战报必须认 contested，只认 red 等于这条事件永远不响。 */
+      when: [
+        { kind: 'control', obj: 'runway', side: 'red' },
+        { kind: 'control', obj: 'runway', side: 'contested' }
+      ],
+      effects: [
+        { kind: 'log', text: '敌军摸上跑道了。跑道上的任何一辆车都成了活靶子——把它清出去。', cls: 'r' }
+      ]
+    },
+    {
+      id: 'airlift', desc: '最后一批运输机',
+      when: { kind: 'turn', turn: 8 },
+      effects: [
+        { kind: 'log', text: '无线电：最后一批运输机两小时后到，跑道必须清空。', cls: 'b' },
+        { kind: 'org', side: 'blue', delta: 6 }
+      ]
+    },
+    /* 机场这三条不看回合，看的是"哪支部队动了手"。
+       守机场的关键不是时间，是跑道被谁踩过、谁还在道上顶着。 */
+    {
+      id: 'first_shot_airfield', desc: '机场开火',
+      when: { kind: 'firstBlood' },
+      effects: [
+        { kind: 'say', beats: [
+          { who: '岚口机场场站 · 无线电', side: 'blue', portrait: 'portHQ',
+            text: '塔台呼叫各营：机场已经接敌。\n跑道不许断——断了，江那边就没人接了。' },
+          { who: '机场守备营 · 营长', side: 'blue', portrait: 'portBlue',
+            text: '明白。1 营在机库群，2、3 营靠跑道。\n敌人一上道面我们就压上去。' }
+        ] }
+      ]
+    },
+    {
+      id: 'spg_first_fire', desc: '自行火炮首次开火',
+      when: { kind: 'unitActed', id: 'D4F', act: 'fire' },
+      effects: [
+        { kind: 'log', text: '第 205 装甲旅自行火炮连第一次开火，弹着点压在跑道西端。', cls: 'b' },
+        { kind: 'mod', side: 'blue', atk: 0.05, turns: 3, label: '炮火支援 · 我方攻击 +5%' },
+        { kind: 'say', who: '自行火炮连 · 连长', side: 'blue', portrait: 'portBlue',
+          text: '三发试射，落点修正完毕。\n后面十分钟，跑道西端归我们管。' }
+      ]
+    },
+    {
+      id: 'scout_wrecked', desc: '侦察营打光',
+      when: { kind: 'unitBelow', id: 'D3A', ratio: 0.35 },
+      effects: [
+        { kind: 'log', text: '第 205 装甲旅侦察营的轻坦只剩两辆，车组把车横在跑道口当固定火力点。', cls: 'hi' },
+        { kind: 'org', side: 'blue', delta: -4 },
+        { kind: 'say', who: '侦察营 · 营长', side: 'blue', portrait: 'portBlue',
+          text: '车不能动了，人还能打。\n把我们的车当沙袋用吧，别浪费。' }
+      ]
+    }
+  ],
+
+  story: {
+    briefing: {
+      pages: [
+        {
+          order: '作战命令 · 第 19 号',
+          kicker: '战役态势',
+          title: '只剩一条跑道',
+          paras: [
+            { t: '岚口市区在十天前失守。守备部队边打边退，最后能站的地方只剩机场。' },
+            { t: '撤退靠的不是桥，是跑道。最后一批运输机两小时后到——跑道一断，江北就没人接应了。', hl: true },
+            { t: '敌军已经在机场西侧展开，番号至少一个摩步旅，另有一个装甲战斗群正在靠近。' }
+          ],
+          nums: [
+            { k: '兵牌', v: '15' },
+            { k: '战力', v: '79' },
+            { k: '跑道格', v: '16' }
+          ]
+        },
+        {
+          order: '机场要图 · 附页',
+          kicker: '地形',
+          title: '跑道是最不该站人的地方',
+          paras: [
+            { t: '硬化道面的防御只有 0.35，是全场最差的掩蔽。机库群与塔台（0.85）在跑道西北侧，' +
+                 '那里才是步兵该待的地方——但只待在机库里，跑道就交出去了。' },
+            { t: '跑道不是"某一格"，是一整片 16 格。判归属比较的是<b>道面上谁的兵多</b>：' +
+                 '我方兵力不少于敌军，跑道归我方；被压过去就是「争夺中」。', hl: true },
+            { t: '油库在机库北侧，塔台在机库西侧。丢一个掉组织度，两个都丢这仗就别打了。' }
+          ],
+          nums: [
+            { k: '跑道防御', v: '0.35', hot: true },
+            { k: '机库防御', v: '0.85' },
+            { k: '高炮半径', v: '4 格' }
+          ]
+        },
+        {
+          order: '任务简报',
+          kicker: '你的任务',
+          title: '撑到飞机落地',
+          paras: [
+            { t: '10 回合结束、跑道仍归我方控制，即为达成。<b>全部兵牌被歼则立即判负。</b>' },
+            { t: '「归我方控制」= 跑道上我方兵力不少于敌军。' +
+                 '所以别把跑道当禁区——敌军压上来，就得拿预备队把它顶回去。' },
+            { t: '高炮营的伞盖半径 4 格，把自行火炮和辎重收在伞下——敌军的航空连只在这一带活动。', hl: true }
+          ],
+          nums: [
+            { k: '回合', v: '10' },
+            { k: '跑道', v: '不能丢' },
+            { k: '运输机', v: '第 8 回合' }
+          ]
+        }
+      ],
+      beats: [
+        { who: '机场场站 · 无线电', side: 'blue', portrait: 'portHQ',
+          text: '运输机两小时后到。跑道上有弹坑就点灯，我们会绕。\n别让敌人的车开上跑道。' },
+        { who: '机场守备营 · 营长', side: 'blue', portrait: 'portBlue',
+          text: '我的人在机库群里。跑道露天，站上去就是白送。\n可要是不站，跑道就没了——我懂。' },
+        { who: '敌摩步第 9 旅 · 前沿无线电', side: 'red', portrait: 'portRed',
+          text: '他们在机场，跑道还完好吗？\n别炸跑道——那是我们下一步要用的。' }
+      ]
+    }
+  },
+
+  units: [
+    /* 我方 · 机场守备部队 */
+    { id:'D1H', side:'blue', abbr:'场H',   name:'岚口机场场站司令部',        type:'hqb', str:2, mov:8, rng:0, r:4, c:10, corps:'D1', wave:1 },
+    { id:'D1A', side:'blue', abbr:'守1',   name:'机场守备营第 1 营',          type:'gdn', str:8, mov:5, rng:1, r:6, c:10, corps:'D1', wave:1 },
+    { id:'D1B', side:'blue', abbr:'守2',   name:'机场守备营第 2 营',          type:'gdn', str:8, mov:5, rng:1, r:7, c:10, corps:'D1', wave:1 },
+    { id:'D1C', side:'blue', abbr:'守3',   name:'机场守备营第 3 营',          type:'gdn', str:8, mov:5, rng:1, r:8, c:10, corps:'D1', wave:1 },
+    { id:'D1E', side:'blue', abbr:'场工',  name:'机场工程连',                type:'engc',str:2, mov:6, rng:1, r:5, c:10, corps:'D1', wave:1 },
+    { id:'D1S', side:'blue', abbr:'场辎',  name:'机场场站辎重队',            type:'sup', str:2, mov:8, rng:0, r:4, c:12, corps:'D1', wave:1 },
+    /* 我方 · 独立第 1 旅残部（旅部还在，所以三个营不算脱指） */
+    { id:'D2H', side:'blue', abbr:'独旅',  name:'独立第 1 旅旅部残部',        type:'hqb', str:2, mov:8, rng:0, r:5, c:11, corps:'D2', wave:1 },
+    { id:'D2A', side:'blue', abbr:'独1',   name:'独立第 1 旅第 1 营残部',      type:'gdn', str:7, mov:6, rng:1, r:5, c:12, corps:'D2', wave:1 },
+    { id:'D2B', side:'blue', abbr:'独2',   name:'独立第 1 旅第 2 营残部',      type:'gdn', str:7, mov:6, rng:1, r:7, c:11, corps:'D2', wave:1 },
+    { id:'D2T', side:'blue', abbr:'独反',  name:'独立第 1 旅反坦克连',        type:'at',  str:3, mov:5, rng:1, r:6, c:11, corps:'D2', wave:1 },
+    /* 我方 · 第 205 装甲旅侦察分队、前进指挥所与防空、自行火炮 */
+    { id:'D3H', side:'blue', abbr:'装前',  name:'第 205 装甲旅前进指挥所',    type:'hqb', str:2, mov:8, rng:0, r:6, c:12, corps:'D3', wave:1 },
+    { id:'D3A', side:'blue', abbr:'装侦',  name:'第 205 装甲旅侦察营（轻坦）', type:'larm', str:10, mov:12, rng:1, r:7, c:12, corps:'D3', wave:1 },
+    { id:'D3B', side:'blue', abbr:'装2',   name:'第 205 装甲旅第 2 营（中坦）残部', type:'marm', str:10, mov:12, rng:1, r:8, c:12, corps:'D3', wave:1 },
+    { id:'D4A', side:'blue', abbr:'高炮',  name:'西部军区高炮营（配属机场）',  type:'aab', str:4, mov:6, rng:2, r:5, c:13, corps:'D1', wave:1 },
+    { id:'D4F', side:'blue', abbr:'自炮',  name:'第 205 装甲旅自行火炮连',    type:'sha', str:4, mov:8, rng:3, r:6, c:13, corps:'D3', wave:1 },
+
+    /* 敌方 · 第一波 · 敌摩步第 9 旅（自西面正攻） */
+    { id:'R1H', side:'red', abbr:'9H',   name:'敌摩步第 9 旅旅部',          type:'hqb', str:2, mov:8, rng:0, r:2, c:1,  corps:'R1', wave:1 },
+    { id:'R1A', side:'red', abbr:'9-1',  name:'敌摩步第 9 旅第 1 营',        type:'mob', str:9, mov:8, rng:1, r:3, c:1,  corps:'R1', wave:1 },
+    { id:'R1B', side:'red', abbr:'9-2',  name:'敌摩步第 9 旅第 2 营',        type:'mob', str:9, mov:8, rng:1, r:4, c:1,  corps:'R1', wave:1 },
+    { id:'R1C', side:'red', abbr:'9-3',  name:'敌摩步第 9 旅第 3 营',        type:'inf', str:8, mov:6, rng:1, r:5, c:1,  corps:'R1', wave:1 },
+        { id:'R1F', side:'red', abbr:'9炮',  name:'敌摩步第 9 旅炮兵营',        type:'art', str:5, mov:6, rng:5, r:1, c:1,  corps:'R1', wave:1, packed:1 },
+    { id:'R1T', side:'red', abbr:'9反',  name:'敌摩步第 9 旅反坦克连',      type:'at',  str:3, mov:5, rng:1, r:3, c:2,  corps:'R1', wave:1 },
+    { id:'R1E', side:'red', abbr:'9工',  name:'敌摩步第 9 旅工兵连',        type:'engc',str:2, mov:6, rng:1, r:7, c:1,  corps:'R1', wave:1 },
+
+    /* 敌方 · 第二波 · 敌装甲第 12 团战斗群（第 4 回合，自西北） */
+    { id:'R2H', side:'red', abbr:'12H',  name:'敌装甲第 12 团战斗群群部',    type:'hkg', str:2, mov:8, rng:0, r:0, c:4,  corps:'R2', wave:2 },
+    { id:'R2A', side:'red', abbr:'12-1', name:'敌战斗群第 1 营（中坦）',      type:'marm',str:12,mov:10,rng:1, r:0, c:5,  corps:'R2', wave:2 },
+    { id:'R2B', side:'red', abbr:'12-2', name:'敌战斗群第 2 营（轻坦）',      type:'larm',str:10,mov:12,rng:1, r:1, c:4,  corps:'R2', wave:2 },
+    { id:'R2C', side:'red', abbr:'12-3', name:'敌战斗群第 3 营（装步）',      type:'mech',str:9, mov:8, rng:1, r:1, c:5,  corps:'R2', wave:2 },
+        { id:'R2G', side:'red', abbr:'12防', name:'敌战斗群防空连',              type:'aac', str:2, mov:6, rng:2, r:2, c:4,  corps:'R2', wave:2 },
+
+    /* 敌方 · 第三波 · 敌第 21 步兵师（第 7 回合，自西南） */
+    { id:'R3H', side:'red', abbr:'21H',  name:'敌第 21 步兵师先遣支队指挥所',          type:'hqd', str:2, mov:8, rng:0, r:9, c:1,  corps:'R3', wave:3 },
+    { id:'R3A', side:'red', abbr:'21-1', name:'敌第 21 步兵师先遣支队第 1 营',        type:'inf', str:8, mov:6, rng:1, r:9, c:2,  corps:'R3', wave:3 },
+        { id:'R3B', side:'red', abbr:'21-2', name:'敌第 21 步兵师先遣支队第 2 营',        type:'mob', str:9, mov:8, rng:1, r:8, c:1,  corps:'R3', wave:3 },
+    { id:'R3C', side:'red', abbr:'21-3', name:'敌第 21 步兵师先遣支队第 3 营',        type:'inf', str:8, mov:6, rng:1, r:8, c:2,  corps:'R3', wave:3 },
+        { id:'R3T', side:'red', abbr:'21反', name:'敌第 21 步兵师先遣支队反坦克连',      type:'at',  str:3, mov:5, rng:1, r:8, c:3,  corps:'R3', wave:3 }
+  ],
+  waves: [
+    { wave: 2, turn: 4, text: '敌军第二波（敌装甲第 12 团战斗群）自西北方向压到机场西缘。' },
+    { wave: 3, turn: 7, text: '敌军第三波（敌第 21 步兵师先遣支队）自西南方向投入，机场被三面包围。' }
   ]
 }
 ];
@@ -1895,7 +2746,7 @@ const FX = {
       host.classList.add('hidden');
       host.innerHTML = '';
       host.removeEventListener('click', onClick);
-      document.removeEventListener('keydown', onKey);
+      if (document && document.removeEventListener) document.removeEventListener('keydown', onKey);
       done();
     };
     const showAll = () => {
@@ -1908,7 +2759,9 @@ const FX = {
     const onKey = (e) => { if (e && e.key === 'Escape') close(); };
 
     host.addEventListener('click', onClick);
-    document.addEventListener('keydown', onKey);
+    /* 加守卫：剧情卡在无 DOM 的环境（自动化跑局、静态烘焙）里也要能安静播完。
+       document.addEventListener 缺失时不该把整局炸掉，那只是一句对白。 */
+    if (document && document.addEventListener) document.addEventListener('keydown', onKey);
 
     if (txt) txt.textContent = '';
     timer = setInterval(() => {
@@ -2075,7 +2928,7 @@ const CARDS = {
     note: '给顶在最前面、这一轮注定要挨打的那支。敌方回合同样生效，' +
           '和工事、地形、堆叠协同叠起来能到很夸张的防御值。',
     target: 'own',
-    apply(u) { u.cardDef = (u.cardDef || 0) + 0.30; u.moved = true; }
+    apply(u) { u.cardDef = (u.cardDef || 0) + 0.30; u.moved = true; noteAct(u, 'card'); }
   },
   assault: {
     id: 'assault', name: '集中突击', tag: '攻击', short: '本回合攻击 +0.30',
@@ -2567,7 +3420,21 @@ function targetsFor(u, fields) {
    · 格内只有某一方 → 归该方
    · 双方都有可占领部队 → 争夺中（不得分）
    · 格内空无一人 → 【保持原归属】，守军前出不会丢城
-   只有敌军实际占据，控制权才会易手。 */
+   只有敌军实际占据，控制权才会易手。
+
+   ── o.rule = 'contest'：按兵力对比判归属，而不是"一方独占" ──
+   默认（不写 rule）是"独占"：只要敌人也在格内，就变 contested。
+   这对 2–4 格的要点没问题（派一个营就能清空），但对**16 格的机场跑道**
+   是灾难——红方 30 个兵牌、10 个回合，只要有一个营蹭上任意一格，
+   16 格跑道整片就判成"争夺中"。实测 200 局里 99% 就是这么输的，
+   而且输的时候我方往往还站着五个营、跑道大部分格子上都是自己人。
+
+   换成 rule:'contest' 之后，跑道按**双方在这片道面上的兵力**判归属：
+     我方有人 且 我方兵力 ≥ 敌方  → 归我方
+     我方兵力 < 敌方              → 争夺中
+     只有敌方                     → 敌方
+   语义变成"跑道上谁的兵多谁说了算"，这才是一场能打的仗：
+   敌人上来了你把预备队压上去就能夺回来，而不是"来一个营这局就废了"。 */
 function ctrlState(obj) { return (state.ctrl && state.ctrl[obj.id]) || 'none'; }
 
 function updateControl(silent) {
@@ -2581,10 +3448,17 @@ function updateControl(silent) {
     }
     const prev = state.ctrl[o.id] || 'none';
     let next;
-    if (b > 0 && r > 0) next = 'contested';
-    else if (b > 0) next = 'blue';
-    else if (r > 0) next = 'red';
-    else next = prev;                        // 无人占据 → 维持原状
+    if (o.rule === 'contest') {
+      if (b > 0 && r > 0) next = (b >= r) ? 'blue' : 'contested';
+      else if (b > 0) next = 'blue';
+      else if (r > 0) next = 'red';
+      else next = prev;
+    } else {
+      if (b > 0 && r > 0) next = 'contested';
+      else if (b > 0) next = 'blue';
+      else if (r > 0) next = 'red';
+      else next = prev;                      // 无人占据 → 维持原状
+    }
     if (next === prev) continue;
     state.ctrl[o.id] = next;
     if (!silent) {
@@ -2608,9 +3482,42 @@ function redScore() {
 function log(text, cls) { state.log.push({ text, cls: cls || '' }); }
 
 /* ───────────────── 事件引擎 ─────────────────
-   LEVEL.events 每条 = { id, desc, when, effects[] }
-   when.kind:  control / allControl / corpsBelow / turn
-   effects.kind: log / org / mod / spawn                     */
+   LEVEL.events 每条 = { id, desc, when, effects[], once? }
+
+   when.kind（触发条件）：
+     turn        { turn, until? }        回合数到了（until 可圈一个窗口）
+     control     { obj, side }           要点归属变化，side 可为 blue / red / contested / none
+     allControl  { objs[], side, turn? } 若干个要点同时归同一方
+     corpsBelow  { corps, side, ratio }  某个军的战力掉到初始的比例以下
+     unitDead    { ids[] }               指定兵牌全部阵亡
+     unitActed   { id, act?, times? }    某支兵牌做过某类动作（move/fire/fort/eng/pack/card）
+     unitAt      { id, obj? | cells? }   某支兵牌站到了某个要点 / 某几个格子上
+     unitBelow   { id, ratio }           某支兵牌的战力掉到开局的 ratio 以下
+     sideBelow   { side, ratio }         整条战线的战力掉到开局的 ratio 以下
+     firstBlood  {}                      全场第一次交火
+
+   effects.kind（效果）：
+     log / banner / sfx / bgm / say / story        表现层
+     org     { side, delta, corps? }              组织度增减
+     str     { side, delta, filter? }             战力增减（补员 / 打击）
+     mod     { side, atk?, def?, label, filter?, turns? }  战场修正，turns 缺省为永久
+     spawn   { group }                            增援进场
+
+   ── 为什么要 unitActed / unitAt 这两类 ──
+   原来的触发器只有"回合到"和"要点归属"，只能写"第 3 回合讲一句"。
+   但剧本真正想要的是"第 1 营一过桥，对面就报话"，"侦察营摸到岚口近郊，
+   塔台才发警报"——事件要跟着**玩家做的事**走，而不是跟着回合钟走。
+   每个单位自己记一份 act 计数器（noteAct 写），触发器读它就行。 */
+
+/* 记一次行动。传进来的 kind 与 triggerMet 里的 act 取值一一对应。
+   为什么不用 u.moved / u.fired：那是"本回合还能不能动"的临时标记，
+   每回合开头会被清掉，事件要的是"这辈子做过没有"，必须另记一份。 */
+function noteAct(u, kind) {
+  if (!u) return;
+  if (!u.act) u.act = {};
+  u.act[kind] = (u.act[kind] || 0) + 1;
+}
+
 function freeCellNear(r0, c0) {
   if (inBounds(r0, c0) && terrainAt(r0, c0).cost < 99 && !unitAt(r0, c0)) return [r0, c0];
   const seen = {}; seen[kk(r0, c0)] = 1;
@@ -2643,9 +3550,18 @@ function spawnGroup(group) {
 
 function triggerMet(w) {
   if (!w) return false;
+  /* 允许多个 when 并列，任一成立即触发。
+     "敌军上跑道"这件事既可能是 fully 占领（red）也可能是争夺（contested），
+     写成数组就不用为同一个事件抄两遍 effects。 */
+  if (Array.isArray(w)) return w.some(x => triggerMet(x));
+  /* 用 ctrlState 而不是 objectiveControl：objectiveControl 把 'contested'
+     统一压成 null，于是"双方争夺"这个状态在事件里根本表达不出来。
+     机场关的跑道就是这样——蓝方有人在跑道上、红方也蹭上来一格，
+     控制权是 contested，写 side:'red' 的事件一次都不会触发（实测 200 局 0%）。
+     正方的写法 return 值完全不变，只是多认了一个 'contested'。 */
   if (w.kind === 'control') {
     const o = LEVEL.objectives.find(x => x.id === w.obj);
-    return !!o && objectiveControl(o) === w.side;
+    return !!o && ctrlState(o) === w.side;
   }
   if (w.kind === 'allControl') {
     if (w.turn && state.turn < w.turn) return false;
@@ -2664,7 +3580,94 @@ function triggerMet(w) {
   if (w.kind === 'unitDead') {
     return w.ids.every(id => state.everSeen[id] && !state.units.some(u => u.id === id));
   }
-  if (w.kind === 'turn') return state.turn >= w.turn;
+
+  /* ── 以下是"跟着玩家动作走"的触发器 ── */
+
+  /* 某支兵牌做过某类动作。act 省略 = 任何动作都算。
+     只认"当前还活着且还在场上"的单位——阵亡之后计数器也跟着消失，
+     这样"某营一开火就触发"不会有第二次。 */
+  if (w.kind === 'unitActed') {
+    const u = state.units.find(x => x.id === w.id);
+    if (!u) return false;
+    const a = u.act || {};
+    if (!w.act || w.act === 'any') {
+      return Object.keys(a).some(k => a[k] > 0);
+    }
+    return (a[w.act] || 0) >= (w.times || 1);
+  }
+
+  /* 某支兵牌站到了某个要点上（或某几个指定格子上）。
+     用途："侦察营摸到近郊才拉警报"这类由位置决定的事件。 */
+  if (w.kind === 'unitAt') {
+    const u = state.units.find(x => x.id === w.id);
+    if (!u) return false;
+    if (w.obj) {
+      const o = LEVEL.objectives.find(x => x.id === w.obj);
+      return !!o && o.cells.some(c => c[0] === u.pos[0] && c[1] === u.pos[1]);
+    }
+    return (w.cells || []).some(c => c[0] === u.pos[0] && c[1] === u.pos[1]);
+  }
+
+  /* 某支兵牌被打残。基准取 LEVEL.units 里的定义战力（也就是开局值），
+     不能用 initStr——那是按"军"汇总的，拿不到单个营的初始值。 */
+  if (w.kind === 'unitBelow') {
+    const u = state.units.find(x => x.id === w.id);
+    const def = LEVEL.units.find(x => x.id === w.id);
+    if (!u || !def || !def.str) return false;
+    return u.str / def.str <= w.ratio;
+  }
+
+  /* 整条战线被打残。用于"损失过半就该考虑撤了"这种全局提示。 */
+  if (w.kind === 'sideBelow') {
+    let init = 0, now = 0;
+    for (const def of LEVEL.units) {
+      if (def.side !== w.side || def.wave !== 1) continue;
+      init += def.str;
+      const u = state.units.find(x => x.id === def.id);
+      if (u) now += Math.max(0, u.str);
+    }
+    return init > 0 && now / init <= w.ratio;
+  }
+
+  /* 全场第一次交火。用来播"打响了"那一句，不用猜是第几回合。 */
+  if (w.kind === 'firstBlood') return (state.firstBlood || 0) > 0;
+
+  /* 撤出类关卡（win.kind = 'reach'）专用：
+     已撤出的部队数量达标 / 指定兵牌已经离场。
+     没有这两个触发器的话，"第一支部队过江了"这种事只能靠回合数猜。 */
+  if (w.kind === 'escaped') return escapedCount() >= (w.count || 1);
+  if (w.kind === 'unitEscaped') {
+    const ids = (state.escapedIds || []);
+    return (w.ids || []).every(id => ids.indexOf(id) >= 0);
+  }
+
+  /* 某一方有部队进入了指定矩形。
+     用来写"越过了封锁线""摸到了滩头"这类按地域而非按格判定的事件——
+     按格子写 unitAt 只能盯一支兵牌，换个兵先到就不响了。 */
+  if (w.kind === 'inZone') {
+    return alive(w.side).some(u =>
+      u.pos[0] >= w.r0 && u.pos[0] <= w.r1 && u.pos[1] >= w.c0 && u.pos[1] <= w.c1);
+  }
+
+  /* 某一方的部队逼近了某个要点（曼哈顿/切比雪夫距离都按切比雪夫算，和走位一致）。
+     比"要点被占领"宽松一档：敌人还没踩上塔台，但已经压到跑道边了，
+     正是该报警的时候。C3B 的油库 / 塔台事件原来写成"被占领"，
+     实测两件事 120 局里一次都没发生过——红方根本走不到那两个点。 */
+  if (w.kind === 'nearObj') {
+    const o = LEVEL.objectives.find(x => x.id === w.obj);
+    if (!o) return false;
+    const d = w.dist === undefined ? 1 : w.dist;
+    return alive(w.side).some(u =>
+      o.cells.some(c => hexDist(u.pos, c) <= d));
+  }
+
+  /* 回合窗口。until 用来圈一段区间，比如"第 3–5 回合之间"，
+     避免一个只在那几回合成立的事件在第 9 回合才迟迟触发。 */
+  if (w.kind === 'turn') {
+    if (state.turn < w.turn) return false;
+    if (w.until && state.turn > w.until) return false;
+    return true;
+  }
   return false;
 }
 
@@ -2677,9 +3680,25 @@ function applyEffect(ef) {
     }
     return;
   }
+  /* 战力增减：正数是补员 / 恢复，负数是打击。用 filter 收窄到某个军或某类兵。
+     和 org 分开的原因是这两件事经常需要一起动但幅度不同——
+     "补给到了"应该是战力补一点、组织度补一大截，不该只有一个旋钮。 */
+  if (ef.kind === 'str') {
+    for (const u of alive(ef.side)) {
+      if (!modMatch({ side: ef.side, filter: ef.filter }, u)) continue;
+      u.str = Math.max(0, u.str + ef.delta);
+      if (u.str <= 0) removeUnit(u);
+    }
+    return;
+  }
   if (ef.kind === 'mod') {
-    state.mods.push(ef);
-    log('  ' + ef.label, ef.side === 'blue' ? 'b' : 'r');
+    /* turns 给了就是限时修正（比如"空袭支援，两回合内攻击 +15%"），
+       没给就是常驻到本局结束。left 每回合末在 settlePhase 里递减。
+       注意要拷一份再塞 left，直接改 ef 会把 LEVEL 数据写脏——
+       那样第二局开局就带着上一局的倒计时。 */
+    state.mods.push(ef.turns ? { ...ef, left: ef.turns } : ef);
+    log('  ' + ef.label + (ef.turns ? '（' + ef.turns + ' 回合）' : ''),
+        ef.side === 'blue' ? 'b' : 'r');
     return;
   }
   if (ef.kind === 'spawn') { spawnGroup(ef.group); return; }
@@ -2695,6 +3714,9 @@ function applyEffect(ef) {
   if (ef.kind === 'sfx') { FX.sfx(ef.name); return; }
   if (ef.kind === 'bgm') { FX.bgm(ef.name); return; }
   if (ef.kind === 'say') {
+    /* beats 是"一段对话"：可以一次挂好几句，按顺序播。
+       单句仍然走 who/text，老数据不用改。 */
+    if (Array.isArray(ef.beats)) { for (const b of ef.beats) FX.cutin(b); return; }
     FX.cutin({ who: ef.who, text: ef.text, side: ef.side, portrait: ef.portrait });
     return;
   }
@@ -2814,13 +3836,17 @@ function writeDeck(d) {
 
 function levelById(lvId) { return LEVELS.find(l => l.id === lvId) || null; }
 
-/* 解锁规则：前面最近的一个"已制作"关卡必须已通关。
-   中间没做出来的关跳过不看——所以现在只有 C3 可玩时它自己就是第一关。
+/* 解锁规则：
+   · 声明了 open:true 的关**始终可进**——序章（军校沙盘）与第一关都是这样。
+     教学关不该当门槛：会玩的人想直接打第一仗，想练手的人随时能回沙盘，两条路都通。
+   · 其余关卡：前面最近的一个"已制作"关卡必须已通关。
+     中间没做出来的关跳过不看。
    返回 { ok, why }：why 给关卡选择页显示"先通过 XX"用 */
 function levelAccess(lvId) {
   const lv = levelById(lvId);
   if (!lv) return { ok: false, why: '没有这一关' };
   if (!lv.ready) return { ok: false, why: '制作中' };
+  if (lv.open) return { ok: true, why: '' };
   const p = readProgress();
   const idx = LEVELS.indexOf(lv);
   for (let k = idx - 1; k >= 0; k--) {
@@ -2868,6 +3894,8 @@ function saveSnapshot() {
     forts: JSON.parse(JSON.stringify(state.forts)),
     deck: (state.deck || []).slice(),
     cardUsed: { ...state.cardUsed },
+    escapedCount: state.escapedCount || 0,
+    escapedIds: (state.escapedIds || []).slice(),
     ctrl: { ...state.ctrl },
     mods: JSON.parse(JSON.stringify(state.mods)),
     flags: { ...state.flags },
@@ -2982,7 +4010,6 @@ function importSaveText(text) {
   try { pack = JSON.parse(text); }
   catch (e) { return { ok: false, msg: '文件不是有效的 JSON，可能已损坏。' }; }
   const r = applySaveFile(pack);
-  if (r.ok) refreshStartSaveUI();
   return r;
 }
 
@@ -3001,19 +4028,6 @@ function exportSave() {
     return { ok: false, msg: '导出失败：' + e.message, text: text, name: name };
   }
   return { ok: true, msg: '已导出 ' + name, text: text, name: name };
-}
-
-/* 开始页那行小字：告诉玩家"现在本机到底有没有东西" */
-function refreshStartSaveUI() {
-  const el = document.getElementById('saveTip');
-  if (!el) return;
-  const sv = readSave();
-  const pr = readProgress();
-  const done = Object.keys(pr.cleared || {}).length;
-  el.textContent = sv
-    ? ('本机：' + levelById(sv.lv).name + ' 第 ' + sv.turn + ' 回合')
-    : (done ? ('本机：已通关 ' + done + ' 关') : '存档只在本机浏览器里');
-  el.style.color = '';
 }
 
 function restoreGame(s) {
@@ -3038,6 +4052,8 @@ function restoreGame(s) {
     deck: Array.isArray(s.deck) && s.deck.length ? s.deck.filter(id => CARDS[id]) : readDeck(),
     cardUsed: s.cardUsed || {},
     cardId: null,
+    escapedCount: s.escapedCount || 0,
+    escapedIds: s.escapedIds || [],
     flags: s.flags || {},
     result: null,
     fields: { blue: {}, red: {} },
@@ -3132,11 +4148,20 @@ function doUndo() {
 
 /* 顶栏关卡名跟着 LEVEL 走。单关时代这两行是写死在 HTML 里的，
    多关之后不跟着换，玩家打到第 2 关顶栏还写着"岚口要地争夺战"。 */
+/* 序号文案。no:0 是序章（教学关），写「第 0 关」很别扭——玩家会以为自己漏了一关。
+   附属关（sub:true）与正关共用编号，靠前缀区分：第 3 关是岚口，机场是它的附属。
+   统一走这个函数，标题栏和关卡列表才会用同一种说法。 */
+function levelNoText(lv) {
+  if (!lv) return '';
+  if (lv.no === 0) return '序 · ';
+  return '第 ' + lv.no + ' 关 · ' + (lv.sub ? '附属 · ' : '');
+}
+
 function syncLevelHeader() {
   const n = document.getElementById('lvName');
   const s = document.getElementById('lvSub');
   if (n) n.textContent = LEVEL.name;
-  if (s) s.textContent = '第 ' + LEVEL.no + ' 关 · ' + LEVEL.type + ' · ' + LEVEL.when;
+  if (s) s.textContent = levelNoText(LEVEL) + LEVEL.type + ' · ' + LEVEL.when;
   if (document && document.title) document.title = LEVEL.name + ' · 苍屿战役';
 }
 
@@ -3156,7 +4181,15 @@ function newGame(opt) {
     units: [],
     mines: [],
     depots: [],
-    forts: [],           // 工事：{r,c,side,kind,def}
+    /* 工事。LEVEL.forts 是关卡预置的（要塞、永久工事这类），
+       必须深拷贝——工事会在战斗中被改耐久、被替换，共享引用会污染关卡数据，
+       下一局重开时带着上一局的残骸。 */
+    forts: (LEVEL.forts || []).map(f => ({
+      r: f.r, c: f.c, side: f.side || 'blue', kind: f.kind,
+      def: (FORT[f.kind] || FORT.H).def,
+      hp: f.hp === undefined ? ((FORT[f.kind] || FORT.H).hp || 0) : f.hp,
+      maxHp: (FORT[f.kind] || FORT.H).hp || 0
+    })),
     log: [],
     selected: null,
     reachable: emptyReach(),
@@ -3166,11 +4199,14 @@ function newGame(opt) {
     deck: readDeck(),    // 本局携带的战术卡（跨关沿用，在 HQ 里选）
     cardUsed: {},        // 已经用掉的卡，整局不可复用
     cardId: null,        // 正在等待选目标的那张卡
+    escapedCount: 0,     // 抵达撤离区并离场的部队数（reach 类关卡用）
+    escapedIds: [],
     flags: { wave2: false, wave3: false },
     result: null,
     fields: { blue: {}, red: {} },
     ctrl: {},            // 要点控制权：持久化
-    mods: [],            // 事件产生的常驻修正
+    mods: [],            // 事件产生的战场修正（带 left 的是限时，回合末递减）
+    firstBlood: 0,       // 全场第一次交火发生在第几回合；0 = 还没打
     eventsDone: {},      // 已触发事件
     storySeen: {},       // 已播放过的剧情演出
     everSeen: {},        // 曾进入战场的兵牌（用于判定阵亡）
@@ -3258,6 +4294,7 @@ function doMove(u, pos) {
   u.pos = pos;
   u.moved = true;
   u.fortify = 0;
+  noteAct(u, 'move');
 
   /* 岸防炮封锁：进入敌方岸防炮相邻的渡口格要挨一轮炮 */
   if (LEVEL.map[pos[0]][pos[1]] === '=') {
@@ -3278,6 +4315,9 @@ function doMove(u, pos) {
   refreshFields();
   updateControl();
   checkEvents();
+  /* 走位踩进撤离区要在这里就结算。以前只在 doAttack 之后调 checkEscape，
+     于是"走进去"不算撤出、"开一炮"才算——同一个动作换个顺序结果不一样。 */
+  checkEscape();
   render();
   checkEnd();
   saveGame();
@@ -3294,6 +4334,7 @@ function doPack(u) {
   pushUndo();
   u.packed = true;
   u.moved = true; u.fired = true;
+  noteAct(u, 'pack');
   log(u.abbr + ' 收炮挂车，本回合用于收炮，下回合可以转移。', u.side === 'blue' ? 'b' : 'r');
   FX.sfx('move');
   clearSelection(); refreshFields(); render(); saveGame();
@@ -3304,6 +4345,7 @@ function doUnpack(u) {
   pushUndo();
   u.packed = false;
   u.moved = true; u.fired = true;
+  noteAct(u, 'pack');
   log(u.abbr + ' 占领阵地、放列架设，本回合用于展开，下回合可以开火。',
       u.side === 'blue' ? 'b' : 'r');
   FX.sfx('build');
@@ -3332,6 +4374,10 @@ function doAttack(att, def) {
 
   if (att.ammo !== undefined) att.ammo = Math.max(0, att.ammo - 1);
   att.fired = true;
+  noteAct(att, 'fire');
+  /* 全场第一次交火。事件里用 when:{kind:'firstBlood'} 就能写"打响了"那句，
+     不用去猜玩家第几回合才开第一枪。 */
+  if (!state.firstBlood) state.firstBlood = state.turn;
 
   def.str = Math.max(0, def.str - defLoss);
   att.str = Math.max(0, att.str - attLoss);
@@ -3372,6 +4418,8 @@ function doAttack(att, def) {
   refreshFields();
   updateControl();
   checkEvents();
+  /* 走位可能正好踩进撤离区，要在渲染前结算并计数 */
+  checkEscape();
   render();
   checkEnd();
   saveGame();
@@ -3507,6 +4555,7 @@ function doFort(u, pos, kind) {
     hp: spec.hp || 0, maxHp: spec.hp || 0
   });
   u.moved = true; u.fired = true;
+  noteAct(u, 'fort');
   log(u.abbr + ' 在 ' + coordName(pos) + (prev ? '把工事升级为' : '构筑') + spec.name + '（' + kind +
       '）· 防御 +' + Math.round(spec.def * 100) + '%' +
       (spec.hp ? ' · 耐久 ' + spec.hp : ''),
@@ -3521,6 +4570,7 @@ function doMine(u, pos) {
   pushUndo();
   state.mines.push({ r: pos[0], c: pos[1], side: u.side });
   u.moved = true; u.fired = true;
+  noteAct(u, 'eng');
   log(u.abbr + ' 在 ' + coordName(pos) + ' 布设雷区。', u.side === 'blue' ? 'b' : 'r');
   FX.sfx('build');
   FX.pop('雷区', pos.slice(), 'sys');
@@ -3531,6 +4581,7 @@ function doClearMine(u, pos) {
   pushUndo();
   state.mines = state.mines.filter(m => !(m.r === pos[0] && m.c === pos[1]));
   u.moved = true; u.fired = true;
+  noteAct(u, 'eng');
   log(u.abbr + ' 清除了 ' + coordName(pos) + ' 的雷区。', u.side === 'blue' ? 'b' : 'r');
   FX.sfx('build');
   clearSelection(); render();
@@ -3541,6 +4592,7 @@ function doBridge(u, pos) {
   const row = LEVEL.map[pos[0]];
   LEVEL.map[pos[0]] = row.substring(0, pos[1]) + '=' + row.substring(pos[1] + 1);
   u.moved = true; u.fired = true;
+  noteAct(u, 'eng');
   log(u.abbr + ' 在 ' + coordName(pos) + ' 架桥，河流变为渡口。', u.side === 'blue' ? 'b' : 'r');
   FX.sfx('build');
   FX.pop('架桥', pos.slice(), 'sys');
@@ -3552,6 +4604,7 @@ function doDepot(u) {
   const dup = state.depots.some(d => d.side === u.side && d.r === u.pos[0] && d.c === u.pos[1]);
   if (!dup) state.depots.push({ side: u.side, r: u.pos[0], c: u.pos[1] });
   u.moved = true; u.fired = true;
+  noteAct(u, 'eng');
   log(u.abbr + ' 在 ' + coordName(u.pos) + (dup ? ' 的补给点已存在。' : ' 建立补给点，半径 4 格内友军补给充足。'),
       u.side === 'blue' ? 'b' : 'r');
   FX.sfx('build');
@@ -3695,6 +4748,20 @@ function settlePhase() {
   /* 炮台自动开火：先于补给结算，固定伤害不吃组织度 */
   fortFire();
 
+  /* 限时修正倒计时。放在回合末统一扣，而不是"用一次扣一次"——
+     修正是"持续 N 个回合"的状态，不是消耗品。
+     归零的当回合就摘掉，下回合开始 modAtk / modDef 读到的已经是干净的表。 */
+  if (state.mods && state.mods.length) {
+    for (const m of state.mods) {
+      if (m && typeof m.left === 'number') m.left -= 1;
+    }
+    const expired = state.mods.filter(m => m && typeof m.left === 'number' && m.left <= 0);
+    if (expired.length) {
+      state.mods = state.mods.filter(m => expired.indexOf(m) < 0);
+      for (const m of expired) log('  ' + m.label + ' 已失效。', 'sys');
+    }
+  }
+
   for (const u of state.units) {
     const s = supplyOf(u, state.fields);
     if (s.label === '断绝') {
@@ -3728,19 +4795,15 @@ function settlePhase() {
     }
   }
 
-  /* 敌方波次：第 4 回合装甲旅、第 8 回合战斗群。
-     两波都比原设计早一回合——炮兵射程上调后蓝方火力覆盖变宽，红方需要更早形成压力。 */
-  const WAVE_AT = { 2: 3, 3: 7 };
-  const WAVE_TEXT = {
-    2: '敌方第二波（敌装甲第 4 旅）自东北方向投入战场。',
-    3: '敌方第三波（敌第 6 战斗群）投入战场，攻势达到顶点。'
-  };
-  for (const w of [2, 3]) {
-    if (state.turn !== WAVE_AT[w] || state.flags['wave' + w]) continue;
-    state.flags['wave' + w] = true;
-    for (const u of LEVEL.units.filter(x => x.wave === w)) state.units.push(makeUnit(u, true));
-    log(WAVE_TEXT[w], 'r');
-    FX.banner(WAVE_TEXT[w], 'r', 3200);
+  /* 敌方波次。投入时刻与战报文案由 LEVEL.waves 声明——
+     这两件事本来就是"这一关的剧本"，写在引擎里换一关就串词（C3 的
+     "装甲第 4 旅沿河北岸迂回"曾经会出现在任何一个新关卡的战报里）。 */
+  for (const wv of (LEVEL.waves || [])) {
+    if (state.turn !== wv.turn || state.flags['wave' + wv.wave]) continue;
+    state.flags['wave' + wv.wave] = true;
+    for (const u of LEVEL.units.filter(x => x.wave === wv.wave)) state.units.push(makeUnit(u, true));
+    log(wv.text, 'r');
+    FX.banner(wv.text, 'r', 3200);
     FX.sfx('alarm');
   }
 
@@ -3750,45 +4813,196 @@ function settlePhase() {
   render();
 }
 
+/* ═════════════════════ 胜负条件 ═════════════════════
+   三种关卡目标，由 LEVEL.win 声明：
+     { kind:'score' }                      积分制（默认）——原有玩法
+     { kind:'survive', keep? }             活到最后一回合。keep = 额外要求保住的要点 id 列表
+     { kind:'reach', count, cells|zone }   累计 count 支部队抵达撤离区（抵达即撤出战场）
+
+   不管哪种，**蓝方全灭一律判负**——这条在 checkEnd 里，先于任何胜利判定，
+   否则"还剩 1 支部队没走到撤离区，但敌军全死了"会变成僵局。 */
+function winSpec() { return (LEVEL.win && LEVEL.win.kind) ? LEVEL.win : { kind: 'score' }; }
+
+/* 撤离区：cells 明写，或者 zone 给矩形（含边界） */
+function inEscapeZone(pos) {
+  const w = winSpec();
+  if (w.kind !== 'reach') return false;
+  if (Array.isArray(w.cells)) {
+    return w.cells.some(c => c[0] === pos[0] && c[1] === pos[1]);
+  }
+  if (w.zone) {
+    const z = w.zone;
+    return pos[0] >= z.r0 && pos[0] <= z.r1 && pos[1] >= z.c0 && pos[1] <= z.c1;
+  }
+  return false;
+}
+function escapeGoal() { const w = winSpec(); return w.kind === 'reach' ? (w.count || 1) : 0; }
+function escapedCount() { return state ? (state.escapedCount || 0) : 0; }
+
+/* 撤离区的全部格子。zone / cells 两种写法在这里统一展开成列表，
+   渲染、标注、自测都读这一份，不要各处再写一遍解析逻辑。 */
+function escapeCells() {
+  const w = winSpec();
+  if (w.kind !== 'reach') return [];
+  if (Array.isArray(w.cells)) return w.cells;
+  if (w.zone) {
+    const out = [], z = w.zone;
+    for (let r = z.r0; r <= z.r1; r++) for (let c = z.c0; c <= z.c1; c++) out.push([r, c]);
+    return out;
+  }
+  return [];
+}
+
+/* 已撤出部队的战力合计。
+   checkEscape 会把撤离的兵牌从 state.units 里删掉，所以"我到底还剩多少"
+   不能只看 alive('blue')——那会把走出去的人当成损失，结算时凭空少一大块。 */
+function escapedStr() {
+  const ids = (state && state.escapedIds) || [];
+  if (!ids.length) return 0;
+  let s = 0;
+  for (const u of LEVEL.units) if (ids.indexOf(u.id) >= 0) s += u.str;
+  return s;
+}
+function blueInitialStr() {
+  return LEVEL.units.filter(u => u.side === 'blue' && u.wave === 1)
+    .reduce((s, u) => s + u.str, 0);
+}
+
+/* 撤离类关卡的结算。达标就赢；达标且基本成建制（保住七成战力）算超额。
+   为什么超额不看"撤出更多"：checkEnd 在达标那一刻就结束战斗，
+   "再多撤一支"这条路根本来不及走——旧写法里的 escaped > goal 永远不成立。 */
+function reachResult() {
+  if (escapedCount() < escapeGoal()) return 'fail';
+  const total = blueInitialStr();
+  const keep = alive('blue').reduce((s, u) => s + u.str, 0) + escapedStr();
+  return (total > 0 && keep >= total * 0.7) ? 'perfect' : 'win';
+}
+
+/* 每回合末与每次移动后调用：走进撤离区的部队立刻离场并计数。
+   为什么要"离场"而不是"停在区里"：撤退区通常只有两三格，
+   停在区里会互相堵住后面的人，而且数量统计会被"同一支反复进出"搞乱。 */
+function checkEscape() {
+  if (!state || state.result) return 0;
+  const w = winSpec();
+  if (w.kind !== 'reach') return 0;
+  let moved = 0;
+  for (const u of alive('blue')) {
+    if (!inEscapeZone(u.pos)) continue;
+    state.escapedCount = (state.escapedCount || 0) + 1;
+    state.escapedIds = state.escapedIds || [];
+    state.escapedIds.push(u.id);
+    const i = state.units.indexOf(u);
+    if (i >= 0) state.units.splice(i, 1);
+    moved++;
+    log(u.abbr + '（' + u.name + '）突破封锁线，撤出战场。已完成 ' +
+        state.escapedCount + ' / ' + escapeGoal() + '。', 'b');
+    FX.sfx('win');
+  }
+  if (moved) {
+    if (state.selected && state.units.indexOf(state.selected) < 0) clearSelection();
+    refreshFields();
+    FX.banner('已撤出 ' + state.escapedCount + ' / ' + escapeGoal(), 'b', 1800);
+  }
+  return moved;
+}
+
 function judgeFinal() {
   state.phase = 'over';
   state.turn = Math.min(state.turn, LEVEL.maxTurns);
-  const sc = blueScore();
-  if (sc >= LEVEL.perfectScore) state.result = 'perfect';
-  else if (sc >= LEVEL.winScore) state.result = 'win';
-  else state.result = 'fail';
+  const w = winSpec();
+
+  if (w.kind === 'survive') {
+    /* 活到最后一回合就算达成。keep 是"还必须拿在手里"的要点 */
+    const held = (w.keep || []).every(id => {
+      const o = LEVEL.objectives.find(x => x.id === id);
+      return !!o && objectiveControl(o) === 'blue';
+    });
+    const aliveNow = alive('blue').length;
+    state.result = (aliveNow > 0 && held) ? 'win' : 'fail';
+    /* 一个没损失、要点全在，算超额 */
+    if (state.result === 'win' && held &&
+        aliveNow >= LEVEL.units.filter(u => u.side === 'blue' && u.wave === 1).length) {
+      state.result = 'perfect';
+    }
+  } else if (w.kind === 'reach') {
+    state.result = reachResult();
+  } else {
+    const sc = blueScore();
+    if (sc >= LEVEL.perfectScore) state.result = 'perfect';
+    else if (sc >= LEVEL.winScore) state.result = 'win';
+    else state.result = 'fail';
+  }
   showOverlay();
   render();
 }
 
 function checkEnd() {
   if (state.result) return;
-  const maxRed = LEVEL.objectives.reduce((s, o) => s + o.vp, 0);
-  /* 只判失败；超额必须守到第 12 回合末，避免开局抢几个空要点就速通 */
-  if (redScore() > maxRed - LEVEL.winScore) {
+  /* 全灭先判：任何目标类型下，打光了都是输 */
+  if (alive('blue').length === 0) {
     state.result = 'fail'; state.phase = 'over'; showOverlay(); render(); return;
   }
-  if (alive('blue').length === 0) { state.result = 'fail'; state.phase = 'over'; showOverlay(); render(); }
+  const w = winSpec();
+  if (w.kind === 'reach') {
+    if (escapedCount() >= escapeGoal()) {
+      state.result = reachResult();
+      state.phase = 'over'; showOverlay(); render(); return;
+    }
+    return;                          // 抵达类目标不看积分，等回合耗尽再判
+  }
+  if (w.kind === 'survive') {
+    /* 坚守类：中途只要还站着就不算输，回合末由 judgeFinal 判定 */
+    return;
+  }
+  const maxRed = LEVEL.objectives.reduce((s, o) => s + o.vp, 0);
+  /* 只判失败；超额必须守到最后一回合，避免开局抢几个空要点就速通。
+     但 winScore >= maxRed 的关（要求全控，比如只有 1 个 10 分要点的教学关）
+     不能走这条路：阈值会算成 0，红方一碰要点就当场判负，
+     玩家连"打回来"的机会都没有。这类关交给回合末的 judgeFinal 判。 */
+  if (maxRed > LEVEL.winScore && redScore() > maxRed - LEVEL.winScore) {
+    state.result = 'fail'; state.phase = 'over'; showOverlay(); render(); return;
+  }
 }
 
 function showOverlay() {
   const sc = blueScore();
   const el = document.getElementById('overlay');
-  const map = {
-    perfect: ['超额达成', '要点基本完整，敌方攻势被彻底迟滞。'],
-    win: ['达成任务', '核心要点守住，战役目标完成。'],
-    fail: ['任务失败', '要点失守或守备力量耗尽。']
-  };
+  const w = winSpec();
+  /* 文案跟着目标类型走。以前全关都是"要点失守"，套到坚守关和突围关上完全说不通 */
+  const map = w.kind === 'reach'
+    ? { perfect: ['超额突围', '冲出去的比要求还多，这条封锁线没拦住你们。'],
+        win:     ['突围成功', '足够多的部队穿过了封锁线。'],
+        fail:    ['突围失败', '抵达撤离区的部队不够，或者被打光了。'] }
+    : w.kind === 'survive'
+    ? { perfect: ['完整坚守', '一个没损失，防线原封不动撑到了最后。'],
+        win:     ['坚守成功', '撑到了预定时间，援军会记住这一天。'],
+        fail:    ['要塞失守', '守备力量耗尽，或者最后关头上的阵地丢了。'] }
+    : { perfect: ['超额达成', '要点基本完整，敌方攻势被彻底迟滞。'],
+        win:     ['达成任务', '核心要点守住，战役目标完成。'],
+        fail:    ['任务失败', '要点失守或守备力量耗尽。'] };
   const m = map[state.result] || map.fail;
   document.getElementById('mTitle').textContent = m[0];
   document.getElementById('mDesc').textContent = m[1];
   const lost = LEVEL.units.filter(u => u.side === 'blue')
     .reduce((s, u) => s + u.str, 0);
   const now = alive('blue').reduce((s, u) => s + u.str, 0);
-  document.getElementById('mStats').innerHTML =
-    '<div class="stat"><span>要点得分</span><b>' + sc + ' / ' + LEVEL.winScore + '</b></div>' +
-    '<div class="stat"><span>我方剩余战力</span><b>' + now + ' / ' + lost + '</b></div>' +
-    '<div class="stat"><span>结束回合</span><b>' + state.turn + '</b></div>';
+  const row = (k, v) => '<div class="stat"><span>' + k + '</span><b>' + v + '</b></div>';
+  let stats = '';
+  if (w.kind === 'reach') {
+    stats = row('撤出部队', escapedCount() + ' / ' + escapeGoal()) +
+            row('仍在战场', alive('blue').length + ' 支') +
+            row('我方剩余战力', now + ' / ' + lost) +
+            row('结束回合', state.turn + ' / ' + LEVEL.maxTurns);
+  } else if (w.kind === 'survive') {
+    stats = row('坚守回合', state.turn + ' / ' + LEVEL.maxTurns) +
+            row('幸存部队', alive('blue').length + ' 支') +
+            row('我方剩余战力', now + ' / ' + lost);
+  } else {
+    stats = row('要点得分', sc + ' / ' + LEVEL.winScore) +
+            row('我方剩余战力', now + ' / ' + lost) +
+            row('结束回合', state.turn);
+  }
+  document.getElementById('mStats').innerHTML = stats;
 
   /* 写战役进度。失败只记 played 不解锁——下一关的开场会因此引用"失守"那句前情 */
   markResult(LEVEL.id, state.result);
@@ -3800,7 +5014,7 @@ function showOverlay() {
   const nxt = nextReadyLevel(LEVEL.id);
   if (state.result !== 'fail' && nxt) {
     mNext.classList.remove('hidden');
-    mNext.textContent = '进入第 ' + nxt.no + ' 关 · ' + nxt.name;
+    mNext.textContent = '进入' + levelNoText(nxt) + nxt.name;
     mNote.classList.add('hidden');
   } else if (state.result !== 'fail') {
     mNext.classList.add('hidden');
@@ -3975,8 +5189,11 @@ async function runAI() {
     if (u.type === 'eng' || u.type === 'engc') {
       const goal = redGoal(u);
       if (u.type === 'eng' && goal && !u.moved && !u.fired) {
-        const rivers = neighbors(u.pos)
-          .filter(n => inBounds(n[0], n[1]) && LEVEL.map[n[0]][n[1]] === '~');
+        /* neighbors 的签名是 (r, c)，传数组会静默返回空表——
+           这里曾经写成 neighbors(u.pos)，于是红方工兵一辈子没架过桥，
+           而 R3E（舟桥连）就是为了架桥才加进编制里的。 */
+        const rivers = neighbors(u.pos[0], u.pos[1])
+          .filter(n => LEVEL.map[n[0]][n[1]] === '~');
         let pick = null, pd = hexDist(u.pos, goal);
         for (const s of rivers) {
           const d = hexDist(s, goal);
@@ -4075,6 +5292,8 @@ function renderBoard() {
         else if (cs === 'contested') cls += ' cc';
       }
       if (t.cost >= 99) cls += ' river';
+      /* 撤离区：走进就离场，玩家必须先看见它，否则"往东突围"就是一句空话 */
+      if (inEscapeZone([r, c])) cls += ' esczone';
       const ftHere = fortAt(r, c);
       if (ftHere) cls += ftHere.side === 'blue' ? ' fb' : ' fr';
       const rk = kk(r, c);
@@ -4154,6 +5373,20 @@ function renderBoard() {
             (p.y + 5) + 'px">' + o.name + ' ' + o.vp + '</div>';
   }
 
+  /* 撤离区标注：贴在最上一行的中点。不标的话玩家只能从格子的淡绿色猜 */
+  if (winSpec().kind === 'reach') {
+    const ec = escapeCells();
+    if (ec.length) {
+      let minR = 99;
+      for (const cell of ec) if (cell[0] < minR) minR = cell[0];
+      const rowC = ec.filter(x => x[0] === minR);
+      const cc = Math.round(rowC.reduce((s, x) => s + x[1], 0) / rowC.length);
+      const p = hexToPixel(minR, cc);
+      html += '<div class="oLabel onObj" style="left:' + (p.x + HEX_W / 2) + 'px;top:' +
+              (p.y + 5) + 'px">撤离区 · 撤出 ' + escapedCount() + '/' + escapeGoal() + '</div>';
+    }
+  }
+
   board.innerHTML = html;
 
   board.querySelectorAll('.hex').forEach(el => {
@@ -4190,11 +5423,53 @@ function renderGoal() {
   const sc = blueScore();
   const bStr = alive('blue').reduce((s, u) => s + Math.round(effStr(u, state.fields)), 0);
   const rStr = alive('red').reduce((s, u) => s + Math.round(effStr(u, state.fields)), 0);
+  const w = winSpec();
   let html = '';
-  html += '<div class="row"><span>要点控制</span><b class="' +
-          (sc >= LEVEL.winScore ? 'ok' : sc >= LEVEL.winScore * 0.5 ? 'warn' : 'bad') + '">' +
-          sc + ' / ' + LEVEL.winScore + ' 分</b></div>';
-  html += '<div class="vpbar"><i style="width:' + Math.min(100, sc / LEVEL.perfectScore * 100) + '%"></i></div>';
+  /* 任务进度按胜负类型分三路。以前这里写死积分条，坚守关 / 突围关
+     会显示 "0 / undefined 分"，玩家完全看不出自己该干什么。 */
+  if (w.kind === 'reach') {
+    const n = escapedCount(), g = escapeGoal();
+    html += '<div class="row"><span>撤出部队</span><b class="' +
+            (n >= g ? 'ok' : n > 0 ? 'warn' : 'bad') + '">' + n + ' / ' + g + ' 支</b></div>';
+    html += '<div class="vpbar"><i style="width:' + Math.min(100, g ? n / g * 100 : 0) + '%"></i></div>';
+    html += '<div class="row"><span>仍在战场</span><b>' + alive('blue').length + ' 支</b></div>';
+    html += '<div class="row" style="font-size:11px"><span>走到绿色区域即撤出</span><b>剩 ' +
+            Math.max(0, LEVEL.maxTurns - state.turn + 1) + ' 回合</b></div>';
+  } else if (w.kind === 'survive') {
+    const left = Math.max(0, LEVEL.maxTurns - state.turn + 1);
+    html += '<div class="row"><span>坚守回合</span><b class="' +
+            (left <= 2 ? 'ok' : 'warn') + '">' + state.turn + ' / ' + LEVEL.maxTurns + '</b></div>';
+    html += '<div class="vpbar"><i style="width:' +
+            Math.min(100, LEVEL.maxTurns ? state.turn / LEVEL.maxTurns * 100 : 0) + '%"></i></div>';
+    const keep = w.keep || [];
+    if (keep.length) {
+      const held = keep.filter(id => {
+        const o = LEVEL.objectives.find(x => x.id === id);
+        return !!o && objectiveControl(o) === 'blue';
+      }).length;
+      html += '<div class="row"><span>必须保有</span><b class="' +
+              (held === keep.length ? 'ok' : 'bad') + '">' + held + ' / ' + keep.length + ' 处</b></div>';
+    }
+    html += '<div class="row"><span>幸存兵牌</span><b>' + alive('blue').length + ' 支</b></div>';
+  } else {
+    html += '<div class="row"><span>要点控制</span><b class="' +
+            (sc >= LEVEL.winScore ? 'ok' : sc >= LEVEL.winScore * 0.5 ? 'warn' : 'bad') + '">' +
+            sc + ' / ' + LEVEL.winScore + ' 分</b></div>';
+    html += '<div class="vpbar"><i style="width:' + Math.min(100, sc / LEVEL.perfectScore * 100) + '%"></i></div>';
+  }
+  /* 教学关的科目清单。只在声明了 drills 的关卡出现，正关不受影响。
+     "已讲 / 正在讲 / 还没讲"按回合数走——它不是通关条件，
+     只是把"现在该干什么"钉在屏幕上，不用回头翻战报。 */
+  if (LEVEL.drills && LEVEL.drills.length) {
+    html += '<div class="dtitle">演习科目</div><div class="drills">';
+    for (const d of LEVEL.drills) {
+      const st = state.turn > d.t ? 'done' : state.turn === d.t ? 'now' : 'wait';
+      html += '<div class="drill ' + st + '">' +
+              '<i>' + (st === 'done' ? '✓' : d.t) + '</i>' +
+              '<b>' + d.k + '</b><span>' + d.s + '</span></div>';
+    }
+    html += '</div>';
+  }
   html += '<div class="row"><span>我方有效战力</span><b>' + bStr + '</b></div>';
   html += '<div class="row"><span>敌方有效战力</span><b class="bad">' + rStr + '</b></div>';
   html += '<div class="row"><span>炮兵弹药</span><b>' +
@@ -4209,8 +5484,11 @@ function renderGoal() {
   }
   if (state.mods && state.mods.length) {
     for (const m of state.mods) {
+      /* 限时修正后面标剩余回合——不然玩家看到"攻击 +15%"会以为是一直到最后，
+         等到某一回合它突然消失，只会当成 bug。 */
+      const tail = (typeof m.left === 'number') ? '（剩 ' + m.left + ' 回合）' : '';
       html += '<div class="abil" style="font-size:10.5px;color:' +
-              (m.side === 'blue' ? '#2F5C8A' : '#A83A3A') + '">▸ ' + m.label + '</div>';
+              (m.side === 'blue' ? '#2F5C8A' : '#A83A3A') + '">▸ ' + m.label + tail + '</div>';
     }
   }
   document.getElementById('goalBox').innerHTML = html;
@@ -4236,10 +5514,15 @@ function unitOps(u) {
     }
   }
 
-  /* 工事：能建哪几种由兵种决定，同一个按钮组里平铺 */
+  /* 工事：能建哪几种由兵种决定，同一个按钮组里平铺。
+     **neighbors 要吃 (r, c)，不能吃数组**——曾经写成 neighbors(u.pos)，
+     返回永远为空表，于是"布雷 / 排雷 / 架桥"三个按钮从上线起一直是灰的，
+     玩家只看到三个点不动的按钮，也查不出所以然（静默返回空最容易漏）。
+     相邻格要不要算上工事种类，取决于兵种本身：eng 五类全能，engc 只有 H，
+     所以这里把本格与相邻格一起过一遍。 */
   if (!u.fired) {
     const kinds = [];
-    for (const p of [u.pos].concat(neighbors(u.pos))) {
+    for (const p of [u.pos].concat(neighbors(u.pos[0], u.pos[1]))) {
       for (const k of fortKindsFor(u, p)) if (!kinds.includes(k)) kinds.push(k);
     }
     for (const k of kinds) {
@@ -4251,7 +5534,7 @@ function unitOps(u) {
 
   /* 工程作业 */
   if (u.type === 'eng' || u.type === 'engc') {
-    const near = neighbors(u.pos);
+    const near = neighbors(u.pos[0], u.pos[1]);
     const isEng = u.type === 'eng';
     if (!u.fired) {
       if (isEng) {
@@ -4764,11 +6047,9 @@ function hideZhint() {
 setTimeout(hideZhint, 4200);
 boardWrap.addEventListener('touchstart', hideZhint, { passive: true, once: true });
 
-/* ───────────────────────── 开始页 ─────────────────────────
-   它同时干两件事：① 解锁音频（浏览器要求先有用户交互，否则 BGM 永远放不出来）；
-   ② 在 280 个格子糊一脸之前，先告诉玩家这是哪一场仗、要守到什么时候。 */
 /* ───────────────────────── 战前简报 ─────────────────────────
-   「开始新的战役」→ 作战公文逐页推进 → 语录过场 → 真正开局。
+   选关在菜单页（根目录 index.html）完成，那边带 ?lv=<id> 过来，
+   这里只负责"进关之后"的那段戏：作战公文逐页推进 → 语录过场 → 真正开局。
    内容全部来自 LEVEL.story.briefing，这里只负责推页，一个字台词都不写死。
    跳过是整段跳过、不是翻过一页，也不退回开始页——玩家已经做过选择了。
    键盘用 capture + stopPropagation 截住：否则空格会漏到全局监听里，
@@ -4811,7 +6092,7 @@ function showBriefPage(page, i, total) {
     const close = verdict => {
       if (done) return;
       done = true;
-      document.removeEventListener('keydown', onKey, true);
+      if (document && document.removeEventListener) document.removeEventListener('keydown', onKey, true);
       resolve(verdict);
     };
     const onKey = e => {
@@ -4844,9 +6125,10 @@ async function runBriefing() {
   hide();
 }
 
-/* ───────────────────────── 战役线选择页 ─────────────────────────
-   "开始推演"该进哪一关：第一个可玩且还没通关的；全通了就回最后一关。
-   这样新玩家从第一关起步、老玩家能重打最后一关，谁都不会被扔进空地图。 */
+/* ───────────────────────── 默认进哪一关 ─────────────────────────
+   直接双击引擎、谁也没告诉它进哪一关时用：第一个可玩且还没通关的；
+   全通了就回最后一关。这样新玩家从第一关起步、老玩家能重打最后一关，
+   谁都不会被扔进空地图。 */
 function recommendLevel() {
   const p = readProgress();
   const ready = LEVELS.filter(l => l.ready);
@@ -4855,59 +6137,7 @@ function recommendLevel() {
   return fresh || ready[ready.length - 1];
 }
 
-/* 渲染时间轴。全部由 LEVELS 生成，不写死任何一个关名——
-   以后加关卡只加数据，这里自动多一行。 */
-function renderLevelList() {
-  const host = document.getElementById('lvlList');
-  if (!host) return;
-  const p = readProgress();
-  const rec = recommendLevel();
-  host.innerHTML = LEVELS.map(lv => {
-    const acc = levelAccess(lv.id);
-    const done = !!p.cleared[lv.id];
-    const cls = ['lvl-row'];
-    if (done) cls.push('done');
-    if (rec && rec.id === lv.id) cls.push('cur');
-    if (!acc.ok) cls.push('locked');
-    const stateTxt = done ? (p.cleared[lv.id] === 'perfect' ? '超额达成' : '已达成')
-                  : !lv.ready ? '制作中'
-                  : acc.ok ? '进入'
-                  : '未解锁';
-    return '<div class="' + cls.join(' ') + '" data-lv="' + lv.id + '">' +
-      '<i class="dot"></i>' +
-      '<div class="lvl-main">' +
-        '<div class="lvl-head"><b>第 ' + lv.no + ' 关 · ' + lv.name + '</b><em>' + lv.type + '</em></div>' +
-        '<div class="lvl-when">' + lv.when + ' · ' + lv.where + '</div>' +
-        '<div class="lvl-teaser">' + lv.teaser + '</div>' +
-      '</div>' +
-      '<div class="lvl-state">' + stateTxt + '</div>' +
-    '</div>';
-  }).join('');
-}
-
-function showStart() {
-  renderLevelList();
-  const s = readSave();
-  const btn = document.getElementById('btnResume');
-  const meta = document.getElementById('resumeMeta');
-  if (s) {
-    const lv = s._level || LEVEL;
-    btn.disabled = false;
-    meta.textContent = lv.name + ' · 第 ' + s.turn + ' / ' + lv.maxTurns + ' 回合 · ' +
-                       (s.score == null ? '—' : s.score) + ' 分';
-  } else {
-    btn.disabled = true;
-    meta.textContent = '没有存档';
-  }
-  refreshStartSaveUI();
-  document.getElementById('startScreen').classList.remove('hidden');
-}
-
-function closeStart() {
-  document.getElementById('startScreen').classList.add('hidden');
-}
-
-/* 进入某一关的唯一入口：选择页的行、结算面板的"下一关"、URL 参数全走这里。
+/* 进入某一关的唯一入口：菜单页点关、结算面板的"下一关"、URL 参数全走这里。
    三条路各写一套的话，"过场播不播""旧存档清不清"迟早会不一致。 */
 async function enterLevel(lvId, opt) {
   const lv = levelById(lvId);
@@ -4915,7 +6145,6 @@ async function enterLevel(lvId, opt) {
   const acc = levelAccess(lvId);
   if (!acc.ok) return false;
   LEVEL = lv;
-  closeStart();
   document.getElementById('overlay').classList.add('hidden');
   try { FX.unlock(); } catch (e) {}   // 必须留在这次点击的同一个调用栈里
   /* 过场再好看也只是壳，它抛错绝不能把开局一起拽下来 */
@@ -4939,7 +6168,6 @@ async function startResume() {
   const lv = s._level || LEVEL;
   if (!levelAccess(lv.id).ok) { await startNew(); return; }
   LEVEL = lv;
-  closeStart();
   FX.unlock();
   FX.clear();
   if (!restoreGame(s)) { newGame({ level: lv.id }); fitView(false); return; }
@@ -4949,14 +6177,6 @@ async function startResume() {
 }
 
 /* ───────────────────────── 事件绑定 ───────────────────────── */
-/* 时间轴整行可点。锁定行点了什么都不做——状态文字已经写着"制作中 / 未解锁"，
-   再弹一个提示只是噪音。 */
-document.getElementById('lvlList').addEventListener('click', e => {
-  const row = e.target.closest('.lvl-row');
-  if (!row || row.classList.contains('locked')) return;
-  FX.sfx('uiClick');
-  enterLevel(row.getAttribute('data-lv'));
-});
 /* 结算面板的"下一关"。按钮只在通关且下一关存在时才显示，所以这里不用再判一次 */
 document.getElementById('mNext').addEventListener('click', () => {
   FX.sfx('uiClick');
@@ -5245,38 +6465,23 @@ document.getElementById('hqTabs').addEventListener('click', e => {
   renderHQ();
   FX.sfx('uiClick');
 });
-/* 开始页 / HQ 的存档文件按钮。两处走同一套函数，区别只在提示显示在哪 */
-const saveTipEl = () => document.getElementById('saveTip');
-function flashSaveTip(msg, ok) {
-  const el = saveTipEl();
-  if (!el) return;
-  el.textContent = msg;
-  el.style.color = ok ? '#2F7D4F' : '#A83A3A';
-}
-
-document.getElementById('btnExport').addEventListener('click', () => {
-  const r = exportSave();
-  flashSaveTip(r.msg, r.ok);
-  FX.sfx(r.ok ? 'uiClick' : 'lose');
-});
-document.getElementById('btnImport').addEventListener('click', () => {
-  FX.sfx('uiClick');
-  document.getElementById('fileImport').click();
-});
+/* 存档文件的读写：开始页撤销之后，唯一入口是 HQ 的「存档」页（菜单页的
+   「存档管理」就是跳 ?hq=1 打开它）。这个隐藏 input 留在 body 里，
+   HQ 的"导入存档文件"按钮点它，下面的 change 事件统一处理。 */
 document.getElementById('fileImport').addEventListener('change', e => {
   const f = e.target.files && e.target.files[0];
   if (!f) return;
   const fr = new FileReader();
   fr.onload = () => {
     const r = importSaveText(String(fr.result));
-    flashSaveTip(r.msg, r.ok);
-    FX.sfx(r.ok ? 'uiClick' : 'lose');
-    /* 导入成功要立刻重画开始页：解锁状态和"继续上次"的回合数都得跟着变，
-       否则玩家会看到"导入成功"但按钮还是灰的 */
-    if (r.ok) showStart();
+    /* 导入成功要立刻重画面板：进度和存档说明都得跟着变，
+       否则玩家会看到"导入成功"但列表还是旧的。
+       顺序不能反——renderHQ 会把整块 innerHTML 换掉，先画再写提示。 */
+    if (r.ok && typeof renderHQ === 'function') renderHQ();
+    hqSaveNote(r.msg, r.ok);   // 面板没开就是空操作，不会凭空弹提示
     e.target.value = '';       // 允许连续导入同一个文件
   };
-  fr.onerror = () => flashSaveTip('读不了这个文件。', false);
+  fr.onerror = () => { /* 读不了就算了，HQ 里有别的入口可以重试 */ };
   fr.readAsText(f);
 });
 
@@ -5304,15 +6509,16 @@ window.addEventListener('keydown', e => {
   if (e.key === 'Escape' && state && state.cardId) { cancelCard(); return; }
   if (e.key === 'Escape') { closeTips(); return; }
   if (e.key === ' ' && !tipsEl.classList.contains('hidden')) { e.preventDefault(); closeTips(); return; }
-  if (e.key === ' ') {
-    const startShown = !document.getElementById('startScreen').classList.contains('hidden');
-    if (!startShown && state && state.phase === 'blue' && !state.result) {
-      e.preventDefault(); endBluePhase();
-    }
+  if (e.key === ' ' && state && state.phase === 'blue' && !state.result) {
+    e.preventDefault(); endBluePhase();
   }
 });
-document.getElementById('btnNewGame').addEventListener('click', startNew);
-document.getElementById('btnResume').addEventListener('click', startResume);
+/* 返回菜单：打包成桌面程序之后没有 F5 也没有地址栏，
+   没有这个按钮玩家会被锁在地图里出不去。 */
+document.getElementById('btnMenu').addEventListener('click', () => {
+  FX.sfx('uiClick');
+  location.href = '../index.html';
+});
 
 /* 重开要点两下。有存档之后误触一次就丢一局进度，不值得 */
 let _resetArm = 0;
@@ -5338,22 +6544,75 @@ document.getElementById('btnReset').addEventListener('click', (e) => {
 });
 
 /* ───────────────────────── 启动 ─────────────────────────
-   demo / nointro / 自动化跑局跳过开始页，并且不写存档 —— 调试不该覆盖玩家进度 */
+   三种输入：首页跳过来（?lv= / ?resume=1）、直接双击打开、自动化跑局。
+
+   首页（根目录 index.html）是这套战役的门面，点哪一关就带 ?lv=<id> 过来。
+   这里要分清两件事：
+     · 玩家从首页进来 —— 走 enterLevel()，该播的过场播、该存的档存。
+     · 脚本 / 截图 / 分享链接 —— noSave，绝不能覆盖玩家进度。
+   以前的写法把两者混成一条路（?lv= 一律 noSave），结果是玩家从分享链接
+   打一关，退出浏览器进度就没了，而且没有任何提示。 */
 function boot() {
   const q = (typeof location !== 'undefined' && location.search) ? location.search : '';
-  /* ?lv=C3 直达某一关。语义就是"分享这一关"，所以一并跳过开始页 */
-  const m = /[?&]lv=([A-Za-z0-9_-]+)/.exec(q);
-  if (m) {
-    const lv = levelById(m[1]);
-    if (lv && lv.ready) LEVEL = lv;
+  const arg = name => {
+    const m = new RegExp('[?&]' + name + '=([^&]*)').exec(q);
+    return m ? decodeURIComponent(m[1]) : null;
+  };
+
+  /* 自动化 / 截图：不播过场、不写档 */
+  if (window.__FAST__ || q.indexOf('demo=') >= 0) {
+    const auto = arg('lv');
+    if (auto) { const lv = levelById(auto); if (lv && lv.ready) LEVEL = lv; }
+    newGame({ noSave: true });
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => fitView(false));
+    else fitView(false);
+    return;
   }
-  const skip = !!window.__FAST__ || !!m || q.indexOf('nointro') >= 0 || q.indexOf('demo=') >= 0;
-  if (skip) { closeStart(); newGame({ noSave: true }); }
-  else showStart();
+
+  const wantLv = arg('lv');
+  const wantResume = arg('resume') === '1';
+
+  /* 菜单页的「存档管理」：静默开一局（noSave，不碰玩家进度），直接把 HQ 停在存档页 */
+  if (arg('hq') === '1') {
+    const s = readSave();
+    if (s && levelById(s.lv)) LEVEL = levelById(s.lv);
+    else { const rec = recommendLevel(); if (rec) LEVEL = rec; }
+    newGame({ noSave: true });
+    fitView(false);
+    openHQ('save');
+    return;
+  }
+
+  if (wantLv) {
+    const lv = levelById(wantLv);
+    /* 关卡存在且解锁 —— 正常进。过场默认播，nointro=1 可跳过 */
+    if (lv && lv.ready && levelAccess(lv.id).ok) {
+      LEVEL = lv;
+      enterLevel(lv.id, { noIntro: arg('nointro') === '1' });
+      return;
+    }
+    /* 锁着或不存在：回菜单页，别停在半开的地图上。
+       菜单页会按解锁规则把那一关标成"未解锁"，玩家自己看得见原因。 */
+    location.href = '../index.html';
+    return;
+  }
+
+  if (wantResume) { startResume(); return; }
+
+  /* 谁也没告诉它进哪一关（直接双击引擎）：进推荐关，过场照播 */
+  startNew();
   /* 首帧之后按屏幕尺寸决定要不要缩放（移动端竖屏会缩到能看清的倍数） */
   if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => fitView(false));
   else fitView(false);
 }
+
+/* 音频解锁兜底。原来这个"第一次交互"由开始页的按钮提供，开始页撤掉之后
+   必须补一个全局的：浏览器规定没有用户手势就不许出声，少这一步 BGM 永远不响，
+   而且没有任何报错——只会让人以为音频文件坏了。 */
+['pointerdown', 'keydown'].forEach(t => {
+  document.addEventListener(t, () => { try { FX.unlock(); } catch (e) {} },
+    { once: true, capture: true });
+});
 
 boot();
 
@@ -5425,16 +6684,16 @@ if (typeof location !== 'undefined') {
   /* 战前简报三页 + 对话过场；briefbeat / brief2 / brief3 必须排在 brief 之前，
      indexOf 会让 "demo=brief2" 命中 "demo=brief" */
   else if (q.indexOf('demo=briefbeat') >= 0) {
-    closeStart(); FX.cutin(LEVEL.story.briefing.beats[0]);
+    FX.cutin(LEVEL.story.briefing.beats[0]);
   }
   else if (q.indexOf('demo=brief3') >= 0) {
-    closeStart(); showBriefPage(LEVEL.story.briefing.pages[2], 2, 3);
+    showBriefPage(LEVEL.story.briefing.pages[2], 2, 3);
   }
   else if (q.indexOf('demo=brief2') >= 0) {
-    closeStart(); showBriefPage(LEVEL.story.briefing.pages[1], 1, 3);
+    showBriefPage(LEVEL.story.briefing.pages[1], 1, 3);
   }
   else if (q.indexOf('demo=brief') >= 0) {
-    closeStart(); showBriefPage(LEVEL.story.briefing.pages[0], 0, 3);
+    showBriefPage(LEVEL.story.briefing.pages[0], 0, 3);
   }
   else if (q.indexOf('demo=terrain') >= 0) selectTerrain(6, 9);
 }
@@ -5447,8 +6706,12 @@ window.__WAR__ = {
   TERRAIN, TYPE, CRT, TIER_LABEL, ASSETS, FX,
   /* 多关框架 */
   LEVELS, levelById, levelAccess, prevReadyLevel, nextReadyLevel,
-  recommendLevel, readProgress, writeProgress, markResult, enterLevel, renderLevelList,
+  recommendLevel, readProgress, writeProgress, markResult, enterLevel,
+  levelNoText,
   PROGRESS_KEY,
+  /* 三种胜负条件（score / survive / reach） */
+  winSpec, inEscapeZone, escapeCells, escapeGoal, escapedCount, escapedStr,
+  blueInitialStr, reachResult, checkEscape, checkEnd,
   getState: () => state,
   newGame, alive, uid, unitAt, terrainAt, cheb, hexDist, neighbors,
   /* 存档：selftest 会用 saveSnapshot / restoreGame 做往返一致性校验 */
@@ -5457,6 +6720,10 @@ window.__WAR__ = {
   computeReach, previewAttack, targetsFor, supplyOf, effStr,
   doMove, doAttack, endBluePhase, settlePhase, judgeFinal, render,
   objectiveControl, ctrlState, updateControl, checkEvents, applyEffect, modAtk, modDef, spawnGroup,
+  /* 事件触发器：noteAct 写计数器，triggerMet 读它。
+     这两件事必须能从测试里直接驱动——不然"某部队行动后触发对话"这类事件
+     id 写错了也查不出来，只会安静地永不触发。 */
+  noteAct, triggerMet,
   fortAt, fortDef, doFort, FORT, FORT_KEYS, fortKindsFor, fortKind, fortReqOk,
   doMine, doClearMine, doBridge, doDepot,
   fortFire, fortAlive, fortWorking, fortSuppressed, damageFort, ARM_FIRE,

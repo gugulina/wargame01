@@ -2,106 +2,570 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="苍屿战役 —— 架空兵棋推演，单机战役。纯静态网页，双击即玩。">
 <title>苍屿战役 · 架空兵棋推演</title>
 <style>
   :root {
-    --bg: #F4F2EC; --card: #FFFFFF; --ink: #2B2A26; --ink2: #6E6B64;
-    --ink3: #9A968C; --line: #E2DED3; --blue: #3A6EA5; --red: #A83A3A;
+    --bg: #F4F2EC;
+    --paper: #FBFAF6;
+    --card: #FFFFFF;
+    --ink: #2B2A26;
+    --ink2: #6E6B64;
+    --ink3: #9A968C;
+    --line: #E2DED3;
+    --blue: #3A6EA5;
+    --blue-d: #325F8F;
+    --blue-bg: #E8EFF7;
+    --red: #A83A3A;
+    --red-bg: #F7E9E9;
+    --warn: #8A6A28;
+    --warn-bg: #FBF3E4;
   }
   * { box-sizing: border-box; }
+  html, body { height: 100%; }
   body {
-    margin: 0; min-height: 100vh; background: var(--bg); color: var(--ink);
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
     font: 14px/1.65 -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-    display: flex; align-items: center; justify-content: center; padding: 32px 20px;
+    -webkit-font-smoothing: antialiased;
+    /* 极淡的方格底纹：只当纸面质感，不能抢正文 */
+    background-image:
+      linear-gradient(rgba(43,42,38,.028) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(43,42,38,.028) 1px, transparent 1px);
+    background-size: 28px 28px;
+    background-position: -1px -1px;
   }
-  .wrap { width: 100%; max-width: 860px; }
-  h1 { font-size: 26px; font-weight: 650; margin: 0 0 6px; letter-spacing: .5px; }
-  .sub { color: var(--ink2); font-size: 13.5px; margin-bottom: 4px; }
-  .rule { height: 1px; background: var(--line); margin: 22px 0; }
-  .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-  @media (max-width: 640px) { .cards { grid-template-columns: 1fr; } }
-  a.card {
-    display: block; text-decoration: none; color: inherit; background: var(--card);
-    border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px;
-    transition: border-color .12s, transform .12s;
+
+  /* ───────── 骨架 ───────── */
+  .shell {
+    max-width: 1180px; margin: 0 auto; padding: 34px 26px 40px;
+    display: grid; grid-template-columns: minmax(0, 396px) minmax(0, 1fr);
+    gap: 44px; align-items: start;
   }
-  a.card:hover { border-color: #C9C3B4; transform: translateY(-1px); }
-  a.card .tag {
-    display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px;
-    border-radius: 20px; margin-bottom: 10px;
+  @media (max-width: 900px) {
+    .shell { grid-template-columns: 1fr; gap: 30px; padding: 24px 18px 32px; }
   }
-  .tag.main { background: #E8EFF7; color: var(--blue); }
-  .tag.alt  { background: #F1EEE5; color: var(--ink2); }
-  a.card h2 { font-size: 16px; font-weight: 650; margin: 0 0 6px; }
-  a.card p { margin: 0; font-size: 12.5px; color: var(--ink2); }
-  .meta { margin-top: 12px; font-size: 11.5px; color: var(--ink3); }
-  .docs { margin-top: 26px; }
-  .docs h3 { font-size: 13px; font-weight: 650; color: var(--ink2); margin: 0 0 10px; }
-  .docs ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
-  .docs a {
-    display: inline-block; font-size: 12px; color: var(--ink2); text-decoration: none;
-    padding: 4px 10px; border: 1px solid var(--line); border-radius: 6px; background: #FBFAF6;
+
+  /* ───────── 左栏：封面 ───────── */
+  .masthead { position: sticky; top: 34px; }
+  @media (max-width: 900px) { .masthead { position: static; } }
+
+  .kicker {
+    display: flex; align-items: center; gap: 9px;
+    font-size: 10.5px; letter-spacing: 2.6px; text-transform: uppercase;
+    color: var(--ink3); margin-bottom: 16px;
   }
-  .docs a:hover { color: var(--ink); border-color: #C9C3B4; }
-  .howto { margin-top: 26px; background: #FBFAF6; border: 1px solid var(--line); border-radius: 12px; padding: 16px 20px; }
-  .howto h3 { font-size: 13px; font-weight: 650; color: var(--ink2); margin: 0 0 10px; }
-  .howto ol { margin: 0; padding-left: 20px; font-size: 12.5px; color: var(--ink2); line-height: 1.9; }
-  .howto b { color: var(--ink); font-weight: 650; }
-  footer { margin-top: 28px; font-size: 11.5px; color: var(--ink3); line-height: 1.8; }
+  .kicker::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+
+  h1 {
+    margin: 0 0 14px; font-size: 42px; line-height: 1.12;
+    font-weight: 700; letter-spacing: 2px;
+  }
+  @media (max-width: 900px) { h1 { font-size: 34px; } }
+
+  .lead {
+    margin: 0 0 22px; color: var(--ink2);
+    font-size: 13px; line-height: 1.95;
+  }
+  .lead b { color: var(--ink); font-weight: 600; }
+
+  .acts { display: flex; flex-direction: column; gap: 9px; }
+  .btn {
+    display: block; width: 100%; padding: 13px 16px;
+    border-radius: 9px; border: 1px solid transparent;
+    font: inherit; font-size: 14px; font-weight: 600; text-align: left;
+    cursor: pointer; transition: background .15s, border-color .15s, transform .1s;
+  }
+  .btn:active { transform: translateY(1px); }
+  .btn-primary { background: var(--blue); color: #fff; }
+  .btn-primary:hover { background: var(--blue-d); }
+  .btn-ghost {
+    background: var(--card); color: var(--ink2); border-color: var(--line); font-weight: 500;
+  }
+  .btn-ghost:hover { border-color: #CFC9BC; color: var(--ink); }
+  .btn small {
+    display: block; margin-top: 2px; font-size: 11.5px;
+    font-weight: 400; opacity: .78; letter-spacing: .2px;
+  }
+  .btn-ghost small { opacity: .85; color: var(--ink3); }
+
+  /* 战役进度：一排小方块，点一格代表一关。比"N / 5"更有实体感 */
+  .bar { margin-top: 22px; }
+  .bar-top {
+    display: flex; justify-content: space-between; align-items: baseline;
+    font-size: 11px; color: var(--ink3); margin-bottom: 7px; letter-spacing: .4px;
+  }
+  .cells { display: flex; gap: 5px; }
+  .cells i {
+    flex: 1; height: 6px; border-radius: 2px;
+    background: #DFDACD; transition: background .2s;
+  }
+  .cells i.done { background: var(--blue); }
+  .cells i.perfect { background: #2E7D5B; }
+
+  .meta {
+    margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--line);
+    font-size: 11.5px; color: var(--ink3); line-height: 1.9;
+  }
+  .meta a { color: var(--ink2); text-decoration: none; border-bottom: 1px dotted #CFC9BC; }
+  .meta a:hover { color: var(--ink); }
+
+  /* ───────── 右栏：战役线 ───────── */
+  .col-head {
+    display: flex; align-items: baseline; gap: 10px; margin-bottom: 4px;
+  }
+  .col-head h2 {
+    margin: 0; font-size: 12px; font-weight: 700;
+    letter-spacing: 2.2px; text-transform: uppercase; color: var(--ink2);
+  }
+  .col-head .hint { margin-left: auto; font-size: 11px; color: var(--ink3); }
+
+  /* 时间轴：一条竖线串起五关。用时间轴而不是卡片网格，
+     是因为这些关是"同一场战役的先后"，横向并排只能表达"有五个" */
+  .levels { position: relative; margin: 12px 0 0; padding: 0 0 0 22px; list-style: none; }
+  .levels::before {
+    content: ''; position: absolute; left: 5px; top: 22px; bottom: 22px;
+    width: 1px; background: var(--line);
+  }
+
+  .lv {
+    position: relative; display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 4px 14px; align-items: center;
+    padding: 11px 13px; margin-bottom: 2px; border-radius: 9px;
+    border: 1px solid transparent; background: none;
+    text-align: left; font: inherit; color: inherit; width: 100%;
+    cursor: pointer; transition: background .13s, border-color .13s;
+  }
+  .lv:not(.locked):hover { background: var(--paper); border-color: var(--line); }
+  .lv:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
+  .lv.locked { cursor: default; }
+
+  .lv .dot {
+    position: absolute; left: -22px; top: 17px;
+    width: 11px; height: 11px; border-radius: 50%;
+    background: #fff; border: 2px solid #D3CCBC;
+  }
+  .lv.done .dot { background: var(--blue); border-color: var(--blue); }
+  .lv.done.perfect .dot { background: #2E7D5B; border-color: #2E7D5B; }
+  .lv.cur .dot { border-color: var(--red); box-shadow: 0 0 0 3px rgba(168,58,58,.13); }
+  .lv.locked .dot { background: #F0EDE4; border-color: #DEDAD0; }
+
+  .lv-when {
+    grid-column: 1; font-size: 10.5px; letter-spacing: .5px;
+    color: var(--ink3); margin-bottom: 1px;
+  }
+  .lv-head {
+    grid-column: 1; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+  }
+  .lv-head b { font-size: 14px; font-weight: 650; letter-spacing: .2px; }
+  .lv-head em {
+    font-style: normal; font-size: 10px; letter-spacing: .6px;
+    padding: 1px 6px; border-radius: 20px;
+    background: #F1EEE5; color: var(--ink2); border: 1px solid var(--line);
+  }
+  .lv-teaser {
+    grid-column: 1; font-size: 12px; color: var(--ink2);
+    line-height: 1.6; margin-top: 3px;
+  }
+  .lv.locked .lv-head b { color: var(--ink2); }
+  .lv.locked .lv-teaser { color: var(--ink3); }
+  .lv.locked .lv-when { opacity: .8; }
+
+  .lv-side {
+    grid-column: 2; grid-row: 1 / span 3;
+    display: flex; flex-direction: column; align-items: flex-end; gap: 5px;
+    padding-left: 6px;
+  }
+  .state {
+    font-size: 11px; font-weight: 600; padding: 2px 9px; border-radius: 20px;
+    white-space: nowrap; border: 1px solid transparent;
+  }
+  .state.go   { background: var(--blue-bg); color: var(--blue); border-color: #C9DBEC; }
+  .state.done { background: #E7F1EB; color: #2E7D5B; border-color: #CBE2D6; }
+  .state.lock { background: #F1EEE5; color: var(--ink3); border-color: var(--line); }
+  .state.wip  { background: #F1EEE5; color: var(--ink3); border-color: var(--line); }
+  .lv-org { font-size: 10.5px; color: var(--ink3); white-space: nowrap; }
+  .lv-org b { font-weight: 600; color: var(--ink2); }
+  .lv.locked .lv-org { opacity: .7; }
+
+  /* 点了锁着的关：不跳转，只在原地晃一下并说明原因 */
+  @keyframes nudge {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-3px); }
+    60% { transform: translateX(3px); }
+  }
+  .lv.shake { animation: nudge .26s ease-in-out; }
+
+  /* 窄屏：时间轴往外让一点，圆点才不至于贴到屏幕边；
+     右侧那行兵力数据在手机上会把标题挤成两行，直接收掉 */
+  @media (max-width: 560px) {
+    .levels { padding-left: 17px; }
+    .levels::before { left: 4px; }
+    .lv { padding: 10px 8px; }
+    .lv .dot { left: -17px; top: 16px; }
+    .lv-org { display: none; }
+    .lv-side { padding-left: 4px; }
+  }
+
+  /* ───────── 页脚三个块 ───────── */
+  .foot-grid {
+    grid-column: 1 / -1; margin-top: 14px;
+    display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px;
+  }
+  @media (max-width: 900px) { .foot-grid { grid-template-columns: 1fr; } }
+
+  .box {
+    background: var(--paper); border: 1px solid var(--line); border-radius: 11px;
+    padding: 15px 17px;
+  }
+  .box h3 {
+    margin: 0 0 9px; font-size: 11px; font-weight: 700;
+    letter-spacing: 1.8px; text-transform: uppercase; color: var(--ink3);
+  }
+  .box ol, .box ul { margin: 0; padding-left: 17px; font-size: 12px; color: var(--ink2); line-height: 1.95; }
+  .box li b { color: var(--ink); font-weight: 600; }
+  .box p { margin: 0; font-size: 12px; color: var(--ink2); line-height: 1.85; }
+  .box a { color: var(--ink2); text-decoration: none; border-bottom: 1px dotted #CFC9BC; }
+  .box a:hover { color: var(--ink); }
+  .box .links { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+  .box .dim { color: var(--ink3); font-size: 11.5px; }
+
+  footer {
+    grid-column: 1 / -1; margin-top: 6px; padding-top: 16px;
+    border-top: 1px solid var(--line);
+    font-size: 11px; color: var(--ink3); line-height: 1.9;
+    display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+  }
+
+  /* 数据文件没加载上 / 浏览器禁了本地脚本时的兜底。
+     没有这块的话页面就是一片空白，玩家只会以为文件坏了 */
+  .fatal {
+    grid-column: 1 / -1; padding: 18px 20px; border-radius: 11px;
+    background: var(--warn-bg); border: 1px solid #E8D8B8; color: var(--warn);
+    font-size: 12.5px; line-height: 1.85;
+  }
+  .fatal b { color: #6E5418; }
+
+  .fade { animation: fade .4s ease both; }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) {
+    .fade, .lv.shake { animation: none !important; }
+  }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <h1>苍屿战役</h1>
-  <div class="sub">架空兵棋推演 · 从遭到入侵到反攻的十二关战役</div>
-  <div class="sub" style="color:var(--ink3);font-size:12.5px">纯静态网页，双击即玩，不需要安装</div>
+<main class="shell" id="shell">
 
-  <div class="rule"></div>
+  <header class="masthead fade">
+    <div class="kicker">架空兵棋 · 单机战役</div>
+    <h1>苍屿战役</h1>
+    <p class="lead" id="lead">
+      敌军自西面边陲突破，七十二小时内撕开两道防线，西部方面军主力正在渡江东撤。<br>
+      <b>你能指挥的，只有被留下来的人。</b>
+    </p>
 
-  <div class="cards">
-    <a class="card" href="game/campaign.html">
-      <span class="tag main">主推</span>
-      <h2>战役级 · 岚口要地争夺战</h2>
-      <p>六角格，营级兵牌，单格 1.5 km（全图 30×21 km），12 回合。三波敌军依次投入，守住岚口市与机场。</p>
-      <div class="meta">20 × 14 格 · 47 个兵牌 · 五类工事（含炮台）· 事件触发器</div>
-    </a>
-    <a class="card" href="game/index.html">
-      <span class="tag alt">对照</span>
-      <h2>战术级 · 岚口机场保卫战</h2>
-      <p>方格，营连排单位，单格 2 km，8 回合。守住跑道三格不失，用于双层结构的局部战斗。</p>
-      <div class="meta">16 × 10 格 · 8 回合 · 跑道争夺</div>
-    </a>
-  </div>
+    <div class="acts" id="acts">
+      <!-- 按钮由下方脚本按存档情况填充；脚本没跑起来时这里至少还有一个能点的入口 -->
+      <button class="btn btn-primary" id="btnMain" onclick="location.href='game/campaign.html'">
+        进入战役
+        <small>开始推演</small>
+      </button>
+    </div>
 
-  <div class="docs">
-    <h3>设计文档</h3>
-    <ul>
-      <li><a href="docs/01-战役设定.html">战役设定</a></li>
-      <li><a href="docs/04-战役级规则.html">战役级规则</a></li>
-      <li><a href="docs/06-编制与数值.html">编制与数值</a></li>
-      <li><a href="docs/07-工事体系.html">工事体系</a></li>
-      <li><a href="docs/08-表现层接入.html">表现层接入</a></li>
-      <li><a href="https://github.com/gugulina/wargame01/blob/main/README.md" target="_blank" rel="noopener">README</a></li>
-    </ul>
-  </div>
+    <div class="bar">
+      <div class="bar-top">
+        <span>战役进度</span>
+        <span id="barText">—</span>
+      </div>
+      <div class="cells" id="cells"></div>
+    </div>
 
-  <div class="howto">
-    <h3>怎么玩（30 秒上手）</h3>
-    <ol>
-      <li>点自己的兵牌选中，<b>蓝框格</b>是可移动位置，<b>红框格</b>是射程内可攻击目标。</li>
-      <li>点蓝框移动，点红框开火；开火前右下会预览<b>优势比与档位</b>，再决定打不打。</li>
-      <li>右侧面板列出部队数据、能力和工程作业按钮（工兵能修 H 堑壕 / B 碉堡 / P 要塞炮 / A 岸防炮 / F 防空阵地）。</li>
-      <li>全部行动完点<b>结束回合</b>，敌方行动、结算，回合数 +1，上限 12 回合。</li>
-      <li>守住<b>岚口市</b>与<b>机场</b>，撑到第 12 回合。要点一经占领即持久保有，守军前出不会丢城。</li>
-      <li>进度<b>自动保存</b>，关掉浏览器再打开能接着打；分出胜负后存档自动作废。</li>
+    <div class="meta">
+      纯静态网页 · 双击就能玩，不用安装、不联网<br>
+      存档只写在本机浏览器里 · 游戏内可导出成文件带走
+    </div>
+  </header>
+
+  <section class="fade" style="animation-delay:.06s">
+    <div class="col-head">
+      <h2>战役线</h2>
+      <span class="hint" id="colHint">点一关直接进</span>
+    </div>
+    <ol class="levels" id="levels">
+      <li style="padding:14px 0;color:var(--ink3);font-size:12.5px">正在读取关卡数据…</li>
     </ol>
+  </section>
+
+  <div class="foot-grid">
+    <div class="box">
+      <h3>怎么玩</h3>
+      <ol>
+        <li>点自己的<b>兵牌</b>选中，<b>蓝格</b>是可走、<b>红格</b>是可打。</li>
+        <li>开火前先看<b>优势比</b>：3 : 1 稳，1 : 1 是拼命。</li>
+        <li>步坦炮工各管一摊，工兵能修工事、架桥、布雷。</li>
+        <li>打完点<b>结束我方阶段</b>，回合交给敌方。</li>
+      </ol>
+    </div>
+    <div class="box">
+      <h3>设计文档</h3>
+      <div class="links">
+        <a href="docs/01-战役设定.md" target="_blank" rel="noopener">战役设定</a>
+        <a href="docs/02-规则书.md" target="_blank" rel="noopener">规则书</a>
+        <a href="docs/04-战役级规则.md" target="_blank" rel="noopener">战役级规则</a>
+        <a href="docs/06-编制与数值.md" target="_blank" rel="noopener">编制与数值</a>
+        <a href="docs/07-工事体系.md" target="_blank" rel="noopener">工事体系</a>
+        <a href="README.md" target="_blank" rel="noopener">README</a>
+      </div>
+      <p class="dim" style="margin-top:9px">
+        文档是纯文本 Markdown，浏览器里直接看原文。
+      </p>
+    </div>
+    <div class="box">
+      <h3>存档与进度</h3>
+      <p>
+        通关进度和进行中的战斗都写在本机浏览器里，换浏览器、清缓存、隐私模式都会丢，
+        所以<b>值得导出一份</b>：菜单页的<b>存档管理</b>可以导出成
+        <span class="dim">cangyu-save-*.json</span>，换台机器再导入回来。
+      </p>
+      <p class="dim" style="margin-top:9px">
+        打进某一关之后，顶栏的<b>菜单</b>按钮随时回这一页换关。
+      </p>
+    </div>
   </div>
 
   <footer>
-    全部国家、地名、部队番号均为虚构，不映射任何现实国家或地区。<br>
-    两军编制按「我方 / 敌方」两套体系编写，不绑定任何真实军队。
+    <span>全部国家、地名、部队番号均为虚构，不映射任何现实国家或地区。两军编制按「我方 / 敌方」两套体系编写，不绑定任何真实军队。</span>
+    <span id="verTag"></span>
   </footer>
-</div>
+
+</main>
+
+<!-- 关卡清单由 tools/export-levels.js 从 game/campaign.html 生成。
+     这里不能换成 fetch('data/levels.json')：双击打开时是 file:// 协议，
+     fetch 会被同源策略拦掉，而 <script src> 放行。 -->
+<script src="data/levels.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  const D = window.CANGYU;
+  const shell = document.getElementById('shell');
+  const lead = document.getElementById('lead');
+  const acts = document.getElementById('acts');
+  const cellsBox = document.getElementById('cells');
+  const barText = document.getElementById('barText');
+  const levelsBox = document.getElementById('levels');
+  const colHint = document.getElementById('colHint');
+
+  /* 关卡数据没加载上：不白屏，说清楚怎么办 */
+  if (!D || !Array.isArray(D.levels) || !D.levels.length) {
+    levelsBox.innerHTML = '';
+    const box = document.createElement('div');
+    box.className = 'fatal';
+    box.innerHTML = '<b>读不到关卡数据（data/levels.js）。</b><br>' +
+      '如果在浏览器里看到这一行，多半是文件缺失或浏览器禁用了本地脚本。<br>' +
+      '修复：在项目根目录跑 <code>node tools/export-levels.js</code>，然后刷新。<br>' +
+      '也可以直接进 <a href="game/campaign.html">game/campaign.html</a>，那边不依赖这个文件。';
+    levelsBox.appendChild(box);
+    return;
+  }
+
+  document.getElementById('verTag').textContent = D.ver ? '构建 ' + D.ver : '';
+
+  const LV = D.levels.slice().sort((a, b) => (a.no - b.no) || ((a.sub ? 1 : 0) - (b.sub ? 1 : 0)));
+  const ST = (D.storage || {});
+
+  /* ── 本机存档与进度 ─────────────────────────────
+     首页只读不写：真正的写操作全在引擎里。首页动手写，
+     迟早会和 writeProgress 的"只升不降"这类规则打架。 */
+  function readJSON(key) {
+    try {
+      if (typeof localStorage === 'undefined' || !localStorage) return null;
+      const raw = localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) { return null; }
+  }
+
+  const progress = (function () {
+    const p = readJSON(ST.progress) || {};
+    return {
+      cleared: (p.cleared && typeof p.cleared === 'object') ? p.cleared : {},
+      played: (p.played && typeof p.played === 'object') ? p.played : {}
+    };
+  })();
+
+  const save = (function () {
+    const s = readJSON(ST.save);
+    if (!s || s.v !== ST.saveVer) return null;
+    const lv = LV.find(l => l.id === s.lv);
+    if (!lv) return null;
+    return { raw: s, lv: lv, turn: s.turn };
+  })();
+
+  /* 解锁规则与 game/campaign.html 的 levelAccess 必须一字不差：
+     · open:true 的关始终可进
+     · 其余：往前找最近一个"已制作"的关，它通关了才解锁
+     改规则的话，两处一起改。 */
+  function chainAccess(lv) {
+    const idx = LV.indexOf(lv);
+    /* 不认识的关卡一律当"进不去"。传了别的关卡对象进来（比如引擎那份数据）
+       时 indexOf 会给 -1，循环一次都不跑，最后那句 return 会把"未知"当成"可进"——
+       这正是回归测试第一次跑出来时踩到的假通过。 */
+    if (idx < 0) return { ok: false, why: '没有这一关' };
+    for (let k = idx - 1; k >= 0; k--) {
+      const pre = LV[k];
+      if (!pre.ready) continue;
+      if (!progress.cleared[pre.id]) return { ok: false, why: '先通过「' + pre.name + '」' };
+      return { ok: true, why: '' };
+    }
+    return { ok: true, why: '' };
+  }
+  function access(lv) {
+    if (!lv.ready) return { ok: false, why: '制作中' };
+    if (lv.open) return { ok: true, why: '' };
+    return chainAccess(lv);
+  }
+
+  function recommend() {
+    const ready = LV.filter(l => l.ready);
+    if (!ready.length) return null;
+    const fresh = ready.find(l => !progress.cleared[l.id] && access(l).ok);
+    return fresh || ready[ready.length - 1];
+  }
+
+  const doneCount = LV.filter(l => l.ready && progress.cleared[l.id]).length;
+  const playable = LV.filter(l => l.ready).length;
+
+  /* ── 主按钮 ── */
+  function go(url) { location.href = url; }
+  function btn(cls, title, sub, onclick) {
+    const b = document.createElement('button');
+    b.className = 'btn ' + cls;
+    b.innerHTML = title + '<small>' + sub + '</small>';
+    b.addEventListener('click', onclick);
+    return b;
+  }
+
+  const rec = recommend();
+  acts.innerHTML = '';
+
+  if (save) {
+    acts.appendChild(btn('btn-primary', '继续推演',
+      save.lv.noText + save.lv.name + ' · 第 ' + save.turn + ' / ' + save.lv.turns + ' 回合',
+      () => go('game/campaign.html?resume=1')));
+    acts.appendChild(btn('btn-ghost', '重新开始',
+      rec ? '从「' + rec.noText + rec.name + '」打起' : '选择关卡',
+      () => go(rec ? 'game/campaign.html?lv=' + encodeURIComponent(rec.id) : 'game/campaign.html')));
+  } else if (rec) {
+    acts.appendChild(btn('btn-primary', doneCount ? '继续战役' : '开始战役',
+      rec.noText + rec.name + ' · ' + rec.when,
+      () => go('game/campaign.html?lv=' + encodeURIComponent(rec.id))));
+  } else {
+    acts.appendChild(btn('btn-primary', '进入战役', '开始推演',
+      () => go('game/campaign.html')));
+  }
+
+  /* 存档管理常驻：引擎里的开始页撤掉了，导出 / 导入的唯一入口就是 HQ 的存档页。
+     注意不能光秃秃地跳 game/campaign.html——引擎在没有 ?lv 时会直接开推荐关，
+     玩家想导个档却被扔进战场，等于入口失效。 */
+  acts.appendChild(btn('btn-ghost', '存档管理',
+    '导出 / 导入存档文件',
+    () => go('game/campaign.html?hq=1')));
+
+  /* ── 进度条 ── */
+  if (playable) {
+    cellsBox.innerHTML = LV.filter(l => l.ready).map(l => {
+      const r = progress.cleared[l.id];
+      const cls = r === 'perfect' ? 'perfect' : r ? 'done' : '';
+      return '<i class="' + cls + '" title="' + (l.noText + l.name) + '"></i>';
+    }).join('');
+    barText.textContent = doneCount + ' / ' + playable + ' 关';
+  }
+
+  /* ── 战役线 ── */
+  const recId = rec ? rec.id : null;
+  levelsBox.innerHTML = '';
+  LV.forEach(lv => {
+    const acc = access(lv);
+    const r = progress.cleared[lv.id];
+    const cls = ['lv'];
+    if (r) cls.push('done');
+    if (r === 'perfect') cls.push('perfect');
+    if (recId === lv.id && !r) cls.push('cur');
+    if (!acc.ok) cls.push('locked');
+
+    let state, stateCls, stateTip = '';
+    if (r === 'perfect') { state = '超额达成'; stateCls = 'done'; }
+    else if (r) { state = '已达成'; stateCls = 'done'; }
+    else if (!lv.ready) { state = '制作中'; stateCls = 'wip'; }
+    else if (!acc.ok) { state = '未解锁'; stateCls = 'lock'; stateTip = acc.why; }
+    else if (lv.open && !chainAccess(lv).ok) {
+      /* open:true 但前面还有没通关的关——这关是临时放出来试玩的。
+         直接写"进入"会让人以为战役已经推进到这儿了。 */
+      state = '试玩'; stateCls = 'go'; stateTip = '前置关卡尚未通关，暂时开放试玩';
+    }
+    else { state = '进入'; stateCls = 'go'; }
+
+    const li = document.createElement('li');
+    li.className = cls.join(' ');
+    li.innerHTML =
+      '<i class="dot"></i>' +
+      '<div class="lv-when">' + lv.when + ' · ' + lv.where + '</div>' +
+      '<div class="lv-head"><b>' + lv.noText + lv.name + '</b><em>' + lv.type + '</em></div>' +
+      '<div class="lv-teaser">' + lv.teaser + '</div>' +
+      '<div class="lv-side">' +
+        '<span class="state ' + stateCls + '"' + (stateTip ? ' title="' + stateTip + '"' : '') + '>' +
+          state + '</span>' +
+        (lv.ready
+          ? '<span class="lv-org"><b>' + lv.blue.cards + '</b> 牌 · ' +
+            lv.turns + ' 回合 · ' + lv.cols + '×' + lv.rows + '</span>'
+          : '') +
+      '</div>';
+
+    li.setAttribute('role', 'button');
+    li.setAttribute('tabindex', acc.ok ? '0' : '-1');
+
+    function enter() {
+      if (!lv.ready) return;
+      if (!acc.ok) {
+        /* 锁着的关不跳走：引擎那边会退回开始页，跳过去等于让玩家白等一次加载 */
+        li.classList.remove('shake');
+        void li.offsetWidth;           // 强制回流，不然连点两次只有第一次会晃
+        li.classList.add('shake');
+        colHint.textContent = acc.why;
+        setTimeout(() => { if (colHint.textContent === acc.why) colHint.textContent = '点一关直接进'; }, 2600);
+        return;
+      }
+      go('game/campaign.html?lv=' + encodeURIComponent(lv.id));
+    }
+
+    li.addEventListener('click', enter);
+    li.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); enter(); }
+    });
+
+    levelsBox.appendChild(li);
+  });
+
+  if (save) colHint.textContent = '有一局没打完，可以继续';
+
+  /* 给回归测试用的出口（tools/levelcheck.js 会拿它跟引擎的 levelAccess 逐关比对）。
+     首页的解锁规则是引擎那份的复刻——两处一旦走样，玩家就会"点得进去但游戏说没解锁"，
+     或者反过来"明明该能进却进不去"，而这两种都不会报错，只会让人以为页面坏了。 */
+  window.__HOME__ = {
+    levels: LV,
+    data: D,
+    access: access,
+    chainAccess: chainAccess,
+    recommend: recommend,
+    progress: progress,
+    save: save,
+    readJSON: readJSON
+  };
+})();
+</script>
 </body>
 </html>

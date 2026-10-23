@@ -47,6 +47,12 @@ function loadGame(htmlPath) {
     setTimeout,
     setInterval,
     clearTimeout,
+    /* setInterval 起了就得有 clearInterval，否则打字机效果的收尾会抛异常。
+       这跟 document 的桩是同一类问题：漏掉一个浏览器 API，错误就炸在
+       "报表打完之后"，看起来像无害的退出噪音。 */
+    clearInterval,
+    setImmediate,
+    queueMicrotask,
     Math,
     Date,
     JSON,
@@ -62,7 +68,13 @@ function loadGame(htmlPath) {
       getElementById: stubEl,
       querySelector: stubEl,
       querySelectorAll: () => [],
-      createElement: stubEl
+      createElement: stubEl,
+      /* 剧情卡（cutin）会在 document 上挂 keydown 监听来支持 Esc 跳过。
+         少了这个桩，只要有一条 say 事件被触发，自动化就会在运行末尾炸掉——
+         而它炸在"报表已经打完之后"，特别容易被当成"只是退出时报错"忽略掉。 */
+      addEventListener() {},
+      removeEventListener() {},
+      body: stubEl()
     },
     window: {
       __FAST__: true,
