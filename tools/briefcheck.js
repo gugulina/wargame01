@@ -106,6 +106,81 @@ function ok(name, cond, extra) {
   ok('棋盘已渲染', doc.getElementById('board').innerHTML.length > 500);
   ok('顶栏版本号存在', /v\d+\.\d+/.test(doc.getElementById('verTag').textContent));
 
+  console.log('[9] HQ 面板');
+  {
+    const W = window.__WAR__;
+    doc.getElementById('btnHQ').click();
+    await wait(60);
+    const hq = doc.getElementById('hqScreen');
+    ok('HQ 面板打开', !hq.classList.contains('hidden'));
+    ok('默认停在兵种图鉴', doc.getElementById('hqBody').textContent.indexOf('轻型坦克营') >= 0);
+    ok('图鉴覆盖到重坦', doc.getElementById('hqBody').textContent.indexOf('重型坦克营') >= 0);
+
+    doc.querySelector('#hqTabs button[data-tab="cards"]').click();
+    await wait(50);
+    ok('战术卡页有六张卡', doc.querySelectorAll('#hqBody .tcard').length >= 6);
+    ok('战术卡页显示携带上限', doc.getElementById('hqBody').textContent.indexOf('/ 3') >= 0);
+
+    doc.querySelector('#hqTabs button[data-tab="aide"]').click();
+    await wait(50);
+    const qs = doc.querySelectorAll('#hqBody .aide-q');
+    ok('副官有问答条目', qs.length >= 8, qs.length + ' 条');
+    qs[0].querySelector('button').click();
+    await wait(30);
+    ok('点条目能展开答案', qs[0].classList.contains('open'));
+
+    doc.querySelector('#hqTabs button[data-tab="save"]').click();
+    await wait(50);
+    ok('存档页有两个按钮',
+       doc.querySelectorAll('#hqBody [data-saveact]').length === 2);
+
+    doc.getElementById('hqClose').click();
+    await wait(40);
+    ok('HQ 面板可关闭', hq.classList.contains('hidden'));
+  }
+
+  console.log('[10] 地图内作业气泡');
+  {
+    const W = window.__WAR__;
+    const box = doc.getElementById('unitOps');
+    const eng = W.getState().units.find(u => u.id === 'B2E');
+    W.select(eng);
+    await wait(60);
+    ok('选中工兵后气泡出现', !box.classList.contains('hidden'));
+    ok('气泡列出工事选项', box.querySelectorAll('button[data-op^="fort:"]').length >= 2);
+    ok('气泡有布雷与架桥',
+       !!box.querySelector('button[data-op="mine"]') &&
+       !!box.querySelector('button[data-op="bridge"]'));
+
+    const fbtn = box.querySelector('button[data-op="fort:H"]');
+    fbtn.click();
+    await wait(40);
+    ok('点工事按钮进入施工模式', W.getState().mode === 'fort');
+    const n0 = W.getState().forts.length;
+    W.onHexClick(eng.pos[0], eng.pos[1]);
+    await wait(40);
+    ok('再点格子完成施工', W.getState().forts.length === n0 + 1);
+
+    /* 打完仗（fired）之后不该再出现作业按钮 */
+    W.select(eng);
+    await wait(40);
+    ok('行动耗尽后气泡自动收起', box.classList.contains('hidden'));
+
+    /* 辎重队：建补给点是气泡里的专属项 */
+    const sup = W.getState().units.find(u => u.type === 'sup' && u.side === 'blue');
+    if (sup) {
+      W.select(sup);
+      await wait(40);
+      ok('辎重队气泡有建立补给点', !!box.querySelector('button[data-op="depot"]'));
+      box.querySelector('button[data-op="depot"]').click();
+      await wait(60);
+      ok('点一下直接建好补给点',
+         W.getState().depots.some(d => d.r === sup.pos[0] && d.c === sup.pos[1]));
+    } else {
+      ok('本关没有辎重队，跳过补给点气泡', true);
+    }
+  }
+
   console.log('');
   console.log('通过 ' + pass + ' 项，失败 ' + fail + ' 项');
   process.exit(fail ? 1 : 0);

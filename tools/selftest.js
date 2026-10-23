@@ -136,7 +136,7 @@ console.log('\n[4] 工事被动效果');
   api.doFort(eng, spot, 'B');
   const def = api.alive('blue').find(u => u.type === 'gdn');
   def.pos = spot;
-  const arm = api.alive('red').find(u => u.type === 'arm');
+  const arm = api.alive('red').find(u => api.isArmor(u));
   const withB = api.previewAttack(arm, def, st.fields);
   api.getState().forts = [];
   const noB = api.previewAttack(arm, def, st.fields);
@@ -217,7 +217,7 @@ console.log('\n[7] 装甲突击');
 {
   api.newGame();
   const st = api.getState();
-  const arm = api.alive('blue').find(u => u.type === 'arm');
+  const arm = api.alive('blue').find(u => api.isArmor(u));
   const inf = api.alive('blue').find(u => u.type === 'gdn');
   const foe = api.alive('red').find(u => u.type === 'gdn' || api.canCapture(u));
 
@@ -232,7 +232,7 @@ console.log('\n[7] 装甲突击');
   inf.moved = false;
   const i0 = api.previewAttack(inf, foe, st.fields).attMod;
   ok('守备营机动后射击 −0.10', Math.abs((i0 - i1) - 0.10) < 1e-9, (i0 - i1));
-  ok('ARM_FIRE 含坦克与自行火炮', api.ARM_FIRE.includes('arm') && api.ARM_FIRE.includes('spa'));
+  ok('ARM_FIRE 含坦克与自行火炮', api.ARM_FIRE.includes('marm') && api.ARM_FIRE.includes('spa'));
 }
 
 /* ───────── 五、火炮射程与近界 ───────── */
@@ -328,7 +328,7 @@ console.log('\n[6] 表现层接口');
   /* 一次攻击要走到表现层：音效 + 震屏 + 飘字 */
   api.newGame();
   FX.reset();
-  const a = api.alive('blue').find(u => u.type === 'arm');
+  const a = api.alive('blue').find(u => api.isArmor(u));
   const d = api.alive('red').find(u => api.canCapture(u));
   d.pos = api.neighbors(a.pos[0], a.pos[1])[0];
   api.doAttack(a, d);
@@ -339,7 +339,7 @@ console.log('\n[6] 表现层接口');
   /* 歼灭在 removeUnit 里统一埋点，任何死亡都要走到 */
   api.newGame();
   FX.reset();
-  const a2 = api.alive('blue').find(u => u.type === 'arm');
+  const a2 = api.alive('blue').find(u => api.isArmor(u));
   const d2 = api.alive('red').find(u => api.canCapture(u));
   d2.pos = api.neighbors(a2.pos[0], a2.pos[1])[0];
   d2.str = 0;
@@ -374,7 +374,7 @@ console.log('\n[6] 表现层接口');
   FX.on = false;
   FX.reset();
   api.newGame();
-  const a3 = api.alive('blue').find(u => u.type === 'arm');
+  const a3 = api.alive('blue').find(u => api.isArmor(u));
   const d3 = api.alive('red').find(u => api.canCapture(u));
   d3.pos = api.neighbors(a3.pos[0], a3.pos[1])[0];
   const before = d3.str;
@@ -710,6 +710,166 @@ console.log('\n[18] 工事抗炮击');
      m0.toFixed(2) + ' → ' + m1.toFixed(2));
   ok('抗炮击只对有工事的一方生效', api.FORT.H.shell === 0.45 && api.FORT.B.shell === 0.65,
      'H ' + api.FORT.H.shell + ' / B ' + api.FORT.B.shell);
+}
+
+console.log('\n[19] 坦克三型（轻 / 中 / 重）');
+{
+  ok('三型都在装甲名单里',
+     api.ARMOR_TYPES.length === 3 && api.ARMOR_TYPES.every(t => api.TYPE[t]));
+  ok('轻坦机动最高、重坦最低',
+     api.TYPE.larm.mv > api.TYPE.marm.mv && api.TYPE.marm.mv > api.TYPE.harm.mv,
+     api.TYPE.larm.mv + ' / ' + api.TYPE.marm.mv + ' / ' + api.TYPE.harm.mv);
+  ok('火力则反过来：重坦最高',
+     api.TYPE.harm.st > api.TYPE.marm.st && api.TYPE.marm.st > api.TYPE.larm.st,
+     api.TYPE.larm.st + ' / ' + api.TYPE.marm.st + ' / ' + api.TYPE.harm.st);
+  ok('平原加成随吨位递增',
+     api.ARMOR_PROFILE.larm.open < api.ARMOR_PROFILE.marm.open &&
+     api.ARMOR_PROFILE.marm.open < api.ARMOR_PROFILE.harm.open,
+     api.ARMOR_PROFILE.larm.open + ' / ' + api.ARMOR_PROFILE.marm.open + ' / ' + api.ARMOR_PROFILE.harm.open);
+  ok('城镇惩罚也随吨位加重',
+     api.ARMOR_PROFILE.larm.town < api.ARMOR_PROFILE.harm.town);
+  ok('重坦没有行进间射击能力', !api.ARM_FIRE.includes('harm') && api.ARM_FIRE.includes('marm'));
+  ok('轻坦不能击退守军', api.canPushBack({ type: 'larm' }) === false &&
+     api.canPushBack({ type: 'marm' }) === true && api.canPushBack({ type: 'harm' }) === true);
+  ok('反坦克打重坦最难，打轻坦最易',
+     api.AT_VS_ARMOR.harm < api.AT_VS_ARMOR.marm && api.AT_VS_ARMOR.marm < api.AT_VS_ARMOR.larm,
+     api.AT_VS_ARMOR.larm + ' / ' + api.AT_VS_ARMOR.marm + ' / ' + api.AT_VS_ARMOR.harm);
+  ok('重坦打轻坦有加成、轻坦打重坦吃亏',
+     api.ARM_VS.harm.larm > 0 && api.ARM_VS.larm.harm < 0);
+
+  /* 实算一遍：同一门反坦克炮打同一格上的三种坦克，攻击修正必须分档 */
+  const at = api.alive('blue').find(u => u.type === 'at' || u.type === 'td');
+  const tgt = api.alive('red').find(u => api.isArmor(u));
+  if (at && tgt) {
+    const keep = tgt.type, out = {};
+    for (const k of ['larm', 'marm', 'harm']) {
+      tgt.type = k;
+      out[k] = api.previewAttack(at, tgt, api.getState().fields).attMod;
+    }
+    tgt.type = keep;
+    ok('反坦克实算：轻坦 > 中坦 > 重坦',
+       Math.abs((out.larm - out.marm) - 0.10) < 0.02 &&
+       Math.abs((out.marm - out.harm) - 0.25) < 0.02,
+       out.larm.toFixed(2) + ' / ' + out.marm.toFixed(2) + ' / ' + out.harm.toFixed(2));
+  } else {
+    ok('反坦克实算（本关缺反坦克或坦克，跳过）', true);
+  }
+}
+
+console.log('\n[20] 战术卡');
+{
+  const st = api.getState();
+  ok('六张卡都在卡池里', api.CARD_IDS.length >= 6, api.CARD_IDS.join(','));
+  ok('每张卡有完整文案', api.CARD_IDS.every(id => {
+    const c = api.CARDS[id];
+    return c.name && c.desc && c.note && c.tag && c.target && typeof c.apply === 'function';
+  }));
+  ok('携带上限是 3', api.CARD_MAX === 3);
+
+  /* 注意顺序：writeDeck 写的是"战役进度里的牌组"，只有 newGame 才会读进 state。
+     先写再开局，否则测的是上一局带进来的旧牌组——这里踩过一次。 */
+  api.writeDeck([]);
+  api.newGame({ noSave: true });
+  ok('空牌组不能使用', api.useCard('assault', api.alive('blue')[0]) === false,
+     '当前牌组 ' + JSON.stringify(api.deckOf()));
+
+  api.writeDeck(['hold']);
+  api.newGame({ noSave: true });
+  ok('不在牌组里的卡不能用', api.useCard('assault', api.alive('blue')[0]) === false);
+
+  api.writeDeck(['assault', 'barrage', 'forced']);
+  api.newGame({ noSave: true });
+  ok('牌组写回后可用', api.deckOf().indexOf('assault') >= 0);
+  const blue = api.alive('blue')[0];
+  const red = api.alive('red')[0];
+
+  /* 目标方向校验：突击只能给自己人，炮火准备只能给敌人 */
+  ok('突击卡拒绝敌方目标', api.useCard('assault', red) === false);
+  ok('炮火准备拒绝己方目标', api.useCard('barrage', blue) === false);
+
+  /* 正例：突击卡给己方，攻击修正 +0.30 */
+  const me = api.alive('blue').find(u => u.rng > 0);
+  const foe = api.alive('red')[0];
+  api.clearCardBuffs(api.getState().units);
+  const base = api.previewAttack(me, foe, api.getState().fields).attMod;
+  ok('突击卡使用成功', api.useCard('assault', me) === true);
+  const after = api.previewAttack(me, foe, api.getState().fields).attMod;
+  ok('突击卡让攻击修正 +0.30', Math.abs((after - base) - 0.30) < 0.001,
+     base.toFixed(2) + ' → ' + after.toFixed(2));
+  ok('同一张卡不能再用第二次', api.useCard('assault', me) === false);
+
+  /* 坚守卡：防御 +0.30，并且锁住移动 */
+  api.writeDeck(['hold', 'barrage', 'forced']);
+  api.newGame({ noSave: true });
+  const hold = api.alive('blue')[0];
+  api.useCard('hold', hold);
+  ok('坚守卡锁住移动', hold.moved === true);
+  ok('坚守卡给防御 +0.30', Math.abs((hold.cardDef || 0) - 0.30) < 0.001);
+
+  /* 炮火准备：只掉组织度，不掉战力 */
+  api.writeDeck(['barrage', 'hold', 'forced']);
+  api.newGame({ noSave: true });
+  const tgt = api.alive('red')[0];
+  const org0 = tgt.org, str0 = tgt.str;
+  api.useCard('barrage', tgt);
+  ok('炮火准备扣组织度不减战力', tgt.str === str0 && Math.abs(org0 - tgt.org - 20) < 0.001,
+     org0 + ' → ' + tgt.org);
+
+  /* 强行军：机动 +6 且重获行动 */
+  api.writeDeck(['forced', 'hold', 'assault']);
+  api.newGame({ noSave: true });
+  const f = api.alive('blue')[0];
+  f.moved = true;
+  api.useCard('forced', f);
+  ok('强行军恢复行动并加机动', f.moved === false && (f.cardMov || 0) === 6);
+
+  /* 回合开始清理：模拟新回合里的那一步 */
+  api.clearCardBuffs();
+  ok('新回合清空战术卡加成', !f.cardMov && !f.cardDef && !f.cardAtk);
+
+  /* armCard 的守卫 */
+  api.writeDeck(['forced']);
+  api.newGame({ noSave: true });
+  ok('未携带的卡不能待命', api.armCard('hold') === false);
+  ok('携带的卡可以待命', api.armCard('forced') === true);
+  ok('待命状态记录在 state 上', api.getState().cardId === 'forced');
+  ok('取消后清空', (api.cancelCard(), api.getState().cardId === null));
+}
+
+console.log('\n[21] 存档文件（导出 / 导入）');
+{
+  api.writeDeck(['forced', 'hold', 'assault']);
+  api.newGame({ noSave: true });
+  const pack = api.buildSaveFile();
+  ok('导出包带应用标识与版本',
+     pack.app === api.SAVE_FILE_APP && pack.v === api.SAVE_VER && pack.kind === 'save');
+  ok('导出包含当前战场', !!pack.save && Array.isArray(pack.save.units));
+  ok('导出包含战役进度与牌组', !!pack.progress && Array.isArray(pack.progress.deck));
+
+  /* 往返：改一个可观测的字段，导进去再读回来 */
+  pack.save.turn = 7;
+  pack.progress.cleared = { C3: 'win' };
+  const r = api.applySaveFile(pack);
+  const back = api.readSave();
+  ok('导入成功', r.ok === true, r.msg);
+  ok('回合数被正确写回', back && back.turn === 7);
+  ok('通关进度也被写回', (api.readProgress().cleared || {}).C3 === 'win');
+
+  /* 坏文件三连：不是本作 / 版本不符 / 关卡不存在 */
+  const b1 = api.applySaveFile({ app: 'other', kind: 'save', v: api.SAVE_VER });
+  ok('拒绝非本作文件', b1.ok === false && b1.msg.indexOf('苍屿') >= 0, b1.msg);
+  const b2 = api.applySaveFile({ app: api.SAVE_FILE_APP, kind: 'save', v: 999 });
+  ok('拒绝版本不符', b2.ok === false && b2.msg.indexOf('版本不符') >= 0, b2.msg);
+  const b3 = api.applySaveFile({ app: api.SAVE_FILE_APP, kind: 'save', v: api.SAVE_VER,
+                                 save: { lv: 'NOPE', turn: 1 } });
+  ok('拒绝指向不存在关卡', b3.ok === false, b3.msg);
+  ok('拒绝非 JSON 文本',
+     api.importSaveText('{ this is not json').ok === false);
+  ok('坏文件不会破坏已有存档', (() => {
+    const s = api.readSave();
+    return s && s.turn === 7;          // 上一步写进去的还在
+  })());
+  try { window.localStorage.removeItem(api.PROGRESS_KEY); } catch (e) {}
 }
 
 console.log('\n通过 ' + pass + ' 项，失败 ' + fail + ' 项');

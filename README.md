@@ -220,9 +220,9 @@ data/
   L3-airport.json       战术级关卡数据导出
 tools/
   check.js              语法校验 + 关卡数据合法性（含重叠、兵种代号、指挥链）
-  selftest.js           机制回归：控制权 / 事件 / 工事 / 直瞄 / 装甲 / 视图 / 表现层 / 存档，140 项断言
+  selftest.js           机制回归：控制权 / 事件 / 工事 / 直瞄 / 装甲 / 坦克三型 / 战术卡 / 存档文件，181 项断言
   levelcheck.js         多关框架回归：关卡数据 / 解锁规则 / 时间轴 / 切关 / 进度存续 / 地图重置，34 项
-  briefcheck.js         开局流程回归：开始页 → 战前简报 → 对话过场 → 进入战场，28 项
+  briefcheck.js         界面流程回归：开始页 → 战前简报 → 对话 → 战场 → HQ 三页签 → 地图内作业气泡，45 项
   shot.js               CDP 精确截图（可 --eval 量真实 DOM 尺寸）
   autoplay.js           战术级批量自战
   autoplay-campaign.js  战役级批量自战（蓝方启发式 AI）
@@ -237,7 +237,7 @@ tools/
 NODE="C:/Users/泽宇/.workbuddy/binaries/node/versions/22.22.2-6/node.exe"
 
 $NODE tools/check.js game/campaign.html          # 校验战役级（含部署重叠 / 指挥链）
-$NODE tools/selftest.js                          # 机制回归（140 项断言，改规则后必跑）
+$NODE tools/selftest.js                          # 机制回归（181 项断言，改规则后必跑）
 $NODE tools/check.js game/index.html             # 校验战术级
 $NODE tools/autoplay-campaign.js game/campaign.html 200
 $NODE tools/autoplay-campaign.js game/campaign.html 1 --verbose   # 单局战报
@@ -470,6 +470,7 @@ story: {
 | v3.8 | 战前简报过场（作战公文三页 + 对话）+ 自战脚本占位修复 + `tools/shot.js` / `tools/briefcheck.js` | 同上（纯表现层，未动数值） |
 | v3.9 | 剧情立绘位改 132×176 竖半身（交稿 480×640）+ `portHQ` 电台符号位 + `shot.js --eval` | 同上（纯表现层，未动数值） |
 | v4.0 | 多关框架：`LEVELS` 数组 + 战役线时间轴 + 两层存档 + 前情衔接 + `?lv=` + `levelcheck.js` | 同上（未动数值，C1/C2 仅占位） |
+| **v4.1** | 坦克三型 + 战术卡 + HQ 指挥部（图鉴/卡组/副官/存档）+ 作业移入地图气泡 + 存档导出导入 | 同上（自战脚本不用战术卡，真人会更强） |
 
 \\* 这一行是**校准**不是调参：同一份未改动的规则用改动前的代码跑 200 局对照也是 64.0%，
 说明上面 55.0 / 59.0 那几格偏低。表格里保留原值以便追溯，但**真实基线应以 63.5% 为准**。

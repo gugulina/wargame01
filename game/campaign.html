@@ -127,6 +127,16 @@
   .hex.pass::after { background: rgba(58,110,165,.09); }
   .hex.bridge::after  { background: rgba(60,140,90,.40); }
   .hex.cur::after { background: rgba(240,200,90,.55); }
+  /* 战术卡待选目标：与"可攻击"（红）和"可移动"（蓝）都区分开，用金褐色脉冲 */
+  .hex.cardtgt::after {
+    background: rgba(214,168,60,.42);
+    box-shadow: inset 0 0 0 2px rgba(190,142,30,.95);
+    animation: cardPulse 1.1s ease-in-out infinite;
+  }
+  @keyframes cardPulse {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: .55; }
+  }
   /* 要点染色：控制权来自持久状态，不随守军离开消失 */
   .hex::before {
     content: ''; position: absolute; inset: 0; clip-path: inherit; pointer-events: none;
@@ -311,6 +321,235 @@
     width: 26px; height: 26px; border-radius: 50%; padding: 0;
     font-size: 13px; font-weight: 800; line-height: 1; flex: 0 0 26px;
   }
+  .hqbtn {
+    height: 26px; padding: 0 9px; border-radius: 4px;
+    font: inherit; font-size: 11px; font-weight: 800; letter-spacing: .5px;
+    flex: 0 0 auto;
+  }
+
+  /* ───────── 地图内操作气泡 ───────── */
+  .uops {
+    position: fixed; z-index: 42;
+    min-width: 128px; max-width: 196px; padding: 5px;
+    background: #FFFDF8; border: 1px solid #D3CCBC; border-radius: 6px;
+    box-shadow: 0 12px 30px rgba(43,42,38,.24);
+    animation: uopsIn .12s ease-out;
+  }
+  .uops.hidden { display: none; }
+  @keyframes uopsIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: none; }
+  }
+  .uops-h {
+    font-size: 8.5px; font-weight: 800; letter-spacing: 1.6px;
+    color: #A8925F; padding: 2px 5px 5px;
+  }
+  .uops button {
+    display: flex; align-items: baseline; gap: 6px; width: 100%;
+    font: inherit; font-size: 11px; text-align: left; cursor: pointer;
+    padding: 5px 7px; border: none; background: none; border-radius: 3px;
+    color: var(--ink);
+  }
+  .uops button:hover { background: #F2EDDF; }
+  .uops button.on { background: #EAF1F8; color: #185FA5; font-weight: 700; }
+  .uops button:disabled { color: #BDB7AA; cursor: default; background: none; }
+  .uops button b { flex: 1; font-weight: 600; }
+  .uops button i {
+    font-style: normal; font-size: 9.5px; color: var(--ink3); flex: 0 0 auto;
+  }
+  .uops button.on i { color: #185FA5; }
+  .uops-x {
+    display: block; width: 100%; margin-top: 2px; padding: 3px;
+    font: inherit; font-size: 9px; color: var(--ink3); cursor: pointer;
+    background: none; border: none; border-top: 1px solid #EDE8DB;
+  }
+  .uops-x:hover { color: var(--ink2); }
+
+  /* ───────── HQ 指挥部 ─────────
+     高度定死、内部滚动，而不是让面板跟着内容长——
+     兵种图鉴有二十多个条目，让它撑开会把整个屏幕顶掉。 */
+  .hq {
+    position: fixed; inset: 0; z-index: 75;
+    display: flex; align-items: center; justify-content: center;
+    padding: 20px; background: rgba(32,31,28,.42);
+  }
+  /* 必须自己写一行：.hq 的 display:flex 定义在通用 .hidden 之后，
+     不写这条，选择器同权重下后者被前者盖掉，面板会一直挂在屏幕上。 */
+  .hq.hidden { display: none; }
+  .hq-card {
+    width: min(860px, 100%); height: min(660px, 100%);
+    display: flex; flex-direction: column;
+    background: #FBF9F3; border-radius: 6px;
+    border: 1px solid #D9D3C4;
+    box-shadow: 0 26px 70px rgba(43,42,38,.28);
+    overflow: hidden;
+    animation: hqIn .18s ease-out;
+  }
+  @keyframes hqIn {
+    from { opacity: 0; transform: translateY(8px) scale(.99); }
+    to   { opacity: 1; transform: none; }
+  }
+  .hq-head {
+    display: flex; align-items: center; gap: 18px;
+    padding: 15px 18px 13px; border-bottom: 1px solid #E4DCCC;
+    background: #F5F1E7; flex: 0 0 auto;
+  }
+  .hq-title { flex: 0 0 auto; }
+  .hq-kicker {
+    display: block; font-size: 9.5px; font-weight: 800; letter-spacing: 2.4px;
+    color: #A8925F; margin-bottom: 2px;
+  }
+  .hq-title h2 { margin: 0; font-size: 17px; letter-spacing: 2px; }
+  .hq-tabs { display: flex; gap: 2px; flex: 1; justify-content: center; }
+  .hq-tabs button {
+    font: inherit; font-size: 12px; font-weight: 600; padding: 6px 15px;
+    border: 1px solid transparent; background: none; color: var(--ink2);
+    border-radius: 4px; cursor: pointer;
+  }
+  .hq-tabs button:hover { color: var(--ink); background: #EDE8DB; }
+  .hq-tabs button.on {
+    background: #2B2A26; color: #FBF9F3; border-color: #2B2A26;
+  }
+  .hq-x {
+    flex: 0 0 26px; width: 26px; height: 26px; padding: 0; border-radius: 50%;
+    font-size: 16px; line-height: 1; cursor: pointer;
+    background: none; border: 1px solid #D3CCBC; color: var(--ink2);
+  }
+  .hq-x:hover { background: #EDE8DB; color: var(--ink); }
+  .hq-body {
+    flex: 1; min-height: 0; overflow-y: auto; padding: 18px 20px 26px;
+  }
+
+  /* 图鉴：分组标题 + 两列卡片 */
+  .hq-group { margin-bottom: 20px; }
+  .hq-gh {
+    font-size: 10.5px; font-weight: 800; letter-spacing: 2px; color: #A8925F;
+    padding-bottom: 6px; border-bottom: 1px solid #E7E1D2; margin-bottom: 10px;
+  }
+  .hq-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+  .dex {
+    border: 1px solid #E2DCCD; border-radius: 4px; padding: 10px 12px;
+    background: #FFFDF8;
+  }
+  .dex-h { display: flex; align-items: baseline; gap: 7px; margin-bottom: 3px; }
+  .dex-h b { font-size: 12.5px; }
+  .dex-h i {
+    font-style: normal; font-size: 9.5px; color: #A8925F;
+    letter-spacing: 1px; font-weight: 700;
+  }
+  .dex-st {
+    display: flex; gap: 10px; font-size: 10px; color: var(--ink3);
+    margin-bottom: 6px; letter-spacing: .3px;
+  }
+  .dex-st b { color: var(--ink2); font-weight: 700; }
+  .dex ul { margin: 0; padding-left: 13px; }
+  .dex li {
+    font-size: 10.5px; line-height: 1.62; color: var(--ink2);
+    margin-bottom: 2px;
+  }
+  .dex li::marker { color: #C9BFA6; }
+
+  /* 战术卡 */
+  .card-bar {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 14px;
+    padding: 9px 12px; background: #F5F1E7; border-radius: 4px;
+    border: 1px solid #E4DCCC; font-size: 11.5px; color: var(--ink2);
+  }
+  .card-bar b { color: var(--ink); font-size: 13px; }
+  .card-bar .warn { color: var(--red); font-weight: 700; }
+  .card-list { display: flex; flex-direction: column; gap: 8px; }
+  .tcard {
+    display: flex; gap: 12px; align-items: flex-start;
+    border: 1px solid #E2DCCD; border-radius: 4px; padding: 11px 13px;
+    background: #FFFDF8;
+  }
+  .tcard.on { border-color: #3A6EA5; background: #F4F8FC; }
+  .tcard-l { flex: 1; min-width: 0; }
+  .tcard-h { display: flex; align-items: center; gap: 7px; margin-bottom: 3px; }
+  .tcard-h b { font-size: 13px; }
+  .tcard-tag {
+    font-size: 9px; font-weight: 800; letter-spacing: 1px;
+    padding: 1px 5px; border-radius: 2px;
+    background: #EDE8DB; color: #8A7A55;
+  }
+  .tcard-d { font-size: 11.5px; color: var(--ink); line-height: 1.6; margin-bottom: 3px; }
+  .tcard-n { font-size: 10.5px; color: var(--ink3); line-height: 1.6; }
+  .tcard-b {
+    flex: 0 0 auto; font: inherit; font-size: 11px; font-weight: 700;
+    padding: 6px 13px; border-radius: 4px; cursor: pointer;
+    border: 1px solid #2B2A26; background: #2B2A26; color: #FBF9F3;
+    white-space: nowrap;
+  }
+  .tcard-b:hover { background: #403E38; }
+  .tcard-b.drop { background: none; color: var(--ink2); border-color: #D3CCBC; }
+  .tcard-b.drop:hover { color: var(--red); border-color: var(--red); }
+
+  /* 副官：问答手风琴 */
+  .aide-intro {
+    display: flex; gap: 12px; align-items: flex-start;
+    padding: 13px 15px; margin-bottom: 16px;
+    background: #F5F1E7; border-left: 3px solid #A8925F; border-radius: 3px;
+  }
+  .aide-av {
+    flex: 0 0 40px; width: 40px; height: 40px; border-radius: 50%;
+    background: #2B2A26; color: #F0E6CC;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px; font-weight: 800; letter-spacing: 0;
+  }
+  .aide-intro p { margin: 0; font-size: 11.5px; line-height: 1.75; color: var(--ink2); }
+  .aide-intro b { color: var(--ink); }
+  .aide-q {
+    border: 1px solid #E2DCCD; border-radius: 4px; margin-bottom: 7px;
+    background: #FFFDF8; overflow: hidden;
+  }
+  .aide-q > button {
+    width: 100%; text-align: left; font: inherit; font-size: 12px;
+    font-weight: 650; padding: 10px 13px; cursor: pointer;
+    background: none; border: none; color: var(--ink);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .aide-q > button:hover { background: #F7F3E9; }
+  .aide-q > button::before {
+    content: '＋'; color: #A8925F; font-weight: 800; font-size: 11px;
+    flex: 0 0 auto;
+  }
+  .aide-q.open > button::before { content: '－'; }
+  .aide-a {
+    padding: 0 13px 12px 34px; font-size: 11.5px; line-height: 1.8;
+    color: var(--ink2); display: none;
+  }
+  .aide-q.open .aide-a { display: block; }
+  .aide-a b { color: var(--ink); }
+  .aide-a code {
+    background: #F0EBDD; padding: 0 4px; border-radius: 2px;
+    font-size: 10.5px; color: #7A6A44;
+  }
+  /* 窄屏的气泡改两列网格：竖排 7 个按钮要占掉 1/4 屏高，把地图压没了。
+     两列之后大约 4 行，高度砍一半。 */
+  @media (max-width: 640px) {
+    .uops {
+      display: flex; flex-wrap: wrap; gap: 2px; padding: 4px;
+      /* 宽度仍由 JS 按视口算（行内 max-width）。这里不要再写 !important，
+         否则 js 的宽度约束被压掉，气泡会顶满整条屏幕。 */
+    }
+    .uops-h { flex: 1 0 100%; padding: 1px 4px 3px; }
+    .uops button {
+      flex: 1 0 calc(50% - 2px); width: auto; min-width: 0;
+      padding: 6px 6px; font-size: 11.5px;
+    }
+    .uops button b { flex: 1; }
+    .uops-x { flex: 1 0 100%; margin-top: 2px; }
+  }
+
+  @media (max-width: 640px) {
+    .hq { padding: 0; }
+    .hq-card { width: 100%; height: 100%; border-radius: 0; border: none; }
+    .hq-head { padding: 11px 12px 9px; gap: 8px; flex-wrap: wrap; }
+    .hq-tabs { order: 3; flex: 1 0 100%; justify-content: flex-start; gap: 4px; }
+    .hq-tabs button { padding: 5px 10px; font-size: 11px; }
+    .hq-body { padding: 13px 12px 24px; }
+    .hq-grid { grid-template-columns: 1fr; }
+  }
 
   /* ───────── 开始页 ─────────
      存在的两个理由：① 浏览器要求用户交互后才允许播音频，没有这一步 BGM 永远放不出来；
@@ -394,6 +633,17 @@
   .start-hint {
     margin-top: 14px; font-size: 11px; line-height: 1.75; color: var(--ink3);
   }
+  .start-save {
+    display: flex; align-items: center; gap: 7px; margin-top: 12px;
+    padding-top: 11px; border-top: 1px solid #EAE4D6;
+  }
+  .start-mini {
+    font: inherit; font-size: 11px; padding: 5px 10px; cursor: pointer;
+    background: #fff; border: 1px solid var(--line); border-radius: 5px;
+    color: var(--ink2);
+  }
+  .start-mini:hover { border-color: #CFC9BC; color: var(--ink); }
+  .start-savetip { font-size: 10px; color: var(--ink3); margin-left: auto; }
   .start-hint kbd {
     background: #F1EEE6; border: 1px solid var(--line); border-radius: 3px;
     padding: 0 4px; font: inherit; font-size: 10.5px; color: var(--ink2);
@@ -751,6 +1001,7 @@
       <span class="pill" id="turnPill">第 1 / 12 回合</span>
       <span class="pill" id="seasonPill">秋季</span>
       <span class="pill" id="phasePill">我方阶段</span>
+      <button id="btnHQ" class="hqbtn" title="指挥部：兵种图鉴 / 战术卡 / 副官">HQ</button>
       <button id="btnTips" class="tipsbtn" title="操作说明">?</button>
     </div>
     <div id="boardWrap">
@@ -822,9 +1073,17 @@
       点兵牌选中，再点目标格移动或攻击 · <kbd>结束我方阶段</kbd> 把回合交给敌方 ·
       手机可单指拖动、双指缩放，点格子会自动放大
     </div>
+    <!-- 存档文件：localStorage 会被清缓存、换浏览器、隐私模式搞没，
+         能导出成一个文件才算真的"存下来了"。 -->
+    <div class="start-save">
+      <button id="btnExport" class="start-mini">导出存档</button>
+      <button id="btnImport" class="start-mini">导入存档</button>
+      <input type="file" id="fileImport" accept=".json,application/json" hidden>
+      <span class="start-savetip" id="saveTip">存档只在本机浏览器里</span>
+    </div>
     <div class="start-foot">
       <span>音效 OpenGameArt (CC0) · Mixkit · Kenney (CC0)</span>
-      <span id="verTag">v4.0</span>
+      <span id="verTag">v4.1</span>
     </div>
   </div>
 </div>
@@ -832,6 +1091,11 @@
 <!-- 战前简报：点「开始新的战役」之后、真正开局之前的一段过场。
      这里只是空壳，内容全部由 LEVEL.story.briefing 驱动，改剧本不用碰 HTML。 -->
 <div class="brief hidden" id="briefScreen"></div>
+
+<!-- 地图内操作气泡：选中工兵 / 炮兵 / 辎重时贴在兵牌旁边。
+     以前这些按钮在右侧栏，玩家选完单位要横跨整个屏幕去点，
+     而且侧栏一滚就找不到了。现在贴着兵牌，指哪打哪。 -->
+<div id="unitOps" class="uops hidden"></div>
 
 <div class="overlay hidden" id="overlay">
   <div class="modal">
@@ -843,6 +1107,29 @@
       <button id="mBtn">重新开始</button>
     </div>
     <p class="m-note hidden" id="mNextNote"></p>
+  </div>
+</div>
+
+<!-- ═══════════════ HQ：指挥部 ═══════════════
+     一个面板装三件事：兵种图鉴（查）、战术卡（选携带）、副官（问答式操作指南）。
+     做成三页签而不是三个面板，是因为它们的使用时机完全一样——
+     都是"打之前想弄明白点什么"的那一刻。 -->
+<div class="hq hidden" id="hqScreen">
+  <div class="hq-card">
+    <div class="hq-head">
+      <div class="hq-title">
+        <span class="hq-kicker">作战指挥部</span>
+        <h2>战时手册</h2>
+      </div>
+      <div class="hq-tabs" id="hqTabs">
+        <button data-tab="dex" class="on">兵种图鉴</button>
+        <button data-tab="cards">战术卡</button>
+        <button data-tab="aide">副官</button>
+        <button data-tab="save">存档</button>
+      </div>
+      <button class="hq-x" id="hqClose" title="关闭">×</button>
+    </div>
+    <div class="hq-body" id="hqBody"></div>
   </div>
 </div>
 
@@ -888,7 +1175,7 @@
     <h3>兵种怎么用</h3>
     <ul>
       <li><b>守备营</b>：要点内战力 7 → 10、防御 +20%；<b>一出城就掉回 7</b>，别拿它当援军。</li>
-      <li><b>坦克营</b>：平原/道路攻击 +15%，城镇 −10%。比值到 3:1 能击退守军一格。</li>
+      <li><b>坦克分轻/中/重三型</b>：轻坦机动 12 但打不穿防线、也不会击退守军；中坦均衡、3:1 可击退；重坦火力 15 最耐打，但机动只有 7、机动后射击 −10%。<b>重坦是拿来顶住的，轻坦是拿来绕后的。</b></li>
       <li><b>反坦克连</b>：打坦克 ×1.8，打步兵 ×0.6。没有它，敌方装甲在平原上近乎无解。</li>
       <li><b>炮兵射程按现实换算</b>（1 格 = 1.5 km）：旅野炮 3–8 km（2–5 格）、师重炮 12–15 km（3–9 格）、自行炮 0.8–5 km（1–3 格）。</li>
       <li><b>近界真实存在</b>：野炮贴到 2 格以内、重炮贴到 3 格以内就打不到了，得靠步兵挡在前面。</li>
@@ -935,9 +1222,33 @@ const TYPE = {
     abil: ['可占领要点，机动 8，跟得上装甲部队', '平原、道路攻击 +0.10', '城镇进攻不吃装甲惩罚'] },
   mech: { name: '装步营', role: '装甲伴随', am: 6,
     abil: ['可占领要点，机动 8', '城镇进攻不吃装甲惩罚', '被反坦克连攻击时防御 -0.20'] },
-  arm: { name: '坦克营', role: '突破与追击', am: 6,
-    abil: ['平原、道路攻击 +0.15', '比值达 3:1 时可击退守军一格', '城镇进攻 -0.10（巷战不利）', '被反坦克连攻击时无减伤',
-           '★ 装甲突击：本回合机动后仍可正常射击（其余兵种 −0.10），射击后还能再机动一次'] },
+  /* 坦克三分：轻 / 中 / 重。三者是同一个"The 三角"的不同切法——
+     轻坦拿机动换火力与装甲，重坦反过来。没有哪一型是"升级版"，
+     用错场合都会赔本，这也是玩家要学的东西。 */
+  larm: { name: '轻型坦克营', role: '侦察 · 追击 · 撕缺口', am: 6, st: 10, mv: 12,
+    abil: ['火力与装甲都最弱，但机动 12——全战场最快的地面单位',
+           '平原、道路攻击 +0.10（加成最薄）',
+           '★ 装甲突击：机动后仍可正常射击',
+           '打不过任何一型坦克：对中坦 −0.10，对重坦 −0.15',
+           '**打不穿防线**：比值再高也不会击退守军（没有那个吨位）',
+           '薄皮：被反坦克火力打时承伤最重（+0.90 修正）',
+           '正确定位：绕后打炮兵、辎重、指挥部，抢要点，不顶正面'] },
+  marm: { name: '中型坦克营', role: '突破与追击', am: 6, st: 12, mv: 10,
+    abil: ['三型里唯一的"什么都能干"：火力 / 机动 / 装甲均衡',
+           '平原、道路攻击 +0.15', '城镇进攻 −0.10（巷战不利）',
+           '★ 装甲突击：机动后仍可正常射击，不受行进间射击惩罚',
+           '比值达 3:1 时可击退守军一格',
+           '对轻坦 +0.15；对重坦 −0.10（打不穿正面）',
+           '被反坦克火力打时 +0.80 修正——反坦克炮的主要猎物'] },
+  harm: { name: '重型坦克营', role: '正面破障 · 扛线', am: 6, st: 15, mv: 7,
+    abil: ['火力 15、装甲最厚，但机动只有 7——它自己走不到该去的地方',
+           '平原、道路攻击 +0.20（三型最高）',
+           '城镇进攻 −0.15（街道太窄，重坦最吃亏）',
+           '**没有火炮稳定器**：本回合机动过再射击 −0.10',
+           '比值达 3:1 时可击退守军一格',
+           '对轻坦 +0.25、对中坦 +0.10',
+           '最耐打：被反坦克火力打时只 +0.55 修正（穿深不够就是打不穿）',
+           '★ 它是用来"顶住"的，不是用来"追"的——离开步兵与工事保护就是活靶'] },
   art: { name: '旅炮兵营', role: '旅属伴随火力', am: 8,
     abil: ['拖曳式野炮，射程 2–5 格（3–8 km）',
            '近界 2 格（3 km）：贴到 3 km 内打不到，需要步兵掩护',
@@ -1245,8 +1556,8 @@ const LEVELS = [
     /* 我方 · 装甲旅（城外机动预备队） */
     { id:'B3H', side:'blue', abbr:'装H',  name:'第 205 装甲旅旅部',            type:'hqb', str:2,  mov:8,  rng:0, r:12,  c:5,  corps:'B3', wave:1 },
     { id:'B3A', side:'blue', abbr:'装-1', name:'第 205 装甲旅第 1 营（装步）',  type:'mech',str:9,  mov:8,  rng:1, r:13, c:4,  corps:'B3', wave:1 },
-    { id:'B3B', side:'blue', abbr:'装-2', name:'第 205 装甲旅第 2 营（坦克）',  type:'arm', str:12, mov:10, rng:1, r:13, c:5,  corps:'B3', wave:1 },
-    { id:'B3C', side:'blue', abbr:'装-3', name:'第 205 装甲旅第 3 营（坦克）',  type:'arm', str:12, mov:10, rng:1, r:13, c:6,  corps:'B3', wave:1 },
+    { id:'B3B', side:'blue', abbr:'装-2', name:'第 205 装甲旅第 2 营（坦克）',  type:'marm', str:12, mov:10, rng:1, r:13, c:5,  corps:'B3', wave:1 },
+    { id:'B3C', side:'blue', abbr:'装-3', name:'第 205 装甲旅第 3 营（坦克）',  type:'marm', str:12, mov:10, rng:1, r:13, c:6,  corps:'B3', wave:1 },
     { id:'B3F', side:'blue', abbr:'装炮', name:'第 205 装甲旅自行火炮连',      type:'sha', str:4,  mov:8,  rng:3, r:12,  c:6,  corps:'B3', wave:1 },
     { id:'B3S', side:'blue', abbr:'装辎', name:'第 205 装甲旅辎重队',          type:'sup', str:2,  mov:8,  rng:0, r:12,  c:7,  corps:'B3', wave:1 },
     /* 我方 · 军属防空 */
@@ -1263,20 +1574,20 @@ const LEVELS = [
        于是红方只能硬挤两处渡口，跟"敌人是进攻方"这件事自相矛盾。 */
     { id:'R3E', side:'red',  abbr:'3工',  name:'敌摩步第 3 旅工兵连（舟桥）', type:'eng', str:3,
       mov:6,  rng:1, r:1,  c:1,  corps:'R3', wave:1 },
-    { id:'R5',  side:'red',  abbr:'独坦', name:'敌独立坦克营',            type:'arm', str:12, mov:10, rng:1, r:2,  c:5,  corps:'R5', wave:1 },
+    { id:'R5',  side:'red',  abbr:'独坦', name:'敌独立坦克营',            type:'marm', str:12, mov:10, rng:1, r:2,  c:5,  corps:'R5', wave:1 },
     { id:'R7',  side:'red',  abbr:'航',   name:'敌航空连',                type:'avn', str:5,  mov:12, rng:2, r:1,  c:9,  corps:'RA', wave:1 },
     /* 敌方 · 第二波 · 敌装甲第 4 旅（第 4 回合） */
     { id:'R4H', side:'red',  abbr:'4H',   name:'敌装甲第 4 旅旅部',       type:'hqb', str:2,  mov:8,  rng:0, r:0,  c:12, corps:'R4', wave:2 },
-    { id:'R4A', side:'red',  abbr:'4-1',  name:'敌装甲第 4 旅第 1 营（坦克）', type:'arm', str:12, mov:10, rng:1, r:1, c:12, corps:'R4', wave:2 },
-    { id:'R4B', side:'red',  abbr:'4-2',  name:'敌装甲第 4 旅第 2 营（坦克）', type:'arm', str:12, mov:10, rng:1, r:0, c:13, corps:'R4', wave:2 },
+    { id:'R4A', side:'red',  abbr:'4-1',  name:'敌装甲第 4 旅第 1 营（坦克）', type:'marm', str:12, mov:10, rng:1, r:1, c:12, corps:'R4', wave:2 },
+    { id:'R4B', side:'red',  abbr:'4-2',  name:'敌装甲第 4 旅第 2 营（坦克）', type:'marm', str:12, mov:10, rng:1, r:0, c:13, corps:'R4', wave:2 },
     { id:'R4C', side:'red',  abbr:'4-3',  name:'敌装甲第 4 旅第 3 营（装步）', type:'mech',str:9, mov:8, rng:1, r:1, c:13, corps:'R4', wave:2 },
     { id:'R4F', side:'red',  abbr:'4炮',  name:'敌装甲第 4 旅自行火炮连', type:'sha', str:4,  mov:8,  rng:3, r:0,  c:14, corps:'R4', wave:2 },
     /* 本关敌方是先遣部队，编制上限只到旅属野炮。师/军重炮（hr）的 9 格射程
        留给后续攻坚关——渡口争夺战里出现重炮，射程会直接压穿整条防线。 */
     /* 敌方 · 第三波 · 敌第 6 战斗群（第 7 回合） */
     { id:'R6H', side:'red',  abbr:'6H',   name:'敌第 6 战斗群群部',       type:'hkg', str:2,  mov:8,  rng:0, r:0,  c:16, corps:'R6', wave:3 },
-    { id:'R6A', side:'red',  abbr:'6-1',  name:'战斗群第 1 营（坦克）', type:'arm', str:11, mov:10, rng:1, r:1,  c:16, corps:'R6', wave:3 },
-    { id:'R6B', side:'red',  abbr:'6-2',  name:'战斗群第 2 营（坦克）', type:'arm', str:11, mov:10, rng:1, r:2,  c:16, corps:'R6', wave:3 },
+    { id:'R6A', side:'red',  abbr:'6-1',  name:'战斗群第 1 营（坦克）', type:'marm', str:11, mov:10, rng:1, r:1,  c:16, corps:'R6', wave:3 },
+    { id:'R6B', side:'red',  abbr:'6-2',  name:'战斗群第 2 营（坦克）', type:'marm', str:11, mov:10, rng:1, r:2,  c:16, corps:'R6', wave:3 },
     { id:'R6C', side:'red',  abbr:'6-3',  name:'战斗群第 3 营（装步）', type:'mech',str:9,  mov:8,  rng:1, r:1,  c:17, corps:'R6', wave:3 },
     { id:'R6D', side:'red',  abbr:'6-4',  name:'战斗群第 4 营（装步）', type:'mech',str:9,  mov:8,  rng:1, r:2,  c:18, corps:'R6', wave:3 },
     { id:'R6F', side:'red',  abbr:'6炮',  name:'战斗群炮兵营',          type:'art', str:5,  mov:6,  rng:5, r:0,  c:17, corps:'R6', wave:3, packed:1 },
@@ -1284,7 +1595,7 @@ const LEVELS = [
     { id:'R6E', side:'red',  abbr:'6工',  name:'战斗群工兵连',          type:'engc',str:2,  mov:6,  rng:1, r:1,  c:18, corps:'R6', wave:3 },
     { id:'R6G', side:'red',  abbr:'6防',  name:'战斗群防空连',          type:'aac', str:2,  mov:6,  rng:2, r:2,  c:17, corps:'R6', wave:3 },
     /* 事件预备队 · wave:0 不会自动投入，只由事件触发 */
-    { id:'B8A', side:'blue', abbr:'3军-1', name:'第 3 坦克军先遣支队坦克营', type:'arm', str:12, mov:10, rng:1, r:13, c:9,  corps:'B8', wave:0, group:'BLUE_RESERVE' },
+    { id:'B8A', side:'blue', abbr:'3军-1', name:'第 3 坦克军先遣支队坦克营', type:'marm', str:12, mov:10, rng:1, r:13, c:9,  corps:'B8', wave:0, group:'BLUE_RESERVE' },
     { id:'B8B', side:'blue', abbr:'3军-2', name:'第 3 坦克军先遣支队摩步营', type:'mob', str:9,  mov:8,  rng:1, r:13, c:10, corps:'B8', wave:0, group:'BLUE_RESERVE' },
     { id:'R8A', side:'red',  abbr:'8-1',   name:'敌第 8 摩步旅第 1 营',       type:'mob', str:9,  mov:8,  rng:1, r:0,  c:7,  corps:'R8', wave:0, group:'RED_RESERVE' },
     { id:'R8B', side:'red',  abbr:'8-2',   name:'敌第 8 摩步旅第 2 营',       type:'mob', str:9,  mov:8,  rng:1, r:0,  c:8,  corps:'R8', wave:0, group:'RED_RESERVE' }
@@ -1322,7 +1633,8 @@ const ASSETS = {
 
   /* 兵种图标：键名与 TYPE 一一对应，建议 64×64 透明底 PNG/WebP */
   unit: {
-    inf: null, gdn: null, mob: null, mech: null, arm: null,
+    inf: null, gdn: null, mob: null, mech: null,
+    larm: null, marm: null, harm: null,
     art: null, hr: null, sha: null, spa: null, at: null, td: null,
     eng: null, engc: null, rec: null, sup: null, avn: null,
     aac: null, aab: null, hqd: null, hqb: null, hkg: null, hkc: null
@@ -1713,10 +2025,172 @@ const TOWED_TYPES = ['art', 'hr'];
 /* 反坦克类：反坦克炮与坦克歼击车共用同一套克制关系 */
 const AT_LIKE = ['at', 'td'];
 /* 行进间射击：坦克有火炮稳定器、自行火炮有射击指挥系统，
-   本回合机动过仍能正常射击；其余兵种机动后射击 −0.10。 */
-const ARM_FIRE = ['arm', 'sha', 'spa'];
+   本回合机动过仍能正常射击；其余兵种机动后射击 −0.10。
+   重坦是个例外——炮塔转得慢、车体笨，机动后再打同样吃惩罚。 */
+const ARM_FIRE = ['larm', 'marm', 'sha', 'spa'];
+/* 坦克三型。凡是"对装甲"的判断都必须走这里，不要再写 type === 'arm' */
+const ARMOR_TYPES = ['larm', 'marm', 'harm'];
+function isArmor(u) { return !!u && ARMOR_TYPES.includes(u.type); }
+/* 反坦克火力对三种坦克的穿深修正。重坦最难打穿，这是它贵的地方 */
+const AT_VS_ARMOR = { larm: 0.90, marm: 0.80, harm: 0.55 };
+/* 坦克互殴：吨位就是硬道理，但重坦追不上轻坦 */
+const ARM_VS = {
+  harm: { larm: 0.25, marm: 0.10 },
+  marm: { larm: 0.15, harm: -0.10 },
+  larm: { marm: -0.10, harm: -0.15 }
+};
+/* 能靠冲击力把守军顶出一格的型号。轻坦没有那个吨位 */
+function canPushBack(u) { return u && (u.type === 'marm' || u.type === 'harm'); }
+/* 坦克的地形手感。open = 平原/道路加成，town = 城镇惩罚 */
+const ARMOR_PROFILE = {
+  larm: { open: 0.10, town: 0.10 },
+  marm: { open: 0.15, town: 0.10 },
+  harm: { open: 0.20, town: 0.15 }
+};
+
+/* ═════════════════════════ 战术卡 ═════════════════════════
+   局内的一次性资源：每张卡整局只能用一次，开局从卡池里带 3 张。
+   设计原则（照着这条改，不然会退化成"每回合一个免费 buff"）：
+   1. **每张卡都换一次行动**，不是白送数值。强行军是拿"这张卡"换一个额外移动，
+      坚守是拿"这张卡"换一个不能动的回合。用错场合就是亏。
+   2. **只影响一个单位或一小片**，没有全军光环。这样才有"用在哪"的决策。
+   3. **不改变兵种之间的克制关系**，只放大或补偿。反坦克炮不会因为一张卡变成攻坚主力。
+
+   持续时间全部是"到下一次我方阶段开始"。注意这个边界：
+   敌方回合仍然吃 cardDef —— 坚守卡必须覆盖敌方那一轮，否则毫无意义。
+   ═══════════════════════════════════════════════════════════ */
+const CARD_MAX = 3;
+
+const CARDS = {
+  forced: {
+    id: 'forced', name: '强行军', tag: '机动', short: '本回合机动 +6，并重获行动机会',
+    desc: '选中一支己方部队，本回合机动 +6 并重获行动机会。',
+    note: '用来抢渡口、堵缺口、从包围圈里跑出去。已经走过一步的单位也能再走一次。',
+    target: 'own',
+    apply(u) { u.cardMov = (u.cardMov || 0) + 6; u.moved = false; }
+  },
+  hold: {
+    id: 'hold', name: '坚守', tag: '防御', short: '本回合防御 +0.30，但不能再移动',
+    desc: '选中一支己方部队，本回合防御 +0.30，代价是不能移动。',
+    note: '给顶在最前面、这一轮注定要挨打的那支。敌方回合同样生效，' +
+          '和工事、地形、堆叠协同叠起来能到很夸张的防御值。',
+    target: 'own',
+    apply(u) { u.cardDef = (u.cardDef || 0) + 0.30; u.moved = true; }
+  },
+  assault: {
+    id: 'assault', name: '集中突击', tag: '攻击', short: '本回合攻击 +0.30',
+    desc: '选中一支己方部队，本回合所有攻击修正 +0.30。',
+    note: '把一个 1:1 的僵持打成 1.5:1，或者把 2:1 推到 3:1 换一次击退。' +
+          '注意它只加"这一支"，不是全军。',
+    target: 'own',
+    apply(u) { u.cardAtk = (u.cardAtk || 0) + 0.30; }
+  },
+  barrage: {
+    id: 'barrage', name: '炮火准备', tag: '压制', short: '目标敌方单位组织度 −20',
+    desc: '选中一个敌方单位：组织度 −20，不造成战力损失。',
+    note: '不打死人，只把人打散。组织度直接乘进有效战力（org/100），' +
+          '所以 −20 等于让那支单位这一轮少打两成。用在冲要点之前。',
+    target: 'enemy',
+    apply(u) { u.org = Math.max(5, u.org - 20); }
+  },
+  hasty: {
+    id: 'hasty', name: '急造工事', tag: '工事', short: '目标立即获得 +0.20 野战工事',
+    desc: '选中一支己方部队：立即获得 +0.20 野战工事（与既有工事叠加，上限 +0.30）。',
+    note: '不占用行动，站着不动挨打的那种局面里比多走一格有用。' +
+          '已经自筑满 +0.30 的单位吃了没效果，别浪费。',
+    target: 'own',
+    apply(u) { u.fortify = Math.min(0.30, (u.fortify || 0) + 0.20); }
+  },
+  airdrop: {
+    id: 'airdrop', name: '空投补给', tag: '补给', short: '半径 2 内友军组织度 +15、弹药 +2',
+    desc: '选中一支己方部队：以它为中心半径 2 格内所有友军组织度 +15、弹药 +2。',
+    note: '补给线被切断时唯一的救命手段。优先丢给被围住的炮兵群——' +
+          '打光弹药的炮兵等于不存在。',
+    target: 'own',
+    apply(u) {
+      const tgt = u.pos;
+      for (const a of state.units) {
+        if (a.side !== u.side || a.str <= 0) continue;
+        if (hexDist(a.pos, tgt) > 2) continue;
+        a.org = Math.min(100, a.org + 15);
+        if (a.ammo !== undefined) a.ammo = Math.min(a.maxAmmo || a.ammo, a.ammo + 2);
+      }
+    }
+  }
+};
+const CARD_IDS = Object.keys(CARDS);
+const DEFAULT_DECK = ['forced', 'hold', 'assault'];
+
+function cardById(id) { return CARDS[id] || null; }
+/* 当前这一局的牌组。没配就退回默认三张，避免老存档 / 新关税直接变空手 */
+function deckOf() { return (state && Array.isArray(state.deck)) ? state.deck : DEFAULT_DECK; }
+function cardRemaining(id) {
+  if (!state || !state.cardUsed) return 1;
+  return state.cardUsed[id] ? 0 : 1;
+}
+/* 目标类型对不上就不让用。UI 靠它决定高亮哪些格子 */
+function cardFitsUnit(c, u) {
+  if (!c || !u || !state) return false;
+  if (state.phase !== 'blue' || state.result) return false;
+  if (u.str <= 0) return false;
+  return c.target === 'own' ? u.side === 'blue' : u.side === 'red';
+}
+
+function useCard(id, tgt) {
+  const c = CARDS[id];
+  if (!c || !state || state.result || state.phase !== 'blue') return false;
+  if (state.cardUsed[id]) return false;
+  if (!deckOf().includes(id)) return false;
+  if (!cardFitsUnit(c, tgt)) return false;
+  pushUndo();
+  state.cardUsed[id] = true;
+  c.apply(tgt);
+  state.mode = null;
+  state.cardId = null;
+  log('【战术卡】' + c.name + ' → ' + tgt.abbr + '：' + c.short,
+      c.target === 'enemy' ? 'r' : 'b');
+  FX.sfx('uiClick');
+  clearSelection();
+  refreshFields();
+  render();
+  saveGame();
+  return true;
+}
+
+/* 挂起一张卡，等玩家在地图上点目标。
+   进入这个状态时一定要 clearSelection()：否则"选中的部队"和"等待中的卡"
+   会同时存在，玩家点自己那支会触发移动判定而不是用卡。 */
+function armCard(id) {
+  const c = CARDS[id];
+  if (!c || !state || state.result || state.phase !== 'blue') return false;
+  if (state.cardUsed[id]) return false;
+  if (!deckOf().includes(id)) return false;
+  closeHQ();
+  clearSelection();
+  state.cardId = id;
+  if (typeof FX !== 'undefined' && FX.banner) {
+    FX.banner(c.name + ' · 请在地图上选择目标', c.target === 'enemy' ? 'r' : 'b', 1700);
+  }
+  log('「' + c.name + '」已待命：' + c.desc + '（Esc 取消）', 'sys');
+  render();
+  return true;
+}
+function cancelCard() {
+  if (!state || !state.cardId) return false;
+  state.cardId = null;
+  log('已取消战术卡。', 'sys');
+  render();
+  return true;
+}
+
+/* 回合开始清空。**必须在我方阶段开始时清，不能在敌方阶段前清**——
+   坚守卡要覆盖敌方那一轮，提前清掉就等于没打。 */
+function clearCardBuffs() {
+  if (!state || !state.units) return;
+  for (const u of state.units) { u.cardAtk = 0; u.cardDef = 0; u.cardMov = 0; }
+}
 const HQ_TYPES   = ['hqd', 'hqb', 'hkg', 'hkc'];
-const CAPTURE_TYPES = ['inf', 'gdn', 'mob', 'mech', 'arm', 'eng', 'engc'];
+const CAPTURE_TYPES = ['inf', 'gdn', 'mob', 'mech', 'larm', 'marm', 'harm', 'eng', 'engc'];
 function isArty(u) { return ARTY_TYPES.includes(u.type); }
 function isDirectArty(u) { return ARTY_DIRECT.includes(u.type); }
 function isTowed(u) { return TOWED_TYPES.includes(u.type); }
@@ -1917,7 +2391,9 @@ function moveCost(u, ch) {
    友军格可以穿过，但堆满 STACK_MAX 之后就不能再停进去了。 */
 function computeReach(u) {
   const out = { d: {}, stop: {} };
-  const budget = u.mov;
+  /* 强行军卡的机动加成算进预算。用 u.mov + cardMov 而不是改 u.mov，
+     是为了回合结束时能干净地清掉，不会把基础机动写脏。 */
+  const budget = u.mov + (u.cardMov || 0);
   if (budget <= 0) return out;
   const dist = {};
   const start = kk(u.pos[0], u.pos[1]);
@@ -2011,9 +2487,10 @@ function previewAttack(att, def, fields) {
   const dt = terrainAt(def.pos[0], def.pos[1]);
 
   let attMod = 0;
-  if (att.type === 'arm') {
-    if (dt.cls === 't-plain' || dt.cls === 't-road') attMod += 0.15;
-    if (dt.cls === 't-town') attMod -= 0.10;
+  if (isArmor(att)) {
+    const pr = ARMOR_PROFILE[att.type];
+    if (dt.cls === 't-plain' || dt.cls === 't-road') attMod += pr.open;
+    if (dt.cls === 't-town') attMod -= pr.town;
   }
   if (att.type === 'mob') {
     if (dt.cls === 't-plain' || dt.cls === 't-road') attMod += 0.10;
@@ -2025,12 +2502,16 @@ function previewAttack(att, def, fields) {
     if (dt.cls === 't-town' || dt.cls === 't-forest') attMod -= 0.10;
   }
   /* 碉堡：混凝土火力点，装甲强攻吃亏 */
-  if (att.type === 'arm' && fortKind(def) === 'B') attMod -= 0.15;
-  /* 反坦克连：对装甲重击，对步兵乏力 */
+  if (isArmor(att) && fortKind(def) === 'B') attMod -= 0.15;
+  /* 反坦克连：对装甲重击，对步兵乏力。
+     三种坦克的穿深不一样——重坦正面是真的打不穿，轻坦一炮就穿。 */
   if (AT_LIKE.includes(att.type)) {
-    if (def.type === 'arm' || def.type === 'mech') attMod += 0.80;
+    if (isArmor(def)) attMod += AT_VS_ARMOR[def.type];
+    else if (def.type === 'mech') attMod += 0.80;
     else attMod -= 0.40;
   }
+  /* 坦克互殴：吨位说话 */
+  if (isArmor(att) && isArmor(def)) attMod += (ARM_VS[att.type] && ARM_VS[att.type][def.type]) || 0;
   attMod += recBonus(att, def.pos);
   attMod -= aaPenalty(att, def.pos);
   /* 工事抗炮击：远程火力打有工事的目标，攻击额外减成。
@@ -2040,11 +2521,14 @@ function previewAttack(att, def, fields) {
     if (fk2 && FORT[fk2] && FORT[fk2].shell) attMod -= FORT[fk2].shell;
   }
   attMod += modAtk(att);
+  /* 战术卡：集中突击。和事件修正分开加，撤销时各清各的 */
+  attMod += (att.cardAtk || 0);
 
   let defMod = 0;
-  if (def.type === 'at' && (att.type === 'arm' || att.type === 'mech')) defMod += 0.15;
-  if (def.type === 'td' && (att.type === 'arm' || att.type === 'mech')) defMod += 0.30;
+  if (def.type === 'at' && (isArmor(att) || att.type === 'mech')) defMod += 0.15;
+  if (def.type === 'td' && (isArmor(att) || att.type === 'mech')) defMod += 0.30;
   defMod += modDef(def);
+  defMod += (def.cardDef || 0);      // 战术卡：坚守
 
   const attSum = (effStr(att, fields) +
       attHelp.reduce((s, a) => s + effStr(a.u, fields) * a.w, 0)) * (1 + attMod);
@@ -2256,7 +2740,7 @@ function makeUnit(u, spent) {
    所有读写包在 try 里：隐私模式、file:// 直开、配额满都可能让 localStorage 抛错。
    存档失效只该降级成"不能续关"，不该让游戏崩。 */
 const SAVE_KEY = 'wargame.lankou.save';
-const SAVE_VER = 2;      // v2：加 packed（火炮展收状态）与射程换算，旧档直接作废
+const SAVE_VER = 3;      // v3：坦克分型（arm → larm/marm/harm）+ 战术卡，旧档作废
 
 /* ───────────────────────── 战役进度 ─────────────────────────
    和局内存档（SAVE_KEY）是两层东西，必须分开存：
@@ -2270,7 +2754,7 @@ const SAVE_VER = 2;      // v2：加 packed（火炮展收状态）与射程换�
 const PROGRESS_KEY = 'wargame.campaign.progress';
 
 function readProgress() {
-  const empty = { cleared: {}, played: {}, last: null };
+  const empty = { cleared: {}, played: {}, deck: null, last: null };
   try {
     if (typeof localStorage === 'undefined' || !localStorage) return empty;
     const raw = localStorage.getItem(PROGRESS_KEY);
@@ -2280,6 +2764,9 @@ function readProgress() {
     return {
       cleared: (p.cleared && typeof p.cleared === 'object') ? p.cleared : {},
       played:  (p.played  && typeof p.played  === 'object') ? p.played  : {},
+      /* 战术卡牌组也住在这里。readProgress 必须原样带出来，
+         否则 writeProgress 一写就把玩家选好的牌组抹掉了。 */
+      deck: Array.isArray(p.deck) ? p.deck.slice() : null,
       last: typeof p.last === 'string' ? p.last : null
     };
   } catch (e) { return empty; }
@@ -2306,6 +2793,23 @@ function markResult(lvId, result) {
   if (result !== 'fail' && (!p.cleared[lvId] || result === 'perfect')) p.cleared[lvId] = result;
   p.last = lvId;
   writeProgress(p);
+}
+
+/* 牌组存在战役进度里，跨关沿用。在 HQ 面板里选，开局读出。
+   过滤掉已经不存在的卡 id：以后改卡表时，老存档里的弃用卡不会带着毒进局。 */
+function readDeck() {
+  try {
+    const p = readProgress();
+    /* null = 从没配过，给默认三张；[] = 玩家主动全卸了，就真的是空手。
+       这两者必须区分，否则"卸到最后一张"会立刻弹回默认牌组，根本清不空。 */
+    if (Array.isArray(p.deck)) return p.deck.filter(id => !!CARDS[id]).slice(0, CARD_MAX);
+    return DEFAULT_DECK.slice();
+  } catch (e) { return DEFAULT_DECK.slice(); }
+}
+function writeDeck(d) {
+  const p = readProgress();
+  p.deck = d.filter(id => !!CARDS[id]).slice(0, CARD_MAX);
+  return writeProgress(p);
 }
 
 function levelById(lvId) { return LEVELS.find(l => l.id === lvId) || null; }
@@ -2362,6 +2866,8 @@ function saveSnapshot() {
     mines: JSON.parse(JSON.stringify(state.mines)),
     depots: JSON.parse(JSON.stringify(state.depots)),
     forts: JSON.parse(JSON.stringify(state.forts)),
+    deck: (state.deck || []).slice(),
+    cardUsed: { ...state.cardUsed },
     ctrl: { ...state.ctrl },
     mods: JSON.parse(JSON.stringify(state.mods)),
     flags: { ...state.flags },
@@ -2408,6 +2914,108 @@ function clearSave() {
   } catch (e) {}
 }
 
+/* ═════════════════════ 存档文件（导出 / 导入） ═════════════════════
+   为什么要有这一步：localStorage 只是"这台机器这个浏览器暂时记住了"，
+   清一次缓存、换一个浏览器、开一次隐私模式，全都归零。
+   导出成一个 .json 才算玩家真的把这局"拿走"了。
+
+   文件里装三样东西，缺一样都会让玩家困惑：
+     save      这一局的完整战场状态（可能没有——只在开始页时）
+     progress  战役通关进度 + 战术卡牌组
+     v / at    版本号与导出时间，导入时必须校验 v
+   版本不匹配直接拒绝，不做迁移：SAVE_VER 一变，单位字段、地形、编制都可能动过，
+   硬塞进去只会得到一个"能读、但处处不对"的坏局。 */
+const SAVE_FILE_APP = 'cangyu-wargame';
+
+function saveStamp() {
+  const d = new Date(), p = n => String(n).padStart(2, '0');
+  return '' + d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) +
+         '-' + p(d.getHours()) + p(d.getMinutes());
+}
+
+function buildSaveFile() {
+  return {
+    app: SAVE_FILE_APP,
+    kind: 'save',
+    v: SAVE_VER,
+    at: new Date().toISOString(),
+    save: (state && !state.result && state.units && state.units.length)
+      ? saveSnapshot() : null,
+    progress: readProgress()
+  };
+}
+
+/* 纯函数：只吃一个对象，不碰 DOM。测试可以直接构造各种坏文件灌进来 */
+function applySaveFile(pack) {
+  if (!pack || typeof pack !== 'object' || pack.app !== SAVE_FILE_APP || pack.kind !== 'save') {
+    return { ok: false, msg: '这不是《苍屿战役》的存档文件。' };
+  }
+  if (pack.v !== SAVE_VER) {
+    return { ok: false, msg: '存档版本不符：文件是 v' + pack.v + '，本作是 v' + SAVE_VER + '，无法读取。' };
+  }
+  if (pack.save) {
+    const lv = levelById(pack.save.lv);
+    if (!lv || !lv.ready) return { ok: false, msg: '存档指向的关卡不存在或还没制作。' };
+  }
+  try {
+    if (typeof localStorage === 'undefined' || !localStorage) {
+      return { ok: false, msg: '浏览器不允许本地存储（隐私模式？）。' };
+    }
+    if (pack.save) localStorage.setItem(SAVE_KEY, JSON.stringify(pack.save));
+    else localStorage.removeItem(SAVE_KEY);
+    if (pack.progress) localStorage.setItem(PROGRESS_KEY, JSON.stringify(pack.progress));
+    else localStorage.removeItem(PROGRESS_KEY);
+  } catch (e) {
+    return { ok: false, msg: '写入失败：本地存储已满或被禁用。' };
+  }
+  const lv = pack.save ? levelById(pack.save.lv) : null;
+  return {
+    ok: true,
+    hasBattle: !!pack.save,
+    msg: lv ? ('存档已导入：' + lv.name + ' · 第 ' + pack.save.turn + ' 回合。')
+            : '进度已导入（文件里没有进行中的战斗）。'
+  };
+}
+
+function importSaveText(text) {
+  let pack;
+  try { pack = JSON.parse(text); }
+  catch (e) { return { ok: false, msg: '文件不是有效的 JSON，可能已损坏。' }; }
+  const r = applySaveFile(pack);
+  if (r.ok) refreshStartSaveUI();
+  return r;
+}
+
+function exportSave() {
+  const pack = buildSaveFile();
+  const text = JSON.stringify(pack, null, 2);
+  const name = 'cangyu-save-' + saveStamp() + '.json';
+  try {
+    const blob = new Blob([text], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => { try { URL.revokeObjectURL(url); } catch (e) {} }, 1500);
+  } catch (e) {
+    return { ok: false, msg: '导出失败：' + e.message, text: text, name: name };
+  }
+  return { ok: true, msg: '已导出 ' + name, text: text, name: name };
+}
+
+/* 开始页那行小字：告诉玩家"现在本机到底有没有东西" */
+function refreshStartSaveUI() {
+  const el = document.getElementById('saveTip');
+  if (!el) return;
+  const sv = readSave();
+  const pr = readProgress();
+  const done = Object.keys(pr.cleared || {}).length;
+  el.textContent = sv
+    ? ('本机：' + levelById(sv.lv).name + ' 第 ' + sv.turn + ' 回合')
+    : (done ? ('本机：已通关 ' + done + ' 关') : '存档只在本机浏览器里');
+  el.style.color = '';
+}
+
 function restoreGame(s) {
   /* 先切关：档里记的关卡就是指针该指的关卡。顺序不能反——
      下面的 render / refreshFields 全都按 LEVEL 算，切晚了会按错地图画一帧。 */
@@ -2427,6 +3035,9 @@ function restoreGame(s) {
     targets: [],
     mode: null,
     fortKind: 'H',
+    deck: Array.isArray(s.deck) && s.deck.length ? s.deck.filter(id => CARDS[id]) : readDeck(),
+    cardUsed: s.cardUsed || {},
+    cardId: null,
     flags: s.flags || {},
     result: null,
     fields: { blue: {}, red: {} },
@@ -2552,6 +3163,9 @@ function newGame(opt) {
     targets: [],
     mode: null,
     fortKind: 'H',       // 当前选中的工事种类
+    deck: readDeck(),    // 本局携带的战术卡（跨关沿用，在 HQ 里选）
+    cardUsed: {},        // 已经用掉的卡，整局不可复用
+    cardId: null,        // 正在等待选目标的那张卡
     flags: { wave2: false, wave3: false },
     result: null,
     fields: { blue: {}, red: {} },
@@ -2733,8 +3347,8 @@ function doAttack(att, def) {
   if (!pv.counter) msg += ' · 对方无法反击';
   log(msg, att.side === 'blue' ? 'b' : 'r');
 
-  /* 击退：比值 3:1 以上且目标可退 */
-  if (pv.ratio >= 3 && canCapture(att) && def.str > 0) {
+  /* 击退：比值 3:1 以上、目标可退，且进攻方要有那个吨位（轻坦不行） */
+  if (pv.ratio >= 3 && canCapture(att) && canPushBack(att) && def.str > 0) {
     const push = retreatDir(att.pos, def.pos);
     if (push && inBounds(push[0], push[1]) && !stackFull(push[0], push[1]) &&
         terrainAt(push[0], push[1]).cost < 99) {
@@ -2952,6 +3566,21 @@ function onHexClick(r, c) {
   const u = unitAt(r, c);
 
   if (state.phase === 'blue') {
+    /* 战术卡等待选目标：优先级最高。选中一张卡之后，下一次点格子就是"用在这"，
+       不再走正常的选择 / 移动流程——不然玩家会一边选目标一边把自己的部队选中，
+       状态很容易串。 */
+    if (state.cardId) {
+      const c = cardById(state.cardId);
+      /* 点空地 = 取消。只给 Esc 一条退路的话，手机上就没法反悔了。 */
+      if (!u) { cancelCard(); return; }
+      if (!cardFitsUnit(c, u)) {
+        log('这张「' + (c ? c.name : '卡') + '」要选一个' +
+            (c && c.target === 'enemy' ? '敌方' : '己方') + '单位。', 'sys');
+        return;
+      }
+      useCard(state.cardId, u);
+      return;
+    }
     /* 工程模式 */
     if (state.mode && state.selected) {
       const eng = state.selected;
@@ -3017,6 +3646,9 @@ function endBluePhase() {
     if (state.turn > LEVEL.maxTurns) { judgeFinal(); return; }
     state.phase = 'blue';
     state.units.forEach(u => { u.moved = false; u.fired = false; });
+    /* 战术卡的临时加成到新回合失效。**注意位置**：这里已经是"敌方回合打完、
+       新回合开始"，所以坚守卡的防御加成完整覆盖了敌方那一轮。 */
+    clearCardBuffs();
     refreshFields();
     render();
     FX.banner('第 ' + state.turn + ' 回合 · 我方行动', 'b', 1800);
@@ -3416,6 +4048,8 @@ function render() {
   renderUnitBox();
   renderLog();
   syncUndoBtn();
+  /* 气泡要等 renderBoard 把 DOM 换完才能定位，所以放在最后 */
+  syncUnitOps();
 }
 
 function renderBoard() {
@@ -3455,6 +4089,11 @@ function renderBoard() {
           fortKindsFor(state.selected, [r, c]).includes(state.fortKind || 'H')) cls += ' selfort';
       if (state.mode === 'mine' && state.selected && hexDist(state.selected.pos, [r, c]) === 1 && !here.length) cls += ' selmine';
       if (state.mode === 'bridge' && state.selected && hexDist(state.selected.pos, [r, c]) === 1 && LEVEL.map[r][c] === '~') cls += ' bridge';
+      /* 战术卡等待选目标：把合法的目标格子圈出来。不圈的话玩家只能靠猜哪支能选 */
+      if (state.cardId) {
+        const c0 = cardById(state.cardId);
+        if (here.some(x => cardFitsUnit(c0, x))) cls += ' cardtgt';
+      }
 
       /* 堆叠渲染：一格两支时上下错开、整体缩小，栈顶在上（z-index 高） */
       let inner = '';
@@ -3579,6 +4218,175 @@ function renderGoal() {
 
 function fmtPct(v) { return v ? ('+' + Math.round(v * 100) + '%') : '—'; }
 
+/* ═════════════════════ 地图内作业气泡 ═════════════════════
+   哪些操作属于"地图上点"而不是"侧栏点"：凡是要先选格子或要占用行动的，
+   都放这里。侧栏只留读信息，不再放作业按钮。
+   这样做的直接收益是**操作对象和操作入口贴在一起**——选中工兵，
+   按钮就在工兵旁边，不用横跨屏幕去右边找。 */
+function unitOps(u) {
+  const ops = [];
+  if (!u || u.side !== 'blue' || !state || state.phase !== 'blue' || state.result) return ops;
+
+  /* 火炮展收：drag 类单位永远有这一项，做不了就置灰并写原因 */
+  if (isTowed(u)) {
+    if (u.packed) {
+      ops.push({ act: 'unpack', label: '展开放列', hint: '占本回合', dis: !!u.moved });
+    } else {
+      ops.push({ act: 'pack', label: '收炮挂车', hint: '占本回合', dis: !!u.moved });
+    }
+  }
+
+  /* 工事：能建哪几种由兵种决定，同一个按钮组里平铺 */
+  if (!u.fired) {
+    const kinds = [];
+    for (const p of [u.pos].concat(neighbors(u.pos))) {
+      for (const k of fortKindsFor(u, p)) if (!kinds.includes(k)) kinds.push(k);
+    }
+    for (const k of kinds) {
+      const on = state.mode === 'fort' && state.fortKind === k;
+      ops.push({ act: 'fort:' + k, label: FORT[k].code + ' ' + FORT[k].name,
+                 hint: '+' + Math.round((FORT[k].def || 0) * 100) + '%', on: on });
+    }
+  }
+
+  /* 工程作业 */
+  if (u.type === 'eng' || u.type === 'engc') {
+    const near = neighbors(u.pos);
+    const isEng = u.type === 'eng';
+    if (!u.fired) {
+      if (isEng) {
+        const canMine = near.some(n => !unitAt(n[0], n[1]) && terrainAt(n[0], n[1]).cost < 99);
+        ops.push({ act: 'mine', label: '布雷', hint: '', dis: !canMine, on: state.mode === 'mine' });
+      }
+      const canClear = state.mines.some(m => near.some(n => n[0] === m.r && n[1] === m.c));
+      ops.push({ act: 'clear', label: '排雷', hint: '', dis: !canClear, on: state.mode === 'clear' });
+      if (isEng) {
+        const canBr = near.some(n => LEVEL.map[n[0]][n[1]] === '~');
+        ops.push({ act: 'bridge', label: '架桥', hint: '', dis: !canBr, on: state.mode === 'bridge' });
+      }
+    }
+  }
+
+  /* 辎重队：建补给点 */
+  if (u.type === 'sup' && !u.fired) {
+    const exists = (state.depots || []).some(d => d.side === u.side &&
+      d.r === u.pos[0] && d.c === u.pos[1]);
+    ops.push({ act: 'depot', label: '建立补给点', hint: '占本回合', dis: exists });
+  }
+  return ops;
+}
+
+const UOPS_HINT = {
+  fort: '选一种工事，然后点本格或相邻格施工',
+  mine: '点相邻空格布雷',
+  clear: '点相邻雷区排雷',
+  bridge: '点相邻河流格架桥'
+};
+
+function syncUnitOps() {
+  const box = document.getElementById('unitOps');
+  if (!box) return;
+  const u = state && state.selected;
+  const ops = unitOps(u);
+  if (!ops.length) { box.classList.add('hidden'); box.innerHTML = ''; return; }
+
+  let h = '<div class="uops-h">' + (isTowed(u) && ops.length === 1 ? '火炮状态' : '作业') + '</div>';
+  ops.forEach((o, i) => {
+    h += '<button data-op="' + o.act + '"' + (o.dis ? ' disabled' : '') +
+         (o.on ? ' class="on"' : '') + '><b>' + o.label + '</b>' +
+         (o.hint ? '<i>' + o.hint + '</i>' : '') + '</button>';
+  });
+  /* 选了工事种类之后，提示"下一步点哪"，否则玩家不知道要不要再点一次 */
+  if (UOPS_HINT[state.mode]) {
+    h += '<div class="uops-h" style="padding-top:6px;letter-spacing:0;font-weight:600;color:#9A968C">' +
+         UOPS_HINT[state.mode] + '</div>';
+  }
+  h += '<button class="uops-x" data-op="__close">收起</button>';
+  box.innerHTML = h;
+  box.classList.remove('hidden');
+
+  box.querySelectorAll('button[data-op]').forEach(b => {
+    b.addEventListener('click', () => runOp(b.dataset.op));
+  });
+
+  /* 定位：贴在被选中兵牌的右侧，超出屏幕就翻到左侧并钳制在视口内。
+     用 getBoundingClientRect 而不是棋盘坐标——棋盘在窄屏有 transform 缩放，
+     算坐标必然对不上。 */
+  /* 窄屏没有"旁边的空地"，气泡再贴边也会盖住单位本身。
+     直接改成底部横条，像手机上的操作栏，比浮在半空好点。 */
+  if (window.innerWidth <= 640) {
+    box.style.top = 'auto';
+    box.style.bottom = '10px';
+    box.style.transform = '';
+    box.style.maxWidth = (window.innerWidth - 24) + 'px';
+    /* 居中不用 translateX(-50%)：.uops 的入场动画里有 transform，
+       动画属性在层叠里压过行内样式，translate 会被动画的 transform:none 抹掉。
+       直接算 left 最稳，也省得跟关键帧打架。 */
+    box.style.left = Math.max(8, Math.round((window.innerWidth - box.offsetWidth) / 2)) + 'px';
+    return;
+  }
+  box.style.bottom = '';
+  box.style.transform = '';
+
+  const hexEl = document.querySelector('.hex[data-r="' + u.pos[0] + '"][data-c="' + u.pos[1] + '"]');
+  if (!hexEl) return;
+  const r0 = hexEl.getBoundingClientRect();
+  const w = box.offsetWidth, hh = box.offsetHeight;
+  /* 边界不能用 window，要用棋盘容器——棋盘右侧紧挨着侧栏，
+     只按 window 判断的话气泡会"合法地"浮到侧栏上面，把侧栏内容盖掉。 */
+  /* 右边界取侧栏的左沿，不是 boardWrap 的右沿：
+     boardWrap 会因子元素溢出而把盒子撑得比可视区宽，
+     拿它当边界等于没判断——气泡照样浮到侧栏上面。 */
+  const sideEl = document.querySelector('aside.side');
+  const sr = sideEl ? sideEl.getBoundingClientRect() : null;
+  const wrapEl = document.getElementById('boardWrap');
+  const br = wrapEl ? wrapEl.getBoundingClientRect() : null;
+  const wr = {
+    left: br ? br.left : 8,
+    right: (sr && sr.width > 0) ? sr.left - 6 : window.innerWidth - 8
+  };
+  let L = r0.right + 8;
+  if (L + w > wr.right - 6) L = r0.left - w - 8;
+  if (L < wr.left + 6) L = Math.max(wr.left + 6, Math.min(r0.left, wr.right - w - 6));
+  let T = r0.top + r0.height / 2 - hh / 2;
+  T = Math.max(8, Math.min(T, window.innerHeight - hh - 8));
+  box.style.left = Math.round(L) + 'px';
+  box.style.top = Math.round(T) + 'px';
+}
+
+function runOp(act) {
+  const u = state && state.selected;
+  if (!u) return;
+  if (act === '__close') { clearSelection(); render(); renderUnitBox(); return; }
+  if (act.indexOf('fort:') === 0) {
+    const k = act.slice(5);
+    const same = state.mode === 'fort' && state.fortKind === k;
+    state.fortKind = k;
+    state.mode = same ? null : 'fort';
+    render(); renderUnitBox();
+    return;
+  }
+  if (act === 'pack') { doPack(u); return; }
+  if (act === 'unpack') { doUnpack(u); return; }
+  if (act === 'depot') { doDepot(u); return; }
+  /* mine / clear / bridge：只是切模式，下一步点格子 */
+  state.mode = state.mode === act ? null : act;
+  render();
+  renderUnitBox();
+}
+
+/* 滚动 / 缩放 / 转屏之后气泡会飘走，重算一次位置。
+   只重定位不重建，避免每次滚动都重绑一遍事件。 */
+if (typeof window !== 'undefined') {
+  const reposition = () => {
+    const box = document.getElementById('unitOps');
+    if (!box || box.classList.contains('hidden')) return;
+    syncUnitOps();
+  };
+  window.addEventListener('resize', reposition);
+  window.addEventListener('scroll', reposition, true);
+}
+
 function renderUnitBox() {
   const box = document.getElementById('unitBox');
   const u = state.selected;
@@ -3656,59 +4464,23 @@ function renderUnitBox() {
        ty.abil.map(a => '<div class="abil">' + a + '</div>').join('') + '</div>';
 
   if (u.side === 'blue' && state.phase === 'blue') {
-    /* 拖曳炮：收炮 / 展开。各占一回合，是 9 格射程的代价。
-       放在最前面——玩家发现"打不了"或"动不了"时，第一眼看的就是这里。 */
+    /* ── 作业按钮全部搬到兵牌旁的气泡里了（见 syncUnitOps） ──
+       侧栏这里只留"现在什么状态、为什么动不了"这类只读信息。
+       同一个操作开两个入口，迟早会出现"这边点了、那边没刷新"的不同步，
+       而且选中单位后视线在地图上，按钮却在右侧栏——中间隔了整个屏幕。 */
     if (isTowed(u)) {
       h += '<div class="grp"><div class="grp-h">火炮状态</div>';
       h += '<div class="kv"><span>当前</span><b class="' + (u.packed ? 'warn' : 'ok') + '">' +
            (u.packed ? '行军 · 已收炮' : '已展开 · 可射击') + '</b></div>';
-      if (u.packed) {
-        h += '<div class="hint">行军状态不能射击。要开火得先花一回合展开。</div>';
-        h += '<button data-act="unpack" style="width:100%;padding:5px;font-size:11px;margin-top:4px" ' +
-             (u.moved ? 'disabled' : '') + '>展开放列（占用本回合）</button>';
-      } else {
-        h += '<div class="hint">已展开。要转移阵地必须先收炮，收炮同样占一回合。</div>';
-        h += '<button data-act="pack" style="width:100%;padding:5px;font-size:11px;margin-top:4px" ' +
-             (u.moved ? 'disabled' : '') + '>收炮挂车（占用本回合）</button>';
-      }
-      h += '</div>';
+      h += '<div class="hint">' + (u.packed
+        ? '行军状态不能射击，也不能转移。展开要点<b>兵牌旁的作业气泡</b>。'
+        : '转移阵地前必须先收炮。操作在<b>兵牌旁的作业气泡</b>里。') + '</div></div>';
     }
-    /* 工事：能建什么由兵种决定，步兵只会挖堑壕，复杂工事要工兵营 */
-    const spots = [u.pos].concat(neighbors(u.pos));
-    const kinds = [];
-    for (const p of spots) {
-      for (const k of fortKindsFor(u, p)) if (!kinds.includes(k)) kinds.push(k);
-    }
-    if (kinds.length && !u.fired) {
-      h += '<div class="grp"><div class="grp-h">构筑工事</div>';
-      h += '<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:4px">';
-      for (const k of kinds) {
-        const sp = FORT[k];
-        const on = state.mode === 'fort' && state.fortKind === k;
-        h += '<button data-act="fort" data-kind="' + k + '" style="flex:1 0 46%;padding:5px;font-size:11px' +
-             (on ? ';background:#EAF1F8;border-color:#185FA5;color:#185FA5;font-weight:700' : '') +
-             '">' + k + ' ' + sp.name + ' +' + Math.round(sp.def * 100) + '%</button>';
-      }
-      h += '</div><div class="hint" style="margin-top:4px">点按钮选种类，再点本格或相邻格施工。' +
-           '工事归属我方，只有我方部队能吃到加成；一格只留一处。</div></div>';
-    }
-    if ((u.type === 'eng' || u.type === 'engc') && !u.fired) {
-      h += '<div class="grp"><div class="grp-h">工程作业</div>';
-      const near = neighbors(u.pos);
-      const isEng = u.type === 'eng';
-      const canMine = isEng && near.some(n => !unitAt(n[0], n[1]) && terrainAt(n[0], n[1]).cost < 99);
-      const canClear = state.mines.some(m => near.some(n => n[0] === m.r && n[1] === m.c));
-      const canBr = isEng && near.some(n => LEVEL.map[n[0]][n[1]] === '~');
-      h += '<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:4px">';
-      if (isEng) h += '<button data-act="mine" style="flex:1;padding:5px;font-size:11px" ' + (canMine ? '' : 'disabled') + '>布雷</button>';
-      h += '<button data-act="clear" style="flex:1;padding:5px;font-size:11px" ' + (canClear ? '' : 'disabled') + '>排雷</button>';
-      if (isEng) h += '<button data-act="bridge" style="flex:1;padding:5px;font-size:11px" ' + (canBr ? '' : 'disabled') + '>架桥</button>';
-      h += '</div></div>';
-    }
+    /* 补给点保留预览：它讲的是"建在这里值不值"，属于决策信息，不是按钮 */
     if (u.type === 'sup' && !u.fired) {
       const dp = depotPreview(u);
       const exists = state.depots.some(d => d.side === u.side && d.r === u.pos[0] && d.c === u.pos[1]);
-      h += '<div class="grp"><div class="grp-h">建立补给点</div>';
+      h += '<div class="grp"><div class="grp-h">补给点预览</div>';
       if (exists) {
         h += '<div class="hint">本格已有补给点。</div>';
       } else {
@@ -3720,8 +4492,11 @@ function renderUnitBox() {
                ' 支友军补给不足。' : '') +
              '</div>';
       }
-      h += '<button data-act="depot" style="width:100%;padding:5px;font-size:11px;margin-top:4px" ' +
-           (exists ? 'disabled' : '') + '>建立补给点（消耗本回合行动）</button></div>';
+      h += '</div>';
+    }
+    if (unitOps(u).length) {
+      h += '<div class="grp"><div class="hint">修工事 / 布雷 / 架桥 / 展开收炮这些作业，' +
+           '都在<b>兵牌旁边弹出的气泡</b>里——选中部队后看地图上。</div></div>';
     }
     const tgs = state.targets.filter(x => x.side === 'red');
     if (tgs.length) {
@@ -4124,6 +4899,7 @@ function showStart() {
     btn.disabled = true;
     meta.textContent = '没有存档';
   }
+  refreshStartSaveUI();
   document.getElementById('startScreen').classList.remove('hidden');
 }
 
@@ -4195,6 +4971,315 @@ document.getElementById('mBtn').addEventListener('click', () => { FX.sfx('uiClic
 const tipsEl = document.getElementById('tipsScreen');
 function openTips() { tipsEl.classList.remove('hidden'); FX.sfx('uiClick'); }
 function closeTips() { tipsEl.classList.add('hidden'); }
+
+/* ═════════════════════════ HQ 指挥部 ═════════════════════════
+   三个页签共用一套渲染：切页签只是重画 #hqBody。
+   全部内容从 TYPE / CARDS / AIDE 三张表里长出来，加一个兵种或一张卡
+   不用碰这里的任何代码——图鉴和卡组是派生视图，不是第二份数据。
+   ═════════════════════════════════════════════════════════════ */
+const DEX_GROUPS = [
+  { name: '步兵与摩托化', types: ['inf', 'gdn', 'mob', 'mech'],
+    note: '唯一能稳定占领要点、也唯一能自筑工事的一类。' },
+  { name: '装甲', types: ['larm', 'marm', 'harm'],
+    note: '火力 / 机动 / 装甲三者不可兼得——选错了型号，加成全部反过来。' },
+  { name: '炮兵', types: ['art', 'hr', 'sha', 'spa'],
+    note: '射程越远，近界越大。贴到近界以内就完全打不到，必须靠步兵挡住。' },
+  { name: '反装甲', types: ['at', 'td'],
+    note: '打坦克 ×1.8 级别，打步兵 ×0.6。放错位置等于没带。' },
+  { name: '工程与后勤', types: ['eng', 'engc', 'sup'],
+    note: '不开火，但决定你能不能过河、修工事、撑住补给。' },
+  { name: '侦察与防空', types: ['rec', 'aac', 'aab', 'avn'],
+    note: '侦察给炮兵校射，防空压制敌方航空。都是放大器，不是主力。' },
+  { name: '指挥', types: ['hqd', 'hqb', 'hkg', 'hkc'],
+    note: '半径内每回合回组织度。被摧毁时本方全员组织度重罚——别让它上一线。' }
+];
+
+/* 图鉴里的数值：优先取当前关卡编制里的真值（同一兵种在不同关可能编成不同），
+   本关没有这个兵种时才退回 TYPE 里写的典型值。 */
+function dexStat(t) {
+  const pick = LEVEL.units.find(x => x.type === t && x.side === 'blue')
+            || LEVEL.units.find(x => x.type === t);
+  const T = TYPE[t] || {};
+  if (pick) return { st: pick.str, mv: pick.mov, rng: pick.rng, real: true };
+  if (T.st || T.mv) return { st: T.st, mv: T.mv, rng: t === 'larm' || t === 'marm' || t === 'harm' ? 1 : null, real: false };
+  return null;
+}
+
+/* 副官问答。写的是"玩家真正会卡住的地方"，不是规则复述——
+   每一条都对应一个具体操作或一个反直觉的数值。 */
+const AIDE = [
+  { q: '第一步该干什么？',
+    a: '<b>点兵牌 → 看它脚下亮起什么色。</b>蓝色是可移动，淡蓝是只能穿过去、不能停，' +
+       '红色是可攻击。一支兵一回合<b>移动一次、射击一次</b>，顺序可以颠倒。<br>' +
+       '拿不准的仗别打：点红色格之前先看侧栏的 <code>1.5:1</code> 这类比值，' +
+       '<code>3:1</code> 以上才划算。' },
+  { q: '为什么我点友军格子，变成了切换选中，而不是移动过去？',
+    a: '以前的版本确实是这个 bug，现在已经修了：<b>先选中自己的部队，再点目标友军格</b>，' +
+       '只要那格还没满 2 支，点下去就是移动过去堆叠。<br>' +
+       '点<b>已经选中的那格</b>才是在同格两支之间轮换——用来操作被压在下面的那一支。' },
+  { q: '堆叠有什么用？为什么只能堆 2 支？',
+    a: '一格最多 2 支同阵营部队。好处是<b>同格友军按 50% 计入防御协同</b>' +
+       '（相邻格只有 35%），堆着守比散着守硬；坏处是堆进去的两支会被当成一个目标一起挨打。<br>' +
+       '渡口、桥头这种"过不去就完了"的位置值得堆，开阔地不值得。' },
+  { q: '我的火炮明明在射程内，为什么打不了？',
+    a: '三个可能，按顺序查：<br>' +
+       '① <b>近界</b>：野炮贴到 2 格以内、重炮贴到 3 格以内就打不到。看侧栏写的"近界 X 格"。<br>' +
+       '② <b>没展开</b>：牵引炮进场时是行军状态（兵牌有斜纹），要先花一回合「展开放列」。<br>' +
+       '③ <b>没弹药</b>：打光了就哑了。静止且有补给时每回合 +1 发。' },
+  { q: '牵引炮为什么这么难用？',
+    a: '这是刻意的。<code>架设 → 射击 → 收炮 → 转移</code> 是一个完整的四回合循环，' +
+       '射程就是拿这个节奏换来的。<br>' +
+       '<b>自行炮没有这套限制</b>，移动当回合就能开火、可以打带跑——这就是它贵的地方。' +
+       '钱不够就得多算一步，把牵引炮架在"这一局都不用挪"的位置。' },
+  { q: '工兵能做什么？怎么用？',
+    a: '选中工兵后<b>兵牌旁会弹出操作气泡</b>，点里面的功能再点目标格：<br>' +
+       '<b>构筑工事</b>（堑壕 / 碉堡 / 要塞炮 / 岸防炮 / 防空阵地，复杂度看编制）、' +
+       '<b>布雷</b>（敌方踩到掉 3 战力并停下）、<b>排雷</b>、<b>架桥</b>（把相邻河流格直接改成渡口）。<br>' +
+       '工兵近战很弱，作业时必须有步兵掩护。' },
+  { q: '组织度是什么？为什么我人还在，却打不动了？',
+    a: '<b>有效战力 = 战力 × (组织度 / 100)。</b><br>' +
+       '被打会掉组织度，掉到 60 就等于只剩六成力气。它每回合靠指挥部、补给缓慢恢复，' +
+       '所以<b>连续挨打的部队会越来越软</b>。<br>' +
+       '反过来说：炮击的真正杀伤不是打死人，是把人打散——这也是机场那种' +
+       '"人还在、阵地没了"的局面的成因。' },
+  { q: '战术卡怎么用？',
+    a: '在上面的「战术卡」页选好要带的 3 张（跨关沿用）。局内点顶栏 <b>HQ</b> → 战术卡 → ' +
+       '点「立即使用」，然后<b>在地图上点目标单位</b>就生效。<br>' +
+       '每张卡整局只能用一次，加成只持续到下一次我方阶段开始——' +
+       '但<b>防守类会完整覆盖敌方那一轮</b>，这正是坚守卡的价值。' },
+  { q: '坦克有三种，该怎么选？',
+    a: '<b>轻坦</b>机动 12，绕后打炮兵、抢要点，但打不穿防线、不会击退守军。<br>' +
+       '<b>中坦</b>什么都能干，3:1 能击退守军，是标准答案。<br>' +
+       '<b>重坦</b>火力 15 最耐打，但机动只有 7、机动后射击还要 −10%，' +
+       '它是用来<b>顶住</b>的，离开步兵和工事就是活靶。<br>' +
+       '记住一件事：反坦克炮打轻坦最容易、打重坦最难，所以别拿重坦去撞反坦克阵地。' },
+  { q: '补给怎么算？为什么会突然断粮？',
+    a: '基地半径 3 格内充足（×1.00），再外 3 格紧张（×0.88），更远断绝（×0.70）。<br>' +
+       '补给线会被<b>敌军相邻格切断</b>——跨河之后南岸的基地够不着，这就是辎重队' +
+       '「建立补给点」的用武之地：把它建在桥头。' },
+  { q: '打错了能撤回吗？',
+    a: '能。右下角<b>撤销</b>或 <code>Ctrl</code>+<code>Z</code>，连「结束我方阶段」' +
+       '都能整个撤回来——敌方回合会重跑，所以骰子也会重掷。<br>' +
+       '分胜负之后不可撤。' }
+];
+
+let hqTab = 'dex';
+
+function openHQ(tab) {
+  if (tab) hqTab = tab;
+  renderHQ();
+  document.getElementById('hqScreen').classList.remove('hidden');
+  FX.sfx('uiClick');
+}
+function closeHQ() {
+  document.getElementById('hqScreen').classList.add('hidden');
+}
+
+function renderHQ() {
+  const box = document.getElementById('hqBody');
+  const tabs = document.getElementById('hqTabs');
+  if (!box) return;
+  tabs.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.tab === hqTab));
+
+  if (hqTab === 'dex') { box.innerHTML = hqDex(); }
+  else if (hqTab === 'cards') { box.innerHTML = hqCards(); }
+  else if (hqTab === 'save') { box.innerHTML = hqSave(); }
+  else { box.innerHTML = hqAide(); }
+
+  /* 卡片上的按钮 */
+  box.querySelectorAll('[data-cardpick]').forEach(b => {
+    b.addEventListener('click', () => {
+      const id = b.dataset.cardpick;
+      let deck = readDeck().slice();
+      if (deck.includes(id)) deck = deck.filter(x => x !== id);
+      else if (deck.length >= CARD_MAX) { FX.sfx('lose'); return; }
+      else deck.push(id);
+      if (!deck.length) deck = [];            // 允许清空，但开局会退回默认三张
+      writeDeck(deck);
+      renderHQ();
+      FX.sfx('uiClick');
+    });
+  });
+  box.querySelectorAll('[data-saveact]').forEach(b => {
+    b.addEventListener('click', () => {
+      if (b.dataset.saveact === 'export') {
+        const r = exportSave();
+        hqSaveNote(r.msg, r.ok);
+      } else if (b.dataset.saveact === 'import') {
+        document.getElementById('fileImport').click();
+      }
+    });
+  });
+  box.querySelectorAll('[data-carduse]').forEach(b => {
+    b.addEventListener('click', () => armCard(b.dataset.carduse));
+  });
+  /* 副官手风琴 */
+  box.querySelectorAll('.aide-q > button').forEach(b => {
+    b.addEventListener('click', () => {
+      b.parentElement.classList.toggle('open');
+      FX.sfx('uiClick');
+    });
+  });
+}
+
+function hqDex() {
+  let h = '<div class="aide-intro" style="margin-bottom:16px"><span class="aide-av">图</span>' +
+    '<p style="margin:0"><b>数值取当前关卡（' + LEVEL.name + '）的编制。</b>' +
+    '同一兵种在不同关可能编成不同，本关没有的兵种显示典型值。<br>' +
+    '炮兵射程按 1 格 = 1.5 km 换算；"近界"是它打不到自己的最近距离。</p></div>';
+  for (const g of DEX_GROUPS) {
+    const rows = g.types.filter(t => TYPE[t]);
+    if (!rows.length) continue;
+    h += '<div class="hq-group"><div class="hq-gh">' + g.name + '</div>';
+    h += '<div style="font-size:10.5px;color:#9A968C;margin:-4px 0 9px">' + g.note + '</div>';
+    h += '<div class="hq-grid">';
+    for (const t of rows) {
+      const T = TYPE[t], st = dexStat(t);
+      h += '<div class="dex"><div class="dex-h"><b>' + T.name + '</b><i>' + T.role + '</i></div>';
+      if (st) {
+        h += '<div class="dex-st">' +
+          '<span>战力 <b>' + st.st + '</b></span>' +
+          '<span>机动 <b>' + st.mv + '</b></span>' +
+          '<span>射程 <b>' + (st.rng || '—') + '</b></span>' +
+          (st.real ? '' : '<span style="opacity:.6">典型值</span>') +
+          '</div>';
+      }
+      h += '<ul>' + (T.abil || []).map(x => '<li>' + x + '</li>').join('') + '</ul>';
+      h += '</div>';
+    }
+    h += '</div></div>';
+  }
+  return h;
+}
+
+function hqCards() {
+  const deck = readDeck();
+  const left = CARD_MAX - deck.length;
+  let h = '<div class="card-bar">' +
+    '携带 <b>' + deck.length + ' / ' + CARD_MAX + '</b>' +
+    '<span style="flex:1"></span>' +
+    (left > 0 ? '<span>还能再带 <b>' + left + '</b> 张</span>'
+              : '<span class="warn">已满，先卸一张再选</span>') +
+    '</div>';
+  h += '<div style="font-size:10.5px;color:#9A968C;margin:-6px 0 12px;line-height:1.7">' +
+    '每张卡整局只能用一次，加成持续到下一次我方阶段开始。牌组跨关沿用。</div>';
+  h += '<div class="card-list">';
+  /* 局内 / 局外是两套按钮。局内改"携带"没有意义——这一局的牌组已经定了，
+     只会让玩家以为能中途换牌。局内只留「立即使用」和已用掉的灰标。 */
+  const inGame = !!(state && state.units && state.units.length &&
+                    !state.result && state.phase === 'blue');
+  for (const id of CARD_IDS) {
+    const c = CARDS[id], on = deck.includes(id);
+    const used = !!(state && state.cardUsed && state.cardUsed[id]);
+    let btn;
+    if (inGame && on) {
+      btn = used
+        ? '<span class="tcard-b" style="background:none;border-color:#E2DCCD;color:#B8B2A4;cursor:default">本局已用</span>'
+        : '<button class="tcard-b" data-carduse="' + id + '">立即使用</button>';
+    } else {
+      btn = '<button class="tcard-b' + (on ? ' drop' : '') + '" data-cardpick="' + id + '">' +
+            (on ? '卸下' : '携带') + '</button>';
+    }
+    h += '<div class="tcard' + (on ? ' on' : '') + '">' +
+      '<div class="tcard-l"><div class="tcard-h"><b>' + c.name + '</b>' +
+      '<span class="tcard-tag">' + c.tag + '</span></div>' +
+      '<div class="tcard-d">' + c.desc + '</div>' +
+      '<div class="tcard-n">' + c.note + '</div></div>' + btn + '</div>';
+  }
+  h += '</div>';
+  return h;
+}
+
+function hqSave() {
+  const sv = readSave();
+  const pr = readProgress();
+  const done = Object.keys(pr.cleared || {}).length;
+  let h = '<div class="aide-intro"><span class="aide-av">存</span>' +
+    '<p><b>浏览器本地存储不是保险箱。</b>清缓存、换浏览器、开隐私模式，' +
+    '进度都会没。导出成一个文件才真的能带走、能备份、能换机器接着打。</p></div>';
+
+  h += '<div class="card-bar">本机现状' +
+       '<span style="flex:1"></span>' +
+       (sv ? '<b>' + levelById(sv.lv).name + '</b> · 第 ' + sv.turn + ' 回合'
+           : '<span style="color:#9A968C">没有进行中的战斗</span>') +
+       ' ｜ 已通关 <b>' + done + '</b> 关</div>';
+
+  h += '<div style="display:flex;gap:8px;margin-top:12px">' +
+    '<button class="tcard-b" style="flex:1;padding:10px" data-saveact="export">导出存档文件</button>' +
+    '<button class="tcard-b drop" style="flex:1;padding:10px" data-saveact="import">导入存档文件</button>' +
+    '</div>';
+  h += '<div class="aide-a" id="hqSaveNote" style="display:block;padding:11px 0 0">' +
+    '导出的文件包含：当前这一局的完整战场状态、战役通关进度、战术卡牌组。' +
+    '文件是纯 JSON，可以自己打开看。' +
+    '<br><b>导入会覆盖本机现有存档</b>，导入前建议先导出一份备份。</div>';
+  return h;
+}
+
+function hqSaveNote(msg, ok) {
+  const el = document.getElementById('hqSaveNote');
+  if (!el) return;
+  el.innerHTML = '<b style="color:' + (ok ? '#2F7D4F' : '#A83A3A') + '">' + msg + '</b>';
+  if (typeof FX !== 'undefined' && FX.sfx) FX.sfx(ok ? 'uiClick' : 'lose');
+}
+
+function hqAide() {
+  let h = '<div class="aide-intro"><span class="aide-av">副</span>' +
+    '<p><b>副官在。</b>下面的问题都是实际会卡住的地方，点开看答案。' +
+    '整局规则看不全也没关系——打不动的时候回来查这一条就行。</p></div>';
+  for (const it of AIDE) {
+    h += '<div class="aide-q"><button>' + it.q + '</button>' +
+      '<div class="aide-a">' + it.a + '</div></div>';
+  }
+  return h;
+}
+
+document.getElementById('btnHQ').addEventListener('click', () => openHQ());
+document.getElementById('hqClose').addEventListener('click', () => { FX.sfx('uiClick'); closeHQ(); });
+document.getElementById('hqScreen').addEventListener('click', e => {
+  if (e.target === document.getElementById('hqScreen')) closeHQ();
+});
+document.getElementById('hqTabs').addEventListener('click', e => {
+  const b = e.target.closest('button[data-tab]');
+  if (!b) return;
+  hqTab = b.dataset.tab;
+  renderHQ();
+  FX.sfx('uiClick');
+});
+/* 开始页 / HQ 的存档文件按钮。两处走同一套函数，区别只在提示显示在哪 */
+const saveTipEl = () => document.getElementById('saveTip');
+function flashSaveTip(msg, ok) {
+  const el = saveTipEl();
+  if (!el) return;
+  el.textContent = msg;
+  el.style.color = ok ? '#2F7D4F' : '#A83A3A';
+}
+
+document.getElementById('btnExport').addEventListener('click', () => {
+  const r = exportSave();
+  flashSaveTip(r.msg, r.ok);
+  FX.sfx(r.ok ? 'uiClick' : 'lose');
+});
+document.getElementById('btnImport').addEventListener('click', () => {
+  FX.sfx('uiClick');
+  document.getElementById('fileImport').click();
+});
+document.getElementById('fileImport').addEventListener('change', e => {
+  const f = e.target.files && e.target.files[0];
+  if (!f) return;
+  const fr = new FileReader();
+  fr.onload = () => {
+    const r = importSaveText(String(fr.result));
+    flashSaveTip(r.msg, r.ok);
+    FX.sfx(r.ok ? 'uiClick' : 'lose');
+    /* 导入成功要立刻重画开始页：解锁状态和"继续上次"的回合数都得跟着变，
+       否则玩家会看到"导入成功"但按钮还是灰的 */
+    if (r.ok) showStart();
+    e.target.value = '';       // 允许连续导入同一个文件
+  };
+  fr.onerror = () => flashSaveTip('读不了这个文件。', false);
+  fr.readAsText(f);
+});
+
 document.getElementById('btnTips').addEventListener('click', openTips);
 document.getElementById('btnTipsClose').addEventListener('click', () => { FX.sfx('uiClick'); closeTips(); });
 tipsEl.addEventListener('click', e => { if (e.target === tipsEl) closeTips(); });
@@ -4212,6 +5297,11 @@ window.addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && !e.shiftKey && String(e.key).toLowerCase() === 'z') {
     e.preventDefault(); doUndo(); return;
   }
+  /* Esc 的优先级：先收最上层的东西。HQ 面板 > 待命中的战术卡 > 操作说明，
+     顺序反了会出现"按 Esc 关掉了下面的面板，上面那层还盖着"。 */
+  const hqEl = document.getElementById('hqScreen');
+  if (e.key === 'Escape' && hqEl && !hqEl.classList.contains('hidden')) { closeHQ(); return; }
+  if (e.key === 'Escape' && state && state.cardId) { cancelCard(); return; }
   if (e.key === 'Escape') { closeTips(); return; }
   if (e.key === ' ' && !tipsEl.classList.contains('hidden')) { e.preventDefault(); closeTips(); return; }
   if (e.key === ' ') {
@@ -4376,6 +5466,17 @@ window.__WAR__ = {
   HQ_TYPES, ARTY_TYPES, CAPTURE_TYPES,
   /* 火炮射程换算与展收机制 */
   TOWED_TYPES, AT_LIKE, isTowed, minRange, inRangeTargets, doPack, doUnpack,
+  /* 坦克三型 */
+  ARMOR_TYPES, isArmor, AT_VS_ARMOR, ARM_VS, ARMOR_PROFILE, canPushBack,
+  ARM_FIRE,
+  /* 战术卡与 HQ */
+  CARDS, CARD_IDS, CARD_MAX, DEFAULT_DECK, cardById, readDeck, writeDeck, deckOf,
+  armCard, cancelCard, useCard, cardFitsUnit, clearCardBuffs,
+  openHQ, closeHQ, renderHQ, AIDE, DEX_GROUPS, dexStat,
+  /* 地图内作业气泡 */
+  unitOps, syncUnitOps, runOp,
+  /* 存档文件 */
+  buildSaveFile, applySaveFile, importSaveText, exportSave, SAVE_FILE_APP,
   /* 堆叠 / 撤销 / 补给场：新增机制的测试入口 */
   unitsAt, stackFull, stackOf, STACK_MAX, STACK_COVER,
   /* 点击层：只测 doMove 会漏掉"界面上根本点不出来"这类 bug，
