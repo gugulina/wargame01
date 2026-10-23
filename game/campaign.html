@@ -351,6 +351,111 @@
     font-size: 10.5px; color: var(--ink3);
   }
 
+  /* ───────── 战前简报 ─────────
+     点「开始新的战役」之后、真正开局之前的一段过场。
+     刻意做成纸质作战命令而不是又一个弹窗：它是戏，不是提示。
+     左侧那条红线是老式公文的装订边，纯装饰，别加负担。 */
+  .brief {
+    position: fixed; inset: 0; z-index: 70;
+    display: flex; align-items: center; justify-content: center; padding: 24px;
+    background: #E9E5D9;
+    overflow-y: auto;
+  }
+  .brief.hidden { display: none; }
+  .brief-paper {
+    position: relative;
+    /* 宽度用 vw 算而不是百分比：不依赖任何父容器的宽度解析，flex item 上也稳。
+       （别再拿 headless 的 --window-size 当真：系统 DPI 是 125% 时，
+        传 390 实际视口是 504，截出来只看得到左边 390px，特别像溢出。）
+       48 = 左右各 24 的留白。 */
+    width: min(560px, calc(100vw - 48px));
+    background: #FBF9F3;
+    border: 1px solid #D9D3C4;
+    border-radius: 3px;
+    padding: 30px 34px 22px 44px;
+    box-shadow: 0 22px 60px rgba(43,42,38,.16), 0 2px 0 #E7E1D2;
+  }
+  .brief-paper::before {
+    content: ''; position: absolute; left: 26px; top: 0; bottom: 0;
+    width: 1px; background: #D6C7B0;
+  }
+  .brief-top {
+    display: flex; justify-content: space-between; align-items: baseline;
+    font-size: 10px; letter-spacing: 2.2px; text-transform: uppercase; color: var(--ink3);
+    padding-bottom: 9px; border-bottom: 1px solid #E4DECF; margin-bottom: 20px;
+  }
+  .brief-top b { color: var(--red); font-weight: 700; letter-spacing: 3px; }
+  .brief-page { animation: briefIn .42s cubic-bezier(.22,.9,.3,1) both; }
+  @keyframes briefIn {
+    from { opacity: 0; transform: translateY(9px); }
+    to   { opacity: 1; transform: none; }
+  }
+  .brief-kicker {
+    font-size: 10.5px; letter-spacing: 2.6px; color: var(--ink3); margin-bottom: 8px;
+  }
+  .brief-title {
+    margin: 0 0 15px; font-size: 21px; line-height: 1.4; font-weight: 700;
+    letter-spacing: .5px; color: var(--ink);
+  }
+  .brief-body p {
+    margin: 0 0 11px; font-size: 13px; line-height: 1.95; color: var(--ink2);
+  }
+  .brief-body p b { color: var(--ink); font-weight: 650; }
+  .brief-body p.hl {
+    color: var(--ink); border-left: 2px solid var(--red);
+    padding-left: 11px; margin-left: -1px;
+  }
+  .brief-nums {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+    gap: 7px; margin: 15px 0 2px;
+  }
+  .brief-nums div {
+    background: #F5F1E6; border-radius: 3px; padding: 8px 10px;
+  }
+  .brief-nums span {
+    display: block; font-size: 9.5px; letter-spacing: 1.1px;
+    color: var(--ink3); margin-bottom: 2px;
+  }
+  .brief-nums b { font-size: 15px; font-weight: 700; color: var(--ink); }
+  .brief-nums b.r { color: var(--red); }
+  .brief-foot {
+    margin-top: 20px; padding-top: 13px; border-top: 1px solid #E4DECF;
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  }
+  .brief-dots { display: flex; gap: 6px; flex: 0 0 auto; }
+  .brief-dots i { width: 5px; height: 5px; border-radius: 50%; background: #D3CCBC; }
+  .brief-dots i.on { background: var(--red); }
+  /* flex-shrink:0 是必须的。不加的话「继续 ▸」会被压成一根窄条，
+     ▸ 折到第二行，看起来像按钮坏了。 */
+  .brief-acts { display: flex; align-items: center; gap: 20px; flex: 0 0 auto; }
+  .brief-next {
+    padding: 8px 17px; border-radius: 4px; font: inherit; font-size: 12.5px;
+    font-weight: 600; background: #2B2A26; color: #FBF9F3;
+    border: 1px solid #2B2A26; cursor: pointer;
+    transition: background .15s; flex: 0 0 auto; white-space: nowrap;
+  }
+  .brief-next:hover { background: #403E38; }
+  .brief-skip {
+    font: inherit; font-size: 11px; color: var(--ink3); background: none;
+    border: none; cursor: pointer; padding: 4px 6px;
+    text-decoration: underline; text-underline-offset: 3px;
+    flex: 0 0 auto; white-space: nowrap;
+  }
+  .brief-skip:hover { color: var(--ink2); }
+  /* 窄屏：padding 和装订线一起收，否则左侧那条线会切进正文 */
+  @media (max-width: 480px) {
+    .brief { padding: 12px; }
+    .brief-paper { padding: 22px 18px 16px 28px; }
+    .brief-paper::before { left: 15px; }
+    .brief-top { font-size: 9.5px; letter-spacing: 1.5px; margin-bottom: 16px; }
+    .brief-title { font-size: 18px; margin-bottom: 12px; }
+    .brief-body p { font-size: 12.5px; line-height: 1.85; }
+    .brief-nums { grid-template-columns: repeat(auto-fit, minmax(64px, 1fr)); gap: 6px; }
+    .brief-nums b { font-size: 14px; }
+    .brief-foot { margin-top: 16px; gap: 8px; }
+    .brief-acts { gap: 12px; }
+  }
+
   /* ───────── 地图视口：桌面端就是普通滚动容器，移动端改由 JS 控制缩放平移 ───────── */
   /* position:relative 是为了让 #fxLayer 与 #board 共用一套局部坐标，
      飘字不必再关心当前的缩放/平移是多少 */
@@ -650,10 +755,14 @@
     </div>
     <div class="start-foot">
       <span>音效 OpenGameArt (CC0) · Mixkit · Kenney (CC0)</span>
-      <span id="verTag">v3.7</span>
+      <span id="verTag">v3.8</span>
     </div>
   </div>
 </div>
+
+<!-- 战前简报：点「开始新的战役」之后、真正开局之前的一段过场。
+     这里只是空壳，内容全部由 LEVEL.story.briefing 驱动，改剧本不用碰 HTML。 -->
+<div class="brief hidden" id="briefScreen"></div>
 
 <div class="overlay hidden" id="overlay">
   <div class="modal">
@@ -908,25 +1017,81 @@ const LEVEL = {
     }
   ],
 
-  /* ───────────────────────── 剧情演出（预留位） ─────────────────────────
+  /* ───────────────────────── 剧情演出 ─────────────────────────
      events 管"规则上发生了什么事"，story 管"这段戏该怎么演"，两者分开写。
-     触发方式一：事件效果里写 { kind:'story', id:'briefing' }
+     触发方式一：事件效果里写 { kind:'story', id:'xxx' }
      触发方式二：关卡脚本里直接 FX.cutin({ who, text })
-     每条 beat：{ who, text, side:'blue'|'red', portrait:'portBlue', speed }
-     beats 按顺序一张一张弹，点一下继续，靠 FX._csChain 排队，不会互相叠。
-     没有素材时立绘位显示"立绘位"三个字，台词照常打字机播放。
-     下面是填好的写法示例，默认注释掉——取消注释就能看到效果：
+     触发方式三：briefing 在「开始新的战役」之后自动播（本关就这么用）
+
+     briefing 两段结构：
+       pages  —— 作战公文，逐页推进，点「继续」/ 空格翻页，「跳过」/ Esc 整段跳过
+                 每页 { order?, kicker, title, paras:[{t, hl?}], nums:[{k, v, hot?}] }
+       beats  —— 公文之后的对话过场，走 FX.cutin 的打字机
+                 每条 { who, text, side:'blue'|'red', portrait:'portBlue', speed }
+
+     没有立绘素材时立绘位显示"立绘位"三个字，台词照常播——素材缺失只是降级，不是错误。
+     所有文案都放在这张表里，改剧本不碰任何逻辑。 */
   story: {
     briefing: {
+      pages: [
+        {
+          order: '作战命令 · 第 3 号',
+          kicker: '战役态势',
+          title: '主力走了，你们留下',
+          paras: [
+            { t: '1941 年秋，灰原联合体以「边境事故」为由发动突袭。北部边防在七十二小时内崩溃，' +
+                 '西部方面军主力正在渡江东撤。' },
+            { t: '第 3 坦克军今夜过江。天亮之前，岚江东岸只剩你们。', hl: true },
+            { t: '岚口预备役第 1 旅守市区，西部军区独立第 1 旅守机场，第 205 装甲旅在城郊待机。' +
+                 '防区内的两座桥头、一片跑道，一处都不能丢——丢了就没有纵深了。' }
+          ],
+          nums: [
+            { k: '建制', v: '3 旅' },
+            { k: '兵牌', v: '21' },
+            { k: '战力', v: '117' }
+          ]
+        },
+        {
+          order: '敌情通报',
+          kicker: '当面之敌',
+          title: '敌人也在抢时间',
+          paras: [
+            { t: '敌先头部队抢在撤退主力之前抵达东岸，番号为摩步第 3 旅，加强一个独立坦克营、一个航空连。' },
+            { t: '后续梯队正在陆续渡江。判读敌方兵力分三次投入：开战即到、数小时后、以及入夜前的一次总投入。' },
+            { t: '最后一次投入时，敌我战力比将达到 1 : 1.3。撑到那一刻还没崩，就是胜利。', hl: true }
+          ],
+          nums: [
+            { k: '首波', v: '54' },
+            { k: '第二波', v: '+39', hot: true },
+            { k: '第三波', v: '+55', hot: true }
+          ]
+        },
+        {
+          order: '任务简报',
+          kicker: '你的任务',
+          title: '守住十二个回合',
+          paras: [
+            { t: '12 回合结束，控制不少于 <b>26 分</b>要点即为完成防御任务；控制 35 分以上为超额。' },
+            { t: '岚口市 15 分 · 岚口机场 15 分 · 青溪镇 10 分 · 两处渡口各 5 分。' },
+            { t: '青溪镇在北岸，是敌人的补给走廊。守军去抢就是送人头——那 10 分是诱饵，别碰。', hl: true }
+          ],
+          nums: [
+            { k: '回合', v: '12' },
+            { k: '达成', v: '26 分' },
+            { k: '超额', v: '35 分' }
+          ]
+        }
+      ],
       beats: [
-        { who: '方面军司令部', side: 'blue', portrait: 'portBlue',
-          text: '第 205 装甲旅留下，连同岚口两个预备役旅，务必守住机场与市区。\n主力渡江之后，不会再有人来增援你们。' },
-        { who: '敌第 3 摩托化步兵旅', side: 'red', portrait: 'portRed',
-          text: '先头营已经抵近岚江东岸。他们来不及修工事。' }
+        { who: '方面军司令部 · 电话', side: 'blue',
+          text: '第 3 军今夜过江。你们守到天亮，江对岸就能重新组织防线。\n守不住，西线就没有纵深了。' },
+        { who: '岚口预备役第 1 旅 · 旅长', side: 'blue',
+          text: '明白。市区、机场、两座桥——我一样一样数给您听。' },
+        { who: '敌摩步第 3 旅 · 前沿无线电', side: 'red',
+          text: '东岸有守军，工事还没修完。\n天黑之前拿下机场。' }
       ]
     }
   },
-  */
 
   units: [
     /* 我方 · 岚口预备役第 1 旅（岚口市，要吃「为了祖国」） */
@@ -3525,6 +3690,83 @@ boardWrap.addEventListener('touchstart', hideZhint, { passive: true, once: true 
 /* ───────────────────────── 开始页 ─────────────────────────
    它同时干两件事：① 解锁音频（浏览器要求先有用户交互，否则 BGM 永远放不出来）；
    ② 在 280 个格子糊一脸之前，先告诉玩家这是哪一场仗、要守到什么时候。 */
+/* ───────────────────────── 战前简报 ─────────────────────────
+   「开始新的战役」→ 作战公文逐页推进 → 语录过场 → 真正开局。
+   内容全部来自 LEVEL.story.briefing，这里只负责推页，一个字台词都不写死。
+   跳过是整段跳过、不是翻过一页，也不退回开始页——玩家已经做过选择了。
+   键盘用 capture + stopPropagation 截住：否则空格会漏到全局监听里，
+   在开局之前就把「结束我方阶段」给触发掉。 */
+function showBriefPage(page, i, total) {
+  const host = document.getElementById('briefScreen');
+  if (!host) return Promise.resolve('next');
+  return new Promise(resolve => {
+    let done = false;
+    const last = i === total - 1;
+    const paras = (page.paras || []).map(p =>
+      '<p' + (p.hl ? ' class="hl"' : '') + '>' + p.t + '</p>').join('');
+    const nums = (page.nums || []).length
+      ? '<div class="brief-nums">' + page.nums.map(n =>
+          '<div><span>' + n.k + '</span><b' + (n.hot ? ' class="r"' : '') + '>' +
+          n.v + '</b></div>').join('') + '</div>'
+      : '';
+    const dots = Array.from({ length: total }, (_, k) =>
+      '<i' + (k === i ? ' class="on"' : '') + '></i>').join('');
+
+    host.innerHTML =
+      '<div class="brief-paper">' +
+        '<div class="brief-top"><span>' + (page.order || '作战命令') + '</span><b>绝 密</b></div>' +
+        '<div class="brief-page">' +
+          '<div class="brief-kicker">' + (page.kicker || '') + '</div>' +
+          '<h2 class="brief-title">' + (page.title || '') + '</h2>' +
+          '<div class="brief-body">' + paras + '</div>' + nums +
+        '</div>' +
+        '<div class="brief-foot">' +
+          '<div class="brief-dots">' + dots + '</div>' +
+          '<div class="brief-acts">' +
+            '<button class="brief-skip" id="briefSkip">跳过</button>' +
+            '<button class="brief-next" id="briefNext">' +
+              (last ? '接管指挥 ▸' : '继续 ▸') + '</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    host.classList.remove('hidden');
+
+    const close = verdict => {
+      if (done) return;
+      done = true;
+      document.removeEventListener('keydown', onKey, true);
+      resolve(verdict);
+    };
+    const onKey = e => {
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close('skip'); }
+      else if (e.key === ' ' || e.key === 'Enter') {
+        e.preventDefault(); e.stopPropagation(); close('next');
+      }
+    };
+    document.addEventListener('keydown', onKey, true);
+    document.getElementById('briefNext').addEventListener('click', () => close('next'));
+    document.getElementById('briefSkip').addEventListener('click', () => close('skip'));
+  });
+}
+
+async function runBriefing() {
+  const b = LEVEL.story && LEVEL.story.briefing;
+  const host = document.getElementById('briefScreen');
+  if (!b || !host) return;
+  const pages = b.pages || [];
+  const hide = () => { host.classList.add('hidden'); host.innerHTML = ''; };
+
+  for (let i = 0; i < pages.length; i++) {
+    const r = await showBriefPage(pages[i], i, pages.length);
+    if (r === 'skip') { hide(); return; }
+  }
+  /* 纸张先别收。cutscene 的 z-index 是 80，比简报的 70 高，
+     让它压在纸上变暗——否则公文一消失会先露出地图、再变暗弹对话，中间闪一下。
+     等对话全演完才真正收起。 */
+  for (const beat of (b.beats || [])) await FX.cutin(beat);
+  hide();
+}
+
 function showStart() {
   const s = readSave();
   const btn = document.getElementById('btnResume');
@@ -3544,9 +3786,11 @@ function closeStart() {
   document.getElementById('startScreen').classList.add('hidden');
 }
 
-function startNew() {
+async function startNew() {
   closeStart();
   FX.unlock();              // 必须留在这次点击的同一个调用栈里，脱离手势就解锁不了
+  /* 过场演出再好看也只是壳，它抛错绝不能把开局一起拽下来 */
+  try { await runBriefing(); } catch (e) { /* 静默降级：直接开局 */ }
   newGame();
   fitView(false);
 }
@@ -3580,6 +3824,12 @@ tipsEl.addEventListener('click', e => { if (e.target === tipsEl) closeTips(); })
 window.addEventListener('keydown', e => {
   const tag = (e.target && e.target.tagName) || '';
   if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+  /* 战前简报 / 剧情卡正在播时，按键归它们自己管。
+     少这一条，空格会直接漏下去把「结束我方阶段」在开局之前就触发掉。 */
+  const bs = document.getElementById('briefScreen');
+  if (bs && !bs.classList.contains('hidden')) return;
+  const cs = document.getElementById('cutscene');
+  if (cs && !cs.classList.contains('hidden')) return;
   if ((e.ctrlKey || e.metaKey) && !e.shiftKey && String(e.key).toLowerCase() === 'z') {
     e.preventDefault(); doUndo(); return;
   }
@@ -3697,6 +3947,20 @@ if (typeof location !== 'undefined') {
     if (a && b && c) { b.pos = a.pos.slice(); select(c); }
   }
   else if (q.indexOf('demo=tips') >= 0) openTips();
+  /* 战前简报三页 + 对话过场；briefbeat / brief2 / brief3 必须排在 brief 之前，
+     indexOf 会让 "demo=brief2" 命中 "demo=brief" */
+  else if (q.indexOf('demo=briefbeat') >= 0) {
+    closeStart(); FX.cutin(LEVEL.story.briefing.beats[0]);
+  }
+  else if (q.indexOf('demo=brief3') >= 0) {
+    closeStart(); showBriefPage(LEVEL.story.briefing.pages[2], 2, 3);
+  }
+  else if (q.indexOf('demo=brief2') >= 0) {
+    closeStart(); showBriefPage(LEVEL.story.briefing.pages[1], 1, 3);
+  }
+  else if (q.indexOf('demo=brief') >= 0) {
+    closeStart(); showBriefPage(LEVEL.story.briefing.pages[0], 0, 3);
+  }
   else if (q.indexOf('demo=terrain') >= 0) selectTerrain(6, 9);
 }
 

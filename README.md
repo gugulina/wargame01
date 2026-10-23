@@ -221,13 +221,22 @@ tools/
 NODE="C:/Users/泽宇/.workbuddy/binaries/node/versions/22.22.2-6/node.exe"
 
 $NODE tools/check.js game/campaign.html          # 校验战役级（含部署重叠 / 指挥链）
-$NODE tools/selftest.js                          # 机制回归（81 项断言，改规则后必跑）
+$NODE tools/selftest.js                          # 机制回归（140 项断言，改规则后必跑）
 $NODE tools/check.js game/index.html             # 校验战术级
 $NODE tools/autoplay-campaign.js game/campaign.html 200
 $NODE tools/autoplay-campaign.js game/campaign.html 1 --verbose   # 单局战报
 $NODE tools/autoplay.js 300                      # 战术级
 $NODE tools/roster.js                            # 重新生成编制表
+$NODE tools/shot.js "http://127.0.0.1:8899/game/campaign.html?demo=brief" out.png 390 844 --mobile
+                                                 # 精确截图（CDP 指定视口，别用 --window-size）
+NODE_PATH="C:/Users/泽宇/.workbuddy/binaries/node/workspace/node_modules" \
+  $NODE tools/briefcheck.js                      # 开局流程回归（开始页→简报→对话→战场）
 ```
+
+> **截图别信 `--window-size`**：系统 DPI 是 125% 时，传 390 实际视口是 504，
+> 截出来只有左边 390px，任何居中卡片都像溢出。`tools/shot.js` 用
+> `Emulation.setDeviceMetricsOverride` 定死视口，才是真的 390×844。
+> 这个坑当时误判成 CSS 宽度问题，连改三版才靠 CDP 测量纠正过来。
 
 ## 平衡数据
 
@@ -329,6 +338,41 @@ $NODE tools/roster.js                            # 重新生成编制表
 
 改完先跑 `check.js`，再跑 `selftest.js`（确认没破坏控制权/事件/工事），再跑自战看平衡动没动，最后跑 `roster.js` 同步编制表。
 
+## 战前简报（剧本演绎）
+
+点「开始新的战役」后不直接开局，先走一段过场：**三页作战公文 → 三句对话 → 接管指挥**。
+内容全部写在 `LEVEL.story.briefing` 里，改剧本不碰任何逻辑。
+
+```js
+story: {
+  briefing: {
+    pages: [{
+      order: '作战命令 · 第 3 号',   // 左上角文号，缺省「作战命令」
+      kicker: '战役态势',            // 大标题上方的小字
+      title: '主力走了，你们留下',
+      paras: [                      // 段落；hl:true 会加左侧红线（引用块）
+        { t: '正文……' },
+        { t: '要强调的一句。', hl: true }
+      ],
+      nums: [{ k: '兵牌', v: '21' }, { k: '战力', v: '117', hot: true }]  // hot = 红字
+    }],
+    beats: [
+      { who: '方面军司令部 · 电话', side: 'blue',
+        text: '第 3 军今夜过江。\n守不住，西线就没有纵深了。' }
+    ]
+  }
+}
+```
+
+- **翻页**：点「继续」/ 空格 / 回车。**跳过**：点「跳过」/ Esc → 整段跳过，直接开局。
+- **打字机**在 `beats` 里（走 `FX.cutin`），公文页是整页淡入，不做逐字——公文逐字读起来太慢。
+- **素材缺失只是降级**：`ASSETS.story.portBlue` 没有图时立绘位显示"立绘位"三个字，台词照常播。
+  以后接配音，把 `FX._showCutin` 里的 `setInterval` 换成按音频 `currentTime` 推进即可，调用方不用改。
+- **纸张在对话阶段故意不收起**：`#cutscene` 的 z-index（80）比 `.brief`（70）高，
+  让对话直接压在纸上变暗。先收纸会露出地图再变暗，中间闪一下。
+- **`?nointro` 与 `?demo=*` 一律跳过**整段过场，自动化跑局和截图都靠这个。
+- 临时看某一页：`?demo=brief` / `demo=brief2` / `demo=brief3`；看对话：`?demo=briefbeat`。
+
 ## 战役级 v3 调参记录
 
 | 版本 | 调整 | 达成率 |
@@ -353,6 +397,7 @@ $NODE tools/roster.js                            # 重新生成编制表
 | v3.6 | 堆叠/穿越 + 撤销 + 补给点可视化 + 守备营调整 + 炮兵射程 +1 + 红方工兵架桥 | **55.0%**（200 局，另一次 53.0%） |
 | v3.6.1 | 修堆叠的操作入口（点击层被 select 短路）+ `doMove` 堆叠上限兜底 | 同上（纯修复） |
 | v3.7 | 射程按现实换算（1.5 km/格）+ 牵引炮架设/收起 + 工事抗炮击 + 坦克歼击车预留 | **36.0%**（旧脚本）→ **68.5~74.5%**（修占位缺陷后，同一套数值） |
+| v3.8 | 战前简报过场（作战公文三页 + 对话）+ 自战脚本占位修复 + `tools/shot.js` / `tools/briefcheck.js` | 同上（纯表现层，未动数值） |
 
 \\* 这一行是**校准**不是调参：同一份未改动的规则用改动前的代码跑 200 局对照也是 64.0%，
 说明上面 55.0 / 59.0 那几格偏低。表格里保留原值以便追溯，但**真实基线应以 63.5% 为准**。
@@ -379,8 +424,11 @@ $NODE tools/roster.js                            # 重新生成编制表
 
 ## 未实现
 
-- **图片素材 / 音乐 / 剧情演出**：接入口已预留（`ASSETS` 素材表 + `FX` 表现层总线 + `LEVEL.story`），
+- **图片素材 / 音乐**：接入口已预留（`ASSETS` 素材表 + `FX` 表现层总线），
   素材一放就生效，游戏逻辑不用改。规范与推进顺序见 `docs/08-表现层接入.md`
+- **立绘与过场背景图**：战前简报（v3.8）和 `FX.cutin` 的**演出逻辑已经全部实装**，
+  缺的只是 `ASSETS.story.portBlue` / `portRed` / `bgBriefing` 这几张图。
+  填进素材表即可，一行代码不用改；没图时立绘位显示"立绘位"三个字，台词照常播
 - **背景音乐**：4 个槽位（menu / battle / tension / result）还没选曲。音效已经接完了，
   12 个全部就位 —— 来源与授权见 `game/assets/sfx/CREDITS.md`，试听打开 `game/assets/sfx/preview.html`
 - **音效还差"战场底噪"**：现在一次攻击只响一声，缺远处的持续炮声与零星枪声做背景。
