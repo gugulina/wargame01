@@ -34,6 +34,11 @@ function nearestCoreCell(pos) {
   }
   return best;
 }
+/* 这一格属于哪个要点。用于禁止"跨要点搬家"——
+   守备营为了钻城区的碉堡把机场让空，人活着但要点没了，比不钻工事更糟。 */
+function objOf(pos) {
+  return L.objectives.find(o => o.cells.some(c => c[0] === pos[0] && c[1] === pos[1])) || null;
+}
 
 function stepToward(u, goal) {
   const reach = api.computeReach(u);
@@ -126,8 +131,25 @@ async function blueTurn() {
       if (api.doFort(u, u.pos, 'H') !== false) continue;
     }
 
-    /* 3. 守备营、反坦克连已在要地内则死守（吃「为了祖国」） */
-    if ((u.type === 'gdn' || u.type === 'at') && inCore(u.pos)) continue;
+    /* 3. 守备营、反坦克连已在要地内则死守（吃「为了祖国」）。
+          但脚下没工事、旁边就有己方碉堡时该挪一格——真人一定会挪，
+          因为碉堡对炮击的减免（shell 0.65）比多一回合组织度回复值钱得多。 */
+    if ((u.type === 'gdn' || u.type === 'at') && inCore(u.pos)) {
+      const here = api.fortAt(u.pos[0], u.pos[1]);
+      if (here && here.side === 'blue') continue;
+      const home = objOf(u.pos);
+      const nest = api.neighbors(u.pos[0], u.pos[1])
+        .filter(p => {
+          if (!passable(p)) return false;
+          const o = objOf(p);
+          return o && home && o.id === home.id;   // 只在本要点内换位
+        })
+        .map(p => ({ p, f: api.fortAt(p[0], p[1]) }))
+        .filter(o => o.f && o.f.side === 'blue' && (o.f.kind === 'B' || o.f.kind === 'P'))
+        .sort((a, b) => (b.f.kind === 'P') - (a.f.kind === 'P'));
+      if (nest.length && !u.moved) { api.doMove(u, nest[0].p); continue; }
+      continue;
+    }
 
     /* 4. 装甲旅：敌人未逼近要点就不动，保存实力做反冲击 */
     if (u.type === 'arm' || u.type === 'mech') {
@@ -157,7 +179,25 @@ async function blueTurn() {
         if (onMinorObj) s -= 6;                  // 装甲对非核心要点兴趣低，但不禁止
       } else {
         const goal = nearestCoreCell(p);
-        s = (inCore(p) ? 6 : 0) + t.def * 3 - (goal ? api.cheb(p, goal) * 0.4 : 0);
+        /* 工事加成必须限定在「本要点内」。
+           上一版只按有没有碉堡算分，结果守备营扔下机场跑去城区钻碉堡——
+           存活数从 16.8 涨到 20.1，达成率反而从 36.0% 掉到 28.0%。
+           工事是手段，占住要点才是目的，权重顺序不能反。 */
+        const home = objOf(u.pos);
+        const pObj = objOf(p);
+        const sameObj = !home || (pObj && pObj.id === home.id);
+        const f = api.fortAt(p[0], p[1]);
+        const fk = (f && f.side === 'blue') ? f.kind : null;
+        const fortBonus = !sameObj ? 0
+          : fk === 'P' ? 7 : fk === 'B' ? 6 : fk === 'A' ? 4 : fk === 'H' ? 3 : 0;
+        /* 覆盖优先于加固：核心要点只有 6 格（城区 3 + 机场 3），堆叠上限 2，
+           所以「铺满」比「叠厚」值钱得多。两支都挤进同一个碉堡，等于白送一格。
+           空格给 +8，压过碉堡的 +6 —— 先把格子占住，再谈工事。 */
+        const held = api.alive('blue').some(x =>
+          x.pos[0] === p[0] && x.pos[1] === p[1]);
+        const uncovered = (sameObj && pObj && !held) ? 8 : 0;
+        s = ((inCore(p) && sameObj) ? 6 : 0) + uncovered + fortBonus + t.def * 3 -
+            (goal ? api.cheb(p, goal) * 0.4 : 0);
       }
       if (s > bs) { bs = s; best = p; }
     }
@@ -169,11 +209,22 @@ async function playOne(idx) {
   api.newGame();
   const st = api.getState();
   let guard = 0;
+  /* 每回合采样：蓝方有多少单位真在工事里、有多少在要点里。
+     只看终局快照会被"人都死了"干扰，逐回合累计才能反映守备质量。 */
+  let fortAcc = 0, coreAcc = 0, aliveAcc = 0, samples = 0;
   while (!st.result && guard < 60) {
     guard++;
     if (st.phase !== 'blue') break;
     await blueTurn();
     if (st.result) break;
+    const bs = st.units.filter(u => u.side === 'blue');
+    fortAcc += bs.filter(u => {
+      const f = api.fortAt(u.pos[0], u.pos[1]);
+      return f && f.side === 'blue';
+    }).length;
+    coreAcc += bs.filter(u => inCore(u.pos)).length;
+    aliveAcc += bs.length;
+    samples++;
     await api.endBluePhase();
   }
 
@@ -197,6 +248,7 @@ async function playOne(idx) {
     blueLoss: 1 - blueNow / INIT_BLUE,
     redLoss: 1 - redNow / INIT_RED,
     starved, avgOrg,
+    fortAcc, coreAcc, aliveAcc, samples,
     ctrl: Object.assign({}, st.ctrl),
     blueAlive: st.units.filter(u => u.side === 'blue').length,
     gdnAlive: st.units.filter(u => u.side === 'blue' && u.type === 'gdn').length,
@@ -214,6 +266,7 @@ async function playOne(idx) {
   const kindSum = {};
   const ctrlTally = {};
   let blueAliveSum = 0, gdnSum = 0;
+  let fortAccSum = 0, coreAccSum = 0, aliveAccSum = 0, sampleSum = 0;
 
   for (let i = 0; i < ROUNDS; i++) {
     const r = await playOne(i);
@@ -222,6 +275,8 @@ async function playOne(idx) {
     scoreSum += r.score; turnSum += r.turn;
     bLoss += r.blueLoss; rLoss += r.redLoss;
     blueAliveSum += r.blueAlive; gdnSum += r.gdnAlive;
+    fortAccSum += r.fortAcc; coreAccSum += r.coreAcc;
+    aliveAccSum += r.aliveAcc; sampleSum += r.samples;
     starveSum += r.starved; orgSum += r.avgOrg; fortSum += r.forts;
     for (const k in r.fortKinds) kindSum[k] = (kindSum[k] || 0) + r.fortKinds[k];
     for (const k in r.ctrl) {
@@ -251,6 +306,11 @@ async function playOne(idx) {
   console.log('工事        ' + (fortSum / ROUNDS).toFixed(1) + ' 处/局  ' +
     ['H', 'B', 'P', 'A', 'F'].map(k =>
       k + (kindSum[k] ? (kindSum[k] / ROUNDS).toFixed(1) : '0')).join(' / '));
+  /* 守备质量：工事利用率低说明"人不在工事里挨炮"，达成率会被严重低估 */
+  const aliveAvg = aliveAccSum / Math.max(1, sampleSum);
+  console.log('工事利用率  ' + (fortAccSum / Math.max(1, aliveAccSum) * 100).toFixed(1) +
+    '%   （要点内 ' + (coreAccSum / Math.max(1, aliveAccSum) * 100).toFixed(1) +
+    '%，平均存活 ' + aliveAvg.toFixed(1) + ' 个）');
   if (process.argv.includes('--diag')) {
     console.log('────────────────────────────────');
     const names = { city: '岚口市', air: '机场', town: '青溪镇', fordW: '西渡口', fordE: '东渡口' };
