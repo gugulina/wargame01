@@ -235,38 +235,49 @@ console.log('\n[7] 装甲突击');
   ok('ARM_FIRE 含坦克与自行火炮', api.ARM_FIRE.includes('arm') && api.ARM_FIRE.includes('spa'));
 }
 
-/* ───────── 五、直瞄火炮 ───────── */
-console.log('\n[5] 直瞄火炮');
+/* ───────── 五、火炮射程与近界 ───────── */
+console.log('\n[5] 火炮射程（1.5 km/格）');
 {
   api.newGame();
-  ok('旅炮兵营可直瞄', api.minRange({ type: 'art' }) === 1);
-  ok('自行火炮连可直瞄', api.minRange({ type: 'sha' }) === 1);
-  ok('师自行火炮营可直瞄', api.minRange({ type: 'spa' }) === 1);
-  ok('师重炮营不能直瞄', api.minRange({ type: 'hr' }) === 2);
+  /* 现实数据 → 格数（1 格 = 1.5 km）：
+       旅野炮    3–8 km    → 近界 2 格（3 km），远界 5 格（7.5 km）
+       师重炮   12–15 km   → 近界 3 格（4.5 km），远界 9 格（13.5 km）
+       自行炮   0.8–5 km   → 1–3 格
+       反坦克   0.8–1.5 km → 1 格 */
+  const mk = (t, rng) => ({ type: t, rng });
+  ok('旅野炮近界 2 格（3 km）', api.minRange(mk('art', 5)) === 2);
+  ok('师重炮近界 3 格（4.5 km）', api.minRange(mk('hr', 9)) === 3);
+  ok('自行火炮近界 1 格', api.minRange(mk('sha', 3)) === 1 && api.minRange(mk('spa', 3)) === 1);
+  ok('旅野炮远界 5 格（7.5 km）', api.attackRange(mk('art', 5)) === 5);
+  ok('师重炮远界 9 格（13.5 km）', api.attackRange(mk('hr', 9)) === 9);
 
-  const art = { type: 'art', rng: 2 };
-  const hr = { type: 'hr', rng: 3 };
-  const inf = { type: 'gdn', rng: 1 };
-  ok('步兵贴脸炮兵 → 炮兵可反击', api.canCounter(inf, art) === true);
-  ok('步兵贴脸重炮 → 重炮无法反击', api.canCounter(inf, hr) === false);
+  /* 近界以内就是打不到：榴弹炮打不了自己脚下，反击也一样 */
+  const inf = { type: 'gdn', rng: 1, pos: [5, 5] };
+  const art = { type: 'art', rng: 5, pos: [5, 6] };
+  const hr  = { type: 'hr',  rng: 9, pos: [5, 7] };
+  const sha = { type: 'sha', rng: 3, pos: [5, 6] };
+  ok('步兵贴脸旅野炮 → 够不着，不反击', api.canCounter(inf, art) === false);
+  ok('步兵贴脸重炮 → 够不着，不反击', api.canCounter(inf, hr) === false);
+  ok('步兵贴脸自行炮 → 可反击（直瞄）', api.canCounter(inf, sha) === true);
 
-  // 相邻目标进入射程
+  /* 目标列表按近界过滤 */
   api.newGame();
   const a = api.alive('blue').find(u => u.type === 'art');
   const t = api.alive('red').find(u => api.canCapture(u));
   api.getState().units.forEach(u => { if (u !== a && u.side === 'red') u.pos = [0, 19]; });
   t.pos = api.neighbors(a.pos[0], a.pos[1])[0];
-  ok('相邻敌军进入炮兵目标列表', api.targetsFor(a, api.getState().fields).includes(t));
+  ok('贴到近界以内的敌军不在炮兵目标里', !api.targetsFor(a, api.getState().fields).includes(t));
+  t.pos = [a.pos[0] - 2, a.pos[1]];
+  ok('退到 2 格（近界外）才进目标列表', api.targetsFor(a, api.getState().fields).includes(t));
 
-  // 直瞄炮的反击火力减半
+  /* 直瞄火力减半只对自行炮成立 */
   api.newGame();
   const st2 = api.getState();
-  const inf2 = api.alive('blue').find(u => u.type === 'gdn');
-  const rArt = api.alive('red').find(u => u.type === 'art');
-  rArt.pos = [inf2.pos[0], inf2.pos[1] + 1];
-  const pvArt = api.previewAttack(inf2, rArt, st2.fields);
-  ok('打直瞄炮 → 可反击但火力减半', pvArt.counter === true && pvArt.counterSoft === true,
-     pvArt.counter + '/' + pvArt.counterSoft);
+  const bSha = api.alive('blue').find(u => u.type === 'sha');
+  const rInf = api.alive('red').find(u => api.canCapture(u));
+  bSha.pos = api.neighbors(rInf.pos[0], rInf.pos[1])[0];
+  const pv = api.previewAttack(rInf, bSha, st2.fields);
+  ok('打自行炮 → 可反击但火力减半', pv.counter === true && pv.counterSoft === true);
 }
 
 /* ───────── 四、地图视图（移动端缩放/平移） ───────── */
@@ -619,6 +630,86 @@ console.log('\n[16] 补给点');
   const dep = srcs.find(s => s.kind === '补给点');
   const base = srcs.find(s => s.kind === '基地');
   ok('补给点半径大于基地', dep && base && dep.r > base.r, dep && base && dep.r + ' vs ' + base.r);
+}
+
+/* ───────── 十七、拖曳炮展收 ───────── */
+console.log('\n[17] 拖曳炮架设与收起');
+{
+  api.newGame();
+  const art = api.alive('blue').find(u => u.type === 'art');
+  ok('守军炮兵预设阵地，初始已展开', art.packed === false);
+  ok('旅野炮属于拖曳炮', api.isTowed(art) === true);
+
+  /* 没收到炮就挪不动——这就是"打完要花一回合收回"的强制点 */
+  const p0 = art.pos.slice();
+  const tgt = api.neighbors(p0[0], p0[1]).find(n => api.getState().units.filter(x =>
+    x.pos[0] === n[0] && x.pos[1] === n[1]).length < api.STACK_MAX);
+  const r0 = api.doMove(art, tgt);
+  ok('未收炮 → 拒绝转移', r0 === false && art.pos.join(',') === p0.join(','), '返回 ' + r0);
+
+  /* 收炮吃掉整个回合 */
+  ok('收炮执行成功', api.doPack(art) === true);
+  ok('收炮后进入行军状态', art.packed === true);
+  ok('收炮占掉本回合的移动与射击', art.moved === true && art.fired === true);
+  ok('行军状态不能射击', api.targetsFor(art, api.getState().fields).length === 0);
+
+  /* 下一回合：能走了，但到新阵地仍是行军状态 */
+  art.moved = false; art.fired = false;
+  const r1 = api.doMove(art, tgt);
+  ok('收炮后下一回合可以转移', r1 === true, '返回 ' + r1);
+  ok('转移后仍需重新架设', art.packed === true);
+
+  /* 展开同样吃掉整个回合，本回合开不了火 */
+  art.moved = false; art.fired = false;
+  ok('架设执行成功', api.doUnpack(art) === true);
+  ok('架设后恢复展开状态', art.packed === false);
+  ok('架设当回合不能射击', art.fired === true);
+
+  /* 自行炮不受这套节拍约束 */
+  const sha = api.alive('blue').find(u => u.type === 'sha');
+  ok('自行火炮不属于拖曳炮', api.isTowed(sha) === false);
+  ok('自行炮没有 packed 限制', api.targetsFor(sha, api.getState().fields) !== null);
+
+  /* 完整循环 4 回合：打 → 收 → 移 → 架 */
+  api.newGame();
+  const a2 = api.alive('blue').find(u => u.type === 'art');
+  let steps = 0;
+  if (api.doPack(a2)) steps++;
+  a2.moved = false; a2.fired = false;
+  const nb = api.neighbors(a2.pos[0], a2.pos[1])[0];
+  if (api.doMove(a2, nb)) steps++;
+  a2.moved = false; a2.fired = false;
+  if (api.doUnpack(a2)) steps++;
+  a2.moved = false; a2.fired = false;
+  ok('一个完整循环是"收炮→转移→架设"三步', steps === 3, '完成了 ' + steps + ' 步');
+  ok('走完循环后可以再次射击', a2.packed === false && a2.moved === false);
+}
+
+/* ───────── 十八、工事抗炮击 ───────── */
+console.log('\n[18] 工事抗炮击');
+{
+  api.newGame();
+  const A = api.uid('B1A'), E = api.uid('B1E');
+  A.pos = [9, 9]; E.pos = [9, 10];
+  const gun = api.uid('R3F');          // 敌旅属野炮（射程 2–5）
+  gun.pos = [9, 13];
+  const inf = api.uid('R3A');
+  inf.pos = [8, 9];
+
+  const st = api.getState();
+  const p0 = api.previewAttack(gun, A, st.fields).attMod;
+  const m0 = api.previewAttack(inf, A, st.fields).attMod;
+
+  ok('工兵建堑壕成功', api.doFort(E, [9, 9], 'H') !== false);
+  const p1 = api.previewAttack(gun, A, api.getState().fields).attMod;
+  const m1 = api.previewAttack(inf, A, api.getState().fields).attMod;
+
+  ok('堑壕让炮击修正再降 0.45', Math.abs((p0 - p1) - 0.45) < 0.02,
+     p0.toFixed(2) + ' → ' + p1.toFixed(2));
+  ok('近战攻击不受抗炮击影响', Math.abs(m0 - m1) < 0.001,
+     m0.toFixed(2) + ' → ' + m1.toFixed(2));
+  ok('抗炮击只对有工事的一方生效', api.FORT.H.shell === 0.45 && api.FORT.B.shell === 0.65,
+     'H ' + api.FORT.H.shell + ' / B ' + api.FORT.B.shell);
 }
 
 console.log('\n通过 ' + pass + ' 项，失败 ' + fail + ' 项');

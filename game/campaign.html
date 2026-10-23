@@ -158,6 +158,11 @@
   .unit.blue { background: var(--blue); }
   .unit.red  { background: var(--red); }
   .unit.spent { opacity: .42; }
+  /* 拖曳炮收炮/行军状态：斜纹，一眼看出"这门炮现在打不了" */
+  .unit.packed::after {
+    content: ''; position: absolute; inset: 0; border-radius: 3px; pointer-events: none;
+    background: repeating-linear-gradient(45deg, rgba(0,0,0,.30) 0 3px, transparent 3px 6px);
+  }
   .unit.sel { outline: 2px solid #1F1E1A; outline-offset: 1px; box-shadow: 0 0 0 4px rgba(31,30,26,.16); }
   .unit .n { font-size: 8px; letter-spacing: -.3px; opacity: .95; }
   .unit .s { font-size: 10px; font-weight: 800; line-height: 1.05; }
@@ -596,7 +601,7 @@
       <span><i class="k cc"></i>争夺中</span>
       <span><i class="k fort"></i>工事</span>
       <span>角标：H 堑壕 · B 碉堡 · P 要塞炮 · A 岸防炮 · F 防空阵地 · 补 补给点</span>
-      <span class="lg-note">1 格 ≈ 1.5km（全图 30×21km）· 守军前出不丢城 · 重炮最小射程 2 格</span>
+      <span class="lg-note">1 格 ≈ 1.5km（全图 30×21km）· 守军前出不丢城 · 牵引炮架设 / 收炮各占一回合</span>
     </div>
   </main>
 
@@ -645,7 +650,7 @@
     </div>
     <div class="start-foot">
       <span>音效 OpenGameArt (CC0) · Mixkit · Kenney (CC0)</span>
-      <span id="verTag">v3.6.1</span>
+      <span id="verTag">v3.7</span>
     </div>
   </div>
 </div>
@@ -703,7 +708,10 @@
       <li><b>守备营</b>：要点内战力 7 → 10、防御 +20%；<b>一出城就掉回 7</b>，别拿它当援军。</li>
       <li><b>坦克营</b>：平原/道路攻击 +15%，城镇 −10%。比值到 3:1 能击退守军一格。</li>
       <li><b>反坦克连</b>：打坦克 ×1.8，打步兵 ×0.6。没有它，敌方装甲在平原上近乎无解。</li>
-      <li><b>炮兵</b>：旅炮和自行火炮最小射程 1（能还手），师重炮最小 2 且<b>移动当回合不能射击</b>。</li>
+      <li><b>炮兵射程按现实换算</b>（1 格 = 1.5 km）：旅野炮 3–8 km（2–5 格）、师重炮 12–15 km（3–9 格）、自行炮 0.8–5 km（1–3 格）。</li>
+      <li><b>近界真实存在</b>：野炮贴到 2 格以内、重炮贴到 3 格以内就打不到了，得靠步兵挡在前面。</li>
+      <li><b>牵引炮要架设和收炮，各占一回合。</b>展开状态才能射击，收炮状态才能转移——「射击 → 收炮 → 转移 → 架设」是一整个 4 回合循环。兵牌上的斜纹就是"已收炮、现在打不了"。</li>
+      <li><b>自行炮没有这套限制</b>，移动当回合就能开火，可打带跑——这就是它比牵引炮贵的地方。</li>
       <li><b>侦察连</b>：3 格内给己方炮兵 +15% 校射，机动 10，但别拿去顶线。</li>
     </ul>
 
@@ -749,22 +757,26 @@ const TYPE = {
     abil: ['平原、道路攻击 +0.15', '比值达 3:1 时可击退守军一格', '城镇进攻 -0.10（巷战不利）', '被反坦克连攻击时无减伤',
            '★ 装甲突击：本回合机动后仍可正常射击（其余兵种 −0.10），射击后还能再机动一次'] },
   art: { name: '旅炮兵营', role: '旅属伴随火力', am: 8,
-    abil: ['轻型野炮，可放平了直瞄射击：最小射程 1，射程 3',
-           '直瞄攻击修正 −0.15，打城内/林地目标再 −0.10',
-           '被贴脸时可以反击（重炮不行）', '移动后仍可射击，修正 −0.10',
-           '弹药 8 发，静止且补给正常可 +1/回合'] },
+    abil: ['拖曳式野炮，射程 2–5 格（3–8 km）',
+           '近界 2 格（3 km）：贴到 3 km 内打不到，需要步兵掩护',
+           '行军 / 展开各占一回合：架设或收炮的当回合不能射击',
+           '打城内 / 林地目标 −0.10（遮蔽）',
+           '弹药 8 发，静止且补给正常 +1/回合'] },
   hr:  { name: '师重炮营', role: '师属压制火力', am: 5,
-    abil: ['射程 4，最小射程 2（重炮需原地展开，打不了贴脸目标）',
-           '本回合移动过则不能射击（需原地展开）',
-           '弹药 5 发，威力最强', '被近战单位贴脸时无法反击'] },
+    abil: ['师 / 军属榴弹炮，射程 3–9 格（4.5–13.5 km），全图最远',
+           '近界 3 格（4.5 km）：贴到 4.5 km 内完全打不到',
+           '行军 / 展开各占一回合，且这期间不能射击——射程是靠节奏换的',
+           '弹药 5 发，威力最强；转移阵地一次要 3 回合，等于放弃一段火力'] },
   sha: { name: '旅自行火炮连', role: '旅属机动火力', am: 6,
-    abil: ['自行火炮，可直瞄：最小射程 1，射程 3',
-           '直瞄攻击修正 −0.15，打城内/林地目标再 −0.10',
-           '移动后射击无惩罚，可打带跑', '机动 8，防御优于牵引炮兵'] },
+    abil: ['自行火炮，射程 1–3 格（0.8–5 km），可直瞄',
+           '不需要展开 / 收起：移动后当回合就能射击，可打带跑',
+           '直瞄攻击修正 −0.15，打城内 / 林地目标再 −0.10',
+           '机动 8，防御优于牵引炮兵'] },
   spa: { name: '师自行火炮营', role: '师属机动火力', am: 6,
-    abil: ['自行火炮，可直瞄：最小射程 1，射程 3',
-           '直瞄攻击修正 −0.15，打城内/林地目标再 −0.10',
-           '移动后射击无惩罚', '机动 8，防御优于牵引炮兵', '弹药 6 发，数量稀少'] },
+    abil: ['师属自行火炮，射程 1–3 格（0.8–5 km）',
+           '不需要展开 / 收起，移动后射击无惩罚',
+           '直瞄攻击修正 −0.15，打城内 / 林地目标再 −0.10',
+           '机动 8，防御优于牵引炮兵', '弹药 6 发，数量稀少'] },
   eng: { name: '工兵营', role: '工程作业', am: 0,
     abil: ['可构筑全部五类工事：堑壕 H / 碉堡 B / 要塞炮 P / 岸防炮 A / 防空阵地 F',
            '布雷：在相邻空格布设雷区，敌方进入损失 3 战力并停止',
@@ -776,8 +788,15 @@ const TYPE = {
            '不能布雷、不能架桥（编制上没有舟桥与爆破分队）',
            '战力 2，只能跟在步兵后面作业'] },
   at:  { name: '反坦克连', role: '反装甲', am: 4,
-    abil: ['攻击坦克营、装步营时 ×1.8（+0.80）', '攻击步兵、守备营时 ×0.6（-0.40）', '防御战中被装甲攻击时防御 +0.15',
-           '没有它，装甲部队在平原上近乎无解'] },
+    abil: ['反坦克炮，射程 1 格（0.8–1.5 km）——必须放到敌人坦克的必经之路上',
+           '攻击坦克营、装步营时 ×1.8（+0.80）', '攻击步兵、守备营时 ×0.6（-0.40）',
+           '防御战中被装甲攻击时防御 +0.15', '没有它，装甲部队在平原上近乎无解'] },
+  td:  { name: '坦克歼击车连', role: '反装甲（自行）', am: 4,
+    abil: ['坦克歼击车，射程 1 格（0.8–1.5 km），与反坦克炮同档',
+           '攻击坦克营、装步营时 ×1.8（+0.80），打步兵 ×0.6（−0.40）',
+           '自行底盘：机动 7，被装甲攻击时防御 +0.30（反坦克炮是 +0.15）',
+           '不需要展开 / 收起，可以跟着装甲部队一起转移阵地',
+           '代价是编制稀少——它是反坦克炮的机动化替代，不是补充'] },
   aac: { name: '防空连', role: '对空掩护', am: 4,
     abil: ['半径 2 内敌方航空攻击 -0.30', '对地面目标只有微弱火力'] },
   aab: { name: '防空营', role: '军属防空伞', am: 6,
@@ -915,7 +934,7 @@ const LEVEL = {
     { id:'B1A', side:'blue', abbr:'1-1',  name:'岚口预备役第 1 旅第 1 营',     type:'gdn', str:7,  mov:5,  rng:1, r:11, c:2,  corps:'B1', wave:1 },
     { id:'B1B', side:'blue', abbr:'1-2',  name:'岚口预备役第 1 旅第 2 营',     type:'gdn', str:7,  mov:5,  rng:1, r:12, c:2,  corps:'B1', wave:1 },
     { id:'B1C', side:'blue', abbr:'1-3',  name:'岚口预备役第 1 旅第 3 营',     type:'gdn', str:7,  mov:5,  rng:1, r:12, c:3,  corps:'B1', wave:1 },
-    { id:'B1F', side:'blue', abbr:'1炮',  name:'岚口预备役第 1 旅炮兵营',      type:'art', str:5,  mov:6,  rng:3, r:13, c:3,  corps:'B1', wave:1 },
+    { id:'B1F', side:'blue', abbr:'1炮',  name:'岚口预备役第 1 旅炮兵营',      type:'art', str:5,  mov:6,  rng:5, r:13, c:3,  corps:'B1', wave:1 },
     { id:'B1E', side:'blue', abbr:'1工',  name:'岚口预备役第 1 旅工兵连',      type:'engc',str:2,  mov:6,  rng:1, r:13, c:1,  corps:'B1', wave:1 },
     { id:'B1T', side:'blue', abbr:'1反',  name:'岚口预备役第 1 旅反坦克连',    type:'at',  str:3,  mov:5,  rng:1, r:11, c:1,  corps:'B1', wave:1 },
     /* 我方 · 西部军区独立第 1 旅（岚口机场） */
@@ -923,7 +942,7 @@ const LEVEL = {
     { id:'B2A', side:'blue', abbr:'2-1',  name:'西部军区独立第 1 旅第 1 营',     type:'gdn', str:7,  mov:5,  rng:1, r:11, c:16, corps:'B2', wave:1 },
     { id:'B2B', side:'blue', abbr:'2-2',  name:'西部军区独立第 1 旅第 2 营',     type:'gdn', str:7,  mov:5,  rng:1, r:12, c:16, corps:'B2', wave:1 },
     { id:'B2C', side:'blue', abbr:'2-3',  name:'西部军区独立第 1 旅第 3 营',     type:'gdn', str:7,  mov:5,  rng:1, r:12, c:17, corps:'B2', wave:1 },
-    { id:'B2F', side:'blue', abbr:'2炮',  name:'西部军区独立第 1 旅炮兵营',      type:'art', str:5,  mov:6,  rng:3, r:13, c:16, corps:'B2', wave:1 },
+    { id:'B2F', side:'blue', abbr:'2炮',  name:'西部军区独立第 1 旅炮兵营',      type:'art', str:5,  mov:6,  rng:5, r:13, c:16, corps:'B2', wave:1 },
     { id:'B2E', side:'blue', abbr:'2工',  name:'西部军区独立第 1 旅工兵营',      type:'eng', str:3,  mov:6,  rng:1, r:13, c:17, corps:'B2', wave:1 },
     { id:'B2T', side:'blue', abbr:'2反',  name:'西部军区独立第 1 旅反坦克连',    type:'at',  str:3,  mov:5,  rng:1, r:11, c:17, corps:'B2', wave:1 },
     /* 我方 · 装甲旅（城外机动预备队） */
@@ -940,7 +959,7 @@ const LEVEL = {
     { id:'R3A', side:'red',  abbr:'3-1',  name:'敌摩步第 3 旅第 1 营',     type:'mob', str:9,  mov:8,  rng:1, r:2,  c:2,  corps:'R3', wave:1 },
     { id:'R3B', side:'red',  abbr:'3-2',  name:'敌摩步第 3 旅第 2 营',     type:'mob', str:9,  mov:8,  rng:1, r:2,  c:3,  corps:'R3', wave:1 },
     { id:'R3C', side:'red',  abbr:'3-3',  name:'敌摩步第 3 旅第 3 营',     type:'mob', str:9,  mov:8,  rng:1, r:2,  c:4,  corps:'R3', wave:1 },
-    { id:'R3F', side:'red',  abbr:'3炮',  name:'敌摩步第 3 旅炮兵营',      type:'art', str:5,  mov:6,  rng:3, r:0,  c:3,  corps:'R3', wave:1 },
+    { id:'R3F', side:'red',  abbr:'3炮',  name:'敌摩步第 3 旅炮兵营',      type:'art', str:5,  mov:6,  rng:5, r:0,  c:3,  corps:'R3', wave:1, packed:1 },
     { id:'R3T', side:'red',  abbr:'3反',  name:'敌摩步第 3 旅反坦克连',    type:'at',  str:3,  mov:5,  rng:1, r:1,  c:4,  corps:'R3', wave:1 },
     /* 摩步旅编制里本来就有工兵连，而且强渡江河必然配属舟桥分队。
        之前红方一个能架桥的工兵都没有——engc 编制上只能挖堑壕、排雷，
@@ -955,13 +974,15 @@ const LEVEL = {
     { id:'R4B', side:'red',  abbr:'4-2',  name:'敌装甲第 4 旅第 2 营（坦克）', type:'arm', str:12, mov:10, rng:1, r:0, c:13, corps:'R4', wave:2 },
     { id:'R4C', side:'red',  abbr:'4-3',  name:'敌装甲第 4 旅第 3 营（装步）', type:'mech',str:9, mov:8, rng:1, r:1, c:13, corps:'R4', wave:2 },
     { id:'R4F', side:'red',  abbr:'4炮',  name:'敌装甲第 4 旅自行火炮连', type:'sha', str:4,  mov:8,  rng:3, r:0,  c:14, corps:'R4', wave:2 },
+    /* 本关敌方是先遣部队，编制上限只到旅属野炮。师/军重炮（hr）的 9 格射程
+       留给后续攻坚关——渡口争夺战里出现重炮，射程会直接压穿整条防线。 */
     /* 敌方 · 第三波 · 敌第 6 战斗群（第 7 回合） */
     { id:'R6H', side:'red',  abbr:'6H',   name:'敌第 6 战斗群群部',       type:'hkg', str:2,  mov:8,  rng:0, r:0,  c:16, corps:'R6', wave:3 },
     { id:'R6A', side:'red',  abbr:'6-1',  name:'战斗群第 1 营（坦克）', type:'arm', str:11, mov:10, rng:1, r:1,  c:16, corps:'R6', wave:3 },
     { id:'R6B', side:'red',  abbr:'6-2',  name:'战斗群第 2 营（坦克）', type:'arm', str:11, mov:10, rng:1, r:2,  c:16, corps:'R6', wave:3 },
     { id:'R6C', side:'red',  abbr:'6-3',  name:'战斗群第 3 营（装步）', type:'mech',str:9,  mov:8,  rng:1, r:1,  c:17, corps:'R6', wave:3 },
     { id:'R6D', side:'red',  abbr:'6-4',  name:'战斗群第 4 营（装步）', type:'mech',str:9,  mov:8,  rng:1, r:2,  c:18, corps:'R6', wave:3 },
-    { id:'R6F', side:'red',  abbr:'6炮',  name:'战斗群炮兵营',          type:'art', str:5,  mov:6,  rng:3, r:0,  c:17, corps:'R6', wave:3 },
+    { id:'R6F', side:'red',  abbr:'6炮',  name:'战斗群炮兵营',          type:'art', str:5,  mov:6,  rng:5, r:0,  c:17, corps:'R6', wave:3, packed:1 },
     { id:'R6S', side:'red',  abbr:'6自',  name:'战斗群自行火炮连',      type:'sha', str:4,  mov:8,  rng:3, r:0,  c:18, corps:'R6', wave:3 },
     { id:'R6E', side:'red',  abbr:'6工',  name:'战斗群工兵连',          type:'engc',str:2,  mov:6,  rng:1, r:1,  c:18, corps:'R6', wave:3 },
     { id:'R6G', side:'red',  abbr:'6防',  name:'战斗群防空连',          type:'aac', str:2,  mov:6,  rng:2, r:2,  c:17, corps:'R6', wave:3 },
@@ -996,7 +1017,7 @@ const ASSETS = {
   /* 兵种图标：键名与 TYPE 一一对应，建议 64×64 透明底 PNG/WebP */
   unit: {
     inf: null, gdn: null, mob: null, mech: null, arm: null,
-    art: null, hr: null, sha: null, spa: null, at: null,
+    art: null, hr: null, sha: null, spa: null, at: null, td: null,
     eng: null, engc: null, rec: null, sup: null, avn: null,
     aac: null, aab: null, hqd: null, hqb: null, hkg: null, hkc: null
   },
@@ -1363,9 +1384,14 @@ function objAt(r, c) {
 function alive(side) { return state.units.filter(u => u.side === side); }
 function uid(id) { return state.units.find(u => u.id === id) || null; }
 const ARTY_TYPES = ['art', 'hr', 'sha', 'spa'];
-/* 直瞄火炮：轻型野战炮与自行火炮都能放平了打，最小射程 1，被贴脸也能还手。
-   师重炮营（hr）不在其列——重炮需原地展开，最小射程 2。 */
-const ARTY_DIRECT = ['art', 'sha', 'spa'];
+/* 直瞄火炮：自行火炮能放平了打，1 格内也能还手。
+   旅野炮与师重炮都有近界（射程表按现实火力换算，见 minRange）。 */
+const ARTY_DIRECT = ['sha', 'spa'];
+/* 拖曳式火炮：必须架设后才能射击，转移前必须收炮。
+   自行火炮（sha / spa）不受此限——这是两类炮兵唯一的、也是最重要的区别。 */
+const TOWED_TYPES = ['art', 'hr'];
+/* 反坦克类：反坦克炮与坦克歼击车共用同一套克制关系 */
+const AT_LIKE = ['at', 'td'];
 /* 行进间射击：坦克有火炮稳定器、自行火炮有射击指挥系统，
    本回合机动过仍能正常射击；其余兵种机动后射击 −0.10。 */
 const ARM_FIRE = ['arm', 'sha', 'spa'];
@@ -1373,6 +1399,7 @@ const HQ_TYPES   = ['hqd', 'hqb', 'hkg', 'hkc'];
 const CAPTURE_TYPES = ['inf', 'gdn', 'mob', 'mech', 'arm', 'eng', 'engc'];
 function isArty(u) { return ARTY_TYPES.includes(u.type); }
 function isDirectArty(u) { return ARTY_DIRECT.includes(u.type); }
+function isTowed(u) { return TOWED_TYPES.includes(u.type); }
 function isHQ(u) { return HQ_TYPES.includes(u.type); }
 function canCapture(u) { return CAPTURE_TYPES.includes(u.type); }
 function coordName(p) { return String.fromCharCode(65 + p[1]) + (p[0] + 1); }
@@ -1545,7 +1572,14 @@ function attackRange(u) {
   if (isArty(u) && fortKind(u) === 'P') r += 1;   // 要塞炮：驻守炮兵射程 +1
   return r;
 }
-function minRange(u) { return isArty(u) ? (isDirectArty(u) ? 1 : 2) : 1; }
+/* 最小射程 = 火炮近界。按 1.5 km/格 从现实数据换算：
+     旅野炮 3 km → 2 格；师重炮 4.5 km → 3 格；自行炮与反坦克 1 格。
+   近界是真实存在的：榴弹炮打不了自己脚下的目标，要靠步兵掩护。 */
+function minRange(u) {
+  if (u.type === 'hr') return 3;    // 4.5 km
+  if (u.type === 'art') return 2;   // 3 km
+  return 1;
+}
 
 function moveCost(u, ch) {
   const t = TERRAIN[ch];
@@ -1619,6 +1653,8 @@ function helpers(u, defPos, side) {
 /* 反击判定：射程够不到，或远程单位被近战贴脸 → 无法反击
    例外：直瞄火炮可以放平了打贴脸目标 */
 function canCounter(att, def) {
+  /* 贴到防守方近界以内，它根本够不着，不算反击 */
+  if (hexDist(att.pos, def.pos) < minRange(def)) return false;
   const ar = attackRange(att), dr = attackRange(def);
   if (dr < ar) return false;
   if (dr >= 2 && ar <= 1) return isDirectArty(def);
@@ -1671,16 +1707,23 @@ function previewAttack(att, def, fields) {
   /* 碉堡：混凝土火力点，装甲强攻吃亏 */
   if (att.type === 'arm' && fortKind(def) === 'B') attMod -= 0.15;
   /* 反坦克连：对装甲重击，对步兵乏力 */
-  if (att.type === 'at') {
+  if (AT_LIKE.includes(att.type)) {
     if (def.type === 'arm' || def.type === 'mech') attMod += 0.80;
     else attMod -= 0.40;
   }
   attMod += recBonus(att, def.pos);
   attMod -= aaPenalty(att, def.pos);
+  /* 工事抗炮击：远程火力打有工事的目标，攻击额外减成。
+     这条对红方尤其致命——它不筑工事，蓝方炮兵打它照常结算。 */
+  if (isArty(att) || attackRange(att) >= 2) {
+    const fk2 = fortKind(def);
+    if (fk2 && FORT[fk2] && FORT[fk2].shell) attMod -= FORT[fk2].shell;
+  }
   attMod += modAtk(att);
 
   let defMod = 0;
   if (def.type === 'at' && (att.type === 'arm' || att.type === 'mech')) defMod += 0.15;
+  if (def.type === 'td' && (att.type === 'arm' || att.type === 'mech')) defMod += 0.30;
   defMod += modDef(def);
 
   const attSum = (effStr(att, fields) +
@@ -1697,15 +1740,22 @@ function previewAttack(att, def, fields) {
   };
 }
 
-function targetsFor(u, fields) {
+/* 仅在射程内，不看展开状态与弹药。AI 靠它判断"这一炮位值不值得守"。 */
+function inRangeTargets(u, fields) {
   if (u.rng === 0) return [];
-  if (isArty(u) && u.ammo !== undefined && u.ammo <= 0) return [];
   const foe = other(u.side);
   const lo = minRange(u), hi = attackRange(u);
   return alive(foe).filter(t => {
     const d = hexDist(u.pos, t.pos);
     return d >= lo && d <= hi;
   });
+}
+function targetsFor(u, fields) {
+  if (u.rng === 0) return [];
+  if (isArty(u) && u.ammo !== undefined && u.ammo <= 0) return [];
+  /* 拖曳炮没展开（行军状态）就开不了火 */
+  if (isTowed(u) && (u.packed || u.moved)) return [];
+  return inRangeTargets(u, fields);
 }
 
 /* ── 要点控制权：持久化状态 ──────────────────────────────
@@ -1872,6 +1922,9 @@ function makeUnit(u, spent) {
   return {
     ...u, pos: [u.r, u.c], org: 100,
     moved: !!spent, fired: !!spent, fortify: 0,
+    /* packed = 收炮/行军状态。拖曳炮进场即行军状态，必须先展开。
+       自行炮与直射单位没有这个概念，字段恒为 false。 */
+    packed: u.packed === undefined ? false : !!u.packed,
     ammo: am || undefined, maxAmmo: am || undefined
   };
 }
@@ -1883,7 +1936,7 @@ function makeUnit(u, spent) {
    所有读写包在 try 里：隐私模式、file:// 直开、配额满都可能让 localStorage 抛错。
    存档失效只该降级成"不能续关"，不该让游戏崩。 */
 const SAVE_KEY = 'wargame.lankou.save';
-const SAVE_VER = 1;      // 关卡数据或 state 结构变了就 +1；旧档自动作废——宁可不续，不能读坏
+const SAVE_VER = 2;      // v2：加 packed（火炮展收状态）与射程换算，旧档直接作废
 
 function saveSnapshot() {
   if (!state) return null;
@@ -1944,7 +1997,7 @@ function restoreGame(s) {
   state = {
     turn: s.turn,
     phase: 'blue',                              // 存档只在"我方阶段静止时"写，强制回我方
-    units: JSON.parse(JSON.stringify(s.units)),
+    units: JSON.parse(JSON.stringify(s.units)).map(u => ({ ...u, packed: u.packed === undefined ? false : !!u.packed })),
     mines: s.mines || [],
     depots: s.depots || [],
     forts: s.forts || [],
@@ -2135,11 +2188,17 @@ function doMove(u, pos) {
       return false;
     }
   }
+  /* 拖曳炮转移阵地前必须先收炮——这就是"打完之后要花一回合收回"的强制点。
+     以前这里只拦 hr，而且是在移动后把 fired 置真，本质是"移动了就别打了"，
+     既没有架设回合，也没有收回回合。 */
+  if (isTowed(u) && !u.packed) {
+    log(u.abbr + ' 火炮还没收起，不能转移阵地。先执行「收炮」。', 'sys');
+    return false;
+  }
   pushUndo();
   u.pos = pos;
   u.moved = true;
   u.fortify = 0;
-  if (u.type === 'hr') u.fired = true;      // 重炮需原地展开，移动当回合不能射击
 
   /* 岸防炮封锁：进入敌方岸防炮相邻的渡口格要挨一轮炮 */
   if (LEVEL.map[pos[0]][pos[1]] === '=') {
@@ -2163,6 +2222,33 @@ function doMove(u, pos) {
   render();
   checkEnd();
   saveGame();
+  return true;
+}
+
+/* ───────────────── 拖曳炮：收炮 / 展开 ─────────────────
+   两个动作都吃掉本回合的移动与射击，所以一个完整循环是
+     射击 → 收炮（1 回合）→ 转移（1 回合）→ 架设（1 回合）→ 射击
+   4 回合一轮。师重炮 9 格的覆盖范围就是拿这个节拍换的。
+   自行炮不需要这一套，这正是它们贵的原因。 */
+function doPack(u) {
+  if (!isTowed(u) || u.packed || u.moved) return false;
+  pushUndo();
+  u.packed = true;
+  u.moved = true; u.fired = true;
+  log(u.abbr + ' 收炮挂车，本回合用于收炮，下回合可以转移。', u.side === 'blue' ? 'b' : 'r');
+  FX.sfx('move');
+  clearSelection(); refreshFields(); render(); saveGame();
+  return true;
+}
+function doUnpack(u) {
+  if (!isTowed(u) || !u.packed || u.moved) return false;
+  pushUndo();
+  u.packed = false;
+  u.moved = true; u.fired = true;
+  log(u.abbr + ' 占领阵地、放列架设，本回合用于展开，下回合可以开火。',
+      u.side === 'blue' ? 'b' : 'r');
+  FX.sfx('build');
+  clearSelection(); refreshFields(); render(); saveGame();
   return true;
 }
 
@@ -2257,20 +2343,23 @@ function removeUnit(u) {
    与「部队自筑工事」（u.fortify，静止累积）叠加。
    by  = 有资格建造的兵种；req = 地形前置条件。
    简单工事（堑壕）下放给步兵，复杂工事（碉堡/要塞炮/岸防炮）必须工兵营。 */
+/* shell = 抗炮击系数：远程火力（火炮 / 航空）打本格目标时，攻击方额外减这么多。
+   堑壕与掩体本来就是按"扛住炮火"修的，对子弹没什么用，对炮弹非常有用。
+   这条规则天然偏向有工事的一方——本关是蓝方在守，红方不筑工事。 */
 const FORT = {
-  H: { name: '堑壕', code: 'H', def: 0.15, hp: 0,
+  H: { name: '堑壕', code: 'H', def: 0.15, hp: 0, shell: 0.45,
        by: ['inf', 'gdn', 'mob', 'mech', 'eng', 'engc'], req: null,
        note: '散兵壕与单人掩体。步兵自己就能挖，与部队自筑工事叠加。无耐久。' },
-  B: { name: '碉堡', code: 'B', def: 0.28, hp: 3,
+  B: { name: '碉堡', code: 'B', def: 0.28, hp: 3, shell: 0.65,
        by: ['eng'], req: null,
        note: '钢筋混凝土火力点。装甲部队进攻此格额外 −0.15。耐久 3。' },
-  P: { name: '要塞炮', code: 'P', def: 0.22, hp: 5,
+  P: { name: '要塞炮', code: 'P', def: 0.22, hp: 5, shell: 0.50,
        by: ['eng'], req: 'high', fire: { rng: 3, dmg: 2, min: 2 },
        note: '固定炮位。驻守炮兵射程 +1；结算阶段自动对 3 格内敌军开火（2 点伤害，不打相邻格）。耐久 5。' },
-  A: { name: '岸防炮', code: 'A', def: 0.18, hp: 4,
+  A: { name: '岸防炮', code: 'A', def: 0.18, hp: 4, shell: 0.45,
        by: ['eng'], req: 'bank', fire: { rng: 2, dmg: 3, min: 1, river: true },
        note: '封锁渡口。敌军进相邻渡口损失 2 战力；结算阶段自动对 2 格内渡口/河岸格敌军开火（3 点伤害）。耐久 4。' },
-  F: { name: '防空阵地', code: 'F', def: 0.10, hp: 3,
+  F: { name: '防空阵地', code: 'F', def: 0.10, hp: 3, shell: 0.30,
        by: ['eng', 'aac', 'aab'], req: null,
        note: '半径 2 内敌方航空攻击再降 25%（与防空营取高值，不叠乘）。耐久 3。' }
 };
@@ -2740,6 +2829,18 @@ async function runAI() {
       continue;
     }
 
+    /* 拖曳炮的展收节拍。AI 必须走同一套规则，否则 9 格射程就等于白送。
+       行军状态：这一格打得到人就地架设；打不到就继续跟着走。
+       已展开：这一格没目标了才收炮换阵地——有目标就继续打，别来回折腾。 */
+    if (isTowed(u) && !u.moved) {
+      const inR = inRangeTargets(u, state.fields);
+      if (u.packed) {
+        if (inR.length && u.ammo > 0) { doUnpack(u); await sleep(160); continue; }
+      } else if (!inR.length && !u.fired) {
+        doPack(u); await sleep(140); continue;
+      }
+    }
+
     /* 炮兵 / 直射单位：优先开火 */
     if (u.rng > 0 && !u.fired) {
       const tg = targetsFor(u, state.fields);
@@ -2797,7 +2898,8 @@ async function runAI() {
 
     /* 机动 */
     const goal = redGoal(u);
-    if (goal && !u.moved) {
+    const stuckTowed = isTowed(u) && !u.packed;    // 没收到炮，挪不动
+    if (goal && !u.moved && !stuckTowed) {
       const reach = computeReach(u);
       let best = null, bs = -Infinity;
       for (const key in reach.stop) {
@@ -2892,6 +2994,7 @@ function renderBoard() {
       here.forEach((u2, i) => {
         let uc = 'unit ' + u2.side;
         if (u2.moved || u2.fired) uc += ' spent';
+        if (u2.packed) uc += ' packed';
         if (state.selected === u2) uc += ' sel';
         if (here.length > 1) uc += ' stk stk' + i;
         inner += '<div class="' + uc + '" title="' + u2.name + '">' +
@@ -3086,6 +3189,23 @@ function renderUnitBox() {
        ty.abil.map(a => '<div class="abil">' + a + '</div>').join('') + '</div>';
 
   if (u.side === 'blue' && state.phase === 'blue') {
+    /* 拖曳炮：收炮 / 展开。各占一回合，是 9 格射程的代价。
+       放在最前面——玩家发现"打不了"或"动不了"时，第一眼看的就是这里。 */
+    if (isTowed(u)) {
+      h += '<div class="grp"><div class="grp-h">火炮状态</div>';
+      h += '<div class="kv"><span>当前</span><b class="' + (u.packed ? 'warn' : 'ok') + '">' +
+           (u.packed ? '行军 · 已收炮' : '已展开 · 可射击') + '</b></div>';
+      if (u.packed) {
+        h += '<div class="hint">行军状态不能射击。要开火得先花一回合展开。</div>';
+        h += '<button data-act="unpack" style="width:100%;padding:5px;font-size:11px;margin-top:4px" ' +
+             (u.moved ? 'disabled' : '') + '>展开放列（占用本回合）</button>';
+      } else {
+        h += '<div class="hint">已展开。要转移阵地必须先收炮，收炮同样占一回合。</div>';
+        h += '<button data-act="pack" style="width:100%;padding:5px;font-size:11px;margin-top:4px" ' +
+             (u.moved ? 'disabled' : '') + '>收炮挂车（占用本回合）</button>';
+      }
+      h += '</div>';
+    }
     /* 工事：能建什么由兵种决定，步兵只会挖堑壕，复杂工事要工兵营 */
     const spots = [u.pos].concat(neighbors(u.pos));
     const kinds = [];
@@ -3155,7 +3275,7 @@ function renderUnitBox() {
       h += '<div class="grp"><div class="hint">本回合已行动。</div></div>';
     } else if (u.rng > 0) {
       h += '<div class="grp"><div class="hint">射程内无可攻击目标。' +
-           (isArty(u) && !isDirectArty(u) ? '重炮最小射程 2 格，打不了贴脸目标。' : '') + '</div></div>';
+           (isTowed(u) && u.packed ? '火炮处于行军状态，需要先展开才能射击。' : (isArty(u) && minRange(u) > 1 ? '近界 ' + minRange(u) + ' 格以内打不到，需要步兵掩护。' : '')) + '</div></div>';
     }
   }
   box.innerHTML = h;
@@ -3164,6 +3284,8 @@ function renderUnitBox() {
     b.addEventListener('click', () => {
       const a = b.dataset.act;
       if (a === 'depot') { doDepot(u); return; }
+      if (a === 'pack') { doPack(u); return; }
+      if (a === 'unpack') { doUnpack(u); return; }
       if (a === 'fort') {
         const k = b.dataset.kind || 'H';
         const same = state.mode === 'fort' && state.fortKind === k;
@@ -3531,6 +3653,17 @@ if (typeof location !== 'undefined') {
     if (foe) foe.pos = [10, 2];
     selectTerrain(12, 2);
   }
+  else if (q.indexOf('demo=arty2') >= 0) {
+    /* 收炮之后：兵牌斜纹 + 面板变成"行军，需要展开"。
+       必须排在 demo=arty 之前——indexOf 会让 "demo=arty2" 命中 "demo=arty"。 */
+    const a = uid('B1F');
+    if (a) { doPack(a); select(a); }
+  }
+  else if (q.indexOf('demo=arty') >= 0) {
+    /* 牵引炮面板：展开状态、近界、收炮按钮一次性看全 */
+    const a = uid('B1F');
+    if (a) select(a);
+  }
   else if (q.indexOf('demo=clickstack') >= 0) {
     /* 端到端：完全按玩家的点击顺序走一遍，不碰 pos。
        先点自己的部队选中，再点目标友军格——上一版第二步会变成"切换选中"，
@@ -3585,6 +3718,8 @@ window.__WAR__ = {
   blueScore, redScore, canCounter, isArty, canCapture,
   isHQ, hqBonus, homeBonus, hqRadius, hqAura, makeUnit,
   HQ_TYPES, ARTY_TYPES, CAPTURE_TYPES,
+  /* 火炮射程换算与展收机制 */
+  TOWED_TYPES, AT_LIKE, isTowed, minRange, inRangeTargets, doPack, doUnpack,
   /* 堆叠 / 撤销 / 补给场：新增机制的测试入口 */
   unitsAt, stackFull, stackOf, STACK_MAX, STACK_COVER,
   /* 点击层：只测 doMove 会漏掉"界面上根本点不出来"这类 bug，
