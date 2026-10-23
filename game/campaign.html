@@ -529,22 +529,35 @@
   }
   #cutscene.hidden { display: none; }
   .cs-card {
-    width: min(560px, 88vw); background: var(--card); border-radius: 14px;
+    width: min(600px, 88vw); background: var(--card); border-radius: 14px;
     padding: 20px 22px; box-shadow: 0 22px 64px rgba(0,0,0,.38);
-    display: flex; gap: 16px; align-items: flex-start;
+    display: flex; gap: 16px; align-items: stretch;
     animation: csIn .26s ease-out;
   }
   @keyframes csIn {
     from { opacity: 0; transform: translateY(10px) scale(.98); }
     to   { opacity: 1; transform: none; }
   }
+  /* 立绘：3:4 竖半身，成显 132×176（源图按 480×640 画）。
+     比例必须精确 3:4 —— background-size:cover 遇到别的比例会上下/左右对称裁切，
+     头顶是最容易被切掉的地方，画之前先按 3:4 起画布。
+     position 用 center top：万一比例略有偏差，宁可切脚也别切脸。 */
   .cs-portrait {
-    flex: 0 0 76px; width: 76px; height: 76px; border-radius: 10px;
-    background: #EDE9DF center/cover no-repeat; border: 1px solid var(--line);
+    flex: 0 0 132px; width: 132px; height: 176px; border-radius: 12px;
+    background: #EDE9DF center top / cover no-repeat; border: 1px solid var(--line);
     display: flex; align-items: center; justify-content: center;
     color: var(--ink3); font-size: 11px; text-align: center; line-height: 1.3;
+    position: relative; overflow: hidden;
   }
-  .cs-body { flex: 1; min-width: 0; }
+  /* 符号位：没有人物出场的说话人（「方面军司令部 · 电话」）走这里。
+     这类台词是"听来的"不是"看见的"，硬塞一张人脸反而出戏——
+     给个电台符号，玩家立刻知道这是通讯，不是某个人站在你面前。 */
+  .cs-portrait.sig { background: #E9E4D8; }
+  .cs-portrait.sig .sig-ico { width: 48px; height: 48px; opacity: .40; }
+  /* 立绘是 176 高，台词常常只有两三行，右边会空出一大块。
+     让 .cs-body 自己撑满卡片高度、"点击继续"用 margin-top:auto 贴底，
+     右下角就不是空白而是一个明确的操作提示。 */
+  .cs-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
   .cs-who {
     font-size: 12px; font-weight: 700; letter-spacing: 1px;
     color: var(--blue); margin-bottom: 5px;
@@ -555,7 +568,8 @@
     white-space: pre-wrap; word-break: break-word;
   }
   .cs-next {
-    margin-top: 12px; text-align: right; font-size: 11.5px; color: var(--ink3);
+    margin-top: auto; padding-top: 10px;
+    text-align: right; font-size: 11.5px; color: var(--ink3);
     user-select: none; cursor: pointer;
   }
   .cs-next:hover { color: var(--ink2); }
@@ -628,7 +642,8 @@
       white-space: normal; text-align: center; max-width: 92vw; line-height: 1.5;
     }
     .cs-card { padding: 16px 18px; gap: 12px; }
-    .cs-portrait { flex: 0 0 60px; width: 60px; height: 60px; }
+    .cs-portrait { flex: 0 0 90px; width: 90px; height: 120px; }
+    .cs-portrait.sig .sig-ico { width: 34px; height: 34px; }
     .cs-text { font-size: 13.5px; line-height: 1.7; }
 
     /* 触摸目标放大 */
@@ -755,7 +770,7 @@
     </div>
     <div class="start-foot">
       <span>音效 OpenGameArt (CC0) · Mixkit · Kenney (CC0)</span>
-      <span id="verTag">v3.8</span>
+      <span id="verTag">v3.9</span>
     </div>
   </div>
 </div>
@@ -1028,8 +1043,13 @@ const LEVEL = {
                  每页 { order?, kicker, title, paras:[{t, hl?}], nums:[{k, v, hot?}] }
        beats  —— 公文之后的对话过场，走 FX.cutin 的打字机
                  每条 { who, text, side:'blue'|'red', portrait:'portBlue', speed }
+                 portrait 可填 portBlue / portRed / portHQ：
+                   portBlue、portRed 是人物立绘，3:4 竖半身，源图 480×640、成显 132×176
+                   portHQ 是符号位——司令部那通电话没有人物出场，
+                          缺素材时自动画电台符号，永远不显示"立绘位"占位字
 
      没有立绘素材时立绘位显示"立绘位"三个字，台词照常播——素材缺失只是降级，不是错误。
+     立绘比例必须精确 3:4：background-size:cover 遇到别的比例会对称裁切，头顶最先被切。
      所有文案都放在这张表里，改剧本不碰任何逻辑。 */
   story: {
     briefing: {
@@ -1083,11 +1103,11 @@ const LEVEL = {
         }
       ],
       beats: [
-        { who: '方面军司令部 · 电话', side: 'blue',
+        { who: '方面军司令部 · 电话', side: 'blue', portrait: 'portHQ',
           text: '第 3 军今夜过江。你们守到天亮，江对岸就能重新组织防线。\n守不住，西线就没有纵深了。' },
-        { who: '岚口预备役第 1 旅 · 旅长', side: 'blue',
+        { who: '岚口预备役第 1 旅 · 旅长', side: 'blue', portrait: 'portBlue',
           text: '明白。市区、机场、两座桥——我一样一样数给您听。' },
-        { who: '敌摩步第 3 旅 · 前沿无线电', side: 'red',
+        { who: '敌摩步第 3 旅 · 前沿无线电', side: 'red', portrait: 'portRed',
           text: '东岸有守军，工事还没修完。\n天黑之前拿下机场。' }
       ]
     }
@@ -1211,12 +1231,22 @@ const ASSETS = {
   /* 音乐：循环轨，建议 ogg 96kbps 或 mp3 128kbps，单条 1~3 分钟 */
   bgm: { menu: null, battle: null, tension: null, result: null },
 
-  /* 剧情：背景图与立绘。立绘建议 300×400 竖构图 */
+  /* 剧情：背景图与立绘。立绘走 3:4 竖半身，源图 480×640（成显 132×176）。
+     portHQ 是符号位——司令部那通电话不放人脸，缺素材时渲染电台符号。 */
   story: {
     bgBriefing: null, bgVictory: null, bgDefeat: null,
-    portBlue: null, portRed: null
+    portBlue: null, portRed: null, portHQ: null
   }
 };
+
+/* 「方面军司令部 · 电话」用的电台符号：没有人物出场，用人脸反而出戏。
+   留成内联 SVG 而不是图片文件，少一个 404 的可能，也不吃加载时间。 */
+const SIG_SVG =
+  '<svg class="sig-ico" viewBox="0 0 48 48" fill="none" stroke="currentColor" ' +
+  'stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">' +
+    '<path d="M13 7h6l3.2 8.4-4 2.8a24.5 24.5 0 0 0 10.6 10.6l2.8-4L40 28v6a4 4 0 0 1-4.3 4A31 31 0 0 1 7 11.3 4 4 0 0 1 11 7z"/>' +
+    '<path d="M31 9a9 9 0 0 1 8 8"/>' +
+  '</svg>';
 
 /* ═══════════════════ FX 表现层总线 ═══════════════════
    游戏逻辑只调 FX.*，绝不直接碰 DOM / Audio / 动画。
@@ -1400,13 +1430,17 @@ const FX = {
     const who = spec.who || '';
     const sideCls = spec.side === 'red' ? 'r' : '';
     const port = ASSETS.story[spec.portrait] || null;
+    /* portHQ 缺素材时退到电台符号，而不是"立绘位"三个字——
+       它本来就没有人物，占位字会让玩家以为这里该有张脸。
+       素材一旦填上就照常盖图，不是写死只显示符号。 */
+    const isSig = spec.portrait === 'portHQ' && !port;
     if (!host) { done(); return; }
 
     host.innerHTML =
       '<div class="cs-card">' +
-        '<div class="cs-portrait"' +
+        '<div class="cs-portrait' + (isSig ? ' sig' : '') + '"' +
           (port ? ' style="background-image:url(\'' + ASSETS.base + port + '\')"' : '') + '>' +
-          (port ? '' : '立绘位') +
+          (isSig ? SIG_SVG : (port ? '' : '立绘位')) +
         '</div>' +
         '<div class="cs-body">' +
           (who ? '<div class="cs-who ' + sideCls + '">' + who + '</div>' : '') +

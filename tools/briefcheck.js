@@ -71,12 +71,27 @@ function ok(name, cond, extra) {
   ok('剧情卡出现', !cs.classList.contains('hidden'));
   ok('纸张未收起（防止闪地图）', !brief.classList.contains('hidden'));
   ok('第一句是方面军司令部', cs.textContent.indexOf('方面军司令部') >= 0);
+  /* 司令部那句是「电话」，走符号位而不是"立绘位"占位字。
+     这两条要成对断言：只查有没有 svg，会把"退化成占位字"也放过。 */
+  const hqPort = cs.querySelector('.cs-portrait');
+  ok('司令部走符号位', !!hqPort && hqPort.classList.contains('sig'));
+  ok('符号位有内置电台图标', !!cs.querySelector('.cs-portrait.sig svg'));
+  ok('符号位不显示占位字', cs.textContent.indexOf('立绘位') < 0);
   /* 打字机是逐字的，先点一下把整句显示完再断言文本 */
   cs.click();
   await wait(60);
   ok('台词含守到天亮', cs.textContent.indexOf('守到天亮') >= 0);
 
-  console.log('[6] 连点走完三段对话');
+  console.log('[6] 第二句切到人物立绘位');
+  cs.click();                       // 打完这句 → 下一句
+  await wait(160);
+  const cs2 = doc.getElementById('cutscene');
+  ok('第二句是旅长', cs2.textContent.indexOf('旅长') >= 0);
+  const p2 = cs2.querySelector('.cs-portrait');
+  ok('旅长走立绘位不是符号位', !!p2 && !p2.classList.contains('sig'));
+  ok('无素材时退化为占位字', cs2.textContent.indexOf('立绘位') >= 0);
+
+  console.log('[7] 连点走完三段对话');
   for (let i = 0; i < 6; i++) {
     const el = doc.getElementById('cutscene');
     if (el && !el.classList.contains('hidden')) el.click();
@@ -87,7 +102,7 @@ function ok(name, cond, extra) {
   ok('简报已收起', brief.classList.contains('hidden'));
   ok('简报 DOM 已清空', brief.innerHTML === '');
 
-  console.log('[7] 已进入战场');
+  console.log('[8] 已进入战场');
   ok('棋盘已渲染', doc.getElementById('board').innerHTML.length > 500);
   ok('顶栏版本号存在', /v3\.\d/.test(doc.getElementById('verTag').textContent));
 

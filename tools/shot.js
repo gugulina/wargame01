@@ -23,6 +23,9 @@ const W = Number(process.argv[4] || 1280);
 const H = Number(process.argv[5] || 900);
 const MOBILE = process.argv.includes('--mobile');
 const WAIT = Number((process.argv.find(a => a.startsWith('--wait=')) || '--wait=1800').slice(7));
+/* --eval 用来量真实 DOM 尺寸。截图里看着"像溢出/像太小"经常是假象
+   （DPI、缩放、图片被查看器再缩放），量一次 rect 比改三轮 CSS 便宜。 */
+const EVAL = (process.argv.find(a => a.startsWith('--eval=')) || '').slice(7);
 
 if (!url) { console.error('用法: node tools/shot.js <url> <out.png> [w] [h] [--mobile] [--wait=ms]'); process.exit(1); }
 
@@ -83,6 +86,13 @@ async function waitPort() {
   });
   await send('Page.navigate', { url });
   await new Promise(r => setTimeout(r, WAIT));
+  if (EVAL) {
+    const r = await send('Runtime.evaluate', { expression: EVAL, returnByValue: true });
+    console.log(JSON.stringify(r.result && r.result.value, null, 2));
+    /* eval 常常是"改点状态再截"，改完要等一帧图和 CSS 过渡落定。
+       不等的话会截到上一步的画面，看起来像功能没生效。 */
+    await new Promise(r2 => setTimeout(r2, 700));
+  }
   const shot = await send('Page.captureScreenshot', { format: 'png' });
   fs.writeFileSync(out, Buffer.from(shot.data, 'base64'));
   console.log('saved ' + out + '  ' + W + 'x' + H + (MOBILE ? ' mobile' : ''));
