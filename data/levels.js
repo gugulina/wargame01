@@ -6,7 +6,7 @@
    file:// 下 fetch 会被同源策略拦掉，<script src> 不会。 */
 window.CANGYU = {
   "ver": "v4.3",
-  "srcSig": "267633:tfx5k",
+  "srcSig": "271162:6jymm2",
   "storage": {
     "save": "wargame.lankou.save",
     "saveVer": 3,

@@ -301,21 +301,24 @@ tools/
 ## 工具
 
 ```bash
-NODE="C:/Users/泽宇/.workbuddy/binaries/node/versions/22.22.2-6/node.exe"
+npm test                                           # 一键跑完全套回归（selftest + check + levelcheck + briefcheck + export-levels --check + orgcheck）
 
-$NODE tools/check.js game/campaign.html          # 校验战役级（含部署重叠 / 指挥链）
-$NODE tools/selftest.js                          # 机制回归（233 项断言，改规则后必跑）
-$NODE tools/autoplay-campaign.js game/campaign.html 200
-$NODE tools/autoplay-campaign.js game/campaign.html 1 --verbose   # 单局战报
-$NODE tools/roster.js                            # 重新生成编制表
-$NODE tools/shot.js "http://127.0.0.1:8899/game/campaign.html?demo=brief" out.png 390 844 --mobile
-                                                 # 精确截图（CDP 指定视口，别用 --window-size）
-                                                 # 加 --eval='(()=>{...})()' 可量真实 rect
-NODE_PATH="C:/Users/泽宇/.workbuddy/binaries/node/workspace/node_modules" \
-  $NODE tools/briefcheck.js                      # 开局流程回归（进关→简报→对话→战场）
-NODE_PATH="C:/Users/泽宇/.workbuddy/binaries/node/workspace/node_modules" \
-  $NODE tools/levelcheck.js                      # 多关框架回归（切关 / 解锁 / 进度 / 地图重置）
+# 单独跑某一项：
+node tools/selftest.js                             # 机制回归（234 项断言，改规则后必跑）
+node tools/check.js game/campaign.html             # 校验战役级（含部署重叠 / 指挥链）
+node tools/levelcheck.js                           # 多关框架回归（切关 / 解锁 / 进度 / 地图重置）
+node tools/briefcheck.js                           # 开局流程回归（进关→简报→对话→战场）
+node tools/export-levels.js --check                # 快照一致性（改了引擎 LEVELS 后必跑）
+node tools/orgcheck.js                             # 编制跨关审计
+node tools/autoplay-campaign.js game/campaign.html 200
+node tools/autoplay-campaign.js game/campaign.html 1 --verbose   # 单局战报
+node tools/roster.js                               # 重新生成编制表
+node tools/shot.js "http://127.0.0.1:8899/game/campaign.html?demo=brief" out.png 390 844 --mobile
+                                                   # 精确截图（CDP 指定视口，别用 --window-size）
+                                                   # 加 --eval='(()=>{...})()' 可量真实 rect
 ```
+
+> **测试依赖**：`npm install` 即可。jsdom 是唯一的 devDependency（briefcheck 和 levelcheck 用），游戏本体零依赖。
 
 > **截图别信 `--window-size`**：系统 DPI 是 125% 时，传 390 实际视口是 504，
 > 截出来只有左边 390px，任何居中卡片都像溢出。`tools/shot.js` 用

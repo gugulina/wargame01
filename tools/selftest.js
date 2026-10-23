@@ -871,6 +871,13 @@ console.log('\n[21] 存档文件（导出 / 导入）');
   ok('拒绝指向不存在关卡', b3.ok === false, b3.msg);
   ok('拒绝非 JSON 文本',
      api.importSaveText('{ this is not json').ok === false);
+  /* XSS：pack.v 可以是任意字符串，消息会原样回显版本号，
+     但渲染端（hqSaveNote）必须用 textContent，不能拼 HTML。
+     这里只断言消息本身不包含可执行标签的拼接产物——
+     真正的防线在 hqSaveNote 的 textContent，人工审查。 */
+  const bx = api.applySaveFile({ app: api.SAVE_FILE_APP, kind: 'save',
+                                  v: '<img src=x onerror=alert(1)>' });
+  ok('XSS 载荷被当纯文本回显、不产生额外标签', bx.ok === false && bx.msg.indexOf('onerror') >= 0 && !/<b/i.test(bx.msg));
   ok('坏文件不会破坏已有存档', (() => {
     const s = api.readSave();
     return s && s.turn === 7;          // 上一步写进去的还在

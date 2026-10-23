@@ -11,6 +11,9 @@ Thumbs.db
 .DS_Store
 desktop.ini
 
+# 依赖
+node_modules/
+
 # 项目管理数据（私人笔记，不公开）
 .workbuddy/
 

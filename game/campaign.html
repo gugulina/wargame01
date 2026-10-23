@@ -1087,6 +1087,18 @@
 <div id="bannerHost"></div>
 <div id="cutscene" class="hidden"></div>
 
+<!-- 全局错误提示条：渲染异常时显示，打包后没有 F5 和开发者工具，
+     这是玩家唯一的恢复路径 -->
+<div id="errBar" style="display:none;position:fixed;top:0;left:0;right:0;z-index:99999;
+  background:#A83A3A;color:#fff;padding:10px 16px;font-size:13px;
+  font-family:system-ui,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.2)">
+  <span id="errMsg"></span>
+  <button id="errCopy" style="margin-left:12px;padding:2px 10px;background:#fff;
+    color:#A83A3A;border:0;border-radius:3px;cursor:pointer;font-size:12px">复制诊断</button>
+  <button id="errDismiss" style="margin-left:6px;padding:2px 10px;background:transparent;
+    color:#fff;border:1px solid #fff;border-radius:3px;cursor:pointer;font-size:12px">关闭</button>
+</div>
+
 <script>
 /* ───────────────────────── 地形 ───────────────────────── */
 const TERRAIN = {
@@ -6438,7 +6450,9 @@ function hqSave() {
 function hqSaveNote(msg, ok) {
   const el = document.getElementById('hqSaveNote');
   if (!el) return;
-  el.innerHTML = '<b style="color:' + (ok ? '#2F7D4F' : '#A83A3A') + '">' + msg + '</b>';
+  el.textContent = msg;
+  el.style.color = ok ? '#2F7D4F' : '#A83A3A';
+  el.style.fontWeight = 'bold';
   if (typeof FX !== 'undefined' && FX.sfx) FX.sfx(ok ? 'uiClick' : 'lose');
 }
 
@@ -6613,6 +6627,82 @@ function boot() {
   document.addEventListener(t, () => { try { FX.unlock(); } catch (e) {} },
     { once: true, capture: true });
 });
+
+/* ───────────────────────── 全局错误兜底 ─────────────────────────
+   引擎里 console.* 数量是 0——代码干净是好事，但零日志意味着玩家报告
+   "打着打着卡住了"时没有任何可问的。打包后 F5 和开发者工具都没了，
+   一次渲染异常就是永久卡死。这里加两道兜底：
+   ① 页面顶部显示可关闭的错误条，玩家知道出了什么事；
+   ② 诊断信息写进 localStorage，HQ 里可以一键复制给开发者。 */
+(function installErrorHandler() {
+  const ERR_KEY = 'cangyu.lasterr';
+  function gatherDiag(source, msg) {
+    return {
+      at: new Date().toISOString(),
+      source: String(source || ''),
+      message: String(msg || '').slice(0, 500),
+      level: (typeof LEVEL !== 'undefined' && LEVEL) ? LEVEL.id : null,
+      turn: (typeof state !== 'undefined' && state) ? state.turn : null,
+      phase: (typeof state !== 'undefined' && state) ? state.phase : null,
+      ua: (typeof navigator !== 'undefined') ? navigator.userAgent : 'unknown',
+      ver: (typeof SAVE_VER !== 'undefined') ? SAVE_VER : null
+    };
+  }
+  function showErrBar(diag) {
+    try {
+      var bar = document.getElementById('errBar');
+      var msgEl = document.getElementById('errMsg');
+      if (!bar || !msgEl) return;
+      msgEl.textContent = '出错了：' + diag.message + '（可关闭继续操作，或复制诊断信息反馈）';
+      bar.style.display = 'block';
+    } catch (e) { /* 错误条本身不能再抛错 */ }
+  }
+  window.addEventListener('error', function(e) {
+    var diag = gatherDiag(e.filename + ':' + e.lineno, e.message);
+    diag.stack = '';
+    try {
+      localStorage.setItem(ERR_KEY, JSON.stringify(diag));
+    } catch (ex) {}
+    showErrBar(diag);
+  });
+  window.addEventListener('unhandledrejection', function(e) {
+    var reason = e.reason || {};
+    var diag = gatherDiag('promise', reason.message || String(reason));
+    diag.stack = reason.stack || '';
+    try {
+      localStorage.setItem(ERR_KEY, JSON.stringify(diag));
+    } catch (ex) {}
+    showErrBar(diag);
+  });
+  /* 错误条按钮：复制诊断 + 关闭 */
+  document.addEventListener('click', function(e) {
+    if (e.target.id === 'errCopy') {
+      try {
+        var raw = localStorage.getItem(ERR_KEY) || '{}';
+        var diag = JSON.parse(raw);
+        var text = '苍屿战役 错误诊断\n' +
+          '时间：' + diag.at + '\n' +
+          '来源：' + diag.source + '\n' +
+          '信息：' + diag.message + '\n' +
+          '关卡：' + diag.level + '\n' +
+          '回合：' + diag.turn + '\n' +
+          '阶段：' + diag.phase + '\n' +
+          '版本：' + diag.ver + '\n' +
+          'UA：' + diag.ua + '\n';
+        if (diag.stack) text += '堆栈：\n' + diag.stack + '\n';
+        if (navigator.clipboard) {
+          navigator.clipboard.writeText(text).then(function() {
+            document.getElementById('errMsg').textContent = '已复制到剪贴板';
+          });
+        }
+      } catch (ex) {}
+    }
+    if (e.target.id === 'errDismiss') {
+      var bar = document.getElementById('errBar');
+      if (bar) bar.style.display = 'none';
+    }
+  });
+})();
 
 boot();
 
