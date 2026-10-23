@@ -454,5 +454,111 @@ console.log('\n[13] 存档往返');
   sandbox.localStorage = had;
 }
 
+/* ───────── 十四、堆叠与穿越 ───────── */
+console.log('\n[14] 堆叠与穿越');
+{
+  const k = (r, c) => r + ',' + c;
+
+  api.newGame();
+  const A = api.uid('B1A'), B = api.uid('B1B'), C = api.uid('B1C');
+  ok('开局 A、B 相邻（测试前提）', api.hexDist(A.pos, B.pos) === 1);
+
+  const r1 = api.computeReach(A);
+  ok('有友军的格子可以作为落点（未堆满）', r1.stop[k(B.pos[0], B.pos[1])] !== undefined);
+
+  api.doMove(A, B.pos.slice());
+  ok('两支部队可以同格', api.unitsAt(B.pos[0], B.pos[1]).length === 2);
+  ok('stackFull 判定为满', api.stackFull(B.pos[0], B.pos[1]) === true);
+
+  const r2 = api.computeReach(C);
+  ok('堆满的格子仍可穿过（d 有记录）', r2.d[k(B.pos[0], B.pos[1])] !== undefined);
+  ok('堆满的格子不能停留（stop 无记录）', r2.stop[k(B.pos[0], B.pos[1])] === undefined);
+
+  /* 穿越：以前 unitAt() 一律拦死，友军挡在桥头就整条路断了 */
+  ok('穿越友军不会让可达范围清空', Object.keys(r2.d).length > 0);
+
+  /* 同格友军按 50% 计入防御协同，比相邻格的 35% 高。
+     用平原空地做对照，避开要点控制权与「为了祖国」的干扰。 */
+  api.newGame();
+  const A2 = api.uid('B1A'), B2 = api.uid('B1B');
+  A2.pos = [9, 9]; B2.pos = [9, 10];
+  const foe = api.uid('R3A');
+  foe.pos = [11, 9];        // 距 2 格：不产生 ZOC，免得把 A2 的补给切断
+  const defBefore = api.previewAttack(foe, A2, api.getState().fields).defSum;
+  api.doMove(B2, A2.pos.slice());
+  const defAfter = api.previewAttack(foe, A2, api.getState().fields).defSum;
+  ok('同格友军计入防御协同（比相邻更硬）', defAfter > defBefore + 0.01,
+     defBefore.toFixed(2) + ' → ' + defAfter.toFixed(2));
+}
+
+/* ───────── 十五、撤销 ───────── */
+console.log('\n[15] 撤销');
+{
+  api.newGame();
+  const A = api.uid('B1A');
+  const p0 = A.pos.slice();
+  const d0 = api.undoDepth;
+  api.doMove(A, [10, 2]);
+  ok('移动后撤销栈 +1', api.undoDepth === d0 + 1, api.undoDepth + ' vs ' + d0);
+  ok('移动生效', api.uid('B1A').pos.join(',') === '10,2');
+  api.doUndo();
+  ok('撤销后回到原位', api.uid('B1A').pos.join(',') === p0.join(','));
+  ok('撤销后撤销栈减 1', api.undoDepth === d0);
+
+  /* 攻击撤销：随机骰子不该把玩家锁死在一次误点里 */
+  api.newGame();
+  const att = api.uid('B3B'), tgt = api.uid('R3A');
+  tgt.pos = [att.pos[0], att.pos[1] + 1];
+  const s0 = tgt.str, a0 = att.str;
+  api.doAttack(att, tgt);
+  const after = api.uid('R3A');
+  ok('攻击确实产生伤害', !after || after.str < s0);
+  api.doUndo();
+  ok('撤销后目标战力复原', api.uid('R3A') && api.uid('R3A').str === s0,
+     api.uid('R3A') && api.uid('R3A').str + ' vs ' + s0);
+  ok('撤销后攻击方战力复原', api.uid('B3B') && api.uid('B3B').str === a0);
+
+  /* 敌方阶段不能撤 —— 否则等于给玩家一个无限的 AI 重掷器 */
+  api.newGame();
+  api.getState().phase = 'ai';
+  ok('AI 阶段撤销无效', api.doUndo() === false);
+
+  api.newGame();
+  ok('新开局清空撤销栈', api.undoDepth === 0);
+}
+
+/* ───────── 十六、补给点 ───────── */
+console.log('\n[16] 补给点');
+{
+  const k = (r, c) => r + ',' + c;
+
+  /* 半径必须真的生效：旧代码里 supplySources 的 r 字段根本没被读取，
+     所有源一律扩散 12 格，补给点建在哪儿都不会改变数字。 */
+  api.newGame();
+  const sup = api.uid('B3S');
+  sup.pos = [3, 9];                       // 北岸，离两个蓝方基地都很远
+  const distant = api.supplyOf({ side: 'blue', type: 'inf', pos: [3, 9], str: 8, org: 100 },
+                               api.supplyField('blue'));
+  ok('建点前该处补给断绝', distant.label === '断绝', distant.label);
+
+  api.doDepot(sup);
+  ok('补给点写入状态', api.getState().depots.length === 1);
+
+  const f = api.supplyField('blue');
+  ok('补给点本格补给充足', f[k(3, 9)] && f[k(3, 9)].label === '充足', f[k(3, 9)] && f[k(3, 9)].label);
+  ok('半径 4 内仍是充足', f[k(3, 13)] && f[k(3, 13)].label === '充足', f[k(3, 13)] && f[k(3, 13)].label);
+  ok('半径外一圈降为紧张', f[k(3, 14)] && f[k(3, 14)].label === '紧张', f[k(3, 14)] && f[k(3, 14)].label);
+
+  const n1 = api.getState().depots.length;
+  api.doDepot(sup);
+  ok('同格重复建不叠加', api.getState().depots.length === n1, api.getState().depots.length + ' vs ' + n1);
+
+  /* 补给线的半径来自"源"，辎重比基地多推一格 */
+  const srcs = api.supplySources('blue');
+  const dep = srcs.find(s => s.kind === '补给点');
+  const base = srcs.find(s => s.kind === '基地');
+  ok('补给点半径大于基地', dep && base && dep.r > base.r, dep && base && dep.r + ' vs ' + base.r);
+}
+
 console.log('\n通过 ' + pass + ' 项，失败 ' + fail + ' 项');
 process.exit(fail ? 1 : 0);

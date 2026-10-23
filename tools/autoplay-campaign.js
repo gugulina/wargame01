@@ -38,7 +38,7 @@ function nearestCoreCell(pos) {
 function stepToward(u, goal) {
   const reach = api.computeReach(u);
   let best = null, bd = Infinity;
-  for (const key in reach) {
+  for (const key in reach.stop) {
     const p = key.split(',').map(Number);
     const d = api.cheb(p, goal);
     if (d < bd) { bd = d; best = p; }
@@ -142,7 +142,7 @@ async function blueTurn() {
     /* 5. 机动 */
     const reach = api.computeReach(u);
     let best = null, bs = -Infinity;
-    for (const key in reach) {
+    for (const key in reach.stop) {
       const p = key.split(',').map(Number);
       const t = api.TERRAIN[L.map[p[0]][p[1]]];
       let s;

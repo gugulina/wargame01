@@ -59,6 +59,7 @@
     margin-right: 5px; vertical-align: -1px;
   }
   .legend .k.move { background: rgba(58,110,165,.5); }
+  .legend .k.pass { background: rgba(58,110,165,.14); }
   .legend .k.atk  { background: rgba(168,58,58,.55); }
   .legend .k.mine { background: rgba(200,150,40,.6); }
   .legend .k.obj  { background: rgba(43,42,38,.82); }
@@ -112,6 +113,18 @@
   .fhp i { display: block; height: 100%; transition: width .2s; }
   .fhp.b i { background: #2F6FA8; }
   .fhp.r i { background: #A83232; }
+  /* 补给点角标：放在右侧中段，与左侧工事角标错开 */
+  .dbadge {
+    position: absolute; right: 2px; top: 50%; transform: translateY(-50%);
+    width: 11px; height: 12px; border-radius: 2px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 8.5px; line-height: 1; font-weight: 800; z-index: 6;
+    letter-spacing: 0; pointer-events: none;
+  }
+  .dbadge.blue { background: #FFF1D2; color: #8A5A16; box-shadow: 0 0 0 1px rgba(138,90,22,.72); }
+  .dbadge.red  { background: #FBEAEA; color: #A32D2D; box-shadow: 0 0 0 1px rgba(163,45,45,.72); }
+  /* 仅可穿过的格子（有友军挡着，能过不能停）——比可停留格淡一档 */
+  .hex.pass::after { background: rgba(58,110,165,.09); }
   .hex.bridge::after  { background: rgba(60,140,90,.40); }
   .hex.cur::after { background: rgba(240,200,90,.55); }
   /* 要点染色：控制权来自持久状态，不随守军离开消失 */
@@ -153,6 +166,10 @@
     background: rgba(0,0,0,.28); border-radius: 2px; overflow: hidden;
   }
   .unit .orgbar i { display: block; height: 100%; background: rgba(255,255,255,.85); }
+  /* 堆叠：一格两支时斜向错开、各缩到 74%，栈顶压在右下 */
+  .unit.stk { position: absolute; transform: scale(.74); }
+  .unit.stk0 { left: -3px; top: 2px; z-index: 3; }
+  .unit.stk1 { left: 19px; top: 20px; z-index: 4; }
 
   .oLabel {
     position: absolute; z-index: 5; pointer-events: none;
@@ -238,6 +255,34 @@
   .modal p { color: var(--ink2); font-size: 12.5px; margin: 6px 0; }
   .modal .stat { display: flex; justify-content: space-between; padding: 3px 0; font-size: 12.5px; }
   .modal button { margin-top: 14px; width: 100%; }
+
+  /* ───────── 操作说明 ─────────
+     和结果弹窗共用遮罩，内容更长、可滚动。窄屏单列，宽屏双列。 */
+  .tips-card {
+    background: #fff; border-radius: 12px; padding: 20px 24px;
+    width: min(600px, calc(100vw - 28px));
+    max-height: min(82vh, 760px); overflow-y: auto;
+    box-shadow: 0 12px 40px rgba(0,0,0,.2);
+  }
+  .tips-card h2 { margin: 0 0 2px; font-size: 18px; }
+  .tips-card .tips-sub { color: var(--ink3); font-size: 12px; margin: 0 0 4px; }
+  .tips-card h3 {
+    margin: 16px 0 6px; font-size: 11.5px; letter-spacing: .6px;
+    text-transform: uppercase; color: var(--ink3); font-weight: 700;
+  }
+  .tips-card p, .tips-card li { font-size: 12.5px; color: var(--ink2); line-height: 1.7; margin: 3px 0; }
+  .tips-card ul { margin: 4px 0; padding-left: 17px; }
+  .tips-card b { color: var(--ink); }
+  .tips-card kbd {
+    display: inline-block; padding: 0 5px; border-radius: 3px; font-size: 11px;
+    background: #F1EFE8; box-shadow: 0 0 0 1px rgba(0,0,0,.10); color: var(--ink);
+    font-family: inherit;
+  }
+  .tips-card button { margin-top: 18px; width: 100%; }
+  .tipsbtn {
+    width: 26px; height: 26px; border-radius: 50%; padding: 0;
+    font-size: 13px; font-weight: 800; line-height: 1; flex: 0 0 26px;
+  }
 
   /* ───────── 开始页 ─────────
      存在的两个理由：① 浏览器要求用户交互后才允许播音频，没有这一步 BGM 永远放不出来；
@@ -518,6 +563,7 @@
       <span class="pill" id="turnPill">第 1 / 12 回合</span>
       <span class="pill" id="seasonPill">秋季</span>
       <span class="pill" id="phasePill">我方阶段</span>
+      <button id="btnTips" class="tipsbtn" title="操作说明">?</button>
     </div>
     <div id="boardWrap">
       <div id="boardView"><div id="board"></div><div id="fxLayer"></div></div>
@@ -531,6 +577,7 @@
     <div class="zhint" id="zhint">点格子自动放大 · 双指缩放 · 单指拖动</div>
     <div class="legend">
       <span><i class="k move"></i>可移动</span>
+      <span><i class="k pass"></i>仅可穿越</span>
       <span><i class="k atk"></i>可攻击</span>
       <span><i class="k mine"></i>布雷 / 架桥</span>
       <span><i class="k obj"></i>要点</span>
@@ -538,8 +585,8 @@
       <span><i class="k cr"></i>敌方占领</span>
       <span><i class="k cc"></i>争夺中</span>
       <span><i class="k fort"></i>工事</span>
-      <span>格内字母：H 堑壕 · B 碉堡 · P 要塞炮 · A 岸防炮 · F 防空阵地</span>
-      <span class="lg-note">守军前出不会丢城 · 直瞄火炮可打相邻格，重炮最小射程 2 格</span>
+      <span>角标：H 堑壕 · B 碉堡 · P 要塞炮 · A 岸防炮 · F 防空阵地 · 补 补给点</span>
+      <span class="lg-note">1 格 ≈ 1.5km（全图 30×21km）· 守军前出不丢城 · 重炮最小射程 2 格</span>
     </div>
   </main>
 
@@ -554,7 +601,8 @@
     </div>
     <div class="btns">
       <button id="btnEnd">结束我方阶段</button>
-      <button id="btnReset" class="ghost" style="flex:0 0 88px">重开</button>
+      <button id="btnUndo" class="ghost" style="flex:0 0 74px" disabled title="没有可撤销的行动">撤销</button>
+      <button id="btnReset" class="ghost" style="flex:0 0 74px">重开</button>
     </div>
     <div class="block">
       <div class="block-h">战报</div>
@@ -587,7 +635,7 @@
     </div>
     <div class="start-foot">
       <span>音效 OpenGameArt (CC0) · Mixkit · Kenney (CC0)</span>
-      <span id="verTag">v3.5</span>
+      <span id="verTag">v3.6</span>
     </div>
   </div>
 </div>
@@ -598,6 +646,63 @@
     <p id="mDesc">—</p>
     <div id="mStats"></div>
     <button id="mBtn">重新开始</button>
+  </div>
+</div>
+
+<!-- 操作说明：顶栏「?」打开。写的是规则里真正会踩坑的地方，不是背景故事 -->
+<div class="overlay hidden" id="tipsScreen">
+  <div class="tips-card">
+    <h2>怎么打这一关</h2>
+    <p class="tips-sub">目标：12 回合内控制 ≥ 26 分要点。岚口市 15 · 机场 15 · 青溪镇 10 · 两处渡口各 5。</p>
+
+    <h3>一回合的节奏</h3>
+    <ul>
+      <li>点兵牌选中 → 点蓝格移动、点红格攻击。一支兵一回合<b>移动一次、射击一次</b>，顺序可以颠倒。</li>
+      <li>机动过的单位再射击会 <b>−10%</b>；坦克、自行火炮不受这条限制。</li>
+      <li>走错、打错都能撤：右下角<b>撤销</b>或 <kbd>Ctrl</kbd>+<kbd>Z</kbd>，连「结束我方阶段」都能整个撤回来。</li>
+    </ul>
+
+    <h3>过河：堆叠与穿行</h3>
+    <ul>
+      <li>一条河只有 4 格渡口，所以<b>一格最多堆 2 支同阵营部队</b>。</li>
+      <li>有友军挡路的格子<b>可以穿过去</b>（淡蓝色），只是不能停下——因为堆满 2 支了。</li>
+      <li>堆叠格会被当成一个目标挨打，但<b>同格友军按 50% 计入防御协同</b>（相邻格是 35%）。堆着守比散着守硬，但堆着被人打也更疼。</li>
+      <li>点堆叠格可以在这两支之间切换选中。</li>
+      <li>工兵营还能<b>架桥</b>：把相邻河流格直接改成渡口，比抢渡口稳。</li>
+    </ul>
+
+    <h3>补给</h3>
+    <ul>
+      <li>基地半径 3 格内补给<b>充足</b>（×1.00），再外 3 格<b>紧张</b>（×0.88），更远<b>断绝</b>（×0.70）。</li>
+      <li>辎重队自带半径 4 的移动补给，<b>还能原地建补给点</b>——建成后永久有效，半径 4。</li>
+      <li>补给线会被<b>敌军相邻格切断</b>。跨河之后南岸的基地够不着，这就是补给点真正的用武之地：把它建在桥头。</li>
+      <li>弹药：炮兵静止且有补给时每回合 <b>+1</b> 发。断粮的炮兵打光就哑了。</li>
+    </ul>
+
+    <h3>工事</h3>
+    <ul>
+      <li><b>H 堑壕</b> +15%：步兵自己就能挖，无耐久。<b>B 碉堡</b> +28%：要工兵营，耐久 3，装甲强攻额外 −15%。</li>
+      <li><b>P 要塞炮</b> +22%：只能建在城区/丘陵，驻守炮兵射程 +1，每回合自动炮击 3 格内敌军。</li>
+      <li><b>A 岸防炮</b> +18%：只能建在河岸，封锁渡口；<b>F 防空阵地</b> +10%：压制敌方航空。</li>
+      <li>整回合原地不动的步兵/守备营会自动<b>自筑工事</b>，最高 +30%，与上面的人工工事叠加。</li>
+    </ul>
+
+    <h3>兵种怎么用</h3>
+    <ul>
+      <li><b>守备营</b>：要点内战力 7 → 10、防御 +20%；<b>一出城就掉回 7</b>，别拿它当援军。</li>
+      <li><b>坦克营</b>：平原/道路攻击 +15%，城镇 −10%。比值到 3:1 能击退守军一格。</li>
+      <li><b>反坦克连</b>：打坦克 ×1.8，打步兵 ×0.6。没有它，敌方装甲在平原上近乎无解。</li>
+      <li><b>炮兵</b>：旅炮和自行火炮最小射程 1（能还手），师重炮最小 2 且<b>移动当回合不能射击</b>。</li>
+      <li><b>侦察连</b>：3 格内给己方炮兵 +15% 校射，机动 10，但别拿去顶线。</li>
+    </ul>
+
+    <h3>快捷键</h3>
+    <ul>
+      <li><kbd>Ctrl</kbd>+<kbd>Z</kbd> 撤销 · <kbd>空格</kbd> / 点按钮 结束我方阶段</li>
+      <li>手机：单指拖动、双指缩放，点格子自动放大到能操作的倍数。</li>
+    </ul>
+
+    <button id="btnTipsClose">知道了</button>
   </div>
 </div>
 
@@ -623,8 +728,8 @@ const TYPE = {
   inf: { name: '步兵营', role: '占领与固守', am: 0,
     abil: ['可占领要点，是把旗子插住的唯一手段', '构筑工事：整回合不移动，防御 +0.15（累计上限 +0.30）', '城镇、丘陵地形收益最高'] },
   gdn: { name: '守备营', role: '要地防御', am: 0,
-    abil: ['可占领要点', '【为了祖国】在本方控制的城市或机场要点内、或与之相邻时，战力 8 → 9，防御 +0.10',
-           '离开要地立即失效——这是守备旅不能当援军的机制原因', '构筑工事同步兵营'] },
+    abil: ['可占领要点', '【为了祖国】在本方控制的城市或机场要点内、或与之相邻时，战力 7 → 10，防御 +0.20',
+           '离开要地立即失效——基础战力仅 7，出城就是普通预备役', '构筑工事同步兵营'] },
   mob: { name: '摩步营', role: '伴随步兵', am: 6,
     abil: ['可占领要点，机动 8，跟得上装甲部队', '平原、道路攻击 +0.10', '城镇进攻不吃装甲惩罚'] },
   mech: { name: '装步营', role: '装甲伴随', am: 6,
@@ -633,20 +738,20 @@ const TYPE = {
     abil: ['平原、道路攻击 +0.15', '比值达 3:1 时可击退守军一格', '城镇进攻 -0.10（巷战不利）', '被反坦克连攻击时无减伤',
            '★ 装甲突击：本回合机动后仍可正常射击（其余兵种 −0.10），射击后还能再机动一次'] },
   art: { name: '旅炮兵营', role: '旅属伴随火力', am: 8,
-    abil: ['轻型野炮，可放平了直瞄射击：最小射程 1，射程 2',
+    abil: ['轻型野炮，可放平了直瞄射击：最小射程 1，射程 3',
            '直瞄攻击修正 −0.15，打城内/林地目标再 −0.10',
            '被贴脸时可以反击（重炮不行）', '移动后仍可射击，修正 −0.10',
            '弹药 8 发，静止且补给正常可 +1/回合'] },
   hr:  { name: '师重炮营', role: '师属压制火力', am: 5,
-    abil: ['射程 3，最小射程 2（重炮需原地展开，打不了贴脸目标）',
+    abil: ['射程 4，最小射程 2（重炮需原地展开，打不了贴脸目标）',
            '本回合移动过则不能射击（需原地展开）',
            '弹药 5 发，威力最强', '被近战单位贴脸时无法反击'] },
   sha: { name: '旅自行火炮连', role: '旅属机动火力', am: 6,
-    abil: ['自行火炮，可直瞄：最小射程 1，射程 2',
+    abil: ['自行火炮，可直瞄：最小射程 1，射程 3',
            '直瞄攻击修正 −0.15，打城内/林地目标再 −0.10',
            '移动后射击无惩罚，可打带跑', '机动 8，防御优于牵引炮兵'] },
   spa: { name: '师自行火炮营', role: '师属机动火力', am: 6,
-    abil: ['自行火炮，可直瞄：最小射程 1，射程 2',
+    abil: ['自行火炮，可直瞄：最小射程 1，射程 3',
            '直瞄攻击修正 −0.15，打城内/林地目标再 −0.10',
            '移动后射击无惩罚', '机动 8，防御优于牵引炮兵', '弹药 6 发，数量稀少'] },
   eng: { name: '工兵营', role: '工程作业', am: 0,
@@ -740,10 +845,10 @@ const LEVEL = {
         { kind: 'org', side: 'blue', delta: -3 }
       ]
     },
-    /* 回合 + 控制触发：撑到第 9 回合且两个核心要点仍在我手 */
+    /* 回合 + 控制触发：撑到第 8 回合且两个核心要点仍在我手 */
     {
       id: 'crossing_done', desc: '方面军主力渡江完成',
-      when: { kind: 'allControl', objs: ['city', 'air'], side: 'blue', turn: 9 },
+      when: { kind: 'allControl', objs: ['city', 'air'], side: 'blue', turn: 8 },
       effects: [
         { kind: 'log', text: '第 3 坦克军先遣支队渡江抵达，加入东岸防御。', cls: 'b' },
         { kind: 'spawn', group: 'BLUE_RESERVE' },
@@ -796,18 +901,18 @@ const LEVEL = {
   units: [
     /* 我方 · 岚口预备役第 1 旅（岚口市，要吃「为了祖国」） */
     { id:'B1H', side:'blue', abbr:'1H',   name:'岚口预备役第 1 旅旅部',       type:'hqb', str:2,  mov:8,  rng:0, r:13, c:2,  corps:'B1', wave:1 },
-    { id:'B1A', side:'blue', abbr:'1-1',  name:'岚口预备役第 1 旅第 1 营',     type:'gdn', str:8,  mov:5,  rng:1, r:11, c:2,  corps:'B1', wave:1 },
-    { id:'B1B', side:'blue', abbr:'1-2',  name:'岚口预备役第 1 旅第 2 营',     type:'gdn', str:8,  mov:5,  rng:1, r:12, c:2,  corps:'B1', wave:1 },
-    { id:'B1C', side:'blue', abbr:'1-3',  name:'岚口预备役第 1 旅第 3 营',     type:'gdn', str:8,  mov:5,  rng:1, r:12, c:3,  corps:'B1', wave:1 },
-    { id:'B1F', side:'blue', abbr:'1炮',  name:'岚口预备役第 1 旅炮兵营',      type:'art', str:5,  mov:6,  rng:2, r:13, c:3,  corps:'B1', wave:1 },
+    { id:'B1A', side:'blue', abbr:'1-1',  name:'岚口预备役第 1 旅第 1 营',     type:'gdn', str:7,  mov:5,  rng:1, r:11, c:2,  corps:'B1', wave:1 },
+    { id:'B1B', side:'blue', abbr:'1-2',  name:'岚口预备役第 1 旅第 2 营',     type:'gdn', str:7,  mov:5,  rng:1, r:12, c:2,  corps:'B1', wave:1 },
+    { id:'B1C', side:'blue', abbr:'1-3',  name:'岚口预备役第 1 旅第 3 营',     type:'gdn', str:7,  mov:5,  rng:1, r:12, c:3,  corps:'B1', wave:1 },
+    { id:'B1F', side:'blue', abbr:'1炮',  name:'岚口预备役第 1 旅炮兵营',      type:'art', str:5,  mov:6,  rng:3, r:13, c:3,  corps:'B1', wave:1 },
     { id:'B1E', side:'blue', abbr:'1工',  name:'岚口预备役第 1 旅工兵连',      type:'engc',str:2,  mov:6,  rng:1, r:13, c:1,  corps:'B1', wave:1 },
     { id:'B1T', side:'blue', abbr:'1反',  name:'岚口预备役第 1 旅反坦克连',    type:'at',  str:3,  mov:5,  rng:1, r:11, c:1,  corps:'B1', wave:1 },
     /* 我方 · 西部军区独立第 1 旅（岚口机场） */
     { id:'B2H', side:'blue', abbr:'2H',   name:'西部军区独立第 1 旅旅部',       type:'hqb', str:2,  mov:8,  rng:0, r:13, c:15, corps:'B2', wave:1 },
-    { id:'B2A', side:'blue', abbr:'2-1',  name:'西部军区独立第 1 旅第 1 营',     type:'gdn', str:8,  mov:5,  rng:1, r:11, c:16, corps:'B2', wave:1 },
-    { id:'B2B', side:'blue', abbr:'2-2',  name:'西部军区独立第 1 旅第 2 营',     type:'gdn', str:8,  mov:5,  rng:1, r:12, c:16, corps:'B2', wave:1 },
-    { id:'B2C', side:'blue', abbr:'2-3',  name:'西部军区独立第 1 旅第 3 营',     type:'gdn', str:8,  mov:5,  rng:1, r:12, c:17, corps:'B2', wave:1 },
-    { id:'B2F', side:'blue', abbr:'2炮',  name:'西部军区独立第 1 旅炮兵营',      type:'art', str:5,  mov:6,  rng:2, r:13, c:16, corps:'B2', wave:1 },
+    { id:'B2A', side:'blue', abbr:'2-1',  name:'西部军区独立第 1 旅第 1 营',     type:'gdn', str:7,  mov:5,  rng:1, r:11, c:16, corps:'B2', wave:1 },
+    { id:'B2B', side:'blue', abbr:'2-2',  name:'西部军区独立第 1 旅第 2 营',     type:'gdn', str:7,  mov:5,  rng:1, r:12, c:16, corps:'B2', wave:1 },
+    { id:'B2C', side:'blue', abbr:'2-3',  name:'西部军区独立第 1 旅第 3 营',     type:'gdn', str:7,  mov:5,  rng:1, r:12, c:17, corps:'B2', wave:1 },
+    { id:'B2F', side:'blue', abbr:'2炮',  name:'西部军区独立第 1 旅炮兵营',      type:'art', str:5,  mov:6,  rng:3, r:13, c:16, corps:'B2', wave:1 },
     { id:'B2E', side:'blue', abbr:'2工',  name:'西部军区独立第 1 旅工兵营',      type:'eng', str:3,  mov:6,  rng:1, r:13, c:17, corps:'B2', wave:1 },
     { id:'B2T', side:'blue', abbr:'2反',  name:'西部军区独立第 1 旅反坦克连',    type:'at',  str:3,  mov:5,  rng:1, r:11, c:17, corps:'B2', wave:1 },
     /* 我方 · 装甲旅（城外机动预备队） */
@@ -815,7 +920,7 @@ const LEVEL = {
     { id:'B3A', side:'blue', abbr:'装-1', name:'第 205 装甲旅第 1 营（装步）',  type:'mech',str:9,  mov:8,  rng:1, r:13, c:4,  corps:'B3', wave:1 },
     { id:'B3B', side:'blue', abbr:'装-2', name:'第 205 装甲旅第 2 营（坦克）',  type:'arm', str:12, mov:10, rng:1, r:13, c:5,  corps:'B3', wave:1 },
     { id:'B3C', side:'blue', abbr:'装-3', name:'第 205 装甲旅第 3 营（坦克）',  type:'arm', str:12, mov:10, rng:1, r:13, c:6,  corps:'B3', wave:1 },
-    { id:'B3F', side:'blue', abbr:'装炮', name:'第 205 装甲旅自行火炮连',      type:'sha', str:4,  mov:8,  rng:2, r:12,  c:6,  corps:'B3', wave:1 },
+    { id:'B3F', side:'blue', abbr:'装炮', name:'第 205 装甲旅自行火炮连',      type:'sha', str:4,  mov:8,  rng:3, r:12,  c:6,  corps:'B3', wave:1 },
     { id:'B3S', side:'blue', abbr:'装辎', name:'第 205 装甲旅辎重队',          type:'sup', str:2,  mov:8,  rng:0, r:12,  c:7,  corps:'B3', wave:1 },
     /* 我方 · 军属防空 */
     { id:'B9',  side:'blue', abbr:'防',   name:'西部军区防空营',            type:'aab', str:4,  mov:6,  rng:2, r:12, c:14, corps:'DS', wave:1 },
@@ -824,8 +929,13 @@ const LEVEL = {
     { id:'R3A', side:'red',  abbr:'3-1',  name:'敌摩步第 3 旅第 1 营',     type:'mob', str:9,  mov:8,  rng:1, r:2,  c:2,  corps:'R3', wave:1 },
     { id:'R3B', side:'red',  abbr:'3-2',  name:'敌摩步第 3 旅第 2 营',     type:'mob', str:9,  mov:8,  rng:1, r:2,  c:3,  corps:'R3', wave:1 },
     { id:'R3C', side:'red',  abbr:'3-3',  name:'敌摩步第 3 旅第 3 营',     type:'mob', str:9,  mov:8,  rng:1, r:2,  c:4,  corps:'R3', wave:1 },
-    { id:'R3F', side:'red',  abbr:'3炮',  name:'敌摩步第 3 旅炮兵营',      type:'art', str:5,  mov:6,  rng:2, r:0,  c:3,  corps:'R3', wave:1 },
+    { id:'R3F', side:'red',  abbr:'3炮',  name:'敌摩步第 3 旅炮兵营',      type:'art', str:5,  mov:6,  rng:3, r:0,  c:3,  corps:'R3', wave:1 },
     { id:'R3T', side:'red',  abbr:'3反',  name:'敌摩步第 3 旅反坦克连',    type:'at',  str:3,  mov:5,  rng:1, r:1,  c:4,  corps:'R3', wave:1 },
+    /* 摩步旅编制里本来就有工兵连，而且强渡江河必然配属舟桥分队。
+       之前红方一个能架桥的工兵都没有——engc 编制上只能挖堑壕、排雷，
+       于是红方只能硬挤两处渡口，跟"敌人是进攻方"这件事自相矛盾。 */
+    { id:'R3E', side:'red',  abbr:'3工',  name:'敌摩步第 3 旅工兵连（舟桥）', type:'eng', str:3,
+      mov:6,  rng:1, r:1,  c:1,  corps:'R3', wave:1 },
     { id:'R5',  side:'red',  abbr:'独坦', name:'敌独立坦克营',            type:'arm', str:12, mov:10, rng:1, r:2,  c:5,  corps:'R5', wave:1 },
     { id:'R7',  side:'red',  abbr:'航',   name:'敌航空连',                type:'avn', str:5,  mov:12, rng:2, r:1,  c:9,  corps:'RA', wave:1 },
     /* 敌方 · 第二波 · 敌装甲第 4 旅（第 4 回合） */
@@ -833,15 +943,15 @@ const LEVEL = {
     { id:'R4A', side:'red',  abbr:'4-1',  name:'敌装甲第 4 旅第 1 营（坦克）', type:'arm', str:12, mov:10, rng:1, r:1, c:12, corps:'R4', wave:2 },
     { id:'R4B', side:'red',  abbr:'4-2',  name:'敌装甲第 4 旅第 2 营（坦克）', type:'arm', str:12, mov:10, rng:1, r:0, c:13, corps:'R4', wave:2 },
     { id:'R4C', side:'red',  abbr:'4-3',  name:'敌装甲第 4 旅第 3 营（装步）', type:'mech',str:9, mov:8, rng:1, r:1, c:13, corps:'R4', wave:2 },
-    { id:'R4F', side:'red',  abbr:'4炮',  name:'敌装甲第 4 旅自行火炮连', type:'sha', str:4,  mov:8,  rng:2, r:0,  c:14, corps:'R4', wave:2 },
+    { id:'R4F', side:'red',  abbr:'4炮',  name:'敌装甲第 4 旅自行火炮连', type:'sha', str:4,  mov:8,  rng:3, r:0,  c:14, corps:'R4', wave:2 },
     /* 敌方 · 第三波 · 敌第 6 战斗群（第 7 回合） */
     { id:'R6H', side:'red',  abbr:'6H',   name:'敌第 6 战斗群群部',       type:'hkg', str:2,  mov:8,  rng:0, r:0,  c:16, corps:'R6', wave:3 },
     { id:'R6A', side:'red',  abbr:'6-1',  name:'战斗群第 1 营（坦克）', type:'arm', str:11, mov:10, rng:1, r:1,  c:16, corps:'R6', wave:3 },
     { id:'R6B', side:'red',  abbr:'6-2',  name:'战斗群第 2 营（坦克）', type:'arm', str:11, mov:10, rng:1, r:2,  c:16, corps:'R6', wave:3 },
     { id:'R6C', side:'red',  abbr:'6-3',  name:'战斗群第 3 营（装步）', type:'mech',str:9,  mov:8,  rng:1, r:1,  c:17, corps:'R6', wave:3 },
     { id:'R6D', side:'red',  abbr:'6-4',  name:'战斗群第 4 营（装步）', type:'mech',str:9,  mov:8,  rng:1, r:2,  c:18, corps:'R6', wave:3 },
-    { id:'R6F', side:'red',  abbr:'6炮',  name:'战斗群炮兵营',          type:'art', str:5,  mov:6,  rng:2, r:0,  c:17, corps:'R6', wave:3 },
-    { id:'R6S', side:'red',  abbr:'6自',  name:'战斗群自行火炮连',      type:'sha', str:4,  mov:8,  rng:2, r:0,  c:18, corps:'R6', wave:3 },
+    { id:'R6F', side:'red',  abbr:'6炮',  name:'战斗群炮兵营',          type:'art', str:5,  mov:6,  rng:3, r:0,  c:17, corps:'R6', wave:3 },
+    { id:'R6S', side:'red',  abbr:'6自',  name:'战斗群自行火炮连',      type:'sha', str:4,  mov:8,  rng:3, r:0,  c:18, corps:'R6', wave:3 },
     { id:'R6E', side:'red',  abbr:'6工',  name:'战斗群工兵连',          type:'engc',str:2,  mov:6,  rng:1, r:1,  c:18, corps:'R6', wave:3 },
     { id:'R6G', side:'red',  abbr:'6防',  name:'战斗群防空连',          type:'aac', str:2,  mov:6,  rng:2, r:2,  c:17, corps:'R6', wave:3 },
     /* 事件预备队 · wave:0 不会自动投入，只由事件触发 */
@@ -1210,7 +1320,27 @@ const sleep = ms => (typeof window !== 'undefined' && window.__FAST__)
 let state = null;
 
 function terrainAt(r, c) { return TERRAIN[LEVEL.map[r][c]]; }
-function unitAt(r, c) { return state.units.find(u => u.pos[0] === r && u.pos[1] === c) || null; }
+
+/* ───────────────────────── 堆叠 ─────────────────────────
+   一格最多 STACK_MAX 支同阵营部队。堆叠只解决一件事：渡口、桥头这类
+   瓶颈地形的通行能力——以前 40 支部队抢 4 格渡口，必然堵死。
+   交战规则刻意保持简单：
+     · 攻击仍指向"具体某支部队"，不做整格结算
+     · 同格另一支部队按 STACK_COVER 计入防御协同（比相邻友军的 35% 高）
+     · 伤害只落在被指定的那一支身上——所以堆叠是机动手段，不是防御万能牌 */
+const STACK_MAX = 2;
+const STACK_COVER = 0.50;      // 同格友军防御协同系数
+
+function unitsAt(r, c) {
+  return state.units.filter(u => u.pos[0] === r && u.pos[1] === c);
+}
+/* 栈顶 = 最后进入该格的那一支。点选、渲染、AI 判定都按栈顶算 */
+function unitAt(r, c) {
+  const a = unitsAt(r, c);
+  return a.length ? a[a.length - 1] : null;
+}
+function stackFull(r, c) { return unitsAt(r, c).length >= STACK_MAX; }
+function stackOf(u) { return unitsAt(u.pos[0], u.pos[1]); }
 let _objAt = null;
 function objAt(r, c) {
   if (!_objAt) {
@@ -1253,52 +1383,60 @@ function supplySources(side) {
     ? (LEVEL.blueSources || [LEVEL.blueSource])
     : (LEVEL.redSources || [LEVEL.redSource]);
   for (const src of srcs) out.push({ pos: src, r: 3, kind: '基地' });
-  for (const d of state.depots) if (d.side === side) out.push({ pos: [d.r, d.c], r: 3, kind: '补给点' });
+  for (const d of state.depots) if (d.side === side) out.push({ pos: [d.r, d.c], r: 4, kind: '补给点' });
   for (const u of alive(side)) if (u.type === 'sup') out.push({ pos: u.pos, r: 4, kind: '辎重' });
   return out;
 }
 
+/* 补给场。
+   每个源带自己的半径 r：r 格内「充足」，r+3 格内「紧张」，再远就断绝。
+   以前的写法里 r 字段根本没被读取——所有源一律扩散 12 格，再按距离分档。
+   结果是补给点的半径、辎重的半径全是摆设，建在基地附近自然"毫无效果"。
+   现在基地 3（=3 充足 + 3 紧张，与旧行为等效，平衡不动），
+   辎重与新建补给点 4，比基地多推一格——这才是补给点该有的价值。
+   返回 { key: { d, label, mod } }。 */
 function supplyField(side) {
   const srcs = supplySources(side);
-  const dist = {};
+  const out = {};
   const pool = [];
   for (const s of srcs) {
     const key = kk(s.pos[0], s.pos[1]);
-    if (dist[key] === undefined || dist[key] > 0) { dist[key] = 0; }
-    pool.push([0, s.pos[0], s.pos[1]]);
+    if (!out[key] || out[key].d > 0) out[key] = { d: 0, label: '充足', mod: 1.00 };
+    pool.push([0, s.pos[0], s.pos[1], s.r]);
   }
   while (pool.length) {
     pool.sort((a, b) => a[0] - b[0]);
-    const [d, r, c] = pool.shift();
-    if (d > (dist[kk(r, c)] === undefined ? Infinity : dist[kk(r, c)])) continue;
+    const [d, r, c, rad] = pool.shift();
     for (const n of neighbors(r, c)) {
       const t = terrainAt(n[0], n[1]);
       if (t.cost >= 99) continue;
       if (inEnemyZOC(n[0], n[1], side)) continue;
       const nd = d + 1;
-      if (nd > 12) continue;
+      if (nd > rad + 3) continue;
       const key = kk(n[0], n[1]);
-      if (dist[key] !== undefined && dist[key] <= nd) continue;
-      dist[key] = nd;
-      pool.push([nd, n[0], n[1]]);
+      const label = nd <= rad ? '充足' : '紧张';
+      const mod = nd <= rad ? 1.00 : 0.88;
+      const prev = out[key];
+      /* 同一格可能被多个源覆盖：档位高的赢，同档取更近的 */
+      if (prev && (prev.mod > mod || (prev.mod === mod && prev.d <= nd))) continue;
+      out[key] = { d: nd, label, mod };
+      pool.push([nd, n[0], n[1], rad]);
     }
   }
-  return dist;
+  return out;
 }
 function refreshFields() {
   state.fields = { blue: supplyField('blue'), red: supplyField('red') };
 }
 function supplyOf(u, fields) {
   const f = (fields || state.fields)[u.side] || {};
-  const d = f[kk(u.pos[0], u.pos[1])];
+  const e = f[kk(u.pos[0], u.pos[1])];
   /* 辎重自持 */
   if (u.type === 'sup') return { label: '充足', mod: 1.0, dist: 0 };
 
   let res;
-  if (d === undefined) res = { label: '断绝', mod: 0.70, dist: null };
-  else if (d <= 3) res = { label: '充足', mod: 1.00, dist: d };
-  else if (d <= 6) res = { label: '紧张', mod: 0.88, dist: d };
-  else res = { label: '断绝', mod: 0.70, dist: d };
+  if (!e) res = { label: '断绝', mod: 0.70, dist: null };
+  else res = { label: e.label, mod: e.mod, dist: e.d };
 
   /* 核心要点自持：只要要点还在我方手里，被围也能靠城内储备维持紧张补给 */
   if (res.label === '断绝' && !isHQ(u)) {
@@ -1327,18 +1465,42 @@ function hqBonus(u) {
   return best;
 }
 
-/* 守备营「为了祖国」：在本方控制的城市/机场要点内或与之相邻 → 战力 +1 */
+/* 守备营「为了祖国」：在本方控制的城市/机场要点内或与之相邻。
+   原始设计只给 +1 战力，而守备营基础战力 8 与步兵营持平——
+   离开城区照样能正面顶，编制定位就没了。现在基础战力降到 7，
+   要点内给 +3：进要点 10 / 出要点 7，1.4 倍的差距才立得住。 */
 function homeBonus(u) {
   if (u.type !== 'gdn') return 0;
   for (const o of LEVEL.objectives) {
     if (o.kind !== 'city' && o.kind !== 'air') continue;
     if (objectiveControl(o) !== u.side) continue;
     for (const cell of o.cells) {
-      if (cell[0] === u.pos[0] && cell[1] === u.pos[1]) return 1;
-      if (hexDist(cell, u.pos) === 1) return 1;
+      if (cell[0] === u.pos[0] && cell[1] === u.pos[1]) return 3;
+      if (hexDist(cell, u.pos) === 1) return 3;
     }
   }
   return 0;
+}
+
+/* 补给点的"如果建在这里"预览：临时插一个源，重算一次补给场再撤回。
+   玩家以前点完按钮什么都没变，就是因为既没有棋盘标记、也没有这层数字。
+   现在面板直接告诉他：这一建能让几支部队从"紧张/断绝"回到"充足"。 */
+function depotPreview(u) {
+  const before = state.fields[u.side] || {};
+  const saved = state.depots;
+  state.depots = saved.concat([{ side: u.side, r: u.pos[0], c: u.pos[1] }]);
+  const after = supplyField(u.side);
+  state.depots = saved;
+  const mates = alive(u.side).filter(m => m !== u && m.type !== 'sup');
+  let gain = 0, lack = 0;
+  for (const m of mates) {
+    const k = kk(m.pos[0], m.pos[1]);
+    const bm = before[k] ? before[k].mod : 0;
+    const am = after[k] ? after[k].mod : 0;
+    if (am > bm + 1e-9) gain++;
+    if (bm < 1) lack++;
+  }
+  return { gain, lack, mates: mates.length };
 }
 
 function modMatch(ef, u) {
@@ -1363,7 +1525,7 @@ function terrainDefFor(u) {
   let d = terrainAt(u.pos[0], u.pos[1]).def;
   if (u.fortify) d += u.fortify;
   if (isArty(u)) d *= 0.5;                  // 炮兵阵地暴露，地形收益减半
-  if (homeBonus(u)) d += 0.10;              // 为了祖国
+  if (homeBonus(u)) d += 0.20;              // 为了祖国
   d += fortDef(u);                          // 工兵构筑的野战工事
   return d;
 }
@@ -1381,9 +1543,17 @@ function moveCost(u, ch) {
   return t.cost;
 }
 
+/* 抵达范围。
+   返回 { d, stop }：
+     d    = 所有可达格的最低消耗（含"只能穿过、不能停"的格子）
+     stop = 可以停下来的格子 → 消耗
+   穿友军：编队行军本来就能从自己人身边过。以前 unitAt() 一律拦死，
+   结果 40 支部队抢 4 格渡口，谁都过不去——这是本次改动的直接原因。
+   友军格可以穿过，但堆满 STACK_MAX 之后就不能再停进去了。 */
 function computeReach(u) {
+  const out = { d: {}, stop: {} };
   const budget = u.mov;
-  if (budget <= 0) return {};
+  if (budget <= 0) return out;
   const dist = {};
   const start = kk(u.pos[0], u.pos[1]);
   dist[start] = 0;
@@ -1396,18 +1566,24 @@ function computeReach(u) {
       const nr = n[0], nc = n[1];
       const cost = moveCost(u, LEVEL.map[nr][nc]);
       if (cost === Infinity) continue;
-      if (unitAt(nr, nc)) continue;
       const nd = d + cost;
       if (nd > budget) continue;
-      if (dist[kk(nr, nc)] !== undefined && dist[kk(nr, nc)] <= nd) continue;
-      dist[kk(nr, nc)] = nd;
+      const key = kk(nr, nc);
+      if (dist[key] !== undefined && dist[key] <= nd) continue;
+      dist[key] = nd;
+      const here = unitsAt(nr, nc);
+      if (here.length && here[0].side !== u.side) continue;   // 敌占格：要打，不走进
+      if (here.length < STACK_MAX) out.stop[key] = nd;        // 有空位才算落脚点
       /* ZOC：进入敌方相邻格后停止 */
       if (!inEnemyZOC(nr, nc, u.side)) pool.push([nd, nr, nc]);
     }
   }
   delete dist[start];
-  return dist;
+  delete out.stop[start];
+  out.d = dist;
+  return out;
 }
+function emptyReach() { return { d: {}, stop: {} }; }
 
 function ratioTier(k) {
   if (k >= 3.0) return 0;
@@ -1419,11 +1595,13 @@ function ratioTier(k) {
   return 6;
 }
 
-/* 相邻友军协同：每支按 35% 计入，最多 3 支 */
+/* 相邻友军协同：同格按 50% 计入，相邻格按 35% 计入，最多 3 支。
+   同格权重更高——两支部队挤在一个格子里，火线是贴着的。 */
 function helpers(u, defPos, side) {
   return alive(side)
-    .filter(a => a !== u && a.rng > 0 && !isHQ(a) && hexDist(a.pos, defPos) === 1)
-    .sort((a, b) => b.str - a.str)
+    .filter(a => a !== u && a.rng > 0 && !isHQ(a) && hexDist(a.pos, defPos) <= 1)
+    .map(a => ({ u: a, w: hexDist(a.pos, defPos) === 0 ? STACK_COVER : 0.35 }))
+    .sort((x, y) => y.w * y.u.str - x.w * x.u.str)
     .slice(0, 3);
 }
 
@@ -1495,9 +1673,9 @@ function previewAttack(att, def, fields) {
   defMod += modDef(def);
 
   const attSum = (effStr(att, fields) +
-      attHelp.reduce((s, a) => s + effStr(a, fields) * 0.35, 0)) * (1 + attMod);
+      attHelp.reduce((s, a) => s + effStr(a.u, fields) * a.w, 0)) * (1 + attMod);
   const defSum = (effStr(def, fields) +
-      defHelp.reduce((s, a) => s + effStr(a, fields) * 0.35, 0)) * (1 + terrainDefFor(def) + defMod);
+      defHelp.reduce((s, a) => s + effStr(a.u, fields) * a.w, 0)) * (1 + terrainDefFor(def) + defMod);
 
   const ratio = attSum / Math.max(defSum, 0.1);
   return {
@@ -1761,7 +1939,7 @@ function restoreGame(s) {
     forts: s.forts || [],
     log: s.log || [],
     selected: null,
-    reachable: {},
+    reachable: emptyReach(),
     targets: [],
     mode: null,
     fortKind: 'H',
@@ -1775,11 +1953,85 @@ function restoreGame(s) {
     everSeen: s.everSeen || {},
     initStr: s.initStr || {}
   };
+  clearUndo();
   refreshFields();
   updateControl(true);
   log('已载入存档：第 ' + state.turn + ' 回合，得分 ' + blueScore() + ' / ' + LEVEL.winScore + '。', 'sys');
   render();
   fitView(true);
+  return true;
+}
+
+/* ───────────────────────── 撤销 ─────────────────────────
+   存整份快照而不是逆操作：回滚"歼灭 / 工事 / 事件触发 / 架桥改地形"
+   这类不可逆动作，写反向逻辑迟早出错。一步快照几 KB，40 步上限完全扛得住。
+   撤销边界：
+     · 只在我方阶段生效（AI 正在跑时按钮是灰的）
+     · 可以撤销"结束我方阶段"——连整个敌方回合一起回滚，重跑 AI 结果会重掷骰子
+     · 分胜负之后一律不可撤 */
+const UNDO_MAX = 40;
+let undoStack = [];
+
+function pushUndo() {
+  if (!state || state.result || state.phase !== 'blue') return;
+  undoStack.push(JSON.stringify({
+    turn: state.turn,
+    map: LEVEL.map.slice(),
+    units: state.units,
+    mines: state.mines,
+    depots: state.depots,
+    forts: state.forts,
+    ctrl: state.ctrl,
+    mods: state.mods,
+    flags: state.flags,
+    eventsDone: state.eventsDone,
+    storySeen: state.storySeen,
+    everSeen: state.everSeen,
+    initStr: state.initStr,
+    log: state.log.slice(-60)
+  }));
+  if (undoStack.length > UNDO_MAX) undoStack.shift();
+  syncUndoBtn();
+}
+
+function clearUndo() { undoStack = []; syncUndoBtn(); }
+
+function syncUndoBtn() {
+  const b = document.getElementById('btnUndo');
+  if (!b) return;
+  const can = undoStack.length > 0 && state && state.phase === 'blue' && !state.result;
+  b.disabled = !can;
+  b.title = can ? '撤销上一步（Ctrl+Z）· 可退 ' + undoStack.length + ' 步' : '没有可撤销的行动';
+}
+
+function doUndo() {
+  if (!state || state.phase !== 'blue' || state.result) return false;
+  const raw = undoStack.pop();
+  if (!raw) return false;
+  let s;
+  try { s = JSON.parse(raw); } catch (e) { syncUndoBtn(); return false; }
+  LEVEL.map = s.map || LEVEL.map;
+  state.turn = s.turn;
+  state.units = s.units;
+  state.mines = s.mines;
+  state.depots = s.depots;
+  state.forts = s.forts;
+  state.ctrl = s.ctrl;
+  state.mods = s.mods;
+  state.flags = s.flags;
+  state.eventsDone = s.eventsDone;
+  state.storySeen = s.storySeen;
+  state.everSeen = s.everSeen;
+  state.initStr = s.initStr;
+  state.log = s.log;
+  clearSelection();
+  refreshFields();
+  updateControl(true);
+  render();
+  saveGame();
+  FX.sfx('uiClick');
+  log('撤销上一步行动。', 'sys');
+  syncUndoBtn();
   return true;
 }
 
@@ -1793,7 +2045,7 @@ function newGame(opt) {
     forts: [],           // 工事：{r,c,side,kind,def}
     log: [],
     selected: null,
-    reachable: {},
+    reachable: emptyReach(),
     targets: [],
     mode: null,
     fortKind: 'H',       // 当前选中的工事种类
@@ -1812,6 +2064,7 @@ function newGame(opt) {
     if (u.wave !== 1) continue;
     state.initStr[u.corps] = (state.initStr[u.corps] || 0) + u.str;
   }
+  clearUndo();
   refreshFields();
   updateControl(true);
   FX.clear();
@@ -1822,7 +2075,7 @@ function newGame(opt) {
   log('敌军先头部队已抢在撤退主力之前抵达岚江东岸，目标岚口市与岚口机场。', 'sys');
   log('任务：12 回合内控制 ≥' + LEVEL.winScore + ' 分要点。岚口市 15 分、机场 15 分、青溪镇 10 分、两处渡口各 5 分。', 'sys');
   log('要点一经占领即持久保有，只有敌军实际占据才会易手；守军前出不会丢城。', 'sys');
-  log('守备营在本方城市、机场要点内或相邻格作战时触发「为了祖国」：战力 8 → 9，防御 +0.10。', 'sys');
+  log('守备营在本方城市、机场要点内或相邻格作战时触发「为了祖国」：战力 7 → 10，防御 +0.20。', 'sys');
   render();
   /* 开局就落一份档，这样"继续上次战役"不会因为还没走第一步而变灰。
      opt.noSave 给截图 / 自动化跑局用 —— 那些场景不该覆盖玩家进度 */
@@ -1835,7 +2088,7 @@ function select(u) {
   state.selected = u;
   state.mode = null;
   const my = u.side === 'blue' && state.phase === 'blue';
-  state.reachable = (my && !u.moved) ? computeReach(u) : {};
+  state.reachable = (my && !u.moved) ? computeReach(u) : emptyReach();
   state.targets = (my && !u.fired) ? targetsFor(u, state.fields) : [];
   state.terrainSel = null;
   render();
@@ -1843,7 +2096,7 @@ function select(u) {
 }
 function selectTerrain(r, c) {
   state.selected = null;
-  state.reachable = {};
+  state.reachable = emptyReach();
   state.targets = [];
   state.mode = null;
   state.terrainSel = [r, c];
@@ -1852,7 +2105,7 @@ function selectTerrain(r, c) {
 }
 function clearSelection() {
   state.selected = null;
-  state.reachable = {};
+  state.reachable = emptyReach();
   state.targets = [];
   state.mode = null;
   state.terrainSel = null;
@@ -1860,6 +2113,7 @@ function clearSelection() {
 
 /* ───────────────────────── 行动 ───────────────────────── */
 function doMove(u, pos) {
+  pushUndo();
   u.pos = pos;
   u.moved = true;
   u.fortify = 0;
@@ -1890,6 +2144,7 @@ function doMove(u, pos) {
 }
 
 function doAttack(att, def) {
+  pushUndo();
   const pv = previewAttack(att, def, state.fields);
   const die = Math.floor(Math.random() * 6);
   const row = CRT[pv.tier][die];
@@ -1927,7 +2182,7 @@ function doAttack(att, def) {
   /* 击退：比值 3:1 以上且目标可退 */
   if (pv.ratio >= 3 && canCapture(att) && def.str > 0) {
     const push = retreatDir(att.pos, def.pos);
-    if (push && inBounds(push[0], push[1]) && !unitAt(push[0], push[1]) &&
+    if (push && inBounds(push[0], push[1]) && !stackFull(push[0], push[1]) &&
         terrainAt(push[0], push[1]).cost < 99) {
       def.pos = push;
       log('  ' + def.abbr + ' 被击退至 ' + coordName(push), 'sys');
@@ -2072,6 +2327,7 @@ function doFort(u, pos, kind) {
     clearSelection(); render();
     return false;
   }
+  pushUndo();
   const spec = FORT[kind];
   const prev = fortAt(pos[0], pos[1]);
   if (prev) state.forts = state.forts.filter(f => f !== prev);   // 升级：替换旧工事
@@ -2091,6 +2347,7 @@ function doFort(u, pos, kind) {
 }
 
 function doMine(u, pos) {
+  pushUndo();
   state.mines.push({ r: pos[0], c: pos[1], side: u.side });
   u.moved = true; u.fired = true;
   log(u.abbr + ' 在 ' + coordName(pos) + ' 布设雷区。', u.side === 'blue' ? 'b' : 'r');
@@ -2100,6 +2357,7 @@ function doMine(u, pos) {
   saveGame();
 }
 function doClearMine(u, pos) {
+  pushUndo();
   state.mines = state.mines.filter(m => !(m.r === pos[0] && m.c === pos[1]));
   u.moved = true; u.fired = true;
   log(u.abbr + ' 清除了 ' + coordName(pos) + ' 的雷区。', u.side === 'blue' ? 'b' : 'r');
@@ -2108,6 +2366,7 @@ function doClearMine(u, pos) {
   saveGame();
 }
 function doBridge(u, pos) {
+  pushUndo();
   const row = LEVEL.map[pos[0]];
   LEVEL.map[pos[0]] = row.substring(0, pos[1]) + '=' + row.substring(pos[1] + 1);
   u.moved = true; u.fired = true;
@@ -2118,9 +2377,14 @@ function doBridge(u, pos) {
   saveGame();
 }
 function doDepot(u) {
-  state.depots.push({ side: u.side, r: u.pos[0], c: u.pos[1] });
+  pushUndo();
+  const dup = state.depots.some(d => d.side === u.side && d.r === u.pos[0] && d.c === u.pos[1]);
+  if (!dup) state.depots.push({ side: u.side, r: u.pos[0], c: u.pos[1] });
   u.moved = true; u.fired = true;
-  log(u.abbr + ' 在 ' + coordName(u.pos) + ' 建立补给点。', u.side === 'blue' ? 'b' : 'r');
+  log(u.abbr + ' 在 ' + coordName(u.pos) + (dup ? ' 的补给点已存在。' : ' 建立补给点，半径 4 格内友军补给充足。'),
+      u.side === 'blue' ? 'b' : 'r');
+  FX.sfx('build');
+  FX.pop(dup ? '已存在' : '补给点', u.pos.slice(), 'sys');
   clearSelection(); refreshFields(); render();
   saveGame();
 }
@@ -2145,12 +2409,23 @@ function onHexClick(r, c) {
           LEVEL.map[r][c] === '~') { doBridge(eng, [r, c]); return; }
     }
 
-    if (u && u.side === 'blue') { select(u); return; }
-    if (u && u.side === 'red' && state.selected && state.targets.includes(u)) {
-      doAttack(state.selected, u);
+    if (u && u.side === 'blue') {
+      /* 堆叠格：已经选中格内某一支时，再点一次换到下一支，避免点不到下层 */
+      const st = stackOf(u);
+      if (st.length > 1 && state.selected && st.includes(state.selected)) {
+        const i = st.indexOf(state.selected);
+        select(st[(i + 1) % st.length]);
+        return;
+      }
+      select(u); return;
+    }
+    /* 敌方堆叠格：点格子时按"栈顶优先、其次格内其他"挑一个可打的目标 */
+    const rTgt = unitsAt(r, c).find(x => x.side === 'red' && state.selected && state.targets.includes(x));
+    if (rTgt) {
+      doAttack(state.selected, rTgt);
       return;
     }
-    if (state.selected && state.reachable[kk(r, c)] !== undefined) {
+    if (state.selected && state.reachable.stop && state.reachable.stop[kk(r, c)] !== undefined) {
       doMove(state.selected, [r, c]);
       return;
     }
@@ -2165,6 +2440,7 @@ function onHexClick(r, c) {
 /* ───────────────────────── 阶段结算 ───────────────────────── */
 function endBluePhase() {
   if (state.phase !== 'blue' || state.result) return Promise.resolve();
+  pushUndo();          // 整个敌方回合也可以撤——点错「结束阶段」不至于赔掉一回合
   clearSelection();
   state.phase = 'ai';
   FX.banner('敌 方 行 动', 'r', 1800);
@@ -2255,8 +2531,9 @@ function settlePhase() {
     }
   }
 
-  /* 敌方波次：第 4 回合装甲旅、第 7 回合战斗群 */
-  const WAVE_AT = { 2: 3, 3: 8 };
+  /* 敌方波次：第 4 回合装甲旅、第 8 回合战斗群。
+     两波都比原设计早一回合——炮兵射程上调后蓝方火力覆盖变宽，红方需要更早形成压力。 */
+  const WAVE_AT = { 2: 3, 3: 7 };
   const WAVE_TEXT = {
     2: '敌方第二波（敌装甲第 4 旅）自东北方向投入战场。',
     3: '敌方第三波（敌第 6 战斗群）投入战场，攻势达到顶点。'
@@ -2350,8 +2627,38 @@ async function runAI() {
   for (const u of acts) {
     if (!state.units.includes(u) || state.result) break;
 
-    /* 指挥部坐镇后方，不参与机动 */
-    if (isHQ(u)) continue;
+    /* 指挥部跟随主力，但保持 2 格以上的安全距离。
+       以前这里是 `continue`——HQ 永远杵在出生点，而光环只有 2 格，
+       主力一过河就永久脱指，看着就像指挥系统失灵。 */
+    if (isHQ(u)) {
+      const radius = hqRadius(u.type);
+      const mates = alive(u.side).filter(m => m !== u && !isHQ(m));
+      const foes = alive(other(u.side));
+      if (mates.length && !u.moved) {
+        const reach = computeReach(u);
+        let best = null, bs = -Infinity;
+        for (const key in reach.stop) {
+          const p = key.split(',').map(Number);
+          let cover = 0, mateMin = Infinity;
+          for (const m of mates) {
+            const d = hexDist(p, m.pos);
+            if (d <= radius) cover++;
+            if (d < mateMin) mateMin = d;
+          }
+          let foeMin = Infinity;
+          for (const f of foes) foeMin = Math.min(foeMin, hexDist(p, f.pos));
+          let s = cover * 10 - mateMin * 1.2;
+          if (foeMin <= 1) s -= 60;          // 贴脸：绝不
+          else if (foeMin <= 2) s -= 25;     // 敌炮威胁圈：尽量不
+          if (s > bs) { bs = s; best = p; }
+        }
+        if (best && (best[0] !== u.pos[0] || best[1] !== u.pos[1])) {
+          doMove(u, best);
+          await sleep(150);
+        }
+      }
+      continue;
+    }
 
     /* 防空单位守在主力后方，不冲最前 */
     if (u.type === 'aac' || u.type === 'aab') {
@@ -2359,7 +2666,7 @@ async function runAI() {
       if (goal && !u.moved) {
         const reach = computeReach(u);
         let best = null, bs = -Infinity;
-        for (const key in reach) {
+        for (const key in reach.stop) {
           const p = key.split(',').map(Number);
           let mind = Infinity;
           for (const f of alive('blue')) mind = Math.min(mind, hexDist(p, f.pos));
@@ -2376,7 +2683,7 @@ async function runAI() {
       const foes = alive('blue');
       if (foes.length) {
         const reach = computeReach(u);
-        const cands = Object.keys(reach).map(k => k.split(',').map(Number));
+        const cands = Object.keys(reach.stop).map(k => k.split(',').map(Number));
         cands.push(u.pos);
         let best = null, bs = -Infinity;
         for (const p of cands) {
@@ -2428,9 +2735,30 @@ async function runAI() {
       continue;
     }
 
-    /* 工兵：跟随但不主动布雷（保持简单） */
+    /* 工兵：先判断该不该架桥，再决定是否跟随。
+       红方是进攻方，正面就只有两处渡口，不架桥就只能排队送死。
+       判定条件三条，缺一不可：
+         ① 编制上能架桥（eng 才有舟桥分队，engc 没有）
+         ② 相邻有真正的河流格（不是已有渡口）
+         ③ 架完这一格，离作战目标确实更近——不为了架桥而架桥 */
     if (u.type === 'eng' || u.type === 'engc') {
       const goal = redGoal(u);
+      if (u.type === 'eng' && goal && !u.moved && !u.fired) {
+        const rivers = neighbors(u.pos)
+          .filter(n => inBounds(n[0], n[1]) && LEVEL.map[n[0]][n[1]] === '~');
+        let pick = null, pd = hexDist(u.pos, goal);
+        for (const s of rivers) {
+          const d = hexDist(s, goal);
+          if (d < pd) { pd = d; pick = s; }
+        }
+        if (pick) {
+          log('  敌工兵在 ' + coordName(pick) + ' 架设舟桥。', 'r');
+          FX.banner('敌 军 架 桥 · ' + coordName(pick), 'r', 2000);
+          doBridge(u, pick);
+          await sleep(220);
+          continue;
+        }
+      }
       if (goal && !u.moved) stepToward(u, goal);
       await sleep(120);
       continue;
@@ -2441,7 +2769,7 @@ async function runAI() {
     if (goal && !u.moved) {
       const reach = computeReach(u);
       let best = null, bs = -Infinity;
-      for (const key in reach) {
+      for (const key in reach.stop) {
         const p = key.split(',').map(Number);
         const t = terrainAt(p[0], p[1]);
         let s = -hexDist(p, goal) * 1.2 + t.def * 2;
@@ -2472,9 +2800,9 @@ async function runAI() {
 function stepToward(u, goal) {
   const reach = computeReach(u);
   let best = null, bd = Infinity;
-  for (const key in reach) {
+  for (const key in reach.stop) {
     const p = key.split(',').map(Number);
-    const d = hexDist(p, goal) + reach[key] * 0.1;
+    const d = hexDist(p, goal) + reach.stop[key] * 0.1;
     if (d < bd) { bd = d; best = p; }
   }
   if (best) doMove(u, best);
@@ -2487,6 +2815,7 @@ function render() {
   renderGoal();
   renderUnitBox();
   renderLog();
+  syncUndoBtn();
 }
 
 function renderBoard() {
@@ -2514,29 +2843,40 @@ function renderBoard() {
       if (t.cost >= 99) cls += ' river';
       const ftHere = fortAt(r, c);
       if (ftHere) cls += ftHere.side === 'blue' ? ' fb' : ' fr';
-      if (state.reachable[kk(r, c)] !== undefined) cls += ' move';
-      const tu = unitAt(r, c);
-      if (tu && state.targets.includes(tu)) cls += ' atk';
+      const rk = kk(r, c);
+      if (state.reachable.stop && state.reachable.stop[rk] !== undefined) cls += ' move';
+      else if (state.reachable.d && state.reachable.d[rk] !== undefined) cls += ' pass';
+      const here = unitsAt(r, c);
+      const tu = here.length ? here[here.length - 1] : null;
+      if (here.some(x => state.targets.includes(x))) cls += ' atk';
       if (state.selected && state.selected.pos[0] === r && state.selected.pos[1] === c) cls += ' cur';
       if (state.terrainSel && state.terrainSel[0] === r && state.terrainSel[1] === c) cls += ' cur';
       if (state.mode === 'fort' && state.selected && hexDist(state.selected.pos, [r, c]) <= 1 &&
           fortKindsFor(state.selected, [r, c]).includes(state.fortKind || 'H')) cls += ' selfort';
-      if (state.mode === 'mine' && state.selected && hexDist(state.selected.pos, [r, c]) === 1 && !tu) cls += ' selmine';
+      if (state.mode === 'mine' && state.selected && hexDist(state.selected.pos, [r, c]) === 1 && !here.length) cls += ' selmine';
       if (state.mode === 'bridge' && state.selected && hexDist(state.selected.pos, [r, c]) === 1 && LEVEL.map[r][c] === '~') cls += ' bridge';
 
+      /* 堆叠渲染：一格两支时上下错开、整体缩小，栈顶在上（z-index 高） */
       let inner = '';
-      if (tu) {
-        let uc = 'unit ' + tu.side;
-        if (tu.moved || tu.fired) uc += ' spent';
-        if (state.selected === tu) uc += ' sel';
-        inner = '<div class="' + uc + '" title="' + tu.name + '">' +
-                '<span class="n">' + tu.abbr + '</span>' +
-                '<span class="s">' + Math.max(0, tu.str) + '</span>' +
-                '<span class="orgbar"><i style="width:' + Math.max(0, tu.org) + '%"></i></span>' +
-                '</div>';
-      }
+      here.forEach((u2, i) => {
+        let uc = 'unit ' + u2.side;
+        if (u2.moved || u2.fired) uc += ' spent';
+        if (state.selected === u2) uc += ' sel';
+        if (here.length > 1) uc += ' stk stk' + i;
+        inner += '<div class="' + uc + '" title="' + u2.name + '">' +
+                 '<span class="n">' + u2.abbr + '</span>' +
+                 '<span class="s">' + Math.max(0, u2.str) + '</span>' +
+                 '<span class="orgbar"><i style="width:' + Math.max(0, u2.org) + '%"></i></span>' +
+                 '</div>';
+      });
       const mine = state.mines.find(m => m.r === r && m.c === c);
-      if (mine && !tu) inner += '<span style="font-size:9px;color:#8B5E1A;font-weight:700;z-index:2">雷</span>';
+      if (mine && !here.length) inner += '<span style="font-size:9px;color:#8B5E1A;font-weight:700;z-index:2">雷</span>';
+
+      /* 补给点：以前只存在于逻辑里，棋盘上完全看不见，玩家自然觉得"建了没效果" */
+      const dep = (state.depots || []).find(d => d.r === r && d.c === c);
+      if (dep) {
+        inner += '<span class="dbadge ' + dep.side + '" title="补给点 · 半径 4 格">补</span>';
+      }
 
       /* 工事字母角标：H 堑壕 / B 碉堡 / P 要塞炮 / A 岸防炮 / F 防空阵地 */
       if (ftHere) {
@@ -2685,8 +3025,9 @@ function renderUnitBox() {
   h += '<div class="ub-meta">' + ty.name + ' · ' + ty.role + ' · ' + coordName(u.pos) + ' ' + t.name + '</div>';
 
   const hbNow = homeBonus(u);
-  h += '<div class="kv"><span>战力</span><b>' + u.str + ' / 满编 ' + u.str +
-       (hbNow ? ' <span class="ok">（为了祖国 +1）</span>' : '') + '</b></div>';
+  const fullStr = (LEVEL.units.find(x => x.id === u.id) || {}).str || u.str;
+  h += '<div class="kv"><span>战力</span><b>' + u.str + ' / 满编 ' + fullStr +
+       (hbNow ? ' <span class="ok">（为了祖国 +' + hbNow + '）</span>' : '') + '</b></div>';
   h += '<div class="kv"><span>有效战力</span><b>' + eff.toFixed(1) + '</b></div>';
   h += '<div class="kv"><span>组织度</span><b class="' + (u.org >= 70 ? 'ok' : u.org >= 40 ? 'warn' : 'bad') + '">' + Math.round(u.org) + '%</b></div>';
   h += '<div class="kv"><span>机动</span><b>' + u.mov + ' 点</b></div>';
@@ -2742,7 +3083,22 @@ function renderUnitBox() {
       h += '</div></div>';
     }
     if (u.type === 'sup' && !u.fired) {
-      h += '<div class="grp"><button data-act="depot" style="width:100%;padding:5px;font-size:11px">建立补给点（消耗行动）</button></div>';
+      const dp = depotPreview(u);
+      const exists = state.depots.some(d => d.side === u.side && d.r === u.pos[0] && d.c === u.pos[1]);
+      h += '<div class="grp"><div class="grp-h">建立补给点</div>';
+      if (exists) {
+        h += '<div class="hint">本格已有补给点。</div>';
+      } else {
+        h += '<div class="hint">建在此格后半径 4 格内补给充足、再外 3 格紧张。' +
+             (dp.gain > 0
+               ? '可让 <b class="ok">' + dp.gain + '</b> 支部队补给升级。'
+               : '当前覆盖范围内没有部队因此受益——它更适合留在跨河后的前沿。') +
+             (dp.lack > 0 ? '<br>目前有 <b class="warn">' + dp.lack + '</b> / ' + dp.mates +
+               ' 支友军补给不足。' : '') +
+             '</div>';
+      }
+      h += '<button data-act="depot" style="width:100%;padding:5px;font-size:11px;margin-top:4px" ' +
+           (exists ? 'disabled' : '') + '>建立补给点（消耗本回合行动）</button></div>';
     }
     const tgs = state.targets.filter(x => x.side === 'red');
     if (tgs.length) {
@@ -3051,7 +3407,33 @@ function startResume() {
 
 /* ───────────────────────── 事件绑定 ───────────────────────── */
 document.getElementById('btnEnd').addEventListener('click', () => { FX.sfx('uiClick'); endBluePhase(); });
+document.getElementById('btnUndo').addEventListener('click', () => { doUndo(); });
 document.getElementById('mBtn').addEventListener('click', () => { FX.sfx('uiClick'); newGame(); });
+
+/* 操作说明：按钮开、按钮/遮罩/ESC 关 */
+const tipsEl = document.getElementById('tipsScreen');
+function openTips() { tipsEl.classList.remove('hidden'); FX.sfx('uiClick'); }
+function closeTips() { tipsEl.classList.add('hidden'); }
+document.getElementById('btnTips').addEventListener('click', openTips);
+document.getElementById('btnTipsClose').addEventListener('click', () => { FX.sfx('uiClick'); closeTips(); });
+tipsEl.addEventListener('click', e => { if (e.target === tipsEl) closeTips(); });
+
+/* 键盘：Ctrl/⌘+Z 撤销，空格结束阶段，ESC 关面板 */
+window.addEventListener('keydown', e => {
+  const tag = (e.target && e.target.tagName) || '';
+  if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && String(e.key).toLowerCase() === 'z') {
+    e.preventDefault(); doUndo(); return;
+  }
+  if (e.key === 'Escape') { closeTips(); return; }
+  if (e.key === ' ' && !tipsEl.classList.contains('hidden')) { e.preventDefault(); closeTips(); return; }
+  if (e.key === ' ') {
+    const startShown = !document.getElementById('startScreen').classList.contains('hidden');
+    if (!startShown && state && state.phase === 'blue' && !state.result) {
+      e.preventDefault(); endBluePhase();
+    }
+  }
+});
 document.getElementById('btnNewGame').addEventListener('click', startNew);
 document.getElementById('btnResume').addEventListener('click', startResume);
 
@@ -3113,6 +3495,32 @@ if (typeof location !== 'undefined') {
     if (foe) foe.pos = [10, 2];
     selectTerrain(12, 2);
   }
+  else if (q.indexOf('demo=stack') >= 0) {
+    /* 堆叠：把 B2B 叠到 B2A 的机场格上，截图看两支兵牌的排布 */
+    const a = uid('B2A'), b = uid('B2B');
+    if (a && b) { b.pos = a.pos.slice(); select(a); }
+  }
+  else if (q.indexOf('demo=depot2') >= 0) {
+    /* 补给点已建成：看棋盘右下角标 */
+    const s = uid('B3S');
+    if (s) { s.pos = [9, 8]; doDepot(s); selectTerrain(9, 8); }
+  }
+  else if (q.indexOf('demo=depot') >= 0) {
+    /* 补给点预览：选中辎重，看"这一建能让几支部队受益" */
+    const s = uid('B3S');
+    if (s) { s.pos = [9, 8]; select(s); }
+  }
+  else if (q.indexOf('demo=undo') >= 0) {
+    /* 走一步之后截图，验证「撤销」按钮从灰变亮 */
+    const u = uid('B1A');
+    if (u) doMove(u, [10, 2]);
+  }
+  else if (q.indexOf('demo=through') >= 0) {
+    /* 仅可穿越：A、B 占满机场格，选中旁边的 C，看淡蓝的"能过不能停" */
+    const a = uid('B2A'), b = uid('B2B'), c = uid('B2C');
+    if (a && b && c) { b.pos = a.pos.slice(); select(c); }
+  }
+  else if (q.indexOf('demo=tips') >= 0) openTips();
   else if (q.indexOf('demo=terrain') >= 0) selectTerrain(6, 9);
 }
 
@@ -3134,6 +3542,10 @@ window.__WAR__ = {
   blueScore, redScore, canCounter, isArty, canCapture,
   isHQ, hqBonus, homeBonus, hqRadius, hqAura, makeUnit,
   HQ_TYPES, ARTY_TYPES, CAPTURE_TYPES,
+  /* 堆叠 / 撤销 / 补给场：新增机制的测试入口 */
+  unitsAt, stackFull, stackOf, STACK_MAX, STACK_COVER,
+  pushUndo, doUndo, clearUndo, depotPreview, supplyField, supplySources,
+  get undoDepth() { return undoStack.length; },
   /* 视图控制（窄屏缩放/平移），供自动化测试读取状态 */
   view: {
     fitView, zoomBy, centerOnCell, isNarrow, boardSize, innerBox,
