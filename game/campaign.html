@@ -1852,7 +1852,7 @@ const LEVELS = [
       when: { kind: 'unitActed', id: 'B1A', act: 'move' },
       effects: [
         { kind: 'log', text: '1-1 营离开工事前出——守备营一旦离开要点，就没有「为了祖国」那层加成了。', cls: 'hi' },
-        { kind: 'say', who: '第 1 边防旅 · 旅长', side: 'blue', portrait: 'portBlue',
+        { kind: 'say', who: '第 1 边防旅 · 旅长', side: 'blue', portrait: 'portBde1',
           text: '我让 1-1 前出看看正面。\n提醒一句：他们出了工事，就不比普通步兵强到哪去。' }
       ]
     },
@@ -1930,7 +1930,7 @@ const LEVELS = [
       beats: [
         { who: '第 103 步兵师 · 师长', side: 'blue', portrait: 'portBlue',
           text: '边防旅的阵地昨天就没了，人退进来了，番号还在。\n现在归我指挥。' },
-        { who: '第 1 边防旅 · 旅长', side: 'blue', portrait: 'portBlue',
+        { who: '第 1 边防旅 · 旅长', side: 'blue', portrait: 'portBde1',
           text: '我的营打剩下两个连。要塞炮还能用，炮弹还有四十发。\n守多久？' },
         { who: '敌第 14 步兵师 · 前沿无线电', side: 'red', portrait: 'portRed',
           text: '要塞里有守军，工事没被炸开。\n绕过去太慢——压上去，一天解决。' }
@@ -3290,10 +3290,18 @@ const ASSETS = {
   bgm: { menu: null, battle: null, tension: null, result: null },
 
   /* 剧情：背景图与立绘。立绘走 3:4 竖半身，源图 480×640（成显 132×176）。
-     portHQ 是符号位——司令部那通电话不放人脸，缺素材时渲染电台符号。 */
+     portHQ 是符号位——司令部那通电话不放人脸，缺素材时渲染电台符号。
+
+     卡位分两层：
+     - portBlue / portRed 是**通用位**，一整边共用，缺素材时显示「立绘位」。
+     - port<番号> 是**角色位**，只给有确定脸的人物。
+     一个人有专属位之后，就不要再往通用位上挂——同一张卡里旅长和师长
+     对话时必须是两张脸，共用一位等于把两个人画成同一个人。
+     通用位留着不填是对的：没画过的人不该长着别人的脸。 */
   story: {
     bgBriefing: null, bgVictory: null, bgDefeat: null,
-    portBlue: null, portRed: null, portHQ: null
+    portBlue: null, portRed: null, portHQ: null,
+    portBde1: 'story/port-bde1.webp'    // 第 1 边防旅 · 旅长（第一关）
   }
 };
 

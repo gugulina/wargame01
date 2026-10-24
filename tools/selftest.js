@@ -24,6 +24,36 @@ function ok(name, cond, extra) {
 }
 const cn = p => String.fromCharCode(65 + p[1]) + (p[0] + 1);
 
+/* 读图片像素尺寸，只为校验立绘比例。故意不引 sharp / image-size：
+   测试链现在的依赖只有 jsdom（还是 devDependency），为了取两个整数装个解码库不值。 */
+function imgSize(buf) {
+  if (buf.length < 32) return null;
+  if (buf.slice(0, 4).toString('latin1') === 'RIFF' &&
+      buf.slice(8, 12).toString('latin1') === 'WEBP') {
+    const fmt = buf.slice(12, 16).toString('latin1');
+    if (fmt === 'VP8X') return [buf.readUIntLE(24, 3) + 1, buf.readUIntLE(27, 3) + 1];
+    if (fmt === 'VP8L') {
+      const b = buf.readUInt32LE(21);
+      return [(b & 0x3FFF) + 1, ((b >> 14) & 0x3FFF) + 1];
+    }
+    if (fmt === 'VP8 ') return [buf.readUInt16LE(26) & 0x3FFF, buf.readUInt16LE(28) & 0x3FFF];
+    return null;
+  }
+  if (buf[0] === 0x89 && buf[1] === 0x50) return [buf.readUInt32BE(16), buf.readUInt32BE(20)];
+  if (buf[0] === 0xFF && buf[1] === 0xD8) {
+    let i = 2;
+    while (i < buf.length - 8) {
+      if (buf[i] !== 0xFF) { i++; continue; }
+      const m = buf[i + 1];
+      if (m >= 0xC0 && m <= 0xCF && m !== 0xC4 && m !== 0xC8 && m !== 0xCC) {
+        return [buf.readUInt16BE(i + 7), buf.readUInt16BE(i + 5)];
+      }
+      i += 2 + buf.readUInt16BE(i + 2);
+    }
+  }
+  return null;
+}
+
 /* ───────── 一、要点控制权 ───────── */
 console.log('\n[1] 要点控制权');
 {
@@ -321,6 +351,39 @@ console.log('\n[6] 表现层接口');
   ok('兵种素材槽与 TYPE 表一一对齐', missUnit.length === 0, missUnit.join(','));
   ok('工事素材槽与 FORT 表一一对齐',
      api.FORT_KEYS.every(k => A.fort && (k in A.fort)));
+
+  /* 台词里写的 portrait 键必须在 ASSETS.story 里存在。
+     写错一个字（portBde1 → portBde）不会报错，只会静默渲染成「立绘位」，
+     而那三个字玩家会当成"这里本来就该有张图没做"，不会当成 bug 报上来。
+     引入角色位（一个旅长一个槽）之后，这类打错字的概率明显变高。 */
+  const portKeys = new Set();
+  const seeSay = (o) => {
+    if (!o || typeof o !== 'object') return;
+    if (typeof o.portrait === 'string') portKeys.add(o.portrait);
+    for (const k of Object.keys(o)) {
+      const v = o[k];
+      if (Array.isArray(v)) v.forEach(seeSay);
+      else if (v && typeof v === 'object') seeSay(v);
+    }
+  };
+  (api.LEVELS || []).forEach(seeSay);
+  const badPort = [...portKeys].filter(k => !(k in A.story));
+  ok('台词引用的立绘键都在 ASSETS.story 里', badPort.length === 0,
+     '未定义：' + badPort.join(','));
+  ok('确实扫到了立绘键（否则上一条是空转）', portKeys.size >= 3, '共 ' + portKeys.size + ' 个');
+  /* 填了值的槽位，文件必须真实存在，且比例是 3:4——
+     比例不对时 background-size:cover 会对称裁切，头顶最先没。 */
+  const fs = require('fs'), path = require('path');
+  const filled = Object.keys(A.story).filter(k => typeof A.story[k] === 'string' && A.story[k]);
+  let fileBad = [], sizeBad = [];
+  for (const k of filled) {
+    const p = path.join(__dirname, '..', 'game', 'assets', A.story[k]);
+    if (!fs.existsSync(p)) { fileBad.push(k + '→' + A.story[k]); continue; }
+    const dim = imgSize(fs.readFileSync(p));
+    if (!dim || Math.abs(dim[0] / dim[1] - 0.75) > 0.01) sizeBad.push(k + ' ' + (dim ? dim.join('×') : '读不出尺寸'));
+  }
+  ok('已填的立绘文件都真实存在', fileBad.length === 0, fileBad.join(','));
+  ok('已填的立绘都是 3:4', sizeBad.length === 0, sizeBad.join(','));
 
   /* 素材全为 null 时，调用链必须静默降级而不是抛错 */
   let threw = null;
