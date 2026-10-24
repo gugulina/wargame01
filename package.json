@@ -1,10 +1,11 @@
 {
   "name": "cangyu-wargame",
-  "version": "4.3.0",
+  "version": "4.5.0",
   "private": true,
   "description": "苍屿战役 — 架空六角格兵棋推演",
   "scripts": {
-    "test": "node tools/selftest.js && node tools/check.js game/campaign.html && node tools/levelcheck.js && node tools/briefcheck.js && node tools/export-levels.js --check && node tools/orgcheck.js"
+    "test": "node tools/selftest.js && node tools/check.js game/campaign.html && node tools/levelcheck.js && node tools/briefcheck.js && node tools/export-levels.js --check && node tools/orgcheck.js",
+    "mut": "node tools/mutcheck.js"
   },
   "devDependencies": {
     "jsdom": "^30.0.0"

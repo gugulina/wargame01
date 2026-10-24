@@ -71,6 +71,9 @@
   .legend .k.cr { background: rgba(168,58,58,.55); }
   .legend .k.cc { background: repeating-linear-gradient(45deg, rgba(176,126,30,.75) 0 3px, rgba(176,126,30,.25) 3px 6px); }
   .legend .k.fort { background: #fff; box-shadow: inset 0 0 0 2px rgba(58,110,165,.92); }
+  .legend .k.shoal { background: #9FC4DC; }
+  .legend .k.deep { background: #6E93B4; }
+  .legend .k.port { background: #A9B4A6; }
   .legend .k.fh { background: #fff; box-shadow: inset 0 0 0 1px rgba(43,42,38,.45); }
   .legend .lg-note { margin-left: auto; color: var(--ink3); }
   #board { position: relative; background: #E7E4DA; border-radius: 6px; }
@@ -168,6 +171,12 @@
   .t-road   { background: #F4F1E7; }
   .t-ford   { background: #B6D2E5; }
   .t-river  { background: #A5C7DE; }
+  /* 浅海 / 深海：比河流更冷、更深。深海要一眼看出"这不是河的延长"，
+     否则玩家会把蓝水舰开进内河、再回来问为什么进不去。 */
+  .t-shoal  { background: #9FC4DC; }
+  .t-deep   { background: #6E93B4; }
+  /* 港口：水泥码头，比城市偏冷、比机场偏绿——要和浅海挨着时仍能分界 */
+  .t-port   { background: #A9B4A6; }
 
   .unit {
     width: 30px; height: 26px; border-radius: 3px; z-index: 3;
@@ -179,6 +188,19 @@
   }
   .unit.blue { background: var(--blue); }
   .unit.red  { background: var(--red); }
+  /* 空军：白色虚线框 + 顶部高光。为什么不用"上浮投影"——六角格是
+     clip-path 裁出来的，格子外面的阴影一律被裁掉，看着像没画。
+     虚线框是唯一在格内也一眼可辨的处理，配合兵牌简称（航）足够。 */
+  .unit.air {
+    border: 1px dashed rgba(255,255,255,.95);
+    background-image: linear-gradient(180deg, rgba(255,255,255,.26), transparent 58%);
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,.12);
+  }
+  /* 海军：底边一条水线，和陆军同一套配色但一眼能分出军种 */
+  .unit.sea {
+    border-bottom: 3px solid rgba(209,230,245,.95);
+    border-radius: 3px 3px 2px 2px;
+  }
   .unit.spent { opacity: .42; }
   /* 拖曳炮收炮/行军状态：斜纹，一眼看出"这门炮现在打不了" */
   .unit.packed::after {
@@ -960,7 +982,7 @@
       <span class="pill" id="phasePill">我方阶段</span>
       <!-- 全项目唯一的版本标记：tools/export-levels.js 按这个 span 的原样文本抓版本号，
            开始页撤掉之后它挪到了顶栏，标签必须保持 <span id="verTag"> 这个形状 -->
-      <span id="verTag">v4.3</span>
+      <span id="verTag">v4.5</span>
       <button id="btnMenu" class="hqbtn" title="返回菜单页：换关、看进度、导存档">菜单</button>
       <button id="btnHQ" class="hqbtn" title="指挥部：兵种图鉴 / 战术卡 / 副官 / 存档">HQ</button>
       <button id="btnTips" class="tipsbtn" title="操作说明">?</button>
@@ -985,7 +1007,10 @@
       <span><i class="k cr"></i>敌方占领</span>
       <span><i class="k cc"></i>争夺中</span>
       <span><i class="k fort"></i>工事</span>
-      <span>角标：H 堑壕 · B 碉堡 · P 要塞炮 · A 岸防炮 · F 防空阵地 · 补 补给点</span>
+      <span><i class="k shoal"></i>浅海</span>
+      <span><i class="k deep"></i>深海</span>
+      <span><i class="k port"></i>港口</span>
+      <span>角标：H 堑壕 · B 碉堡 · P 要塞炮 · A 岸防炮 · F 防空阵地 · 补 补给点 · 虚线框 空中 · 底边水线 水上</span>
       <span class="lg-note">1 格 ≈ 1.5km（全图 30×21km）· 守军前出不丢城 · 牵引炮架设 / 收炮各占一回合</span>
     </div>
   </main>
@@ -1142,6 +1167,12 @@
 
 <script>
 /* ───────────────────────── 地形 ───────────────────────── */
+/* 地形表。
+   `cost` 是**地面**机动消耗，99 = 地面不可通行——全代码里所有 `cost >= 99`
+   的判断都还在读这个字段，所以水域也一律写 99：在陆战逻辑眼里海和河就是走不了。
+   `nav` 是**水上**机动消耗，有这个字段才代表它是可航行水域；水域的单位要多少
+   油钱由它决定，跟陆战队完全分开。两套数值并存是刻意的——把河流的 cost 改成 3
+   会让"布雷 / 筑垒 / 地形面板"这些地面逻辑全都悄悄认它当陆地。 */
 const TERRAIN = {
   '.': { name: '平原', cost: 2, def: 0,    cls: 't-plain',  note: '无遮障，装甲与炮兵机动顺畅。防御无加成。' },
   'f': { name: '林地', cost: 3, def: 0.25, cls: 't-forest', note: '遮蔽良好，步兵防御加成明显；装甲与炮兵机动受阻。' },
@@ -1150,8 +1181,89 @@ const TERRAIN = {
   'a': { name: '机场', cost: 2, def: 0.35, cls: 't-air',    note: '硬化道面加机库建筑群。跑道被占即视为机场失守。' },
   '#': { name: '道路', cost: 1, def: 0,    cls: 't-road',   note: '机动消耗最低，沿路推进效率最高。防御无加成。' },
   '=': { name: '渡口', cost: 2, def: 0.25, cls: 't-ford',   note: '跨越河流的唯一通道（架桥后出现）。守渡口可封锁整条河线。' },
-  '~': { name: '河流', cost: 99, def: 0,   cls: 't-river',  note: '不可通行。工兵可在相邻格架桥，将其变为渡口。' }
+  '~': { name: '河流', cost: 99, nav: 3, def: 0, cls: 't-river',
+        note: '地面不可通行，工兵可在相邻格架桥。**绿水海军可沿河上溯**——内河炮艇走的就是这一格。' },
+  's': { name: '浅海', cost: 99, nav: 3, def: 0, cls: 't-shoal',
+        note: '近岸浅水。绿水、蓝水都能走；地面部队一律下不去。' },
+  'd': { name: '深海', cost: 99, nav: 2, def: 0, cls: 't-deep',
+        note: '远洋深水。只有蓝水海军能进出；越往外海越"顺畅"，近岸反而绕。' },
+  /* 港口码头：陆地设施，地面可通行。单独做一个字符而不是拿城市代替，
+     是因为"码头"在关卡里是**舰队的补给依托**——supplyOf 按它判舰船补给，
+     拿城市当码头会让"城里有人、码头荒着"这种局面判不出来。 */
+  'p': { name: '港口', cost: 2, def: 0.50, cls: 't-port',
+        note: '码头区：岸桥、仓库与油料储罐。地面可通行，也是舰船靠泊补给的唯一依托。' }
 };
+
+/* ───────────────────────── 领域：陆 / 空 / 水 ─────────────────────────
+   一个单位属于哪个领域，决定三件事，而且是同一件事的三个侧面：
+     · 能走哪些格（`moveCost`）
+     · 和谁挤一格（`slotOf` / 堆叠分层）
+     · 谁能打它（对空需要防空）
+   领域写在兵种表里（`dm`），单位上也可以临时覆盖（`u.dm`）——
+   后者是给"同一兵种换装 / 临时任务编组"留的口子，测试也靠它构造样本。
+
+   **水面的两级**：
+     绿水 = 内河 + 近岸浅海（`~` `s`），蓝水 = 近岸 + 远洋（`s` `d`）。
+   需求原话就是这两行，所以不写成"蓝水 ⊇ 绿水"的等级模型：蓝水舰进不了内河
+   （吃水不够），这是刻意的。要放宽就把 '~' 加进 blue.cells，只有这一处。 */
+const NAV = {
+  green: { name: '绿水', label: '绿', cells: ['~', 's'] },
+  blue:  { name: '蓝水', label: '蓝', cells: ['s', 'd'] }
+};
+const DOMAINS = ['ground', 'air', 'green', 'blue'];
+/* 一格能放几支。地面不写在这里，走 STACK_MAX（堆叠那一节定义的 2）——
+   两个常量必须是一处真相，所以在 slotOf 里回落，不复制一份数字。
+   空中一格只容一支："无视地面堆叠"不等于"空中也能叠"，
+   天空是按格划分的管制区。水面同理，一条水道一个队形。 */
+const SLOT = { air: 1, green: 1, blue: 1 };
+function domainOf(u) {
+  if (!u) return 'ground';
+  if (u.dm) return u.dm;
+  const t = TYPE[u.type];
+  return (t && t.dm) || 'ground';
+}
+/* 分层：空中与"地表"（陆 + 水）互不占位。陆和水本来就不可能同格，
+   所以它们共用一个地表层就够，不必再细分。 */
+function layerOf(u) { return domainOf(u) === 'air' ? 'air' : 'surface'; }
+function slotOf(u) {
+  const s = SLOT[domainOf(u)];
+  return s === undefined ? STACK_MAX : s;
+}
+function isAir(u) { return domainOf(u) === 'air'; }
+function isNaval(u) { const d = domainOf(u); return d === 'green' || d === 'blue'; }
+function isGround(u) { return domainOf(u) === 'ground'; }
+/* 防空：只有带 aa 标记的兵种能打空中目标 */
+function isAA(u) { return !!(u && TYPE[u.type] && TYPE[u.type].aa); }
+
+/* ─────────────────── 目标分类：打谁 / 打不打得动 ───────────────────
+   领域（domain）讲的是"我怎么动"，目标分类（tclass）讲的是"我打的是什么东西"。
+   两者刻意分开：潜艇在水面上机动（domain = blue），但目标分类是 `sub`——
+   否则战列舰一炮就能把潜艇从水里炸出来，而它连声呐都没有。
+
+   `atk` 是**主动攻击**的白名单，不是"能不能还手"。被打的时候能不能反击，
+   仍然由 canCounter 决定，它不看 atk——轰炸机的"仅可对空反击"就是这么来的：
+   atk 里没有 'air'（挑不了飞机打），但挨咬时自卫机枪照响。 */
+function tclass(u) {
+  const t = TYPE[u.type];
+  if (t && t.tc) return t.tc;
+  const d = domainOf(u);
+  if (d === 'air') return 'air';
+  return (d === 'green' || d === 'blue') ? 'ship' : 'land';
+}
+/* 没写 atk 的兵种（全部老步兵、炮兵、坦克）＝什么都能打，保持原行为 */
+function attackClasses(u) {
+  const t = TYPE[u.type];
+  return (t && Array.isArray(t.atk)) ? t.atk : null;
+}
+function canTarget(att, def) {
+  /* 这里不判 str：str 归零的单位在 doAttack 里还要走完"被歼灭"那一段
+     （音效、飘字、removeUnit）。把 0 战力挡在门外，等于把收尾也一起挡了。 */
+  if (!att || !def) return false;
+  if (isAir(def) && !canHitAir(att)) return false;   // 没防空能力就打不着天上的
+  const ac = attackClasses(att);
+  if (ac && !ac.includes(tclass(def))) return false;
+  return true;
+}
 
 /* ───────────────────────── 兵种 ───────────────────────── */
 const TYPE = {
@@ -1164,10 +1276,20 @@ const TYPE = {
     abil: ['可占领要点，机动 8，跟得上装甲部队', '平原、道路攻击 +0.10', '城镇进攻不吃装甲惩罚'] },
   mech: { name: '装步营', role: '装甲伴随', am: 6,
     abil: ['可占领要点，机动 8', '城镇进攻不吃装甲惩罚', '被反坦克连攻击时防御 -0.20'] },
+  /* 海军步兵营：港口守备的精锐。不是"海军"，是**在海军基地里服役的步兵**——
+     dm 仍是 ground（它上岸作战、走陆地地形），
+     单独设一个代号只为两件事：图鉴里能分开、编制表上叫得出名字。
+     不给它任何特殊数值字段：它强在"关卡给的战力高"，不在规则里开洞。 */
+  mrb: { name: '海军步兵营', role: '港口要塞守备', am: 4, rg: 1,
+    abil: ['可占领要点；构筑工事同步兵营',
+           '**行动域仍是地面**：它是海军基地的守备部队，不是舰船，照常受地形与堆叠限制',
+           '在港口与城市要点内防御时按守备部队算——要塞是它的主场',
+           '远征登陆规则尚未实现：现阶段它只出现在"守"的场合，不承担抢滩'] },
+
   /* 坦克三分：轻 / 中 / 重。三者是同一个"The 三角"的不同切法——
      轻坦拿机动换火力与装甲，重坦反过来。没有哪一型是"升级版"，
      用错场合都会赔本，这也是玩家要学的东西。 */
-  larm: { name: '轻型坦克营', role: '侦察 · 追击 · 撕缺口', am: 6, st: 10, mv: 12,
+  larm: { name: '轻型坦克营', role: '侦察 · 追击 · 撕缺口', am: 6, st: 10, mv: 12, rg: 1,
     abil: ['火力与装甲都最弱，但机动 12——全战场最快的地面单位',
            '平原、道路攻击 +0.10（加成最薄）',
            '★ 装甲突击：机动后仍可正常射击',
@@ -1175,14 +1297,14 @@ const TYPE = {
            '**打不穿防线**：比值再高也不会击退守军（没有那个吨位）',
            '薄皮：被反坦克火力打时承伤最重（+0.90 修正）',
            '正确定位：绕后打炮兵、辎重、指挥部，抢要点，不顶正面'] },
-  marm: { name: '中型坦克营', role: '突破与追击', am: 6, st: 12, mv: 10,
+  marm: { name: '中型坦克营', role: '突破与追击', am: 6, st: 12, mv: 10, rg: 1,
     abil: ['三型里唯一的"什么都能干"：火力 / 机动 / 装甲均衡',
            '平原、道路攻击 +0.15', '城镇进攻 −0.10（巷战不利）',
            '★ 装甲突击：机动后仍可正常射击，不受行进间射击惩罚',
            '比值达 3:1 时可击退守军一格',
            '对轻坦 +0.15；对重坦 −0.10（打不穿正面）',
            '被反坦克火力打时 +0.80 修正——反坦克炮的主要猎物'] },
-  harm: { name: '重型坦克营', role: '正面破障 · 扛线', am: 6, st: 15, mv: 7,
+  harm: { name: '重型坦克营', role: '正面破障 · 扛线', am: 6, st: 15, mv: 7, rg: 1,
     abil: ['火力 15、装甲最厚，但机动只有 7——它自己走不到该去的地方',
            '平原、道路攻击 +0.20（三型最高）',
            '城镇进攻 −0.15（街道太窄，重坦最吃亏）',
@@ -1232,14 +1354,131 @@ const TYPE = {
            '自行底盘：机动 7，被装甲攻击时防御 +0.30（反坦克炮是 +0.15）',
            '不需要展开 / 收起，可以跟着装甲部队一起转移阵地',
            '代价是编制稀少——它是反坦克炮的机动化替代，不是补充'] },
-  aac: { name: '防空连', role: '对空掩护', am: 4,
-    abil: ['半径 2 内敌方航空攻击 -0.30', '对地面目标只有微弱火力'] },
-  aab: { name: '防空营', role: '军属防空伞', am: 6,
-    abil: ['半径 4 内敌方航空攻击 -0.35', '全军通常只有一个，部队必须收拢在伞下', '离伞的炮兵会被航空零损失地拆掉'] },
+  aac: { name: '防空连', role: '对空掩护', am: 4, aa: 1, aaRange: 2, aaPen: 0.30,
+    abil: ['半径 2 内敌方航空攻击 -0.30', '唯一能直接对空开火的地面单位之一（对空目标不设近界）',
+           '对地面目标只有微弱火力'] },
+  aab: { name: '防空营', role: '军属防空伞', am: 6, aa: 1, aaRange: 4, aaPen: 0.35,
+    abil: ['半径 4 内敌方航空攻击 -0.35', '可对空开火', '全军通常只有一个，部队必须收拢在伞下',
+           '离伞的炮兵会被航空零损失地拆掉'] },
   rec: { name: '侦察连', role: '校射与警戒', am: 4,
     abil: ['半径 3 格内的己方炮兵攻击 +0.15（校射）', '机动 10，可快速穿插', '战力低，不要用于正面交战'] },
-  avn: { name: '敌航空连', role: '空中支援', am: 4,
-    abil: ['移动无视地形与河流', '攻击射程 2，可越线打击炮兵', '进入敌方防空圈会受重罚'] },
+  /* ── 航空兵 ──────────────────────────────────────────────
+     `dm: 'air'` 就是全部的开关（无视地形、独立一层、不吃 ZOC、不吃地形防御）。
+     剩下全是"打谁"的问题，用三个字段描述，不再往战斗函数里塞 if：
+
+       atk: ['air','land']  能**主动**打哪些类别。不在表里的类别列不出来，
+                            但被打时照样能反击——轰炸机的"仅可对空反击"就是
+                            atk 里没有 'air'、canCounter 照旧放行。
+       vs:  { air: .6, land: -.5 }  对某一类的攻击修正，直接加进 attMod。
+       tc:  'sub'           目标分类改写（潜艇按潜艇算，不按水面舰算）。
+
+     空中单位一律 rng 1（0.8–3 km 视距内交战），细分留到以后做。 */
+  fgt: { name: '战斗机中队', role: '争夺制空权', am: 5, st: 8, mv: 12, rg: 1, dm: 'air',
+    atk: ['air', 'land'], vs: { air: 0.60, land: -0.50 },
+    abil: ['**空中单位**：无视一切地形，河流、深海都能直接飞过；一格只容一支',
+           '不吃地面 ZOC，也不给地面单位提供 ZOC——它不"占地方"',
+           '不吃地形防御加成（飞在开阔天上）',
+           '对空 +0.60：它是唯一能主动猎杀敌方飞机的兵种，制空权靠它抢',
+           '对地 −0.50：挂着空空导弹去打地面目标，纯粹是浪费架次',
+           '**地面单位打不到它**，只有防空单位与航空兵能还手',
+           '进入敌方防空圈会受重罚——战斗机也不例外'] },
+  atk: { name: '攻击机中队', role: '近距空中支援', am: 5, st: 8, mv: 10, rg: 1, dm: 'air',
+    atk: ['land', 'ship', 'air'], vs: { land: 0.45, ship: 0.25, air: -0.40 },
+    abil: ['**空中单位**：无视地形，一格一支，不吃 ZOC 与地形防御',
+           '对地 +0.45：反坦克、反炮兵、砸开缺口的主力，配合地面进攻用',
+           '对海 +0.25：能挂鱼雷/滑翔炸弹，但不如专门的鱼雷机与轰炸机',
+           '对空 −0.40：自卫火力很弱，遇上战斗机基本是有去无回',
+           '定位：地面部队的"会飞的炮兵"，前提是己方还有制空权'] },
+  bmb: { name: '轰炸机中队', role: '战场遮断', am: 4, st: 12, mv: 8, rg: 1, dm: 'air',
+    atk: ['land', 'ship'], vs: { land: 0.85, ship: 0.40, air: 0.20 },
+    abil: ['**空中单位**：无视地形，一格一支，不吃 ZOC 与地形防御',
+           '对地 +0.85：全战场最强的单次对地打击，砸在要点上等于一次炮火准备',
+           '对海 +0.40：水平轰炸/俯冲轰炸对舰船有效',
+           '**仅可对空反击**：不能主动挑飞机打（atk 里没有 air），但被战斗机咬住时可以用自卫机枪还手（对空 +0.20）',
+           '载弹量大、机动最差（8），被咬住就跑不掉——出击前先看天上有没有敌机'] },
+  trp: { name: '运输机联队', role: '空运 · 空投', am: 0, st: 6, mv: 10, rg: 0, dm: 'air',
+    carry: 1,
+    abil: ['**空中单位**：无视地形，一格一支，不吃 ZOC 与地形防御',
+           '**没有攻击能力**（射程 0）——它唯一的武器是把东西送到该去的地方',
+           '载货由关卡数据写死（`load`）：`supply` 空投补给、`para` 空投伞兵连',
+           '空投占本回合行动，投完这架飞机就地变成空机，得飞回去再装',
+           '战力 6，被战斗机盯上就是活靶子——运输线要有制空权掩护'] },
+
+  /* ── 绿水海军 ────────────────────────────────────────────
+     能走河流 `~` 与浅海 `s`。一格一支，与地面部队同属地表层。 */
+  gbt: { name: '内河炮艇', role: '内河火力支援', am: 6, st: 6, mv: 8, rg: 2, dm: 'green',
+    atk: ['land', 'ship'], vs: { land: 0.10, ship: -0.30 },
+    abil: ['**水上单位**：沿河流 `~` 与浅海 `s` 航行，上不了岸',
+           '射程 2 格（0.8–3 km）——近岸火力支援，舰炮能压住河岸上的步兵',
+           '对地 +0.10：支援尚可，但口径有限，打不动工事与装甲',
+           '对海 −0.30：它的炮是拿来轰岸的，遇上真正的军舰只有挨打的份',
+           '适合配合渡口争夺：谁控制河面，谁就能从侧面打岸上的守军'] },
+  ptb: { name: '鱼雷艇', role: '近海突击', am: 2, st: 4, mv: 14, rg: 2, dm: 'green',
+    atk: ['ship'], vs: { ship: 0.70 },
+    abil: ['**水上单位**：河流与浅海，上不了岸；机动 14，是水面上最快的',
+           '射程 2 格（鱼雷 3 km 级），威力全靠那两条鱼雷（弹药仅 2）',
+           '对海 +0.70：贴上去一轮齐射就能撕开比自己大得多的船',
+           '**不能主动对地**（atk 里没有 land）：对岸上几乎没有威胁，被岸炮打时可以还手',
+           '打完就跑，或者干脆别去——它会沉得很快'] },
+  ffg: { name: '护卫舰', role: '护航 · 近海控制', am: 8, st: 8, mv: 9, rg: 3, dm: 'green',
+    atk: ['land', 'ship'], vs: { land: 0.15, ship: 0.15, air: -0.20 },
+    aa: 1, aaRange: 1, aaPen: 0.15,
+    abil: ['**水上单位**：河流与浅海，上不了岸；浅海与深海都能进（两级共用浅海）',
+           '射程 3 格（0.8–5 km），对地 +0.15 / 对海 +0.15——都能打，都不算强',
+           '自带近程防空（半径 1，压制 −0.15）：护航时替运输船挡一层',
+           '打不动重甲，别拿它去顶驱逐舰'] },
+
+  /* ── 蓝水海军 ────────────────────────────────────────────
+     只能走浅海 `s` 与深海 `d`。吃水决定它进不了内河——
+     要放宽改 NAV.blue.cells 一行即可。 */
+  dd: { name: '驱逐舰', role: '多面手 · 反潜', am: 12, st: 9, mv: 10, rg: 8, dm: 'blue',
+    atk: ['land', 'ship', 'sub'], vs: { land: 0.15, ship: 0.20, sub: 0.50, air: -0.15 },
+    aa: 1, aaRange: 2, aaPen: 0.20,
+    abil: ['**水上单位**：浅海与深海，进不了内河',
+           '射程 8 格（0.8–12 km）——海战里的"眼睛和腿"，先看见先开火',
+           '对海 +0.20、对地 +0.15，鱼雷可用',
+           '**对潜 +0.50**：带声呐与深水炸弹，是唯一能可靠清理潜艇的水面舰',
+           '防空按型号定（本型给半径 2 / −0.20），够自卫，撑不起伞'] },
+  ca:  { name: '巡洋舰', role: '远洋主力', am: 12, st: 13, mv: 9, rg: 13, dm: 'blue',
+    atk: ['land', 'ship', 'sub'], vs: { land: 0.30, ship: 0.35, sub: 0.35, air: -0.10 },
+    aa: 1, aaRange: 3, aaPen: 0.30,
+    abil: ['**水上单位**：浅海与深海，进不了内河',
+           '射程 13 格（0.8–20 km），对海 +0.35 / 对地 +0.30——炮多一轮就是多一轮',
+           '带鱼雷与对潜武器（对潜 +0.35），但不如驱逐舰专精',
+           '防空强于驱逐舰（半径 3 / −0.30）：舰队防空的中坚'] },
+  bb:  { name: '战列舰', role: '重炮平台', am: 9, st: 20, mv: 7, rg: 20, dm: 'blue',
+    atk: ['land', 'ship'], vs: { land: 0.50, ship: 0.45 },
+    aa: 1, aaRange: 2, aaPen: 0.15,
+    abil: ['**水上单位**：浅海与深海，进不了内河；机动只有 7，转向很慢',
+           '射程 20 格（0.8–30 km）——**全场最远**，站在外海就能轰到内陆要点',
+           '重炮对地 +0.50 / 对海 +0.45，一轮齐射能改写一条战线',
+           '**没有鱼雷，也没有对潜能力**（atk 里没有 sub）：潜艇贴上来它毫无办法',
+           '防空弱于巡洋舰（半径 2 / −0.15）——它需要驱逐舰掩护，不是反过来'] },
+  cv:  { name: '航空母舰', role: '舰队核心（未登场）', am: 0, st: 15, mv: 9, rg: 0, dm: 'blue',
+    carry: 2, reserve: 1,
+    abil: ['**占位兵种**：规则未定，暂不允许出现在任何关卡（check.js 会拦）',
+           '设计方向：以舰载机代替自身火力，射程＝舰载机作战半径',
+           '舰载机出动 / 回收、制空与对海的取舍，都还没定'] },
+  ss:  { name: '潜艇', role: '海下猎手', am: 3, st: 7, mv: 8, rg: 2, dm: 'blue', tc: 'sub',
+    atk: ['ship'], vs: { ship: 0.75 }, vsType: { ca: 0.35, bb: 0.45, cv: 0.50 },
+    abil: ['**水上单位**（同属水面层，一格一支）：浅海与深海，进不了内河',
+           '射程 2 格（鱼雷 3 km 级），**只能打船**（atk 里只有 ship）',
+           '对海 +0.75，**对大型舰艇再加成**：巡洋舰 +0.35 / 战列舰 +0.45 / 航母 +0.50',
+           '「潜艇按潜艇算」：目标分类改写成 `sub`，所以战列舰、鱼雷艇、潜艇自己都打不了它',
+           '只有带对潜能力的舰艇（驱逐舰 / 巡洋舰）能有效反制',
+           '弹药仅 3，打完就得回去补——潜航不是无敌，只是难找'] },
+  lst: { name: '运输舰', role: '海运 · 登陆（未实现）', am: 0, st: 6, mv: 8, rg: 0, dm: 'blue',
+    carry: 2,
+    abil: ['**水上单位**：浅海与深海；**没有任何自卫火力**（射程 0）',
+           '设计上可载补给与陆地单位，但**登陆 / 上岸规则尚未实现**',
+           '现阶段只作为护航任务的目标存在：守住它，或者击沉它'] },
+
+  /* 伞兵连：运输机的货，也是唯一一种"从天而降"的地面部队。 */
+  para: { name: '伞兵连', role: '空降突击', am: 0, st: 4, mv: 6, rg: 1,
+    abil: ['可占领要点（空降夺点全靠它）',
+           '由运输机空投落地，落地当回合不能行动（整队、收伞、找集结点）',
+           '战力 4，没有重装备——落地后必须尽快和主力会合',
+           '**被孤立就是死**：空降的意义是夺点/断线，不是单独打赢一场仗'] },
   sup: { name: '辎重队', role: '补给', am: 0,
     abil: ['半径 4 格内友军补给提升一级', '可建立补给点：静止一回合，留下永久补给源', '被摧毁后该方向部队补给降级'] },
   hqd: { name: '师部', role: '指挥节点', am: 0,
@@ -2124,7 +2363,7 @@ const LEVELS = [
           kicker: '当面之敌',
           title: '敌人也在抢时间',
           paras: [
-            { t: '敌先头部队抢在撤退主力之前抵达东岸，番号为摩步第 3 旅，加强一个独立坦克营、一个航空连。' },
+            { t: '敌先头部队抢在撤退主力之前抵达东岸，番号为摩步第 3 旅，加强一个独立坦克营、一个战斗机中队。' },
             { t: '后续梯队正在陆续渡江。判读敌方兵力分三次投入：开战即到、数小时后、以及入夜前的一次总投入。' },
             { t: '最后一次投入时，敌我战力比将达到 1 : 1.3。撑到那一刻还没崩，就是胜利。', hl: true }
           ],
@@ -2200,7 +2439,9 @@ const LEVELS = [
     { id:'R3E', side:'red',  abbr:'3工',  name:'敌摩步第 3 旅工兵连（舟桥）', type:'eng', str:3,
       mov:6,  rng:1, r:1,  c:1,  corps:'R3', wave:1 },
     { id:'R5',  side:'red',  abbr:'独坦', name:'敌独立坦克营',            type:'marm', str:12, mov:10, rng:1, r:2,  c:5,  corps:'R5', wave:1 },
-    { id:'R7',  side:'red',  abbr:'航',   name:'敌航空连',                type:'avn', str:5,  mov:12, rng:2, r:1,  c:9,  corps:'RA', wave:1 },
+    /* 空中单位一律射程 1 格。原来是 `avn` 敌航空连、射程 2——那是在"领域"框架之前
+       rng 直接写在单位上、没人管它的年代。换成战斗机中队后按新规格走。 */
+    { id:'R7',  side:'red',  abbr:'战',   name:'敌战斗机中队',            type:'fgt', str:8,  mov:12, rng:1, r:1,  c:9,  corps:'RA', wave:1 },
     /* 敌方 · 第二波 · 敌装甲第 4 旅（第 4 回合） */
     { id:'R4H', side:'red',  abbr:'4H',   name:'敌装甲第 4 旅旅部',       type:'hqb', str:2,  mov:8,  rng:0, r:0,  c:12, corps:'R4', wave:2 },
     { id:'R4A', side:'red',  abbr:'4-1',  name:'敌装甲第 4 旅第 1 营（坦克）', type:'marm', str:12, mov:10, rng:1, r:1, c:12, corps:'R4', wave:2 },
@@ -2437,7 +2678,7 @@ const LEVELS = [
             { t: '10 回合结束、跑道仍归我方控制，即为达成。<b>全部兵牌被歼则立即判负。</b>' },
             { t: '「归我方控制」= 跑道上我方兵力不少于敌军。' +
                  '所以别把跑道当禁区——敌军压上来，就得拿预备队把它顶回去。' },
-            { t: '高炮营的伞盖半径 4 格，把自行火炮和辎重收在伞下——敌军的航空连只在这一带活动。', hl: true }
+            { t: '高炮营的伞盖半径 4 格，把自行火炮和辎重收在伞下——敌军的战斗机中队只在这一带活动。', hl: true }
           ],
           nums: [
             { k: '回合', v: '10' },
@@ -2504,6 +2745,419 @@ const LEVELS = [
     { wave: 2, turn: 4, text: '敌军第二波（敌装甲第 12 团战斗群）自西北方向压到机场西缘。' },
     { wave: 3, turn: 7, text: '敌军第三波（敌第 21 步兵师先遣支队）自西南方向投入，机场被三面包围。' }
   ]
+},
+
+  /* ═══════════ C4 · 波尔瓦萨港（第 4 关 · 坚守 20 回合） ═══════════
+     这一关是**海军框架的第一次实战**：前面 v4.4 把领域、目标分类、舰炮射程
+     全做完了，但五张地图里一格浅海都没有，九型军舰没有一个能上场的舞台。
+     这里给它们一个：港内泊着 4 驱 2 巡 1 战列，炮口对着岸上。
+
+     三条设计上的取舍，都写下来免得以后改坏：
+
+     1) **舰队是"固定炮台"，不是"可操作的海军"**。它们停在港内浅海不出去，
+        因为这一关的主题是"守港"，不是"海战"。玩家真正的决策是：
+        把防空摆在哪个格，才既罩得住泊位、又罩得住要塞。
+        驱逐舰射程 8、巡洋舰 13、战列舰 20——战列舰站着不动就能打到地图最北端，
+        这不是数值失误，是"重炮支援"这件事本身的样子。它的代价在别处：
+        防空最弱（−0.15）、跑不掉（机动 7）、打不了潜艇。
+
+     2) **红方唯一的反舰手段是航空兵**。地面部队上不了水，炮兵打不到海上，
+        所以四架飞机是舰队的全部威胁。这就把"制空"变成了这一关的暗线：
+        蓝方没有战斗机（设定里航空队是敌人的），只能靠高炮营 + 防空连 +
+        防空阵地撑伞。伞没撑住，七条船会被一条条炸沉，然后岸上的步兵
+        就得拿人命去填火力空白。
+
+     3) **20 回合是长的**。前四回合只有敌摩步第 47 旅一个旅，玩家会觉得空。
+        这是有意的：那三回合是给你筑工事、把防空摆到位、把装甲旅藏进城里
+        的时间。第 7 回合航空队一到，节奏立刻变。 */
+
+  {
+  id: 'C4', no: 4, name: '波尔瓦萨港', type: '坚守',
+  when: '新历 1208 年 4 月 11 日', where: '南部海岸 · 波尔瓦萨港',
+  teaser: '敌军机动兵力三天推到港外。四支部队临时编成港口特遣军，港内七条军舰的炮口对着岸上。',
+  ready: true,
+  /* 临时开放试玩，和 C3B 一样。正式版的解锁条件由 levelAccess 统一管：
+     第 4 关的前置是第 3 关（附属关 C3B 会被跳过，见 levelAccess 里那句注释）。 */
+  open: true,
+  /* 用户给的条件是"坚守 20 回合 / 敌军全灭"——两条并列，任一达成。
+     前半句由 survive 走到 maxTurns 判，后半句由 checkEnd 判（见 allWavesIn）。 */
+  win: { kind: 'survive', keep: ['fort', 'city'] },
+  /* 节奏定位。**这一关是"爽局"**——设计目标就是让玩家赢得痛快：
+     七条军舰在港内持续火力支援，敌军一波一波往上撞，最后被碾平。
+     自战脚本的 45–60% 区间是给正关用的；爽局按 75–95% 判，
+     低于 75 说明玩家爽不起来，高于 95 说明连打都不会输（也无聊）。
+     写法见 tools/autoplay-campaign.js 里的 paceOf()。
+     留这一行的意义是**别让下一个人把它调回"险胜"**：那不是这一关要的东西。 */
+  pace: '爽局',
+  prev: {
+    win:  '岚口守住了，江北的接应线没有断。部队沿海南撤，在波尔瓦萨补上了整编。',
+    fail: '岚口终究没能守住。残部沿海岸线退到波尔瓦萨，还没整编完，敌军的先头部队又到了。'
+  },
+  intro: [
+    '晚春 · 阴，海面有雾。敌军机动兵力绕过西线，三天之内推进到波尔瓦萨港外围。',
+    '守备力量是四支临时拼起来的部队：第 102 步兵师（师部、第 304 / 305 团各 2 个营、师炮兵营、反坦克连）；' +
+    '第 201 近卫步兵旅（加强：3 个近卫营 + 旅炮兵营 + 自行火炮连）；' +
+    '第 204 装甲旅（旅部、2 个中坦营、侦察营、装步营、自行火炮连）；' +
+    '以及驻扎港口的海军步兵旅（旅部 + 3 个营）。',
+    '四支部队互不统属，今天起合编为「港口特遣军」，由特遣军司令部统一指挥。',
+    '港内还有波尔瓦萨海军基地分舰队：4 艘驱逐舰、2 艘巡洋舰、1 艘战列舰。它们不出港，炮口对着岸上——' +
+    '射程从 8 格到 20 格，整个战场都在它们的射界里。',
+    '任务：坚守 20 回合，港口要塞与波尔瓦萨市必须始终在我方手中。敌军全灭则提前达成；全部兵牌被歼立即判负。',
+    '**舰队打不到飞机。** 敌军航空队已经抵达港外空域，能挡它们的只有高炮营、防空连与防空阵地——' +
+    '把防空摆在码头，不要摆在城里。'
+  ],
+  maxTurns: 20,
+  cols: 22,
+  rows: 16,
+  /* 两个补给源：城内一处、码头一处。码头那处是给舰队用的——
+     舰船的补给按"离码头多远"单独判（见 supplyOf 里 isNaval 那一段），
+     但岸上守码头的部队仍然要靠这处补给源。 */
+  blueSources: [[11, 12], [13, 15]],
+  redSource: [2, 8],
+  /* 预置工事。要塞炮在要塞高地上（丘陵），碉堡封住高地北缘与西缘，
+     堑壕沿高地正面铺开，防空阵地摆在码头边——**位置就是这一关的教学**：
+     防空阵地离泊位 2 格，罩得住船；摆在城里就只罩得住房子。 */
+  forts: [
+    { r: 10, c: 16, side: 'blue', kind: 'P' },   // 要塞炮：射程 3，结算阶段自动开火
+    { r: 9,  c: 15, side: 'blue', kind: 'B' },
+    { r: 11, c: 15, side: 'blue', kind: 'B' },
+    { r: 9,  c: 16, side: 'blue', kind: 'H' },
+    { r: 10, c: 15, side: 'blue', kind: 'H' },
+    { r: 11, c: 16, side: 'blue', kind: 'H' },
+    { r: 10, c: 14, side: 'blue', kind: 'H' },
+    { r: 12, c: 16, side: 'blue', kind: 'F' },   // 防空阵地：罩住泊位
+    { r: 8,  c: 14, side: 'blue', kind: 'F' }    // 防空阵地：罩住城东
+  ],
+  /* 海岸线：西北是林地丘陵与一条南北公路，中间偏东是城市，
+     城市东南是要塞高地，高地南麓是码头，码头外是港内浅海，再往外是深海。
+     舰队泊位全在浅海——蓝水舰两级共用浅海，不需要出港就能开火。 */
+  map: [
+    '........#.............',
+    '..ff..hh#.............',
+    '..ff..hh#.............',
+    '....ffhh#.............',
+    '....ff..#..tttt.......',
+    '..ff....#.ttttt.......',
+    '..ff..hh#.ttttt.......',
+    '......hh#.ttttt.......',
+    '......hh#.ttttt.......',
+    '......hh##ttttthhhssss',
+    '..ff..hh..ttttthhhssss',
+    '..ff.......tttthhhssss',
+    '......hh...tttpppppsss',
+    '..ff..hh......ppppssdd',
+    '..ff..hh.......sssdddd',
+    '..............dddddddd'
+  ],
+  objectives: [
+    /* keep 要求控制权是 'blue'（不是"不是红方"）。要塞与市各自 3 格，
+       敌军只要踩上一格就变 contested，keep 立刻不成立——这就是"坚守"的价格。
+       20 回合里守两处，比 C1 守一处难得多，所以蓝方多了 34 个兵牌和一支舰队。 */
+    /* 要塞是"点"，城市是"面"——两者的判定规则因此不一样：
+       要塞 3 格，按默认规则（格内同时有敌我即 contested），这是硬钉子；
+       城市 7 格，用 contest（比城内兵力），因为"整片城区一格都不能有敌人"
+       这条规则太脆——红方一个营蹭进任意一格，20 回合的仗就当场作废。
+       C3B 的跑道踩过同一个坑，解法一样：按兵力对比判，而不是按"有没有"判。 */
+    { id: 'fort', name: '港口要塞', vp: 20, core: true,  kind: 'city', cells: [[9, 16], [10, 15], [10, 16]] },
+    { id: 'city', name: '波尔瓦萨市', vp: 20, core: true, kind: 'city', rule: 'contest',
+      cells: [[6, 11], [6, 12], [6, 13], [7, 11], [7, 12], [8, 12], [8, 13]] },
+    { id: 'dock', name: '码头', vp: 10, core: false, kind: 'ford',
+      cells: [[12, 15], [12, 16], [13, 15], [13, 16]] }
+  ],
+  events: [
+    {
+      id: 'first_shot_port', desc: '港口开火',
+      when: { kind: 'firstBlood' },
+      effects: [
+        { kind: 'say', beats: [
+          { who: '港口特遣军司令部 · 无线电', side: 'blue', portrait: 'portHQ',
+            text: '各部队注意，敌军已经进到城西。\n四支部队，四个番号，一条防线——从现在起只有一个名字。' },
+          { who: '海军步兵旅 · 旅长', side: 'blue', portrait: 'portBlue',
+            text: '我的人在要塞里，背后就是码头。\n舰队要是沉了，这仗就得我们拿命去填。' }
+        ] }
+      ]
+    },
+    {
+      id: 'bb_first_salvo', desc: '战列舰首轮齐射',
+      /* 挂"战列舰第一次开火"，不挂回合。玩家什么时候让它打，什么时候响。
+         AI 不会操作蓝方舰队（蓝方是玩家），所以这必然由玩家触发——
+         这正是想要的：这句台词是给"你第一次按下开火"的奖励。 */
+      when: { kind: 'unitActed', id: 'B6G', act: 'fire' },
+      effects: [
+        { kind: 'log', text: '战列舰「北岭」主炮第一次齐射。港区的玻璃全震碎了，城西那片林子没了。', cls: 'b' },
+        { kind: 'sfx', name: 'shell' },
+        { kind: 'mod', side: 'blue', atk: 0.05, turns: 3, label: '重炮支援 · 我方攻击 +5%' },
+        { kind: 'say', who: '战列舰「北岭」· 舰长', side: 'blue', portrait: 'portBlue',
+          text: '一号、二号炮塔，三发齐射。\n校正弹着点——我们把整片林子削平了，你们的左翼现在开阔了。' }
+      ]
+    },
+    {
+      id: 'air_raid', desc: '敌机首次投弹',
+      /* 挂轰炸机第一次开火。这比"第 7 回合"准：航空队入场了但没找到目标时，
+         不该先响警报再等两回合。 */
+      when: { kind: 'unitActed', id: 'R3C', act: 'fire' },
+      effects: [
+        { kind: 'log', text: '敌轰炸机从雾里钻出来，第一串炸弹落在泊位北侧。防空炮开始吼了。', cls: 'r' },
+        { kind: 'banner', text: '敌机进入港区空域', cls: 'r', ms: 2600 },
+        { kind: 'sfx', name: 'alarm' },
+        { kind: 'org', side: 'blue', delta: -5 },
+        { kind: 'say', who: '港口高炮营 · 营长', side: 'blue', portrait: 'portBlue',
+          text: '别打领头的，打最靠近泊位的那架！\n船上的弟兄连躲的地方都没有，全靠我们这层伞。' }
+      ]
+    },
+    {
+      id: 'fort_contact', desc: '敌军逼近要塞',
+      when: { kind: 'nearObj', side: 'red', obj: 'fort', dist: 2 },
+      effects: [
+        { kind: 'log', text: '敌军先头部队摸到要塞高地脚下。要塞炮开始平射，炮管打得发红。', cls: 'hi' },
+        { kind: 'org', side: 'blue', delta: -5 }
+      ]
+    },
+    {
+      id: 'city_breach', desc: '敌军进城',
+      /* 三种都算：红方独占、争夺、或者"曾经被占"。只认 red 的话，
+         实战里几乎不会响——我方在城里，红方一进来就是 contested。 */
+      when: [
+        { kind: 'control', obj: 'city', side: 'red' },
+        { kind: 'control', obj: 'city', side: 'contested' }
+      ],
+      effects: [
+        { kind: 'log', text: '敌军进城区了。巷战里炮火支援没用了，只能一条街一条街地清。', cls: 'r' }
+      ]
+    },
+    {
+      id: 'mrb_hold', desc: '海军步兵营死守要塞',
+      /* 这条事件挂错过三次条件，全过程记在这里，省得下一个人再试一遍：
+         ① 「本营战力掉到 40% 以下」→ 3.3%。这一关守备工事厚、舰队把火力顶在前面，
+            这个营根本轮不到被打残。
+         ② 「本营开火 3 次」→ 4.0%。它守在要塞里，射程只有 1 格，
+            而红方到了 2 格外就停下用炮轰 —— 它连开火的机会都没有。
+         ③ 「要塞进入争夺」→ 0%。自战 100 局里红方一次都没踩进要塞那 3 格，
+            「敌军逼近要塞」（2 格）却 100% 触发：它只围不攻，靠炮火磨。
+         ④ 现在挂「第 8 回合要塞仍在我手」——**这是这一关里最硬的事实**
+            （自战 100/100 局守住），而且语义正好是"海军步兵旅把墙守住了"。
+         方法论：**别挂"某个营打了三仗"**。射程、AI 的接近距离、工事厚度
+         都会让它意外地不成立；挂"局面到了这一步"才稳，且要挑那种
+         这一关必然成立的条件。 */
+      when: [
+        { kind: 'allControl', objs: ['fort'], side: 'blue', turn: 8 },
+        { kind: 'unitBelow', id: 'B4A', ratio: 0.40 }
+      ],
+      effects: [
+        { kind: 'log', text: '敌军两轮接近都被压在要塞前沿。海军步兵第 1 营的垛口下堆满空弹箱，旅部把勤杂人员编进了战位。', cls: 'hi' },
+        { kind: 'org', side: 'blue', delta: -4 },
+        { kind: 'say', who: '海军步兵第 1 营 · 营长', side: 'blue', portrait: 'portBlue',
+          text: '码头是我们自己的码头。\n我们在这儿服役，也在这儿打完——要塞丢了，船就没家了。' }
+      ]
+    },
+    {
+      id: 'fleet_hurt', desc: '驱逐舰重创',
+      when: { kind: 'unitBelow', id: 'B6A', ratio: 0.35 },
+      effects: [
+        { kind: 'log', text: '驱逐舰「坚忍」舰艏进水，主炮还能打，但航速掉了一半。', cls: 'hi' },
+        { kind: 'org', side: 'blue', delta: -4 },
+        { kind: 'mod', side: 'blue', def: -0.03, label: '舰队受损 · 我方防御 -3%' }
+      ]
+    },
+    {
+      id: 'last_three', desc: '最后三个回合',
+      when: { kind: 'turn', turn: 18 },
+      effects: [
+        { kind: 'log', text: '无线电：援军已经在港外海域。再撑三个回合，船就能进港。', cls: 'b' },
+        { kind: 'org', side: 'blue', delta: 6 }
+      ]
+    }
+  ],
+
+  story: {
+    briefing: {
+      pages: [
+        {
+          order: '作战命令 · 第 27 号',
+          kicker: '战役态势',
+          title: '四支部队，一座港',
+          paras: [
+            { t: '敌军机动兵力三天推进到波尔瓦萨港外围，番号至少两个摩步旅与一个装甲战斗群，后续兵力还在陆续上岸。' },
+            { t: '波尔瓦萨是南部海岸唯一的深水港。港一丢，整条南线的补给就断了——所以这仗不是守城，是守一条补给线。', hl: true },
+            { t: '第 102 步兵师、第 201 近卫步兵旅、第 204 装甲旅、海军步兵旅今天起合编为「港口特遣军」，' +
+                 '由特遣军司令部统一指挥。四支部队互不统属，这是这场仗最先要解决的问题。' }
+          ],
+          nums: [
+            { k: '兵牌', v: '36' },
+            { k: '战力', v: '257' },
+            { k: '舰队', v: '7 艘' }
+          ]
+        },
+        {
+          order: '港区要图 · 附页',
+          kicker: '地形',
+          title: '舰炮能打到的地方，步兵就不必硬顶',
+          paras: [
+            { t: '要塞在港口北侧的高地上（防御 0.50），波尔瓦萨市是 0.85 的巷战地形。' +
+                 '把步兵放进城里、把装甲藏在城北，别摊在城西的平原上等炮。' },
+            { t: '舰队泊在港内浅海，从驱逐舰的 8 格到战列舰的 20 格，<b>整个战场都在射界里</b>。' +
+                 '但它们打不到飞机——天上的事只能交给高炮。', hl: true },
+            { t: '码头是舰队的补给依托：泊位离码头 3 格内算充足，6 格内紧张，再远断绝。' +
+                 '码头丢了，七条船就是七座浮着的固定炮台，打一发少一发。' }
+          ],
+          nums: [
+            { k: '要塞防御', v: '0.50' },
+            { k: '战列舰射程', v: '20 格', hot: true },
+            { k: '高炮半径', v: '4 格' }
+          ]
+        },
+        {
+          order: '任务简报',
+          kicker: '你的任务',
+          title: '二十个回合',
+          paras: [
+            { t: '坚守 20 回合，港口要塞与波尔瓦萨市必须始终在我方手中；<b>敌军全灭则提前达成</b>。全部兵牌被歼立即判负。' },
+            { t: '敌军分五波投入：摩步第 47 旅（开局）、装甲第 8 师先遣战斗群（第 4 回合）、' +
+                 '航空第 3 联队（第 7 回合）、第 63 步兵师（第 11 回合）、近卫装甲第 2 师（第 15 回合）。', hl: true },
+            { t: '前三个回合只有敌军一个旅，那几回合是给你筑工事、摆防空的。' +
+                 '高炮营的伞盖半径 4 格——摆在码头，它罩得住泊位；摆在城里，它只罩得住房子。' }
+          ],
+          nums: [
+            { k: '回合', v: '20' },
+            { k: '敌军波次', v: '5' },
+            { k: '舰队', v: '7 艘' }
+          ]
+        }
+      ],
+      beats: [
+        { who: '港口特遣军司令部 · 无线电', side: 'blue', portrait: 'portHQ',
+          text: '四支部队，四个番号，一条防线。\n从现在起，你们只有一个名字：港口特遣军。' },
+        { who: '海军步兵旅 · 旅长', side: 'blue', portrait: 'portBlue',
+          text: '我的人在要塞里，背后就是码头。\n舰队要出港我不拦，但炮口得对着岸上——这仗是我们在替海军守家。' },
+        { who: '敌航空第 3 联队 · 空中无线电', side: 'red', portrait: 'portRed',
+          text: '港内七条船，一条都别放出去。\n先炸驱逐舰——巡洋舰和战列舰的炮，等它们没眼睛了再说。' }
+      ]
+    }
+  },
+
+  units: [
+    /* ── 我方 · 第 102 步兵师 ────────────────────────────── */
+    { id:'B1H', side:'blue', abbr:'102H', name:'第 102 步兵师师部',            type:'hqd', str:2, mov:8, rng:0, r:8, c:13, corps:'B1', wave:1 },
+    { id:'B1A', side:'blue', abbr:'304-1', name:'第 304 步兵团第 1 营',        type:'inf', str:8, mov:6, rng:1, r:8, c:11, corps:'B1', wave:1 },
+    { id:'B1B', side:'blue', abbr:'304-2', name:'第 304 步兵团第 2 营',        type:'inf', str:8, mov:6, rng:1, r:8, c:12, corps:'B1', wave:1 },
+    { id:'B1C', side:'blue', abbr:'305-1', name:'第 305 步兵团第 1 营',        type:'inf', str:8, mov:6, rng:1, r:9, c:12, corps:'B1', wave:1 },
+    { id:'B1D', side:'blue', abbr:'305-2', name:'第 305 步兵团第 2 营',        type:'inf', str:8, mov:6, rng:1, r:9, c:13, corps:'B1', wave:1 },
+    { id:'B1F', side:'blue', abbr:'102炮', name:'第 102 步兵师炮兵营',          type:'art', str:5, mov:6, rng:5, r:7, c:13, corps:'B1', wave:1, packed:1 },
+    { id:'B1T', side:'blue', abbr:'102反', name:'第 102 步兵师反坦克连',        type:'at',  str:3, mov:5, rng:1, r:7, c:12, corps:'B1', wave:1 },
+
+    /* ── 我方 · 第 201 近卫步兵旅（加强） ──────────────── */
+    { id:'B2H', side:'blue', abbr:'201H', name:'第 201 近卫步兵旅旅部',        type:'hqb', str:2, mov:8, rng:0, r:6, c:12, corps:'B2', wave:1 },
+    { id:'B2A', side:'blue', abbr:'近1',  name:'近卫第 1 步兵营',              type:'inf', str:9, mov:6, rng:1, r:6, c:11, corps:'B2', wave:1 },
+    { id:'B2B', side:'blue', abbr:'近2',  name:'近卫第 2 步兵营',              type:'inf', str:9, mov:6, rng:1, r:5, c:12, corps:'B2', wave:1 },
+    { id:'B2C', side:'blue', abbr:'近3',  name:'近卫第 3 步兵营',              type:'inf', str:9, mov:6, rng:1, r:5, c:13, corps:'B2', wave:1 },
+    { id:'B2F', side:'blue', abbr:'201炮', name:'第 201 近卫旅炮兵营',          type:'art', str:5, mov:6, rng:4, r:6, c:13, corps:'B2', wave:1, packed:1 },
+    { id:'B2S', side:'blue', abbr:'201自', name:'第 201 近卫旅自行火炮连',      type:'sha', str:4, mov:8, rng:3, r:7, c:14, corps:'B2', wave:1 },
+
+    /* ── 我方 · 第 204 装甲旅 ────────────────────────────── */
+    { id:'B3H', side:'blue', abbr:'204H', name:'第 204 装甲旅旅部',            type:'hqb', str:2, mov:8, rng:0, r:4, c:12, corps:'B3', wave:1 },
+    { id:'B3A', side:'blue', abbr:'204-1', name:'第 204 装甲旅第 1 营（中坦）', type:'marm', str:12, mov:10, rng:1, r:4, c:13, corps:'B3', wave:1 },
+    { id:'B3B', side:'blue', abbr:'204-2', name:'第 204 装甲旅第 2 营（中坦）', type:'marm', str:12, mov:10, rng:1, r:5, c:11, corps:'B3', wave:1 },
+    { id:'B3C', side:'blue', abbr:'204侦', name:'第 204 装甲旅侦察营（轻坦）',  type:'larm', str:10, mov:12, rng:1, r:4, c:11, corps:'B3', wave:1 },
+    { id:'B3D', side:'blue', abbr:'204装', name:'第 204 装甲旅装步营',          type:'mech', str:9, mov:8, rng:1, r:6, c:14, corps:'B3', wave:1 },
+    { id:'B3F', side:'blue', abbr:'204自', name:'第 204 装甲旅自行火炮连',      type:'sha', str:4, mov:8, rng:3, r:5, c:14, corps:'B3', wave:1 },
+
+    /* ── 我方 · 海军步兵旅（港口守备精锐） ────────────── */
+    { id:'B4H', side:'blue', abbr:'海步H', name:'海军步兵旅旅部',              type:'hqb', str:2, mov:8, rng:0, r:10, c:15, corps:'B4', wave:1 },
+    { id:'B4A', side:'blue', abbr:'海步1', name:'海军步兵第 1 营',              type:'mrb', str:10, mov:6, rng:1, r:10, c:16, corps:'B4', wave:1 },
+    { id:'B4B', side:'blue', abbr:'海步2', name:'海军步兵第 2 营',              type:'mrb', str:10, mov:6, rng:1, r:11, c:16, corps:'B4', wave:1 },
+    { id:'B4C', side:'blue', abbr:'海步3', name:'海军步兵第 3 营',              type:'mrb', str:10, mov:6, rng:1, r:11, c:15, corps:'B4', wave:1 },
+
+    /* ── 我方 · 防空与后勤 ──────────────────────────────── */
+    { id:'B5H', side:'blue', abbr:'警备区', name:'波尔瓦萨港警备区司令部',      type:'hqb', str:2, mov:8, rng:0, r:11, c:14, corps:'B5', wave:1 },
+    { id:'B5A', side:'blue', abbr:'港高炮', name:'波尔瓦萨港高炮营',            type:'aab', str:4, mov:6, rng:2, r:12, c:15, corps:'B5', wave:1 },
+    { id:'B5B', side:'blue', abbr:'港防',   name:'港口防空连',                  type:'aac', str:2, mov:6, rng:2, r:12, c:14, corps:'B5', wave:1 },
+    { id:'B5S', side:'blue', abbr:'港辎',   name:'港口场站辎重队',              type:'sup', str:2, mov:8, rng:0, r:11, c:13, corps:'B5', wave:1 },
+    { id:'B5T', side:'blue', abbr:'特遣辎', name:'港口特遣军辎重队',            type:'sup', str:2, mov:8, rng:0, r:9, c:14, corps:'B5', wave:1 },
+
+    /* ── 我方 · 波尔瓦萨海军基地分舰队（7 艘，泊在港内浅海） ──
+       全部 wave:1 且不动。rng 用兵种表的典型值（8 / 13 / 20），
+       不逐舰改——战列舰 20 格是它存在的理由，改成 12 格它就只是"大一点的巡洋舰"。 */
+    /* 分舰队司令部放在码头上，不在船上——舰队司令是岸上的，船归他指挥。
+       hqd 给半径 3，正好把七个泊位全罩住；不给这面旗，七条船全是"脱指"，
+       组织度恢复慢一半，等于让舰队白白弱一档。 */
+    { id:'B6H', side:'blue', abbr:'分舰队', name:'波尔瓦萨海军基地分舰队司令部', type:'hqd', str:2, mov:8, rng:0, r:12, c:17, corps:'B6', wave:1 },
+    { id:'B6A', side:'blue', abbr:'驱·坚忍', name:'驱逐舰「坚忍」',            type:'dd', str:9,  mov:10, rng:8,  r:11, c:18, corps:'B6', wave:1 },
+    { id:'B6B', side:'blue', abbr:'驱·疾风', name:'驱逐舰「疾风」',            type:'dd', str:9,  mov:10, rng:8,  r:11, c:19, corps:'B6', wave:1 },
+    { id:'B6C', side:'blue', abbr:'驱·远山', name:'驱逐舰「远山」',            type:'dd', str:9,  mov:10, rng:8,  r:11, c:20, corps:'B6', wave:1 },
+    { id:'B6D', side:'blue', abbr:'驱·青霜', name:'驱逐舰「青霜」',            type:'dd', str:9,  mov:10, rng:8,  r:12, c:19, corps:'B6', wave:1 },
+    { id:'B6E', side:'blue', abbr:'巡·波港', name:'巡洋舰「波尔瓦萨」',        type:'ca', str:13, mov:9,  rng:13, r:12, c:20, corps:'B6', wave:1 },
+    { id:'B6F', side:'blue', abbr:'巡·长夜', name:'巡洋舰「长夜」',            type:'ca', str:13, mov:9,  rng:13, r:13, c:19, corps:'B6', wave:1 },
+    { id:'B6G', side:'blue', abbr:'战·北岭', name:'战列舰「北岭」',            type:'bb', str:20, mov:7,  rng:20, r:14, c:16, corps:'B6', wave:1 },
+
+    /* ── 敌方 · 第一波 · 摩步第 47 旅（开局即在场，快速突进的前锋） ── */
+    { id:'R1H', side:'red', abbr:'47H',  name:'敌摩步第 47 旅旅部',            type:'hqb', str:2, mov:8, rng:0, r:3, c:8, corps:'R1', wave:1 },
+    { id:'R1A', side:'red', abbr:'47-1', name:'敌摩步第 47 旅第 1 营',          type:'mob', str:9, mov:8, rng:1, r:3, c:9, corps:'R1', wave:1 },
+    { id:'R1B', side:'red', abbr:'47-2', name:'敌摩步第 47 旅第 2 营',          type:'mob', str:9, mov:8, rng:1, r:2, c:9, corps:'R1', wave:1 },
+    { id:'R1C', side:'red', abbr:'47-3', name:'敌摩步第 47 旅第 3 营',          type:'inf', str:8, mov:6, rng:1, r:2, c:10, corps:'R1', wave:1 },
+    { id:'R1T', side:'red', abbr:'47反', name:'敌摩步第 47 旅反坦克连',        type:'at',  str:3, mov:5, rng:1, r:3, c:10, corps:'R1', wave:1 },
+    { id:'R1D', side:'red', abbr:'47-4', name:'敌摩步第 47 旅第 4 营',          type:'mob', str:9, mov:8, rng:1, r:1, c:10, corps:'R1', wave:1 },
+    { id:'R1E', side:'red', abbr:'47工', name:'敌摩步第 47 旅工兵连',          type:'engc',str:2, mov:6, rng:1, r:1, c:9, corps:'R1', wave:1 },
+
+    /* ── 敌方 · 第二波 · 装甲第 8 师先遣战斗群（第 4 回合，西北） ── */
+    { id:'R2H', side:'red', abbr:'8H',   name:'敌装甲第 8 师先遣战斗群群部',    type:'hkg', str:2, mov:8, rng:0, r:1, c:4, corps:'R2', wave:2 },
+    { id:'R2A', side:'red', abbr:'8-1',  name:'敌战斗群第 1 营（中坦）',        type:'marm',str:12,mov:10,rng:1, r:1, c:5, corps:'R2', wave:2 },
+    { id:'R2B', side:'red', abbr:'8-2',  name:'敌战斗群第 2 营（轻坦）',        type:'larm',str:10,mov:12,rng:1, r:0, c:5, corps:'R2', wave:2 },
+    { id:'R2C', side:'red', abbr:'8-3',  name:'敌战斗群第 3 营（装步）',        type:'mech',str:9, mov:8, rng:1, r:0, c:6, corps:'R2', wave:2 },
+    { id:'R2D', side:'red', abbr:'8-4',  name:'敌战斗群第 4 营（中坦）',        type:'marm',str:12,mov:10,rng:1, r:0, c:4, corps:'R2', wave:2 },
+    { id:'R2T', side:'red', abbr:'8反',  name:'敌战斗群反坦克连',              type:'at',  str:3, mov:5, rng:1, r:2, c:5, corps:'R2', wave:2 },
+    { id:'R2F', side:'red', abbr:'8炮',  name:'敌战斗群自行火炮连',            type:'sha', str:4, mov:8, rng:3, r:1, c:6, corps:'R2', wave:2 },
+
+    /* ── 敌方 · 第三波 · 航空第 3 联队（第 7 回合，自东北空域） ──
+       空中单位无视地形，所以入场点可以写在海面上空。给它们排成两排，
+       免得四架挤在同一条线上被一锅端。 */
+    /* 联队部挂 `dm:'air'` 飞在天上。`domainOf` 优先读单位上的 dm，
+       所以同一条 hkg 既能当陆上群部、也能当空中联队部——这正是
+       "换装 / 临时编组不改兵种表"那个设计的用处。 */
+    { id:'R3H', side:'red', abbr:'空3H', name:'敌航空第 3 联队联队部',        type:'hkg', dm:'air', str:2, mov:8, rng:0, r:2, c:17, corps:'R3', wave:3 },
+    { id:'R3A', side:'red', abbr:'空3-战', name:'敌航空第 3 联队战斗机中队',    type:'fgt', str:8,  mov:12, rng:1, r:3, c:16, corps:'R3', wave:3 },
+    { id:'R3B', side:'red', abbr:'空3-攻', name:'敌航空第 3 联队攻击机中队',    type:'atk', str:8,  mov:10, rng:1, r:3, c:17, corps:'R3', wave:3 },
+    { id:'R3C', side:'red', abbr:'空3-轰', name:'敌航空第 3 联队轰炸机中队',    type:'bmb', str:12, mov:8,  rng:1, r:4, c:17, corps:'R3', wave:3 },
+    { id:'R3D', side:'red', abbr:'空3-攻2',name:'敌航空第 3 联队第 2 攻击机中队',type:'atk', str:8, mov:10, rng:1, r:4, c:16, corps:'R3', wave:3 },
+    { id:'R3E', side:'red', abbr:'空3-轰2',name:'敌航空第 3 联队第 2 轰炸机中队',type:'bmb', str:12, mov:8, rng:1, r:2, c:18, corps:'R3', wave:3 },
+
+    /* ── 敌方 · 第四波 · 第 63 步兵师（第 11 回合，北面正面） ── */
+    { id:'R4H', side:'red', abbr:'63H',  name:'敌第 63 步兵师师部',            type:'hqd', str:2, mov:8, rng:0, r:1, c:11, corps:'R4', wave:4 },
+    { id:'R4A', side:'red', abbr:'63-1', name:'敌第 187 步兵团第 1 营',        type:'inf', str:8, mov:6, rng:1, r:0, c:11, corps:'R4', wave:4 },
+    { id:'R4B', side:'red', abbr:'63-2', name:'敌第 187 步兵团第 2 营',        type:'inf', str:8, mov:6, rng:1, r:0, c:12, corps:'R4', wave:4 },
+    { id:'R4C', side:'red', abbr:'63-3', name:'敌第 188 步兵团第 1 营',        type:'inf', str:8, mov:6, rng:1, r:1, c:12, corps:'R4', wave:4 },
+    { id:'R4D', side:'red', abbr:'63-4', name:'敌第 188 步兵团第 2 营（摩步）',type:'mob', str:9, mov:8, rng:1, r:0, c:13, corps:'R4', wave:4 },
+    { id:'R4F', side:'red', abbr:'63炮', name:'敌第 63 步兵师炮兵营',          type:'art', str:5, mov:6, rng:5, r:0, c:10, corps:'R4', wave:4, packed:1 },
+    { id:'R4T', side:'red', abbr:'63反', name:'敌第 63 步兵师反坦克连',        type:'at',  str:3, mov:5, rng:1, r:1, c:13, corps:'R4', wave:4 },
+    { id:'R4S', side:'red', abbr:'63炮2',name:'敌第 63 步兵师第 2 炮兵营',      type:'art', str:5, mov:6, rng:5, r:2, c:11, corps:'R4', wave:4, packed:1 },
+    { id:'R4E', side:'red', abbr:'189-1',name:'敌第 189 步兵团第 1 营',        type:'inf', str:8, mov:6, rng:1, r:0, c:14, corps:'R4', wave:4 },
+    { id:'R4G', side:'red', abbr:'189-2',name:'敌第 189 步兵团第 2 营',        type:'inf', str:8, mov:6, rng:1, r:1, c:14, corps:'R4', wave:4 },
+
+    /* ── 敌方 · 第五波 · 近卫装甲第 2 师（第 15 回合，总攻） ── */
+    { id:'R5H', side:'red', abbr:'2H',   name:'敌近卫装甲第 2 师师部',          type:'hqd', str:2, mov:8, rng:0, r:0, c:15, corps:'R5', wave:5 },
+    { id:'R5A', side:'red', abbr:'2-1',  name:'敌近卫装甲第 5 团第 1 营（中坦）',type:'marm',str:12,mov:10,rng:1, r:0, c:16, corps:'R5', wave:5 },
+    { id:'R5B', side:'red', abbr:'2-2',  name:'敌近卫装甲第 5 团第 2 营（中坦）',type:'marm',str:12,mov:10,rng:1, r:1, c:15, corps:'R5', wave:5 },
+    { id:'R5C', side:'red', abbr:'2-3',  name:'敌近卫装甲第 6 团第 1 营（中坦）',type:'marm',str:12,mov:10,rng:1, r:0, c:17, corps:'R5', wave:5 },
+    { id:'R5D', side:'red', abbr:'2-4',  name:'敌近卫装甲第 6 团第 2 营（装步）',type:'mech',str:9, mov:8, rng:1, r:1, c:16, corps:'R5', wave:5 },
+    { id:'R5F', side:'red', abbr:'2炮',  name:'敌近卫装甲第 2 师自行火炮营',      type:'spa', str:5, mov:8, rng:4, r:1, c:17, corps:'R5', wave:5 },
+
+    /* ── 敌方 · 第六波 · 第 9 装甲师先遣团（第 18 回合，自西面海岸公路） ──
+       为什么还要有第六波：20 回合的关，如果第 15 回合之后没有新压力，
+       最后五回合就是"清残敌"，玩家的注意力会掉。这一波从西面来，
+       逼着玩家把预备队从北线调过去——而不是所有人堆在城北等回合数。 */
+    { id:'R5E', side:'red', abbr:'6-3',  name:'敌近卫装甲第 6 团第 3 营（中坦）',type:'marm',str:12,mov:10,rng:1, r:0, c:18, corps:'R5', wave:5 },
+    { id:'R5G', side:'red', abbr:'7-1',  name:'敌近卫装甲第 7 团第 1 营（装步）',type:'mech',str:9, mov:8, rng:1, r:1, c:18, corps:'R5', wave:5 },
+    { id:'R6H', side:'red', abbr:'9H',   name:'敌第 9 装甲师先遣团指挥所',      type:'hkg', str:2, mov:8, rng:0, r:5, c:0, corps:'R6', wave:6 },
+    { id:'R6A', side:'red', abbr:'9-1',  name:'敌第 9 装甲师先遣团第 1 营（中坦）',type:'marm',str:12,mov:10,rng:1, r:5, c:1, corps:'R6', wave:6 },
+    { id:'R6B', side:'red', abbr:'9-2',  name:'敌第 9 装甲师先遣团第 2 营（摩步）',type:'mob', str:9, mov:8, rng:1, r:4, c:1, corps:'R6', wave:6 },
+    { id:'R6C', side:'red', abbr:'9-3',  name:'敌第 9 装甲师先遣团第 3 营（轻坦）',type:'larm',str:10,mov:12,rng:1, r:6, c:1, corps:'R6', wave:6 }
+  ],
+  waves: [
+    { wave: 2, turn: 4,  text: '敌军装甲第 8 师先遣战斗群自西北方向投入，直取城西。' },
+    { wave: 3, turn: 7,  text: '敌军航空第 3 联队出现在港外空域——雷达上四个目标，全部朝泊位飞。' },
+    { wave: 4, turn: 11, text: '敌军第 63 步兵师主力自北面压上，第一道防线全线接敌。' },
+    { wave: 5, turn: 15, text: '敌军近卫装甲第 2 师投入战场。这是他们最后一把力气。' },
+    { wave: 6, turn: 19, text: '敌军第 9 装甲师先遣团沿海岸公路从西面插上来——他们想绕开正面，直接冲码头。' }
+  ]
 }
 ];
 
@@ -2540,8 +3194,11 @@ const ASSETS = {
     inf: null, gdn: null, mob: null, mech: null,
     larm: null, marm: null, harm: null,
     art: null, hr: null, sha: null, spa: null, at: null, td: null,
-    eng: null, engc: null, rec: null, sup: null, avn: null,
-    aac: null, aab: null, hqd: null, hqb: null, hkg: null, hkc: null
+    eng: null, engc: null, rec: null, sup: null, mrb: null,
+    aac: null, aab: null, hqd: null, hqb: null, hkg: null, hkc: null,
+    fgt: null, atk: null, bmb: null, trp: null, para: null,
+    gbt: null, ptb: null, ffg: null, dd: null, ca: null, bb: null,
+    cv: null, ss: null, lst: null
   },
 
   /* 工事图标：键名与 FORT 一致，建议 28×28，与格内字母角标二选一 */
@@ -2892,25 +3549,50 @@ let state = null;
 function terrainAt(r, c) { return TERRAIN[LEVEL.map[r][c]]; }
 
 /* ───────────────────────── 堆叠 ─────────────────────────
-   一格最多 STACK_MAX 支同阵营部队。堆叠只解决一件事：渡口、桥头这类
+   一格最多 STACK_MAX 支同阵营**地表**部队。堆叠只解决一件事：渡口、桥头这类
    瓶颈地形的通行能力——以前 40 支部队抢 4 格渡口，必然堵死。
    交战规则刻意保持简单：
      · 攻击仍指向"具体某支部队"，不做整格结算
      · 同格另一支部队按 STACK_COVER 计入防御协同（比相邻友军的 35% 高）
-     · 伤害只落在被指定的那一支身上——所以堆叠是机动手段，不是防御万能牌 */
+     · 伤害只落在被指定的那一支身上——所以堆叠是机动手段，不是防御万能牌
+
+   v4.4 起分两层：空中 / 地表（陆 + 水）。飞机飞在坦克营头顶是常态，
+   不能让它们互相挤占名额；空中自己的上限是 SLOT.air = 1。 */
 const STACK_MAX = 2;
 const STACK_COVER = 0.50;      // 同格友军防御协同系数
 
 function unitsAt(r, c) {
   return state.units.filter(u => u.pos[0] === r && u.pos[1] === c);
 }
-/* 栈顶 = 最后进入该格的那一支。点选、渲染、AI 判定都按栈顶算 */
-function unitAt(r, c) {
-  const a = unitsAt(r, c);
+/* 只数同一层。堆叠上限、落脚判定、同格协同全部走它 */
+function layerUnitsAt(r, c, layer) {
+  return state.units.filter(u =>
+    u.pos[0] === r && u.pos[1] === c && layerOf(u) === layer);
+}
+/* 地表栈顶 = 最后进入那一支。控制权、ZOC、工事、布雷都按它算，
+   所以它**绝不能返回空中单位**：一架飞机飘在要点上空，
+   不该让下面的守备营从控制权判定里"消失"。
+   只有该格根本没有地表部队时，才回落到空中单位——那种格子也得点得开。 */
+function surfaceAt(r, c) {
+  const a = layerUnitsAt(r, c, 'surface');
   return a.length ? a[a.length - 1] : null;
 }
-function stackFull(r, c) { return unitsAt(r, c).length >= STACK_MAX; }
-function stackOf(u) { return unitsAt(u.pos[0], u.pos[1]); }
+function airAt(r, c) {
+  const a = layerUnitsAt(r, c, 'air');
+  return a.length ? a[a.length - 1] : null;
+}
+function unitAt(r, c) { return surfaceAt(r, c) || airAt(r, c); }
+function stackFull(r, c, layer) {
+  const L = layer || 'surface';
+  return layerUnitsAt(r, c, L).length >= (L === 'air' ? SLOT.air : STACK_MAX);
+}
+/* 点击轮换的顺序：地表先、空中后。**这不是堆叠上限的判断**，
+   上限一律走 slotOf / layerUnitsAt——两件事分开，改一个不会牵连另一个。 */
+function stackOf(u) {
+  const surf = layerUnitsAt(u.pos[0], u.pos[1], 'surface');
+  const airs = layerUnitsAt(u.pos[0], u.pos[1], 'air');
+  return surf.concat(airs);
+}
 let _objAt = null;
 function objAt(r, c) {
   if (!_objAt) {
@@ -3019,7 +3701,10 @@ const CARDS = {
         if (a.side !== u.side || a.str <= 0) continue;
         if (hexDist(a.pos, tgt) > 2) continue;
         a.org = Math.min(100, a.org + 15);
-        if (a.ammo !== undefined) a.ammo = Math.min(a.maxAmmo || a.ammo, a.ammo + 2);
+        if (a.ammo !== undefined) {
+          const cap = a.maxAmmo === undefined ? a.ammo + 2 : a.maxAmmo;
+          a.ammo = Math.min(cap, a.ammo + 2);
+        }
       }
     }
   }
@@ -3096,7 +3781,7 @@ function clearCardBuffs() {
   for (const u of state.units) { u.cardAtk = 0; u.cardDef = 0; u.cardMov = 0; }
 }
 const HQ_TYPES   = ['hqd', 'hqb', 'hkg', 'hkc'];
-const CAPTURE_TYPES = ['inf', 'gdn', 'mob', 'mech', 'larm', 'marm', 'harm', 'eng', 'engc'];
+const CAPTURE_TYPES = ['inf', 'gdn', 'mob', 'mech', 'mrb', 'larm', 'marm', 'harm', 'eng', 'engc', 'para'];
 function isArty(u) { return ARTY_TYPES.includes(u.type); }
 function isDirectArty(u) { return ARTY_DIRECT.includes(u.type); }
 function isTowed(u) { return TOWED_TYPES.includes(u.type); }
@@ -3105,10 +3790,11 @@ function canCapture(u) { return CAPTURE_TYPES.includes(u.type); }
 function coordName(p) { return String.fromCharCode(65 + p[1]) + (p[0] + 1); }
 function other(s) { return s === 'blue' ? 'red' : 'blue'; }
 
-/* 敌我 ZOC：6 邻 */
+/* 敌我 ZOC：6 邻。只算地表部队——天上的飞机不"占地方"，
+   既拦不住地面行军，也挡不住另一架飞机。 */
 function inEnemyZOC(r, c, side) {
   for (const n of neighbors(r, c)) {
-    const u = unitAt(n[0], n[1]);
+    const u = surfaceAt(n[0], n[1]);
     if (u && u.side !== side) return true;
   }
   return false;
@@ -3166,11 +3852,44 @@ function supplyField(side) {
 function refreshFields() {
   state.fields = { blue: supplyField('blue'), red: supplyField('red') };
 }
+/* 港口格清单。每关算一次就够——地形在关卡存续期间不会变
+   （doBridge 只改河流格，改不出港口）。 */
+function portCells() {
+  if (!LEVEL._portCells) {
+    const out = [];
+    for (let r = 0; r < LEVEL.rows; r++) {
+      for (let c = 0; c < LEVEL.cols; c++) {
+        if (terrainAt(r, c).cls === 't-port') out.push([r, c]);
+      }
+    }
+    LEVEL._portCells = out;
+  }
+  return LEVEL._portCells;
+}
+
 function supplyOf(u, fields) {
   const f = (fields || state.fields)[u.side] || {};
   const e = f[kk(u.pos[0], u.pos[1])];
   /* 辎重自持 */
   if (u.type === 'sup') return { label: '充足', mod: 1.0, dist: 0 };
+
+  /* 水面格 cost 是 99，补给场 BFS 根本进不去——舰船一出生就判"断绝"，
+     全员 −30%。这不是刻意做的规则，是补给场只认地面机动漏下来的坑：
+     它不会报错，只会在战报里显示"断绝"，然后所有海战数值都被悄悄压掉三成。
+     舰队的补给来自码头：3 格内算充足，6 格内算紧张，再远断绝。
+     码头被敌军占了就别想补给了——"守港口"这件事因此有了明确的价格。 */
+  if (isNaval(u)) {
+    let best = null;
+    for (const cell of portCells()) {
+      const hold = surfaceAt(cell[0], cell[1]);
+      if (hold && hold.side !== u.side) continue;
+      const d = hexDist(cell, u.pos);
+      if (best === null || d < best) best = d;
+    }
+    if (best !== null && best <= 3) return { label: '充足', mod: 1.00, dist: best };
+    if (best !== null && best <= 6) return { label: '紧张', mod: 0.88, dist: best };
+    return { label: '断绝', mod: 0.70, dist: best };
+  }
 
   let res;
   if (!e) res = { label: '断绝', mod: 0.70, dist: null };
@@ -3259,8 +3978,10 @@ function effStr(u, fields) {
   const s = supplyOf(u, fields);
   return (u.str + homeBonus(u)) * (u.org / 100) * s.mod;
 }
+/* 地形防御加成。空中单位飞在开阔天上，林地与城市的掩护跟它无关——
+   不把这条掐掉的话，一架飞机蹲在城里能拿到 +85%，那才是真正的"地形无敌"。 */
 function terrainDefFor(u) {
-  let d = terrainAt(u.pos[0], u.pos[1]).def;
+  let d = isAir(u) ? 0 : terrainAt(u.pos[0], u.pos[1]).def;
   if (u.fortify) d += u.fortify;
   if (isArty(u)) d *= 0.5;                  // 炮兵阵地暴露，地形收益减半
   if (homeBonus(u)) d += 0.20;              // 为了祖国
@@ -3281,11 +4002,21 @@ function minRange(u) {
   return 1;
 }
 
+/* 一格一格的机动消耗。**领域决定"能不能走"，地形决定"走起来多贵"**：
+     空中 —— 什么地形都是 1 点，河流、深海、城市上空一视同仁；
+     水面 —— 该水域在不在 NAV[领域].cells 里，价钱走 t.nav；
+     地面 —— 老规则，cost >= 99 就是过不去（水域对地面天然是 99）。
+   顺序很要紧：先判领域再判地形。以前是先看 `cost >= 99` 直接 Infinity，
+   于是河流对航空也成了死路——飞机要绕河飞，那种 bug 一眼看不出来。 */
 function moveCost(u, ch) {
-  const t = TERRAIN[ch];
-  if (t.cost >= 99) return Infinity;
-  if (u.type === 'avn') return 1;           // 航空无视地形
-  return t.cost;
+  const t = TERRAIN[ch] || TERRAIN['.'];
+  const dm = domainOf(u);
+  if (dm === 'air') return 1;
+  if (dm === 'green' || dm === 'blue') {
+    if (!(NAV[dm].cells || []).includes(ch)) return Infinity;
+    return t.nav || 2;
+  }
+  return t.cost >= 99 ? Infinity : t.cost;
 }
 
 /* 抵达范围。
@@ -3304,6 +4035,9 @@ function computeReach(u) {
   const dist = {};
   const start = kk(u.pos[0], u.pos[1]);
   dist[start] = 0;
+  /* 落脚与占位只看**自己那一层**：飞机从坦克营头顶飞过不该被"格满"挡住，
+     反过来地面部队也不会因为头顶有架飞机就进不了自己那一格。 */
+  const layer = layerOf(u), slot = slotOf(u), air = isAir(u);
   const pool = [[0, u.pos[0], u.pos[1]]];
   while (pool.length) {
     pool.sort((a, b) => a[0] - b[0]);
@@ -3318,11 +4052,13 @@ function computeReach(u) {
       const key = kk(nr, nc);
       if (dist[key] !== undefined && dist[key] <= nd) continue;
       dist[key] = nd;
-      const here = unitsAt(nr, nc);
+      const here = layerUnitsAt(nr, nc, layer);
       if (here.length && here[0].side !== u.side) continue;   // 敌占格：要打，不走进
-      if (here.length < STACK_MAX) out.stop[key] = nd;        // 有空位才算落脚点
-      /* ZOC：进入敌方相邻格后停止 */
-      if (!inEnemyZOC(nr, nc, u.side)) pool.push([nd, nr, nc]);
+      if (here.length < slot) out.stop[key] = nd;             // 有空位才算落脚点
+      /* ZOC：进入敌方相邻格后停止。
+         空中不受这条限制——地面部队围不住天上的东西，否则"无视地形"等于白写。
+         代价是飞机可以一路飞到敌人背后，这是它该有的能力。 */
+      if (air || !inEnemyZOC(nr, nc, u.side)) pool.push([nd, nr, nc]);
     }
   }
   delete dist[start];
@@ -3343,23 +4079,37 @@ function ratioTier(k) {
 }
 
 /* 相邻友军协同：同格按 50% 计入，相邻格按 35% 计入，最多 3 支。
-   同格权重更高——两支部队挤在一个格子里，火线是贴着的。 */
+   同格权重更高——两支部队挤在一个格子里，火线是贴着的。
+   只算**同一层**的友军：地面营的火力支援对一架飞在头顶的飞机不成立，
+   反过来防空连也不能替地面守军分摊挨打。 */
 function helpers(u, defPos, side) {
+  const layer = layerOf(u);
   return alive(side)
-    .filter(a => a !== u && a.rng > 0 && !isHQ(a) && hexDist(a.pos, defPos) <= 1)
+    .filter(a => a !== u && a.rng > 0 && !isHQ(a) && layerOf(a) === layer &&
+                 hexDist(a.pos, defPos) <= 1)
     .map(a => ({ u: a, w: hexDist(a.pos, defPos) === 0 ? STACK_COVER : 0.35 }))
     .sort((x, y) => y.w * y.u.str - x.w * x.u.str)
     .slice(0, 3);
 }
 
+/* 谁能打空中目标：防空部队（兵种表 aa:1），以及航空兵自己（空战）。
+   地面部队对空只能挨打——这条不放开，空军就从一个"要专门克制"的兵种
+   变成了全军的免费经验值，玩家会立刻学会再也不出飞机。 */
+function canHitAir(u) { return isAA(u) || isAir(u); }
+
 /* 反击判定：射程够不到，或远程单位被近战贴脸 → 无法反击
    例外：直瞄火炮可以放平了打贴脸目标 */
 function canCounter(att, def) {
-  /* 贴到防守方近界以内，它根本够不着，不算反击 */
+  /* 挨空中打击时能还手的只有两类：防空单位，和**别的飞机**。
+     飞机这一条不能漏——轰炸机"仅可对空反击"全靠它：atk 白名单不许它主动挑
+     飞机打，但被战斗机咬住时自卫机枪要能响，否则那条规则在纸面上永远不成立。 */
+  if (isAir(att) && !(isAA(def) || isAir(def))) return false;
+  /* 贴到防守方近界以内，它根本够不着，不算反击。
+     这条已经覆盖了"榴弹炮打不了自己脚下"，不需要再对远射程单位额外设限——
+     以前那句 `dr >= 2 && ar <= 1 → 只有直瞄炮能反击` 是近界出现之前的替代品，
+     留着它会让射程 2 的防空营没法还手贴脸飞过来的飞机。 */
   if (hexDist(att.pos, def.pos) < minRange(def)) return false;
-  const ar = attackRange(att), dr = attackRange(def);
-  if (dr < ar) return false;
-  if (dr >= 2 && ar <= 1) return isDirectArty(def);
+  if (attackRange(def) < attackRange(att)) return false;
   return true;
 }
 
@@ -3371,13 +4121,16 @@ function recBonus(u, defPos) {
   }
   return 0;
 }
-/* 防空压制：防空连半径 2 / 防空营半径 4 / 防空阵地半径 2 */
+/* 防空压制：射程与强度都写在兵种表的 aaRange / aaPen 里，不再按兵种代号硬认。
+   以前这里写死 `a.type === 'aac'` / `'aab'`，舰载防空加进来时这里不改，
+   新舰的 aa 标记就只换来一个"能开火"、压制永远是 0——静默失效。 */
 function aaPenalty(u, defPos) {
-  if (u.type !== 'avn') return 0;
+  if (!isAir(u)) return 0;
   let p = 0;
   for (const a of alive(other(u.side))) {
-    if (a.type === 'aac' && hexDist(a.pos, defPos) <= 2) p = Math.max(p, 0.30);
-    else if (a.type === 'aab' && hexDist(a.pos, defPos) <= 4) p = Math.max(p, 0.35);
+    const T = TYPE[a.type];
+    if (!T || !T.aa) continue;
+    if (hexDist(a.pos, defPos) <= (T.aaRange || 2)) p = Math.max(p, T.aaPen || 0.30);
   }
   for (const f of (state.forts || [])) {
     if (f.kind !== 'F' || f.side === u.side) continue;
@@ -3390,20 +4143,24 @@ function aaPenalty(u, defPos) {
 function previewAttack(att, def, fields) {
   const attHelp = helpers(att, def.pos, att.side);
   const defHelp = helpers(def, def.pos, def.side);
+  /* 打空中目标时，目标脚下的地形不该参与任何修正：
+     装甲的"平原加成"、直瞄炮的"巷战惩罚"都是以地面接触为前提的，
+     对着一架飞在 3 公里外的飞机算这些，等于凭空改数值。 */
+  const skyTarget = isAir(def);
   const dt = terrainAt(def.pos[0], def.pos[1]);
 
   let attMod = 0;
-  if (isArmor(att)) {
+  if (!skyTarget && isArmor(att)) {
     const pr = ARMOR_PROFILE[att.type];
     if (dt.cls === 't-plain' || dt.cls === 't-road') attMod += pr.open;
     if (dt.cls === 't-town') attMod -= pr.town;
   }
-  if (att.type === 'mob') {
+  if (!skyTarget && att.type === 'mob') {
     if (dt.cls === 't-plain' || dt.cls === 't-road') attMod += 0.10;
   }
   if (att.moved && !ARM_FIRE.includes(att.type)) attMod -= 0.10;   // 行进间射击
   /* 直瞄射击：只有贴到 1 格放平了打才有惩罚，正常射程内曲射照旧 */
-  if (isDirectArty(att) && hexDist(att.pos, def.pos) === 1) {
+  if (!skyTarget && isDirectArty(att) && hexDist(att.pos, def.pos) === 1) {
     attMod -= 0.10;
     if (dt.cls === 't-town' || dt.cls === 't-forest') attMod -= 0.10;
   }
@@ -3418,6 +4175,14 @@ function previewAttack(att, def, fields) {
   }
   /* 坦克互殴：吨位说话 */
   if (isArmor(att) && isArmor(def)) attMod += (ARM_VS[att.type] && ARM_VS[att.type][def.type]) || 0;
+  /* 兵种表里的目标修正：`vs` 按类别、`vsType` 按具体型号。
+     航空与海军的全部"对空强/对地弱/对大型舰加成"都走这两行，
+     以后再调数值只改兵种表，战斗函数不动。 */
+  {
+    const TA = TYPE[att.type] || {};
+    if (TA.vs) attMod += TA.vs[tclass(def)] || 0;
+    if (TA.vsType) attMod += TA.vsType[def.type] || 0;
+  }
   attMod += recBonus(att, def.pos);
   attMod -= aaPenalty(att, def.pos);
   /* 工事抗炮击：远程火力打有工事的目标，攻击额外减成。
@@ -3457,12 +4222,22 @@ function inRangeTargets(u, fields) {
   const lo = minRange(u), hi = attackRange(u);
   return alive(foe).filter(t => {
     const d = hexDist(u.pos, t.pos);
-    return d >= lo && d <= hi;
+    if (d < lo || d > hi) return false;
+    /* 打不着的就不该列出来：对空能力、目标类别白名单都在 canTarget 里。
+       以前这里只判"是不是飞机"，于是鱼雷艇会把岸上目标也列成红色。 */
+    return canTarget(u, t);
   });
 }
 function targetsFor(u, fields) {
   if (u.rng === 0) return [];
-  if (isArty(u) && u.ammo !== undefined && u.ammo <= 0) return [];
+  /* 弹药打光了就不能开火。以前这里只认炮兵（isArty），因为 v4.3 之前
+     有弹药的只有炮；v4.4 给军舰和飞机也写了 `am`，而它们**打得完但不会补**——
+     战列舰 6 发、巡洋舰 8 发，20 回合里每回合都能开火是不可能的，
+     可代码里没有这一条，于是舰队成了打不完的固定炮台：
+     波尔瓦萨港第一版自战 100 局全胜，实测把七艘舰的战力改成 1，
+     同样的局立刻 0%（蓝方全灭）。胜负全挂在"舰炮有没有弹"上。
+     航空兵的 `am` 语义是"架次"，另有一套（尚未实现），这里不动它。 */
+  if ((isArty(u) || isNaval(u)) && u.ammo !== undefined && u.ammo <= 0) return [];
   /* 拖曳炮没展开（行军状态）就开不了火 */
   if (isTowed(u) && (u.packed || u.moved)) return [];
   return inRangeTargets(u, fields);
@@ -3905,6 +4680,10 @@ function levelAccess(lvId) {
   for (let k = idx - 1; k >= 0; k--) {
     const pre = LEVELS[k];
     if (!pre.ready) continue;
+    /* 附属关（sub:true）是主线的分岔，不是主线的台阶。
+       第 4 关曾经卡在"先通过岚口机场保卫战"上——那是场可选仗，
+       不打就不许推进，等于把主线绑在支线上。 */
+    if (pre.sub) continue;
     if (!p.cleared[pre.id]) return { ok: false, why: '先通过「' + pre.name + '」' };
     return { ok: true, why: '' };
   }
@@ -4300,7 +5079,11 @@ function newGame(opt) {
 let uopsOpen = false;
 
 function select(u) {
-  if (u) FX.sfx('select');
+  /* 取不到就当没点过。`?demo=unit` 这类截图钩子是照着 C1 的兵牌 id 写死的，
+     换一关就 uid() 成 null，以前会直接崩在 `u.side` 上——页面顶上弹红条，
+     而截图脚本照样存图，看着像"渲染坏了"。 */
+  if (!u) return;
+  FX.sfx('select');
   state.selected = u;
   state.mode = null;
   uopsOpen = false;
@@ -4341,14 +5124,31 @@ function deselect() {
 
 /* ───────────────────────── 行动 ───────────────────────── */
 function doMove(u, pos) {
-  /* 堆叠兜底：computeReach 已把满格从 stop 里排除，但事件增援、脚本调用、
-     击退等路径会直接改坐标。原来这里没有任何校验，自测里能一路塞进 3 支。
-     拒绝时返回 false，不写撤销栈——调用方忽略返回值也是安全的。 */
+  /* 落点兜底：computeReach 已经把这些格排除了，但事件增援、脚本调用、
+     击退、AI 直接调用等路径会绕过它。原来这里没有校验，自测里能一路塞进 3 支。
+     拒绝时返回 false，不写撤销栈——调用方忽略返回值也是安全的。
+
+     判定分两关，顺序有讲究：
+       ① 地形 —— 这一格它到底走不走得进去（水域只有水上单位能进，
+          深海只有蓝水能进）。缺这一关，一次写错坐标的事件就能把坦克开进海里，
+          而且在界面上看起来只是"位置有点怪"。
+       ② 占位 —— **只跟自己那一层比**。飞机和地面部队同格不算冲突；
+          上限走 slotOf（空中 / 水面一格一支，地面 STACK_MAX）。 */
   if (pos[0] !== u.pos[0] || pos[1] !== u.pos[1]) {
-    const occ = unitsAt(pos[0], pos[1]);
+    if (!inBounds(pos[0], pos[1]) ||
+        moveCost(u, LEVEL.map[pos[0]][pos[1]]) === Infinity) {
+      const tn = inBounds(pos[0], pos[1]) ? terrainAt(pos[0], pos[1]).name : '地图外';
+      log(u.abbr + ' 到不了 ' + coordName(pos) + '：' + tn + '不是它走的地形。', 'sys');
+      return false;
+    }
+    const occ = layerUnitsAt(pos[0], pos[1], layerOf(u));
     if (occ.some(x => x.side !== u.side)) return false;
-    if (occ.length >= STACK_MAX) {
-      log(u.abbr + ' 进不了 ' + coordName(pos) + '：该格已有 ' + STACK_MAX + ' 支。', 'sys');
+    const slot = slotOf(u);
+    if (occ.length >= slot) {
+      log(u.abbr + ' 进不了 ' + coordName(pos) + '：该格' +
+          (slot === 1
+            ? '已被另一支' + (isAir(u) ? '航空单位' : '部队') + '占用'
+            : '已有 ' + slot + ' 支') + '。', 'sys');
       return false;
     }
   }
@@ -4423,6 +5223,9 @@ function doUnpack(u) {
 }
 
 function doAttack(att, def) {
+  /* 最后一道闸：界面上列不出来是一回事，真打进去是另一回事。
+     AI、战术卡、测试都能绕过 targetsFor 直接调这里，所以白名单要在这里也验一次。 */
+  if (!canTarget(att, def)) return false;
   pushUndo();
   const pv = previewAttack(att, def, state.fields);
   const die = Math.floor(Math.random() * 6);
@@ -4668,6 +5471,77 @@ function doBridge(u, pos) {
   clearSelection(); refreshFields(); render();
   saveGame();
 }
+/* ── 空投（运输机 / 运输舰唯一会做的事）───────────────────
+   载什么不是兵种属性，是**关卡属性**：同一型运输机这一关运弹药、下一关运伞兵。
+   所以写在单位的 `load` 上，由关卡数据给：`supply` / `para` / 不给就是空机。
+   空机不显示按钮——画一个点了没反应的按钮，比没有按钮更让人困惑。 */
+function dropSpot(u) {
+  for (const p of [u.pos].concat(neighbors(u.pos[0], u.pos[1]))) {
+    if (!inBounds(p[0], p[1])) continue;
+    if (moveCost({ type: 'inf' }, LEVEL.map[p[0]][p[1]]) === Infinity) continue;
+    const s = layerUnitsAt(p[0], p[1], 'surface');
+    if (s.length >= STACK_MAX) continue;
+    if (s.some(x => x.side !== u.side)) continue;
+    return p;
+  }
+  return null;
+}
+function doDrop(u) {
+  const T = TYPE[u.type] || {};
+  if (!u || !T.carry || !u.load || u.moved) return false;
+  if (!state || state.phase !== 'blue' || state.result) return false;
+
+  if (u.load === 'supply') {
+    let n = 0;
+    for (const a of alive(u.side)) {
+      if (hexDist(a.pos, u.pos) > 1) continue;
+      a.org = Math.min(100, a.org + 15);
+      /* 上限不能写 `maxAmmo || ammo`：maxAmmo 缺失时那个表达式等于 ammo，
+         于是 min(ammo, ammo+2) 永远是 ammo——补了个寂寞，还看不出来。
+         （战术卡的「空投补给」原来是同样的写法，一起改了。） */
+      if (a.ammo !== undefined) {
+        const cap = a.maxAmmo === undefined ? a.ammo + 2 : a.maxAmmo;
+        a.ammo = Math.min(cap, a.ammo + 2);
+      }
+      n++;
+    }
+    u.load = null; u.moved = true;
+    pushUndo();
+    log(u.abbr + ' 空投补给：' + n + ' 支部队组织度 +15、弹药 +2。', 'b');
+    FX.sfx('build');
+    FX.pop('空投补给', u.pos.slice(), 'sys');
+    clearSelection(); render();
+    return true;
+  }
+
+  if (u.load === 'para') {
+    const p = dropSpot(u);
+    /* 落不下就**不要**扣掉这次行动。理由：这是玩家算错位置的代价，
+       不该比"什么都没发生"更贵——真正的代价是这一回合没干别的。 */
+    if (!p) {
+      log('空投失败：' + coordName(u.pos) + ' 附近没有能落伞兵的空地。', 'sys');
+      /* 日志区得跟着刷一下，否则玩家点了没反应、也看不到原因 */
+      render();
+      return false;
+    }
+    pushUndo();
+    state.dropSeq = (state.dropSeq || 0) + 1;
+    const nu = makeUnit({
+      id: 'DP' + state.dropSeq, side: u.side, abbr: '伞',
+      name: '空降伞兵连', type: 'para',
+      r: p[0], c: p[1], corps: u.corps, wave: u.wave || 1
+    }, true);
+    state.units.push(nu);
+    u.load = null; u.moved = true;
+    log(u.abbr + ' 在 ' + coordName(p) + ' 空投伞兵连（落地当回合不能行动）。', 'b');
+    FX.sfx('build');
+    FX.pop('伞兵落地', p, 'sys');
+    clearSelection(); refreshFields(); render();
+    return true;
+  }
+  return false;
+}
+
 function doDepot(u) {
   pushUndo();
   const dup = state.depots.some(d => d.side === u.side && d.r === u.pos[0] && d.c === u.pos[1]);
@@ -4859,8 +5733,16 @@ function settlePhase() {
       u.org = Math.min(100, u.org + base);
     }
 
-    /* 弹药补充 */
+    /* 弹药补充。炮兵每回合 +1（弹药车就在阵地后面）。
+       舰船：**停在码头补给圈里就能补**，不管这一回合打没打过——
+       舰炮的弹药是从岸上弾药库源源不断吊上来的，不需要"歇一回合"，
+       这和"炮兵要收炮转移"不是一回事。真实约束在距离上：
+       离开码头 3 格补给掉到「紧张」，补弹立刻断，走出 6 格就断绝。
+       于是玩家的选择变成"舰队靠港持续支援"还是"舰队出港追歼"，
+       而不是"今晚打不打得动"这种算术题。 */
     if (isArty(u) && !u.moved && s.label !== '断绝') {
+      u.ammo = Math.min(u.maxAmmo, u.ammo + 1);
+    } else if (isNaval(u) && !u.moved && s.label === '充足') {
       u.ammo = Math.min(u.maxAmmo, u.ammo + 1);
     }
     /* 工事：整回合静止的步兵 / 守备营自动加固 */
@@ -5022,6 +5904,13 @@ function judgeFinal() {
   render();
 }
 
+/* 波次是否已经全部入场。判"敌军被全灭"之前必须先问这一句——
+   第 4 回合就只剩红方 0 支部队，是"这一波被打光了"，不是"战争结束了"，
+   后面三波还在路上。少了这个前置，玩家清掉第一波就当场通关。 */
+function allWavesIn() {
+  return (LEVEL.waves || []).every(w => state.flags['wave' + w.wave]);
+}
+
 function checkEnd() {
   if (state.result) return;
   /* 全灭先判：任何目标类型下，打光了都是输 */
@@ -5037,7 +5926,13 @@ function checkEnd() {
     return;                          // 抵达类目标不看积分，等回合耗尽再判
   }
   if (w.kind === 'survive') {
-    /* 坚守类：中途只要还站着就不算输，回合末由 judgeFinal 判定 */
+    /* 坚守类的达成条件通常是"活到最后一回合"，但有些关的简报写的是
+       "坚守 N 回合 **或** 敌军全灭"——那是并列条件，不是"必须守满"。
+       把敌人打光了还让玩家一回合一点地空转到第 20 回合，等于惩罚正确打法。 */
+    if (alive('red').length === 0 && allWavesIn()) {
+      state.result = 'win'; state.phase = 'over'; showOverlay(); render(); return;
+    }
+    /* 中途只要还站着就不算输，回合末由 judgeFinal 判定 */
     return;
   }
   const maxRed = LEVEL.objectives.reduce((s, o) => s + o.vp, 0);
@@ -5197,19 +6092,45 @@ async function runAI() {
       continue;
     }
 
-    /* 敌航空连：只在距敌 3 格外游弋，不进入防空圈 */
-    if (u.type === 'avn') {
+    /* 空中单位：在敌人 3 格外游弋，绝不进防空圈。
+       判的是领域不是兵种——加第二型飞机时 AI 不用改一行。
+       水面单位暂时走下面的通用分支（它们的目标同样是 redGoal，
+       只是走不到陆地上，computeReach 自然把它们限制在水里）。 */
+    if (isAir(u)) {
       const foes = alive('blue');
       if (foes.length) {
         const reach = computeReach(u);
         const cands = Object.keys(reach.stop).map(k => k.split(',').map(Number));
         cands.push(u.pos);
+        const hi = attackRange(u);
+        /* 敌方防空圈（半径与强度都在兵种表里，不按代号认）。
+           包含两种：带 aa 的兵种，以及防空阵地 F —— 后者在 aaPenalty 里算过，
+           但以前这里没算，于是 AI 会挑一个"它以为安全、实际吃 -25%"的位置。 */
+        const inAA = p => foes.some(a => {
+          const T2 = TYPE[a.type] || {};
+          return T2.aa && hexDist(p, a.pos) <= (T2.aaRange || 2);
+        }) || (state.forts || []).some(f =>
+          f.side !== u.side && f.kind === 'F' && fortWorking(f) &&
+          hexDist(p, [f.r, f.c]) <= 2);
         let best = null, bs = -Infinity;
         for (const p of cands) {
-          let mind = Infinity;
-          for (const f of foes) mind = Math.min(mind, hexDist(p, f.pos));
-          if (mind < 3) continue;
-          const s = -mind;
+          /* 以前这里是 `if (inAA(p)) continue;`——结果是：只要目标被防空伞罩住，
+             飞机就一架都不来，宁可飞到天边待着。战报上于是永远不出现
+             "驱逐舰被炸沉"，玩家也学不到"防空伞保护舰队"这件事的重要性。
+             现在改成扣分：进圈仍可能被选中，只是要拿"能开火"去换这 60 分。 */
+          const risky = inAA(p);
+          let canFire = 0, mind = Infinity;
+          for (const f of foes) {
+            const d = hexDist(p, f.pos);
+            if (d < mind) mind = d;
+            if (d >= minRange(u) && d <= hi && canTarget(u, f)) canFire++;
+          }
+          /* 能开火的位置压倒一切；同分才比距离。
+             运输机（射程 0）反过来——它要的是"离敌人越远越好"。
+             以前这里一律退到 3 格外，那是给射程 2 的航空连写的；
+             射程 1 的战斗机照那个走就永远够不着，整局白飞。 */
+          let s = canFire * 100 + (hi === 0 ? mind : -mind);
+          if (risky) s -= 60;
           if (s > bs) { bs = s; best = p; }
         }
         if (best && (best[0] !== u.pos[0] || best[1] !== u.pos[1])) {
@@ -5413,12 +6334,21 @@ function renderBoard() {
 
       /* 堆叠渲染：一格两支时上下错开、整体缩小，栈顶在上（z-index 高） */
       let inner = '';
-      here.forEach((u2, i) => {
+      /* 兵牌错位只在**同一层**内做：一格两支地面部队要上下错开才看得见，
+         但头顶那架飞机不该被挤到第三个位置上去——它另有"悬空"的视觉处理。
+         同理，堆叠角标的数字只数地表部队，飞机不占那个名额。 */
+      const surf = layerUnitsAt(r, c, 'surface');
+      const airs = layerUnitsAt(r, c, 'air');
+      surf.concat(airs).forEach(u2 => {
         let uc = 'unit ' + u2.side;
+        const same = isAir(u2) ? airs : surf;
+        const idx = same.indexOf(u2);
+        if (same.length > 1) uc += ' stk stk' + idx;
+        if (isAir(u2)) uc += ' air';
+        else if (isNaval(u2)) uc += ' sea';
         if (u2.moved || u2.fired) uc += ' spent';
         if (u2.packed) uc += ' packed';
         if (state.selected === u2) uc += ' sel';
-        if (here.length > 1) uc += ' stk stk' + i;
         inner += '<div class="' + uc + '" title="' + u2.name + '">' +
                  '<span class="n">' + u2.abbr + '</span>' +
                  '<span class="s">' + Math.max(0, u2.str) + '</span>' +
@@ -5428,9 +6358,9 @@ function renderBoard() {
       const mine = state.mines.find(m => m.r === r && m.c === c);
       if (mine && !here.length) inner += '<span style="font-size:9px;color:#8B5E1A;font-weight:700;z-index:2">雷</span>';
       /* 堆叠角标：光靠错开不够醒目，直接标数字 */
-      if (here.length > 1) {
-        inner += '<span class="stackTag" title="该格堆叠 ' + here.length + ' 支（上限 ' +
-                 STACK_MAX + '）· 再点一次轮换选中">×' + here.length + '</span>';
+      if (surf.length > 1) {
+        inner += '<span class="stackTag" title="该格堆叠 ' + surf.length + ' 支（上限 ' +
+                 STACK_MAX + '）· 再点一次轮换选中">×' + surf.length + '</span>';
       }
 
       /* 补给点：以前只存在于逻辑里，棋盘上完全看不见，玩家自然觉得"建了没效果" */
@@ -5658,6 +6588,13 @@ function unitOps(u) {
         ops.push({ act: 'bridge', label: '架桥', hint: '', dis: !canBr, on: state.mode === 'bridge' });
       }
     }
+  }
+
+  /* 运输机 / 运输舰：空投载货。载货是**关卡数据**给的（u.load），
+     空机连按钮都不出现——画一个点了没反应的按钮比没有按钮更让人困惑。 */
+  if (TYPE[u.type] && TYPE[u.type].carry && u.load) {
+    ops.push({ act: 'drop', label: u.load === 'para' ? '空投伞兵' : '空投补给',
+               hint: u.load === 'para' ? '占本回合' : '半径 1', dis: !!u.moved });
   }
 
   /* 辎重队：建补给点 */
@@ -5925,6 +6862,7 @@ function runOp(act) {
   if (act === 'pack') { doPack(u); return; }
   if (act === 'unpack') { doUnpack(u); return; }
   if (act === 'depot') { doDepot(u); return; }
+  if (act === 'drop') { doDrop(u); return; }
   /* mine / clear / bridge：只是切模式，下一步点格子 */
   state.mode = state.mode === act ? null : act;
   render();
@@ -5953,7 +6891,17 @@ function renderUnitBox() {
       let h = '<div class="ub-head"><span class="ub-name">' + t.name + '</span>' +
               '<span class="tag">' + coordName([r, c]) + '</span></div>';
       h += '<div class="ub-meta">' + (obj ? '要点：' + obj.name + '（' + obj.vp + ' 分）' : '普通地形') + '</div>';
-      h += '<div class="kv"><span>移动消耗</span><b>' + (t.cost >= 99 ? '不可通行' : t.cost + ' 点') + '</b></div>';
+      /* 消耗要分地面 / 水面两套写。只写"不可通行"的话，
+         浅海对玩家就成了纯装饰——而它其实是绿水和蓝水的战场。 */
+      const landCost = t.cost >= 99 ? '不可通行' : t.cost + ' 点';
+      const navCost = t.nav === undefined ? '' : '（水上 ' + t.nav + ' 点）';
+      h += '<div class="kv"><span>移动消耗</span><b>' + landCost + navCost + '</b></div>';
+      if (t.nav !== undefined) {
+        const who = Object.keys(NAV)
+          .filter(d => NAV[d].cells.includes(LEVEL.map[r][c]))
+          .map(d => NAV[d].name).join(' / ');
+        h += '<div class="kv"><span>可航行</span><b>' + (who || '—') + '</b></div>';
+      }
       h += '<div class="kv"><span>防御加成</span><b>' + fmtPct(t.def) + '</b></div>';
       h += '<div class="kv"><span>炮兵驻守</span><b>' + (t.def ? '加成减半' : '—') + '</b></div>';
       const ft = fortAt(r, c);
@@ -5971,7 +6919,9 @@ function renderUnitBox() {
       h += '<div class="grp"><div class="grp-h">当前可通行</div>' +
            neighbors(r, c).map(n => {
              const tt = terrainAt(n[0], n[1]);
-             return '<div class="abil">' + coordName(n) + ' ' + tt.name + '（消耗 ' + (tt.cost >= 99 ? '—' : tt.cost) + '）</div>';
+             return '<div class="abil">' + coordName(n) + ' ' + tt.name + '（消耗 ' +
+                    (tt.cost >= 99 ? (tt.nav !== undefined ? '水上 ' + tt.nav : '—') : tt.cost) +
+                    '）</div>';
            }).join('') + '</div>';
       box.innerHTML = h;
       return;
@@ -6000,12 +6950,21 @@ function renderUnitBox() {
   h += '<div class="kv"><span>有效战力</span><b>' + eff.toFixed(1) + '</b></div>';
   h += '<div class="kv"><span>组织度</span><b class="' + (u.org >= 70 ? 'ok' : u.org >= 40 ? 'warn' : 'bad') + '">' + Math.round(u.org) + '%</b></div>';
   h += '<div class="kv"><span>机动</span><b>' + u.mov + ' 点</b></div>';
+  /* 射程以前对非炮兵一律写死 '1'——那时候战场上最远的东西就是炮，
+     现在驱逐舰 8 格、战列舰 20 格，再写死就是骗人。 */
   const rngTxt = u.rng === 0 ? '无'
-    : (isArty(u) ? '最小 ' + minRange(u) + ' / 最大 ' + attackRange(u) : '1');
+    : (isArty(u) ? '最小 ' + minRange(u) + ' / 最大 ' + attackRange(u) : String(attackRange(u)));
   h += '<div class="kv"><span>射程</span><b>' + rngTxt +
        (isDirectArty(u) ? ' <span class="ok">（直瞄）</span>' : '') + '</b></div>';
-  if (isArty(u)) h += '<div class="kv"><span>弹药</span><b class="' + (u.ammo > 0 ? 'ok' : 'bad') + '">' + u.ammo + ' / ' + u.maxAmmo + '</b></div>';
-  h += '<div class="kv"><span>地形加成</span><b>' + fmtPct(terrainDefFor(u)) + '</b></div>';
+  /* 弹药同理：不止炮兵有。飞机有架次、军舰有炮弹，打完了都哑火。 */
+  if (u.ammo !== undefined) h += '<div class="kv"><span>弹药</span><b class="' + (u.ammo > 0 ? 'ok' : 'bad') + '">' + u.ammo + ' / ' + u.maxAmmo + '</b></div>';
+  h += '<div class="kv"><span>地形加成</span><b>' +
+       (isAir(u) ? '<span class="warn">不适用（空中单位不吃地形）</span>' : fmtPct(terrainDefFor(u))) +
+       '</b></div>';
+  /* 领域那一行列出来：玩家要能一眼看出"这支部队走的是哪条道" */
+  const dmName = { ground: '地面', air: '空中', green: '绿水', blue: '蓝水' }[domainOf(u)];
+  h += '<div class="kv"><span>行动域</span><b>' + dmName +
+       (domainOf(u) === 'ground' ? '' : ' · 一格一支') + '</b></div>';
   h += '<div class="kv"><span>补给状态</span><b class="' +
        (sup.label === '充足' ? 'ok' : sup.label === '紧张' ? 'warn' : 'bad') + '">' +
        sup.label + ' ×' + sup.mod.toFixed(2) + (sup.dist !== null ? '（' + sup.dist + ' 格）' : '') + '</b></div>';
@@ -6490,8 +7449,8 @@ function closeTips() { tipsEl.classList.add('hidden'); }
    不用碰这里的任何代码——图鉴和卡组是派生视图，不是第二份数据。
    ═════════════════════════════════════════════════════════════ */
 const DEX_GROUPS = [
-  { name: '步兵与摩托化', types: ['inf', 'gdn', 'mob', 'mech'],
-    note: '唯一能稳定占领要点、也唯一能自筑工事的一类。' },
+  { name: '步兵与摩托化', types: ['inf', 'gdn', 'mob', 'mech', 'mrb'],
+    note: '唯一能稳定占领要点、也唯一能自筑工事的一类。海军步兵营是港口守备的精锐，行动域仍是地面。' },
   { name: '装甲', types: ['larm', 'marm', 'harm'],
     note: '火力 / 机动 / 装甲三者不可兼得——选错了型号，加成全部反过来。' },
   { name: '炮兵', types: ['art', 'hr', 'sha', 'spa'],
@@ -6500,8 +7459,17 @@ const DEX_GROUPS = [
     note: '打坦克 ×1.8 级别，打步兵 ×0.6。放错位置等于没带。' },
   { name: '工程与后勤', types: ['eng', 'engc', 'sup'],
     note: '不开火，但决定你能不能过河、修工事、撑住补给。' },
-  { name: '侦察与防空', types: ['rec', 'aac', 'aab', 'avn'],
+  { name: '侦察与防空', types: ['rec', 'aac', 'aab'],
     note: '侦察给炮兵校射，防空压制敌方航空。都是放大器，不是主力。' },
+  { name: '航空兵', types: ['fgt', 'atk', 'bmb', 'trp'],
+    note: '一律射程 1 格（视距内交战）。制空权决定谁能用；没有战斗机掩护的攻击机，出击就是送。' },
+  { name: '绿水海军', types: ['gbt', 'ptb', 'ffg'],
+    note: '走河流与浅海。对岸火力支援靠炮艇，撕开大船靠鱼雷艇——两者都怕岸炮。' },
+  { name: '蓝水海军', types: ['dd', 'ca', 'bb', 'cv', 'ss', 'lst'],
+    note: '只能在浅海与深海活动。射程从 8 格（驱逐）一路到 20 格（战列），' +
+          '但潜艇只有带对潜装备的舰艇打得动，战列舰拿它毫无办法。' },
+  { name: '伞兵', types: ['para'],
+    note: '运输机的货。能占点，但孤军落地就是死——空降的意义是夺点，不是打赢。' },
   { name: '指挥', types: ['hqd', 'hqb', 'hkg', 'hkc'],
     note: '半径内每回合回组织度。被摧毁时本方全员组织度重罚——别让它上一线。' }
 ];
@@ -6513,7 +7481,7 @@ function dexStat(t) {
             || LEVEL.units.find(x => x.type === t);
   const T = TYPE[t] || {};
   if (pick) return { st: pick.str, mv: pick.mov, rng: pick.rng, real: true };
-  if (T.st || T.mv) return { st: T.st, mv: T.mv, rng: t === 'larm' || t === 'marm' || t === 'harm' ? 1 : null, real: false };
+  if (T.st || T.mv) return { st: T.st, mv: T.mv, rng: T.rg === undefined ? null : T.rg, real: false };
   return null;
 }
 
@@ -7099,7 +8067,7 @@ window.__WAR__ = {
   /* 存档：selftest 会用 saveSnapshot / restoreGame 做往返一致性校验 */
   saveGame, readSave, clearSave, restoreGame, saveSnapshot,
   SAVE_KEY, SAVE_VER,
-  computeReach, previewAttack, targetsFor, supplyOf, effStr,
+  computeReach, previewAttack, targetsFor, supplyOf, effStr, terrainDefFor,
   doMove, doAttack, endBluePhase, settlePhase, judgeFinal, render,
   objectiveControl, ctrlState, updateControl, checkEvents, applyEffect, modAtk, modDef, spawnGroup,
   /* 事件触发器：noteAct 写计数器，triggerMet 读它。
@@ -7107,10 +8075,10 @@ window.__WAR__ = {
      id 写错了也查不出来，只会安静地永不触发。 */
   noteAct, triggerMet,
   fortAt, fortDef, doFort, FORT, FORT_KEYS, fortKindsFor, fortKind, fortReqOk,
-  doMine, doClearMine, doBridge, doDepot,
+  doMine, doClearMine, doBridge, doDepot, doDrop, dropSpot,
   fortFire, fortAlive, fortWorking, fortSuppressed, damageFort, ARM_FIRE,
   isDirectArty, attackRange, aaPenalty, minRange, canCounter,
-  blueScore, redScore, canCounter, isArty, canCapture,
+  blueScore, redScore, canCounter, isArty, canCapture, isNaval,
   isHQ, hqBonus, homeBonus, hqRadius, hqAura, makeUnit,
   HQ_TYPES, ARTY_TYPES, CAPTURE_TYPES,
   /* 火炮射程换算与展收机制 */
@@ -7132,6 +8100,14 @@ window.__WAR__ = {
   hqSaveNote,
   /* 堆叠 / 撤销 / 补给场：新增机制的测试入口 */
   unitsAt, stackFull, stackOf, STACK_MAX, STACK_COVER,
+  /* 领域（陆 / 空 / 绿水 / 蓝水）：一件机制的四张脸——走哪格、和谁挤、
+     谁能打它、界面怎么画。测试直接驱动 domainOf / moveCost / canHitAir，
+     否则"加一种兵种忘了改 moveCost"这类事只能等玩出来。 */
+  DOMAINS, NAV, SLOT, domainOf, layerOf, slotOf, layerUnitsAt,
+  isAir, isNaval, isGround, isAA, canHitAir, moveCost, airAt, surfaceAt, inEnemyZOC,
+  /* 目标分类（打谁）：领域管"我怎么动"，tclass 管"我打的是什么"。
+     潜艇在水上机动但按 sub 算，战列舰没有对潜就打不着它——这条只能测出来。 */
+  tclass, canTarget, attackClasses,
   /* 点击层：只测 doMove 会漏掉"界面上根本点不出来"这类 bug，
      所以把 onHexClick / select 一起暴露，让自测走真实操作路径 */
   onHexClick, select,

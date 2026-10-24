@@ -9,7 +9,7 @@ const T = api.TYPE;
 const ARMS = {
   hq: '旅部', inf: '步兵营', arm: '坦克营', art: '野战炮兵营',
   hr: '重型炮兵营', spa: '自行火炮营', eng: '工兵营', sup: '辎重营',
-  rec: '侦察连', aa: '防空连', avn: '航空连'
+  rec: '侦察连', aa: '防空连', fgt: '战斗机中队'
 };
 
 function table(units) {

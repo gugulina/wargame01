@@ -165,13 +165,13 @@ console.log('\n[4] 工事被动效果');
   st = api.getState();
   const aab = api.alive('blue').find(u => u.type === 'aab');
   aab.pos = [0, 0];                                   // 挪开防空营，避免取高值
-  const avn = api.alive('red').find(u => u.type === 'avn');
+  const jet = api.alive('red').find(u => u.type === 'fgt');
   const target = api.alive('blue').find(u => u.type === 'gdn');
-  const base = api.aaPenalty(avn, target.pos);
+  const base = api.aaPenalty(jet, target.pos);
   const aac = api.alive('blue').find(u => u.type === 'aac');
   if (aac) aac.pos = [0, 1];
   api.doFort(api.alive('blue').find(u => u.type === 'eng'), target.pos, 'F');
-  const withF = api.aaPenalty(avn, target.pos);
+  const withF = api.aaPenalty(jet, target.pos);
   ok('防空阵地提供 25% 对空压制', Math.abs(withF - Math.max(base, 0.25)) < 1e-9, base + '→' + withF);
 }
 
@@ -1073,6 +1073,564 @@ console.log('\n[25] 限时修正（mod + turns）');
   api.settlePhase(); api.settlePhase(); api.settlePhase();
   ok('不带 turns 的修正一直留着', st.mods.length === 1, '剩 ' + st.mods.length + ' 条');
 }
+
+/* ───────── 二十六、领域：陆 / 空 / 绿水 / 蓝水 ─────────
+   这一节守的是"框架"，不是某一支部队：以后加飞机加军舰，
+   只要 `dm` 写对，下面每一条都该自动成立。
+   所以断言尽量打在 domainOf / moveCost / slotOf / canHitAir 这些面上，
+   而不是"某型飞机能不能飞过某条河"。 */
+console.log('\n[26] 领域：陆 / 空 / 绿水 / 蓝水');
+/* 这一节守的是"框架"，不是某一支部队：以后加飞机加军舰，
+   只要 `dm` 写对，下面每一条都该自动成立。所以断言打在
+   domainOf / moveCost / slotOf / canHitAir 这些面上，
+   而不是"某型飞机能不能飞过某条河"。
+
+   坐标尽量落在 C3 第 13 行右半段（cols 8–14 全空），
+   避开蓝方在左下角的部署——随手挑格子会让"地表已堆满 2 支"变成 3 支。 */
+{
+  /* 前面几节切过关（存档 / 胜负条件会 enterLevel），这里必须重新钉死 C3。
+     不钉死的话 uid('R7') 是 null，报错只会说"cannot read properties of null"。 */
+  const NG = () => api.newGame({ level: 'C3', noSave: true });
+  NG();
+  const L19 = api.levelById('C3');
+  let S = api.getState();
+
+  /* ── 26.1 领域归属 ── */
+  /* 样本用 gdn 不用 inf：C3 蓝方编制里**没有** inf（步兵营在 C1/C2）。
+     写 inf 的话 domainOf(undefined) 会回落成 'ground'，断言假绿。 */
+  const gA = S.units.find(u => u.side === 'blue' && u.type === 'gdn');
+  const jet = api.uid('R7');
+  ok('找得到样本单位', !!gA && !!jet, gA ? gA.id : '没有 gdn');
+  ok('守备营属于地面域', api.domainOf(gA) === 'ground', api.domainOf(gA));
+  ok('战斗机中队属于空中域（dm 写在兵种表里）', api.domainOf(jet) === 'air', api.domainOf(jet));
+  ok('u.dm 可以覆盖兵种默认值', api.domainOf({ type: 'gdn', dm: 'green' }) === 'green');
+
+  /* ── 26.2 机动矩阵：同一格地形，四个领域各读各的价钱 ── */
+  const mc = (u, ch) => api.moveCost(u, ch);
+  const greenU = { type: 'gdn', dm: 'green' };
+  const blueU = { type: 'gdn', dm: 'blue' };
+  ok('地面走不了河流 / 浅海 / 深海',
+     mc(gA, '~') === Infinity && mc(gA, 's') === Infinity && mc(gA, 'd') === Infinity);
+  ok('空中一律 1 点：河流、浅海、深海、城市一视同仁',
+     mc(jet, '~') === 1 && mc(jet, 's') === 1 && mc(jet, 'd') === 1 && mc(jet, 't') === 1 &&
+     mc(jet, '.') === 1);
+  ok('绿水：河流 3 点、浅海 3 点', mc(greenU, '~') === 3 && mc(greenU, 's') === 3);
+  ok('绿水进不了深海', mc(greenU, 'd') === Infinity);
+  ok('绿水上不了岸', mc(greenU, '.') === Infinity && mc(greenU, '#') === Infinity);
+  ok('蓝水：浅海 3 点、深海 2 点', mc(blueU, 's') === 3 && mc(blueU, 'd') === 2);
+  ok('蓝水进不了内河（吃水不够——刻意如此，要放宽改 NAV.blue.cells）',
+     mc(blueU, '~') === Infinity);
+
+  /* ── 26.3 占位名额 ── */
+  ok('空中一格一支', api.slotOf(jet) === 1 && api.SLOT.air === 1);
+  ok('水面一格一支', api.slotOf(greenU) === 1 && api.slotOf(blueU) === 1);
+  ok('地面仍是 STACK_MAX', api.slotOf(gA) === api.STACK_MAX);
+
+  /* ── 26.4 分层堆叠：飞机能和满编地面部队同格，但落不了第二架 ── */
+  NG(); S = api.getState();
+  const SPOT = [13, 9];
+  const g1 = S.units.filter(u => u.side === 'blue' && u.type === 'gdn')[0];
+  const g2 = S.units.filter(u => u.side === 'blue' && u.type === 'gdn')[1];
+  ok('前提：目标格开局是空的', api.unitsAt(SPOT[0], SPOT[1]).length === 0);
+  g1.pos = SPOT.slice(); g1.moved = false;
+  g2.pos = SPOT.slice(); g2.moved = false;
+  const plane = api.uid('R7');
+  ok('前提：该格地表已堆满 2 支', api.layerUnitsAt(SPOT[0], SPOT[1], 'surface').length === 2,
+     api.layerUnitsAt(SPOT[0], SPOT[1], 'surface').length + ' 支');
+  ok('飞机可以落在满编地面格上（分层占位）', api.doMove(plane, SPOT) === true);
+  ok('地面两支部队没被挤走', api.layerUnitsAt(SPOT[0], SPOT[1], 'surface').length === 2);
+  ok('空中层恰好一支', api.layerUnitsAt(SPOT[0], SPOT[1], 'air').length === 1);
+  ok('airAt 找得到飞机，surfaceAt 仍给地表部队',
+     api.airAt(SPOT[0], SPOT[1]) === plane &&
+     api.domainOf(api.surfaceAt(SPOT[0], SPOT[1])) === 'ground');
+  /* 第二架：把一支地面部队临时改标成空中，省得为测试造一个虚构兵种。
+     必须先挪开——doMove 对"原地不动"直接放行，不清场的话这条永远绿。 */
+  g1.dm = 'air';
+  g1.pos = [13, 8];
+  ok('空中一格落不下第二支', api.doMove(g1, SPOT) === false &&
+     api.layerUnitsAt(SPOT[0], SPOT[1], 'air').length === 1);
+  delete g1.dm;
+
+  /* 反方向：头顶有飞机，地面部队照样进得去。
+     挑一个**不是拖曳炮**的样本——doMove 对没展开的火炮本来就会拒绝，
+     用它当样本的话失败原因和被测规则无关。 */
+  NG(); S = api.getState();
+  const plane2 = api.uid('R7');
+  plane2.pos = [13, 11];
+  const walker = S.units.find(u =>
+    u.side === 'red' && api.domainOf(u) === 'ground' && !api.isTowed(u) && !api.isHQ(u));
+  walker.pos = [13, 10]; walker.moved = false;
+  ok('地面部队进得去头顶有飞机的格子', api.doMove(walker, [13, 11]) === true &&
+     api.layerUnitsAt(13, 11, 'surface').length === 1 &&
+     api.layerUnitsAt(13, 11, 'air').length === 1);
+
+  /* ── 26.5 控制权只认地表 ──
+     这条最阴：unitAt 一旦返回空中单位，canCapture(飞机) 是 false，
+     要点会因为"上面飘着一架敌机"被判成无主，而地图上看不出任何异常。 */
+  NG(); S = api.getState();
+  const city = L19.objectives.find(o => o.id === 'city');
+  const cell0 = city.cells[0];
+  const gdn = S.units.find(u => u.side === 'blue' && u.type === 'gdn');
+  gdn.pos = cell0.slice();
+  api.uid('R7').pos = cell0.slice();
+  api.updateControl();
+  ok('敌机停在要点上空不改控制权', api.ctrlState(city) === 'blue', api.ctrlState(city));
+  ok('unitAt 优先返回地表部队', api.unitAt(cell0[0], cell0[1]) === gdn);
+
+  /* ── 26.6 对空：只有防空 / 航空兵打得着 ── */
+  NG(); S = api.getState();
+  const art = api.uid('B1F');       // 旅炮兵营 rng 5
+  const aab = api.uid('B9');        // 防空营 rng 2
+  const plane3 = api.uid('R7');
+  art.pos = [13, 8];
+  aab.pos = [13, 9];
+  plane3.pos = [13, 10];            // 距 art 2 格、距 aab 1 格
+  ok('前提：射程够得到（dist 2 / 1）',
+     api.hexDist(art.pos, plane3.pos) === 2 && api.hexDist(aab.pos, plane3.pos) === 1);
+  ok('普通地面炮兵列不出空中目标', !api.inRangeTargets(art, S.fields).includes(plane3));
+  ok('防空营列得出空中目标', api.inRangeTargets(aab, S.fields).includes(plane3));
+  ok('canHitAir：守备营 false，防空营 true，航空兵 true',
+     api.canHitAir(gA) === false && api.canHitAir(aab) === true && api.canHitAir(plane3) === true);
+  ok('地面兵种挨空袭不能反击', api.canCounter(plane3, gA) === false);
+  ok('防空营可以反击空袭', api.canCounter(plane3, aab) === true);
+  /* 防空压制认领域不认代号：把一支炮兵临时标成空中，它立刻吃防空惩罚 */
+  const fake = api.uid('R3F');
+  fake.dm = 'air';
+  fake.pos = [13, 10];
+  ok('标成空中域就自动受防空压制（aaPenalty 已按领域判）',
+     api.aaPenalty(fake, fake.pos) >= 0.30, api.aaPenalty(fake, fake.pos));
+  delete fake.dm;
+  ok('去掉标记就没有压制', api.aaPenalty(fake, fake.pos) === 0);
+
+  /* ── 26.7 空中不吃地形防御 ── */
+  plane3.pos = [6, 9];              // C3 城市格（def 0.85）
+  ok('飞机蹲在城里也只有 0 地形加成', api.terrainDefFor(plane3) === 0, api.terrainDefFor(plane3));
+  const g3 = S.units.find(u => u.side === 'blue' && u.type === 'gdn');
+  g3.pos = [6, 9];
+  ok('同一格的地面部队照吃地形加成', api.terrainDefFor(g3) > 0.8, api.terrainDefFor(g3));
+
+  /* ── 26.8 ZOC 与可达：地面被敌邻格钉住，飞机照飞 ──
+     C3 第 13 行 cols 8–14 是平地（cost 2）。敌人放在 (12,10)：
+       它只与 (13,9)(13,10) 相邻，离起点 (13,8) 有 2 格。
+       地面 8 点 = 4 格：(13,9) 进去就吃 ZOC，走不到 (13,10)。
+       空中 8 点 = 8 格且不吃 ZOC，一路飞到 (13,12)。 */
+  NG(); S = api.getState();
+  const foe = S.units.find(u => u.side === 'red' && api.domainOf(u) === 'ground');
+  foe.pos = [12, 10];
+  const runner = S.units.find(u => u.side === 'blue' && u.type === 'gdn');
+  runner.pos = [13, 8]; runner.moved = false; runner.mov = 8;
+  const plane4 = api.uid('R7');
+  plane4.pos = [13, 8]; plane4.mov = 8;
+  ok('前提：敌人只与中途格相邻', api.hexDist(foe.pos, [13, 9]) === 1 &&
+     api.hexDist(foe.pos, [13, 8]) === 2);
+  const rGround = api.computeReach(runner), rAir = api.computeReach(plane4);
+  ok('地面：进 ZOC 那一格可以停', rGround.stop['13,9'] !== undefined);
+  ok('地面：进了敌 ZOC 就走不到下一格', rGround.stop['13,10'] === undefined);
+  ok('空中：同起点同预算能飞到', rAir.stop['13,12'] !== undefined);
+  /* 敌机紧邻起点也不产生 ZOC：这条和"空中不吃 ZOC"是同一枚硬币的两面，
+     只测一面的话，把 inEnemyZOC 改回 unitAt 也能通过一半。 */
+  ok('敌机不产生地面 ZOC（inEnemyZOC 只认地表）', (() => {
+    const p = api.uid('R7'), back = p.pos;
+    p.pos = [13, 9];
+    const v = api.inEnemyZOC(13, 8, 'blue');
+    p.pos = back;
+    return v === false;
+  })());
+
+  /* ── 26.9 水上抵达：临时把第 13 行改成「浅海×4 + 深海×4」 ──
+     moveCost 上面测过了，这里测的是**算路**（computeReach 走的就是 moveCost，
+     所以它才是端到端那一条）。
+
+     ⚠ 改的是 `mapSrc` 不是 `map`：newGame 每次都从 mapSrc 重拷地图
+     （防上一局架桥残留，见引擎里那行 `LEVEL.map = LEVEL.mapSrc.slice()`），
+     只改 map 会在 NG() 那一刻被覆盖回去——上一版就是这么红的，四条断言全灭，
+     看着像算路坏了，其实是布景根本没生效。单独用 node 复现时没调 NG()，所以是绿的。 */
+  const row13 = L19.mapSrc[13];
+  L19.mapSrc[13] = 'ssssdddd' + row13.slice(8);
+  try {
+    NG(); S = api.getState();
+    ok('前提：第 13 行已经被改成水（浅海×4 + 深海×4）',
+       api.terrainAt(13, 2).name === '浅海' && api.terrainAt(13, 4).name === '深海',
+       api.terrainAt(13, 2).name + ' / ' + api.terrainAt(13, 4).name);
+    /* 这行本来站着蓝方守备营。改地形之后他们就"漂"在水上了——
+       水域一格一支，于是每个水格都判成"已满"、一个落脚点都不剩，
+       看上去像算路坏了，其实是布景没清场。 */
+    S.units.forEach(x => { if (x.pos[0] === 13 && x.pos[1] < 8) x.pos = [0, 0]; });
+    const boat = S.units.find(u => u.side === 'blue' && u.type === 'gdn');
+    ok('找得到水上样本单位（gdn 改 dm 当炮艇用）', !!boat);
+    boat.pos = [13, 0]; boat.moved = false; boat.mov = 9; boat.dm = 'green';
+    const rr = api.computeReach(boat);
+    ok('前提：浅海格是空的', api.layerUnitsAt(13, 2, 'surface').length === 0);
+    ok('绿水沿浅海推进（3 点一格，9 点走到第 3 格）',
+       rr.stop['13,2'] !== undefined && rr.stop['13,3'] !== undefined,
+       JSON.stringify(rr.stop));
+    ok('绿水止步于深海', rr.stop['13,4'] === undefined);
+    /* 蓝水走深海 2 点一格。9 点只够 s,s,s,d 到 col4，
+       要验"能一路开进深海"就得给够油，否则测的是油量不是领域。 */
+    boat.dm = 'blue'; boat.mov = 20;
+    const rb = api.computeReach(boat);
+    ok('蓝水能开进深海', rb.stop['13,4'] !== undefined && rb.stop['13,6'] !== undefined,
+       JSON.stringify(rb.stop));
+    boat.pos = [13, 6];
+    const rb2 = api.computeReach(boat);
+    ok('蓝水能退回浅海（浅海是两级共用的）', rb2.stop['13,3'] !== undefined,
+       JSON.stringify(rb2.stop));
+    boat.dm = 'ground';
+    ok('同一支部队改回地面域就下不了水', api.computeReach(boat).stop['13,2'] === undefined);
+    delete boat.dm;
+  } finally {
+    L19.mapSrc[13] = row13;
+    /* 还了 mapSrc 之后必须再开一局把 map 也刷回来——
+       map 是 mapSrc 的副本，不是同一个数组，光还 mapSrc 这一局的地图还是水。 */
+    NG();
+  }
+  ok('测完已还原地形', L19.map[13] === row13, L19.map[13]);
+
+  /* ── 26.10 select(null) 不许崩 ──
+     `?demo=unit` 这类截图钩子照着 C1 的兵牌 id 写死，换一关 uid() 就是 null。
+     以前会直接崩在 `u.side` 上，页面顶上弹红条，而截图脚本照样存图——
+     看着像"渲染坏了"，其实是钩子没取到单位。 */
+  let selThrew = '';
+  try { api.select(null); } catch (e) { selThrew = e.message; }
+  ok('select(null) 不抛异常（截图钩子取不到单位时的兜底）', selThrew === '', selThrew);
+  ok('select(null) 把选中态置空而不是留着上一支', api.getState().selected === null);
+
+  NG();
+}
+
+/* ───────── 二十七、航空兵与海军：打谁 / 打不打得动 ─────────
+   上一节 [26] 守的是"我怎么动"（领域），这一节守的是"我打的是什么"（目标分类）。
+   两者必须分开：潜艇在水面上机动（domain = blue），但目标分类是 sub——
+   合成一个字段的话，战列舰一炮就能把潜艇从水里炸出来，而它连声呐都没有。 */
+console.log('\n[27] 航空兵与海军：目标分类与克制');
+{
+  const NG = () => api.newGame({ level: 'C3', noSave: true });
+  NG();
+  const T = api.TYPE;
+  let S = api.getState();
+  let seq = 0;
+
+  /* ── 27.1 目标分类 ── */
+  ok('目标分类：飞机 air / 步兵 land / 军舰 ship / 潜艇 sub',
+     api.tclass({ type: 'fgt' }) === 'air' && api.tclass({ type: 'inf' }) === 'land' &&
+     api.tclass({ type: 'dd' }) === 'ship' && api.tclass({ type: 'ss' }) === 'sub');
+  ok('潜艇在蓝水机动，但按 sub 分类（不是 ship）',
+     api.domainOf({ type: 'ss' }) === 'blue' && api.tclass({ type: 'ss' }) === 'sub');
+
+  /* ── 27.2 主动攻击白名单（atk）──
+     注意 canTarget 里的 isAir 那一支仍然生效：地面兵种打不着飞机，
+     这一条和 atk 白名单是两道独立的闸。 */
+  const can = (a, b) => api.canTarget({ type: a }, { type: b });
+  ok('轰炸机不能主动挑飞机打（仅可对空反击）', can('bmb', 'fgt') === false);
+  ok('轰炸机能打地面与水面', can('bmb', 'inf') === true && can('bmb', 'dd') === true);
+  ok('鱼雷艇不能主动对地', can('ptb', 'inf') === false);
+  ok('鱼雷艇能对海', can('ptb', 'dd') === true);
+  ok('战列舰打不了潜艇（没有对潜能力）', can('bb', 'ss') === false);
+  ok('驱逐舰能反潜', can('dd', 'ss') === true);
+  ok('潜艇只能打船', can('ss', 'dd') === true && can('ss', 'inf') === false);
+  ok('战斗机打不了潜艇（atk 里没有 sub）', can('fgt', 'ss') === false);
+  ok('没写 atk 的老兵种仍然什么都能打（白名单为空＝不设限）',
+     can('marm', 'inf') === true && can('art', 'marm') === true);
+  ok('地面兵种仍然打不着飞机', can('inf', 'fgt') === false);
+  ok('防空营打得着飞机', can('aab', 'fgt') === true);
+
+  /* ── 27.3 反击：白名单只管"主动"，还手另算 ── */
+  const U = (t, r, c) => ({ type: t, pos: [r, c], str: 8, org: 100,
+                            rng: T[t].rg === undefined ? 1 : T[t].rg });
+  ok('轰炸机被咬住时能反击（"仅可对空反击"就是这个意思）',
+     api.canCounter(U('fgt', 1, 1), U('bmb', 1, 2)) === true);
+  ok('战斗机互咬时防守方也能还手（空战是双向的）',
+     api.canCounter(U('fgt', 1, 1), U('fgt', 1, 2)) === true);
+  ok('地面步兵挨空袭仍然不能反击',
+     api.canCounter(U('fgt', 1, 1), U('inf', 1, 2)) === false);
+
+  /* ── 27.4 修正方向：端到端走 previewAttack，而不是只比对兵种表 ──
+     只断言 vs 表等于多少是假绿（表改了但没接进战斗，照样绿）；
+     这里断言的是"打飞机比打地面高多少"，接不进去就会一样。 */
+  const put = (side, t, r, c) => {
+    const u = api.makeUnit({ id: 'T' + (++seq), side, type: t, abbr: 'T',
+      name: '测试' + T[t].name, r, c, corps: 'T', str: 10,
+      mov: T[t].mv || 8, rng: T[t].rg === undefined ? 1 : T[t].rg }, true);
+    S.units.push(u);
+    return u;
+  };
+  const mod = (a, b) => api.previewAttack(a, b, S.fields).attMod;
+
+  S.units.length = 0;
+  const f1 = put('blue', 'fgt', 5, 1);
+  const f2 = put('red', 'fgt', 5, 2);
+  const g1 = put('red', 'inf', 5, 2);       // 与飞机同格不同层，互不占位
+  ok('战斗机：打飞机明显强于打地面', mod(f1, f2) - mod(f1, g1) > 1.0,
+     mod(f1, f2).toFixed(2) + ' vs ' + mod(f1, g1).toFixed(2));
+
+  S.units.length = 0;
+  const b1 = put('blue', 'bmb', 5, 1);
+  const g2 = put('red', 'inf', 5, 2);
+  const atk1 = put('blue', 'atk', 5, 8);
+  const g3 = put('red', 'inf', 5, 9);
+  ok('轰炸机对地强于攻击机对地', mod(b1, g2) - mod(atk1, g3) > 0.2,
+     mod(b1, g2).toFixed(2) + ' vs ' + mod(atk1, g3).toFixed(2));
+
+  S.units.length = 0;
+  const s1 = put('blue', 'ss', 6, 1);
+  const ca1 = put('red', 'ca', 6, 2);
+  const bb1 = put('red', 'bb', 6, 3);
+  ok('潜艇打战列舰比打巡洋舰更狠（vsType 生效）',
+     mod(s1, bb1) - mod(s1, ca1) > 0.05,
+     mod(s1, bb1).toFixed(2) + ' vs ' + mod(s1, ca1).toFixed(2));
+
+  /* ── 27.5 防空压制按兵种表的 aaRange / aaPen，不再按代号硬认 ── */
+  S.units.length = 0;
+  const jet = put('red', 'fgt', 5, 5);
+  const ca2 = put('blue', 'ca', 5, 8);      // 距离 3
+  ok('巡洋舰半径 3 内压制 0.30', Math.abs(api.aaPenalty(jet, jet.pos) - 0.30) < 1e-9,
+     String(api.aaPenalty(jet, jet.pos)));
+  ca2.pos = [5, 9];                          // 距离 4，出圈
+  ok('出了巡洋舰的半径就没有压制', api.aaPenalty(jet, jet.pos) === 0);
+
+  S.units.length = 0;
+  const jet2 = put('red', 'fgt', 5, 5);
+  put('blue', 'bb', 5, 7);                   // 距离 2
+  ok('战列舰的防空比巡洋舰弱（半径 2 / −0.15）',
+     Math.abs(api.aaPenalty(jet2, jet2.pos) - 0.15) < 1e-9,
+     String(api.aaPenalty(jet2, jet2.pos)));
+
+  S.units.length = 0;
+  const jet3 = put('red', 'fgt', 5, 5);
+  put('blue', 'aab', 5, 9);                  // 距离 4
+  ok('老防空营仍是半径 4 / −0.35（泛化后数值没走样）',
+     Math.abs(api.aaPenalty(jet3, jet3.pos) - 0.35) < 1e-9,
+     String(api.aaPenalty(jet3, jet3.pos)));
+
+  /* ── 27.6 运输机：载货由关卡数据给，空机不给按钮 ── */
+  NG(); S = api.getState();
+  const trp = api.makeUnit({ id: 'TRP', side: 'blue', type: 'trp', abbr: '运',
+    name: '运输机联队', r: 5, c: 5, corps: 'T', str: 6, mov: 10, rng: 0 }, false);
+  S.units.push(trp);
+  ok('前提：第 5 行第 5 格是平地（伞兵落得下）', T && api.terrainAt(5, 5).cost < 99,
+     api.terrainAt(5, 5).name);
+  ok('空机没有空投按钮', !api.unitOps(trp).some(o => o.act === 'drop'));
+  trp.load = 'supply';
+  ok('载补给后出现空投按钮', api.unitOps(trp).some(o => o.act === 'drop'));
+
+  const g4 = api.alive('blue').find(u => u.type === 'gdn');
+  g4.pos = [5, 6]; g4.org = 50;
+  /* 弹药要用真有弹药的单位测：守备营 am=0，ammo 本来就是 undefined，
+     拿它测"弹药 +2"等于什么都没测——第一次跑就是这么假绿的。 */
+  const gun = api.alive('blue').find(u => u.ammo !== undefined);
+  ok('前提：找得到有弹药的单位', !!gun, gun ? gun.type : '没有');
+  gun.pos = [5, 5 + 0]; gun.ammo = 1; gun.maxAmmo = 8;
+  ok('空投补给执行成功', api.doDrop(trp) === true);
+  ok('半径 1 内友军组织度 +15、弹药 +2', g4.org === 65 && gun.ammo === 3,
+     g4.org + ' / ' + gun.ammo);
+  ok('投完变成空机、占本回合', trp.load === null && trp.moved === true);
+
+  NG(); S = api.getState();
+  const trp2 = api.makeUnit({ id: 'TRP2', side: 'blue', type: 'trp', abbr: '运',
+    name: '运输机联队', r: 5, c: 5, corps: 'T', str: 6, mov: 10, rng: 0 }, false);
+  trp2.load = 'para';
+  S.units.push(trp2);
+  ok('空投伞兵执行成功', api.doDrop(trp2) === true);
+  const para = S.units.find(u => u.type === 'para');
+  ok('伞兵连落在空投格或相邻格', !!para && api.hexDist(para.pos, trp2.pos) <= 1);
+  ok('伞兵落地当回合不能行动', !!para && para.moved === true && para.fired === true);
+  ok('伞兵能占点', !!para && api.canCapture(para) === true);
+
+  /* 落不下时不许扣载货：算错位置只该损失这一回合，不该损失这趟运输 */
+  NG(); S = api.getState();
+  const trp3 = api.makeUnit({ id: 'TRP3', side: 'blue', type: 'trp', abbr: '运',
+    name: '运输机联队', r: 5, c: 5, corps: 'T', str: 6, mov: 10, rng: 0 }, false);
+  trp3.load = 'para';
+  S.units.push(trp3);
+  const spots = [[5, 5]].concat(api.neighbors(5, 5));
+  for (const p of spots) {
+    for (let i = 0; i < api.STACK_MAX; i++) put('blue', 'inf', p[0], p[1]);
+  }
+  ok('落点全满时找不出空格', api.dropSpot(trp3) === null);
+  ok('投不下去就不执行，也不扣载货', api.doDrop(trp3) === false && trp3.load === 'para');
+
+  /* ── 27.7 规格自检：数值按用户给的现实射程换算成格（1 格 ≈ 1.5 km）── */
+  ok('空中单位射程一律 1 格（运输机 0）',
+     T.fgt.rg === 1 && T.atk.rg === 1 && T.bmb.rg === 1 && T.trp.rg === 0);
+  ok('水面射程递增：炮艇 < 护卫 < 驱逐 < 巡洋 < 战列',
+     T.gbt.rg < T.ffg.rg && T.ffg.rg < T.dd.rg && T.dd.rg < T.ca.rg && T.ca.rg < T.bb.rg,
+     [T.gbt.rg, T.ffg.rg, T.dd.rg, T.ca.rg, T.bb.rg].join(' < '));
+  ok('运输机 / 运输舰没有火力', T.trp.rg === 0 && T.lst.rg === 0);
+  ok('航母是占位兵种（check.js 会拦着不让部署）', T.cv.reserve === 1);
+
+  NG();
+}
+
+console.log('\n[28] 第四关：波尔瓦萨港（海军基地保卫战）');
+{
+  const L4 = api.levelById('C4');
+  const NG4 = () => api.newGame({ level: 'C4', noSave: true });
+
+  /* ── 28.1 关卡元信息 ── */
+  ok('第四关存在且已制作', !!L4 && L4.ready === true);
+  ok('作战编号是 4', L4 && L4.no === 4, L4 && L4.no);
+  ok('目标类型是坚守（survive）', L4 && L4.win && L4.win.kind === 'survive');
+  ok('坚守 20 回合', L4 && L4.maxTurns === 20, L4 && L4.maxTurns);
+  ok('要守住要塞与市两处（keep 两项）',
+     !!L4 && (L4.win.keep || []).length === 2 &&
+     L4.win.keep.includes('fort') && L4.win.keep.includes('city'),
+     L4 && (L4.win.keep || []).join(','));
+  ok('地图 16×22', L4 && L4.rows === 16 && L4.cols === 22 && L4.map.length === 16);
+  ok('每一行都是 22 格', L4 && L4.map.every(r => r.length === 22),
+     L4 && L4.map.map(r => r.length).join(','));
+  ok('地形字符全部已定义', L4 && L4.map.every(r => [...r].every(ch => !!api.TERRAIN[ch])));
+  /* 节奏定位写进数据里，是为了让自战脚本按 75–95% 判，而不是把这一关
+     一路往"险胜"上调。这条断言盯的不是数值，是**设计意图还在不在**：
+     谁把 pace 删了，自战第二天就会开始喊"偏简单，红方需要加强"。 */
+  ok('第四关标记为爽局节奏（自战按 75–95% 判，不是 45–60%）',
+     L4 && L4.pace === '爽局', L4 && L4.pace);
+
+  /* ── 28.2 编制自洽 ── */
+  const blue = L4.units.filter(u => u.side === 'blue');
+  const red  = L4.units.filter(u => u.side === 'red');
+  ok('蓝方兵牌 30–40 张', blue.length >= 30 && blue.length <= 40, blue.length);
+  ok('红方兵牌 35–50 张', red.length >= 35 && red.length <= 50, red.length);
+  ok('兵牌 id 全场唯一', new Set(L4.units.map(u => u.id)).size === L4.units.length);
+  ok('蓝方全部 wave 1（开局全在场，没有"我方增援"）', blue.every(u => u.wave === 1));
+  const corpsBlue = [...new Set(blue.map(u => u.corps))];
+  ok('蓝方四个作战编制 + 舰队 + 警备区都在',
+     ['B1', 'B2', 'B3', 'B4', 'B5', 'B6'].every(c => corpsBlue.includes(c)), corpsBlue.join(','));
+  /* 师 / 旅都要有指挥牌，否则整建制常年脱指——这条以前靠 check.js 提示，
+     现在玩家看得见的关里至少要保证不出现。 */
+  ok('每个蓝方编制都有指挥牌（不脱指）',
+     ['B1', 'B2', 'B3', 'B4', 'B5', 'B6'].every(c =>
+       blue.some(u => u.corps === c && api.isHQ(u))));
+
+  /* ── 28.3 波次 ── */
+  const waveNums = [...new Set(red.map(u => u.wave))].filter(n => n > 1).sort();
+  ok('每个敌方波次号都在 LEVEL.waves 里声明',
+     waveNums.every(n => (L4.waves || []).some(w => w.wave === n)), waveNums.join(','));
+  ok('声明的波次也都有兵牌', (L4.waves || []).every(w => red.some(u => u.wave === w.wave)));
+  ok('波次回合都不超过 20', (L4.waves || []).every(w => w.turn >= 1 && w.turn <= L4.maxTurns),
+     (L4.waves || []).map(w => w.turn).join(','));
+  ok('波次回合严格递增', (L4.waves || []).every((w, i, a) => i === 0 || a[i - 1].turn < w.turn));
+
+  /* ── 28.4 舰队 ── */
+  const fleet = blue.filter(u => u.type === 'dd' || u.type === 'ca' || u.type === 'bb');
+  ok('舰队 4 驱 + 2 巡 + 1 战列',
+     fleet.filter(u => u.type === 'dd').length === 4 &&
+     fleet.filter(u => u.type === 'ca').length === 2 &&
+     fleet.filter(u => u.type === 'bb').length === 1, fleet.length + ' 艘');
+  ok('七艘全部属于蓝水域', fleet.every(u => api.domainOf(u) === 'blue'));
+  ok('七艘全部泊在可航行水域（浅海 / 深海）',
+     fleet.every(u => L4.map[u.r][u.c] === 's' || L4.map[u.r][u.c] === 'd'),
+     fleet.map(u => u.abbr + ':' + L4.map[u.r][u.c]).join(' '));
+  ok('七艘各占一格（水面一格一支）',
+     new Set(fleet.map(u => u.r + ',' + u.c)).size === fleet.length);
+  ok('没有一艘停在港口陆地上（码头是给补给用的，不是泊位）',
+     fleet.every(u => L4.map[u.r][u.c] !== 'p'));
+  const bbU = fleet.find(u => u.type === 'bb');
+  ok('战列舰射程跨过半张图（≥ 16 格）', bbU && bbU.rng >= 16, bbU && bbU.rng);
+  ok('舰炮弹药是有限基数（不是无穷）', fleet.every(u => u.type && api.TYPE[u.type].am > 0));
+
+  /* ── 28.5 舰队补给（新规则：水面格进不了补给场，按码头距离判） ── */
+  const portCells = [];
+  for (let r = 0; r < L4.rows; r++) {
+    for (let c = 0; c < L4.cols; c++) if (L4.map[r][c] === 'p') portCells.push([r, c]);
+  }
+  ok('地图上有码头', portCells.length >= 4, portCells.length + ' 格');
+
+  NG4();
+  let S4 = api.getState();
+  const fleetNow = S4.units.filter(u => api.domainOf(u) === 'blue');
+  ok('开局七艘舰都在场', fleetNow.length === 7, fleetNow.length);
+  /* 这条是反向验证的核心：把 supplyOf 里 isNaval 那一段删掉，
+     这里会全部变成"断绝"——不报错，只是每艘舰悄悄少 30% 战力。 */
+  ok('七艘全部补给充足（水面格不在补给场里，必须按码头单独判）',
+     fleetNow.every(u => api.supplyOf(u, S4.fields).label === '充足'),
+     fleetNow.map(u => api.supplyOf(u, S4.fields).label).join(','));
+
+  let farCell = null, farD = -1;
+  for (let r = 0; r < L4.rows; r++) {
+    for (let c = 0; c < L4.cols; c++) {
+      if (L4.map[r][c] !== 'd') continue;
+      const d = Math.min(...portCells.map(p => api.hexDist([r, c], p)));
+      if (d > farD) { farD = d; farCell = [r, c]; }
+    }
+  }
+  /* 这张图的海域不大：最远的深海格离码头只有 5 格，够测"紧张"但够不到"断绝"。
+     所以断档那一档用一个地图外的坐标测——别为此把地图改大，地图是给人看的，
+     不是给断言看的。 */
+  ok('图上存在离码头 4 格以外的深海（补给有梯度）', farD >= 4, '最远 ' + farD + ' 格');
+  const probe = fleetNow[0], keep4 = probe.pos;
+  probe.pos = farCell;
+  ok('舰队开远之后补给降档（不再是"充足"）',
+     api.supplyOf(probe, S4.fields).label !== '充足',
+     farCell.join(',') + ' → ' + api.supplyOf(probe, S4.fields).label);
+  probe.pos = [99, 99];
+  ok('离所有码头都很远时判"断绝"',
+     api.supplyOf(probe, S4.fields).label === '断绝',
+     api.supplyOf(probe, S4.fields).label);
+  probe.pos = keep4;
+
+  /* 补弹规则：停在码头补给圈里就补，**不看这一回合打没打过**。
+     这一条是"舰队能持续火力支援"的全部依据。把 settlePhase 里
+     `isNaval(u) && !u.moved && s.label === '充足'` 改回带 `!u.fired` 的写法，
+     下面第二条仍然是绿的（开火那回合不补、不开火照补），第一条会立刻变红。
+     舰队每回合都开火，所以旧写法的实际效果是"永远补不上"。 */
+  const sh = fleetNow[0];
+  sh.ammo = 3; sh.fired = true; sh.moved = false;
+  api.settlePhase();
+  ok('舰船停泊 + 补给充足时，开过火的回合也补弹', sh.ammo === 4, 'ammo=' + sh.ammo);
+  const berth = sh.pos;
+  sh.pos = farCell;                       // 开到补给降档的海域
+  sh.ammo = 3; sh.fired = false; sh.moved = false;
+  api.settlePhase();
+  ok('离开补给圈后不补弹（「紧张」及以下都不算数）', sh.ammo === 3, 'ammo=' + sh.ammo);
+  sh.pos = berth;
+
+  /* ── 28.6 敌军全灭提前判胜 ── */
+  NG4();
+  S4 = api.getState();
+  S4.units = S4.units.filter(u => u.side === 'blue');
+  api.checkEnd();
+  ok('波次还没入场时清完场上的敌人不算通关', S4.result !== 'win', String(S4.result));
+  (L4.waves || []).forEach(w => { S4.flags['wave' + w.wave] = true; });
+  api.checkEnd();
+  ok('全部波次入场后敌军全灭 → 提前判胜', S4.result === 'win', String(S4.result));
+
+  /* ── 28.7 附属关不挡主线解锁 ── */
+  /* 注意：沙箱里的 localStorage 挂在全局，不在 window 上。
+     `window.localStorage.removeItem(...)` 会静默抛 TypeError（被 catch 吃掉），
+     进度根本没清——这一条断言第一次跑就是这么假绿的。 */
+  sandbox.localStorage.removeItem(api.PROGRESS_KEY);
+  const wasOpen = L4.open;
+  L4.open = false;          // 临时摘掉"试玩开放"，看真正的前置是谁
+  const acc4 = api.levelAccess('C4');
+  ok('第四关的前置是第 3 关，不是附属关 C3B',
+     /岚口要地争夺战/.test(acc4.why) && !/机场/.test(acc4.why), acc4.why);
+  L4.open = wasOpen;
+  sandbox.localStorage.removeItem(api.PROGRESS_KEY);
+
+  /* ── 28.8 新地形与新兵种 ── */
+  ok('港口地形已定义', !!api.TERRAIN['p']);
+  ok('港口是陆地（cost 不是 99，nav 为空）',
+     api.TERRAIN['p'].cost < 99 && api.TERRAIN['p'].nav === undefined);
+  ok('港口有防御加成（码头仓库区）', api.TERRAIN['p'].def > 0, api.TERRAIN['p'].def);
+  ok('海军步兵营可占领要点', api.CAPTURE_TYPES.includes('mrb'));
+  ok('海军步兵营属于地面域（它是守备步兵，不是舰船）',
+     api.domainOf({ type: 'mrb' }) === 'ground');
+
+  /* ── 28.9 要点判定规则 ── */
+  const oFort = L4.objectives.find(o => o.id === 'fort');
+  const oCity = L4.objectives.find(o => o.id === 'city');
+  ok('城市按城内兵力对比判归属（rule:contest）', oCity && oCity.rule === 'contest');
+  ok('要塞是硬判定：格内同时有敌我就 contested',
+     oFort && oFort.rule === undefined);
+  ok('两处要点都是 core（守住才算达成）', oFort && oCity && oFort.core && oCity.core);
+  ok('要塞炮预置在地图上', (L4.forts || []).some(f => f.kind === 'P'));
+  ok('防空阵地预置在码头一带',
+     (L4.forts || []).some(f => f.kind === 'F' && Math.min(...portCells.map(p => api.hexDist([f.r, f.c], p))) <= 2));
+
+  NG4();
+  ok('重开一局能进第四关', api.LEVEL.id === 'C4', api.LEVEL.id);
+}
+
 
 console.log('\n通过 ' + pass + ' 项，失败 ' + fail + ' 项');
 process.exit(fail ? 1 : 0);

@@ -33,7 +33,7 @@ const ARMS = {
   larm: '轻坦营', marm: '中坦营', harm: '重坦营',
   art: '炮兵营', hr: '重炮营', sha: '自行炮连',
   at: '反坦克连', eng: '工兵营', engc: '工兵连',
-  sup: '辎重队', aab: '高炮营', aac: '防空连', avn: '航空连'
+  sup: '辎重队', aab: '高炮营', aac: '防空连', fgt: '战斗机中队'
 };
 const armOf = u => ARMS[u.type] || u.type;
 

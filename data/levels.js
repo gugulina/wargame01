@@ -5,8 +5,8 @@
    为什么是 .js 而不是 .json：项目要能双击直接打开，
    file:// 下 fetch 会被同源策略拦掉，<script src> 不会。 */
 window.CANGYU = {
-  "ver": "v4.3",
-  "srcSig": "282753:fvaq9n",
+  "ver": "v4.5",
+  "srcSig": "329359:bhj974",
   "storage": {
     "save": "wargame.lankou.save",
     "saveVer": 3,
@@ -110,7 +110,7 @@ window.CANGYU = {
       },
       "red": {
         "cards": 25,
-        "str": 169
+        "str": 172
       }
     },
     {
@@ -136,6 +136,31 @@ window.CANGYU = {
       "red": {
         "cards": 17,
         "str": 103
+      }
+    },
+    {
+      "id": "C4",
+      "no": 4,
+      "sub": false,
+      "name": "波尔瓦萨港",
+      "type": "坚守",
+      "when": "新历 1208 年 4 月 11 日",
+      "where": "南部海岸 · 波尔瓦萨港",
+      "teaser": "敌军机动兵力三天推到港外。四支部队临时编成港口特遣军，港内七条军舰的炮口对着岸上。",
+      "ready": true,
+      "open": true,
+      "noText": "第 4 关 · ",
+      "win": "survive",
+      "turns": 20,
+      "cols": 22,
+      "rows": 16,
+      "blue": {
+        "cards": 36,
+        "str": 257
+      },
+      "red": {
+        "cards": 42,
+        "str": 314
       }
     }
   ]

@@ -79,13 +79,29 @@ for (const L of ready) {
       console.error('[3/4] ' + tag + ' ' + u.id + ' 兵种代号未定义：' + u.type);
       bad++;
     }
-    const ch = L.map[u.r][u.c];
-    if (api.TERRAIN[ch] && api.TERRAIN[ch].cost >= 99) {
-      console.error('[3/4] ' + tag + ' ' + u.id + ' 部署在不可通行地形（' + api.TERRAIN[ch].name + '）：' + u.r + ',' + u.c);
+    /* reserve = 占位兵种（航空母舰）。规则还没定的东西不许偷偷上场：
+       上了场也不报错，但它的射程 0、载货 2、没有任何机制消费它——
+       看起来像"这艘船坏了"，其实设计上就不该在这儿。 */
+    if (api.TYPE && api.TYPE[u.type] && api.TYPE[u.type].reserve) {
+      console.error('[3/4] ' + tag + ' ' + u.id + ' 用了占位兵种（' +
+        api.TYPE[u.type].name + '），规则未定，不许部署');
       bad++;
     }
-    /* 三波次共用一张图，必须全局不重叠 */
-    const key = u.r + ',' + u.c;
+    const ch = L.map[u.r][u.c];
+    /* 能不能站，按**领域**判：同一条河对步兵是死路，对绿水炮艇是航路。
+       以前一刀切用 `cost >= 99`，加上海空军之后这条会把合法的水上部署
+       全部报错——校验器帮不上忙的时候，人就只好把它关掉，那比没有还糟。 */
+    const standCost = api.moveCost ? api.moveCost({ type: u.type, dm: u.dm }, ch)
+                                   : (api.TERRAIN[ch] ? api.TERRAIN[ch].cost : 99);
+    if (api.TERRAIN[ch] && standCost === Infinity) {
+      console.error('[3/4] ' + tag + ' ' + u.id + ' 部署在它走不了的地形（' +
+        api.TERRAIN[ch].name + '）：' + u.r + ',' + u.c);
+      bad++;
+    }
+    /* 三波次共用一张图，必须全局不重叠——但只跟**同一层**的比：
+       飞机停在某个营头顶是合法的编成，不是部署事故。 */
+    const lay = api.layerOf ? api.layerOf({ type: u.type, dm: u.dm }) : 'surface';
+    const key = u.r + ',' + u.c + ',' + lay;
     if (seen[key]) {
       console.error('[3/4] ' + tag + ' ' + u.id + ' 与 ' + seen[key] + ' 部署位置重叠：' + u.r + ',' + u.c);
       bad++;
@@ -100,6 +116,15 @@ for (const L of ready) {
     if (!hqCorps.has(u.side + ':' + u.corps)) {
       console.log('[提示] ' + tag + ' ' + u.id + '（' + u.name + '）无本部指挥牌，常年脱指（恢复 ' +
         (u.side === 'blue' ? 7 : 12) + '/回合）');
+    }
+    /* 水上单位要有一片水可走。整张图找不到一格它能进的，这支部队就是活靶子：
+       computeReach 永远返回空，AI 不动、玩家也点不动——而界面上看不出任何异常，
+       只会觉得"这艘船坏了"。这种沉默失效必须在数据层拦下来。 */
+    const dm = u.dm || (api.TYPE[u.type] && api.TYPE[u.type].dm) || 'ground';
+    if ((dm === 'green' || dm === 'blue') && api.NAV && api.NAV[dm]) {
+      const wet = L.map.some(row => [...row].some(ch => api.NAV[dm].cells.includes(ch)));
+      if (!wet) console.log('[提示] ' + tag + ' ' + u.id + '（' + u.name + '）是' +
+        api.NAV[dm].name + '单位，但本图没有它能走的水域——它一步都动不了');
     }
   }
 
