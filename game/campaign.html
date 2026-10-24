@@ -56,6 +56,8 @@
     padding: 8px 4px 0; font-size: 11.5px; color: var(--ink3);
   }
   .legend span { display: inline-flex; align-items: center; }
+  /* 括号里的补充说明：小一号、更淡，不能抢正题的字重 */
+  .legend em { font-style: normal; font-size: 10px; color: #B3ADA0; margin-left: 2px; }
   .legend .k {
     display: inline-block; width: 11px; height: 11px; border-radius: 3px;
     margin-right: 5px; vertical-align: -1px;
@@ -273,6 +275,10 @@
   .tag.b { background: var(--blue-bg); color: var(--blue); }
   .tag.r { background: var(--red-bg); color: var(--red); }
   .ub-meta { color: var(--ink3); font-size: 11px; margin-bottom: 7px; }
+  /* 取消选中的可发现性提示。它存在的理由：取消有三条路（点自己 / Esc / 右键），
+     但界面上没有任何一个东西长得像"取消"——玩家卡住时正盯着这块面板，
+     写在这儿比写进说明页有用。淡一点，不跟正文抢注意力。 */
+  .ub-esc { color: #A9A296; font-size: 10px; margin: -4px 0 7px; }
   .grp { border-top: 1px dashed var(--line); padding-top: 7px; margin-top: 7px; }
   .grp-h { font-size: 10px; font-weight: 700; color: var(--ink3); letter-spacing: .6px; margin-bottom: 4px; }
   .kv { display: flex; justify-content: space-between; font-size: 12px; padding: 1.5px 0; }
@@ -368,6 +374,25 @@
     from { opacity: 0; transform: translateY(-4px); }
     to   { opacity: 1; transform: none; }
   }
+  /* 收起态：只剩一个小圆角"行动"入口。
+     原先选中工兵 / 炮兵就整组按钮铺开，宽 128–196px 正好压住周围两三格，
+     而周围两三格就是本回合能走的格子——玩家想挪一格，结果点到了"布雷"。
+     选中单位的绝大多数时间是要移动，所以默认收起、要用再点开。 */
+  .uops.mini {
+    min-width: 0; max-width: none; padding: 0;
+    border-radius: 15px; opacity: .97;
+  }
+  .uops.mini .uops-open {
+    display: flex; align-items: center; gap: 5px;
+    width: auto; padding: 4px 10px; margin: 0;
+    font-size: 11.5px; font-weight: 700; color: var(--ink2);
+    background: none; border: 0; border-radius: 15px;
+  }
+  .uops.mini .uops-open:hover { background: #F2EDDF; color: var(--ink); }
+  .uops.mini .uops-open i {
+    flex: 0 0 auto; font-style: normal; font-size: 9px; font-weight: 800;
+    color: #6C675C; background: #E7E1D2; border-radius: 8px; padding: 0 4px;
+  }
   .uops-h {
     font-size: 8.5px; font-weight: 800; letter-spacing: 1.6px;
     color: #A8925F; padding: 2px 5px 5px;
@@ -386,6 +411,14 @@
     font-style: normal; font-size: 9.5px; color: var(--ink3); flex: 0 0 auto;
   }
   .uops button.on i { color: #185FA5; }
+  /* 底部两个"非作业"动作并排：收起 / 取消。
+     收起只关浮层、保留选中（气泡展开时会压住邻格，玩家经常只想让它让开）；
+     取消是连选中一起清掉。合并成一个按钮的话，这两种意图总有一个得不到满足。 */
+  .uops-foot {
+    display: flex; gap: 4px; margin-top: 2px;
+    border-top: 1px solid #EDE8DB;
+  }
+  .uops-foot .uops-x { border-top: none; margin-top: 0; }
   .uops-x {
     display: block; width: 100%; margin-top: 2px; padding: 3px;
     font: inherit; font-size: 9px; color: var(--ink3); cursor: pointer;
@@ -566,7 +599,12 @@
       padding: 6px 6px; font-size: 11.5px;
     }
     .uops button b { flex: 1; }
-    .uops-x { flex: 1 0 100%; margin-top: 2px; }
+    /* 底部那排（收起 / 取消）独占一行，两个键平分宽度 */
+    .uops-foot { flex: 1 0 100%; margin-top: 2px; }
+    .uops-foot .uops-x { flex: 1 1 0; margin-top: 0; padding: 5px 4px; font-size: 10.5px; }
+    /* 收起态在窄屏也不能被上面的 flex-wrap 拉满整行 */
+    .uops.mini { display: block; padding: 0; max-width: none; }
+    .uops.mini .uops-open { width: auto; padding: 6px 12px; }
   }
 
   @media (max-width: 640px) {
@@ -938,7 +976,7 @@
     </div>
     <div class="zhint" id="zhint">点格子自动放大 · 双指缩放 · 单指拖动</div>
     <div class="legend">
-      <span><i class="k move"></i>可移动</span>
+      <span><i class="k move"></i>可移动<em>（点「移动」后亮）</em></span>
       <span><i class="k pass"></i>仅可穿越</span>
       <span><i class="k atk"></i>可攻击</span>
       <span><i class="k mine"></i>布雷 / 架桥</span>
@@ -981,9 +1019,10 @@
      开始页撤掉之后这里就是唯一一处。 -->
 <input type="file" id="fileImport" accept=".json,application/json" hidden>
 
-<!-- 地图内操作气泡：选中工兵 / 炮兵 / 辎重时贴在兵牌旁边。
-     以前这些按钮在右侧栏，玩家选完单位要横跨整个屏幕去点，
-     而且侧栏一滚就找不到了。现在贴着兵牌，指哪打哪。 -->
+<!-- 地图内行动气泡：选中任意我方部队时出现在兵牌旁边。
+     两段式：平时只有一个「行动 N」的小按钮（几乎不占格子），
+     点开才铺整组按钮；一开始点地图就自动收起。
+     为什么要分两段见 syncUnitOps 上面的注释——整组铺开会压住邻格。 -->
 <div id="unitOps" class="uops hidden"></div>
 
 <div class="overlay hidden" id="overlay">
@@ -1030,7 +1069,9 @@
 
     <h3>一回合的节奏</h3>
     <ul>
-      <li>点兵牌选中 → 点蓝格移动、点红格攻击。一支兵一回合<b>移动一次、射击一次</b>，顺序可以颠倒。</li>
+      <li>点兵牌选中 → 点「<b>行动</b>」→「<b>移动</b>」，蓝格亮起后点它就走；<b>红格</b>不用点移动，选中就能直接点着打。一支兵一回合<b>移动一次、射击一次</b>，顺序可以颠倒。</li>
+      <li>选中后兵牌旁有个「<b>行动</b>」小按钮：点开是这支兵这回合<b>能做的全部事</b>——移动、修工事、布雷、架桥、展开放列，最下面是<b>收起</b>和<b>取消</b>。移动也能从这儿点：按下去可达格会标出来，再点目标格即可。</li>
+      <li>想取消选中：点「行动」里的<b>取消</b>，或<b>再点一次这支兵牌</b>，或按 <kbd>Esc</kbd>，或在地图上点右键。</li>
       <li>机动过的单位再射击会 <b>−10%</b>；坦克、自行火炮不受这条限制。</li>
       <li>走错、打错都能撤：右下角<b>撤销</b>或 <kbd>Ctrl</kbd>+<kbd>Z</kbd>，连「结束我方阶段」都能整个撤回来。</li>
     </ul>
@@ -1041,7 +1082,7 @@
       <li>一条河只有 4 格渡口，所以<b>一格最多堆 2 支同阵营部队</b>。堆满的那格会显示 <b>×2</b> 角标。</li>
       <li>有友军挡路的格子<b>可以穿过去</b>（淡蓝色），只是不能停下——这一格已经堆满了。</li>
       <li>堆叠格会被当成一个目标挨打，但<b>同格友军按 50% 计入防御协同</b>（相邻格是 35%）。堆着守比散着守硬，但堆着被人打也更疼。</li>
-      <li>格里有 2 支时，<b>再点同一格</b>就在两支之间轮换选中——用来操作被压在下面的那一支。</li>
+      <li>格里有 2 支时，<b>再点同一格</b>就在两支之间轮换选中——用来操作被压在下面的那一支；只有一支时再点就取消选中。</li>
       <li>工兵营还能<b>架桥</b>：把相邻河流格直接改成渡口，比抢渡口稳。</li>
     </ul>
 
@@ -1288,10 +1329,10 @@ const LEVELS = [
      玩家一回头就找不着"我现在该干什么"了。常驻清单才查得到。
      t 是"第几回合讲这一条"，不是通关条件——讲晚了也不影响胜负。 */
   drills: [
-    { t: 1, k: '移动',   s: '选中兵牌 → 点它脚下的蓝格' },
+    { t: 1, k: '移动',   s: '选中兵牌 → 点「行动」→「移动」，再点亮起的蓝格' },
     { t: 2, k: '攻击',   s: '点红格，先看比值再决定打不打' },
-    { t: 3, k: '火炮',   s: '兵牌旁气泡 →「展开放列」，下回合才能开火' },
-    { t: 4, k: '工事',   s: '工兵气泡 →「构筑工事」，只保护守在里面的兵' },
+    { t: 3, k: '火炮',   s: '兵牌旁「行动」→「展开放列」，下回合才能开火' },
+    { t: 4, k: '工事',   s: '兵牌旁「行动」→ 选工事种类 → 点格施工，只保护守在里面的兵' },
     { t: 5, k: '占领',   s: '走上要点，站住；有人守，要点才归你' },
     { t: 6, k: '组织度', s: '兵牌下那条细线掉一半，力气只剩六成' }
   ],
@@ -1319,7 +1360,7 @@ const LEVELS = [
   events: [
     { id: 't1_move', desc: '科目 1 · 移动', when: { kind: 'turn', turn: 1 },
       effects: [{ kind: 'log',
-        text: '【教官】先动一支。点兵牌选中，脚下亮起蓝格——那是它能走到的位置，再点蓝格就过去。靶子不会动，慢点来。',
+        text: '【教官】先动一支。点兵牌选中，旁边会弹出「行动」，点开选「移动」，脚下这才亮起蓝格——那是它能走到的位置，再点蓝格就过去。靶子不会动，慢点来。',
         cls: 'b' }] },
     { id: 't1_atk', desc: '科目 2 · 攻击', when: { kind: 'turn', turn: 2 },
       effects: [{ kind: 'log',
@@ -1327,11 +1368,11 @@ const LEVELS = [
         cls: 'b' }] },
     { id: 't1_arty', desc: '科目 3 · 火炮', when: { kind: 'turn', turn: 3 },
       effects: [{ kind: 'log',
-        text: '【教官】炮兵兵牌带斜纹，说明还在行军状态、开不了火。点它，在兵牌旁的气泡里选「展开放列」，下回合就能隔着五格砸人了。',
+        text: '【教官】炮兵兵牌带斜纹，说明还在行军状态、开不了火。点它，兵牌旁会出现一个小小的「行动」；点开选「展开放列」，下回合就能隔着五格砸人了。',
         cls: 'b' }] },
     { id: 't1_eng', desc: '科目 4 · 工事', when: { kind: 'turn', turn: 4 },
       effects: [{ kind: 'log',
-        text: '【教官】工兵选中后，兵牌旁有作业气泡：修工事、布雷、架桥都在里面。工事只保护守在里面的自己人——挖在没人站的地方等于白挖。',
+        text: '【教官】工兵选中后，兵牌旁会出现一个「行动」小按钮；点开它，移动、修工事、布雷、架桥都在里面。工事只保护守在里面的自己人——挖在没人站的地方等于白挖。',
         cls: 'b' }] },
     { id: 't1_obj', desc: '科目 5 · 占领', when: { kind: 'turn', turn: 5 },
       effects: [{ kind: 'log',
@@ -4254,10 +4295,15 @@ function newGame(opt) {
 }
 
 /* ───────────────────────── 选择 ───────────────────────── */
+/* 行动气泡是否展开。**每次换选中都要收起**：展开态是"我现在要施工"，
+   换了单位还开着的话，玩家看到的是上一个单位的按钮，点了会作用到新的单位上。 */
+let uopsOpen = false;
+
 function select(u) {
   if (u) FX.sfx('select');
   state.selected = u;
   state.mode = null;
+  uopsOpen = false;
   const my = u.side === 'blue' && state.phase === 'blue';
   state.reachable = (my && !u.moved) ? computeReach(u) : emptyReach();
   state.targets = (my && !u.fired) ? targetsFor(u, state.fields) : [];
@@ -4271,6 +4317,7 @@ function selectTerrain(r, c) {
   state.targets = [];
   state.mode = null;
   state.terrainSel = [r, c];
+  uopsOpen = false;
   render();
   renderUnitBox();
 }
@@ -4280,6 +4327,16 @@ function clearSelection() {
   state.targets = [];
   state.mode = null;
   state.terrainSel = null;
+  uopsOpen = false;
+}
+/* 取消选中并重画。给"点自己""Esc""右键"三个入口共用，
+   免得三处各写一遍 render + renderUnitBox，漏一处就出现"面板还留着上一个单位"。 */
+function deselect() {
+  if (!state) return;
+  if (!state.selected && !state.terrainSel) return;
+  clearSelection();
+  render();
+  renderUnitBox();
 }
 
 /* ───────────────────────── 行动 ───────────────────────── */
@@ -4629,6 +4686,11 @@ function doDepot(u) {
 function onHexClick(r, c) {
   if (!state || state.result) return;
   const u = unitAt(r, c);
+  /* 玩家一旦开始点地图，行动气泡就收起来让位。
+     它是浮在格子上的，展开态宽 128–196px 会压住两三格；
+     而这三格往往就是接下来要点的。收起之后不再触发重画，
+     本次点击照常走下面的分支，只是顺手把浮层关掉。 */
+  uopsOpen = false;
 
   if (state.phase === 'blue') {
     /* 战术卡等待选目标：优先级最高。选中一张卡之后，下一次点格子就是"用在这"，
@@ -4666,14 +4728,24 @@ function onHexClick(r, c) {
          有友军的格子永远进不到下面的 doMove 分支，堆叠在界面上等于不存在。 */
       if (state.selected && state.selected !== u &&
           state.reachable.stop && state.reachable.stop[kk(r, c)] !== undefined) {
+        /* 这里刻意不看 state.mode：可达范围现在只在「移动」模式里画出来，
+           但"选中后直接点可达格"这条路留着。两种入口并存，
+           点错了还有撤销（每次 doMove 都进撤销栈），
+           比强制玩家先点一次「移动」再回来点格子宽容。 */
         doMove(state.selected, [r, c]);
         return;
       }
-      /* 已经选中格内某一支时，再点一次换到下一支，避免点不到下层 */
+      /* 同一格里已经选中了一支时，再点这格：
+         · 有堆叠 → 轮到下一支（不然下层永远选不到）
+         · 只有一支 → 取消选中
+         第二半是用户反馈的那条：以前点自己只会"重新选中自己"，
+         想取消只能去找一块走不到的地面点，等于没有取消。
+         点自己取消是这类兵棋的通行做法，也比藏一个看不见的取消键可靠。 */
       const st = stackOf(u);
-      if (st.length > 1 && state.selected && st.includes(state.selected)) {
-        const i = st.indexOf(state.selected);
-        select(st[(i + 1) % st.length]);
+      const idx = state.selected ? st.indexOf(state.selected) : -1;
+      if (idx >= 0) {
+        if (st.length > 1) select(st[(idx + 1) % st.length]);
+        else deselect();
         return;
       }
       select(u); return;
@@ -4685,15 +4757,17 @@ function onHexClick(r, c) {
       return;
     }
     if (state.selected && state.reachable.stop && state.reachable.stop[kk(r, c)] !== undefined) {
-      doMove(state.selected, [r, c]);
+      doMove(state.selected, [r, c]);   // 同上：不要求先点「移动」
       return;
     }
     if (!u) { selectTerrain(r, c); return; }
     selectTerrain(r, c);
     return;
   }
-  /* 敌方阶段：只看不给动 */
-  if (u) select(u); else selectTerrain(r, c);
+  /* 敌方阶段：只看不给动。点同一支也取消——
+     蓝方阶段能退，红方阶段不能，是两套手感，没必要留着 */
+  if (u) { if (state.selected === u) deselect(); else select(u); }
+  else selectTerrain(r, c);
 }
 
 /* ───────────────────────── 阶段结算 ───────────────────────── */
@@ -5309,8 +5383,19 @@ function renderBoard() {
       const ftHere = fortAt(r, c);
       if (ftHere) cls += ftHere.side === 'blue' ? ' fb' : ' fr';
       const rk = kk(r, c);
-      if (state.reachable.stop && state.reachable.stop[rk] !== undefined) cls += ' move';
-      else if (state.reachable.d && state.reachable.d[rk] !== undefined) cls += ' pass';
+      /* 可达范围只在「移动」模式下点亮，选中本身不点亮。
+         以前是"选中就整片发蓝"，于是有两条连锁反应：
+         ① 地图一选中就花，玩家分不清"这格能走"和"这格是我正在看的地形"；
+         ② 气泡不管怎么挪都落在蓝圈里，为了少压几格，搜索半径被一路加到 260px，
+            菜单飘到两个身位外，标题里的兵牌简称成了唯一的辨认线索。
+         把显示时机收进移动模式之后，两件事一起解决：没点「移动」时地图是干净的，
+         点了之后气泡已经收成小胶囊，避让问题不存在了。
+         注意 state.reachable 仍然照算——点击走位的路径没变（见 onHexClick），
+         这里只是"画不画"的区别。 */
+      if (state.mode === 'move') {
+        if (state.reachable.stop && state.reachable.stop[rk] !== undefined) cls += ' move';
+        else if (state.reachable.d && state.reachable.d[rk] !== undefined) cls += ' pass';
+      }
       const here = unitsAt(r, c);
       const tu = here.length ? here[here.length - 1] : null;
       if (here.some(x => state.targets.includes(x))) cls += ' atk';
@@ -5508,7 +5593,7 @@ function renderGoal() {
 
 function fmtPct(v) { return v ? ('+' + Math.round(v * 100) + '%') : '—'; }
 
-/* ═════════════════════ 地图内作业气泡 ═════════════════════
+/* ═════════════════════ 地图内行动气泡 ═════════════════════
    哪些操作属于"地图上点"而不是"侧栏点"：凡是要先选格子或要占用行动的，
    都放这里。侧栏只留读信息，不再放作业按钮。
    这样做的直接收益是**操作对象和操作入口贴在一起**——选中工兵，
@@ -5516,6 +5601,19 @@ function fmtPct(v) { return v ? ('+' + Math.round(v * 100) + '%') : '—'; }
 function unitOps(u) {
   const ops = [];
   if (!u || u.side !== 'blue' || !state || state.phase !== 'blue' || state.result) return ops;
+
+  /* 「移动」是这支部队唯一的"模式开关"，也是可达范围的开关：
+     点它才点亮蓝格，再点一次（或 Esc）收回。
+     这样安排的原因是反过来的——正因为范围只在移动模式里出现，
+     面板与蓝圈才不在同一时刻争地盘，气泡不用再躲到兵牌两个身位外。
+     排在第一位是因为它是九成情况下最常用的动作。
+     已经动过的**整项不出现**（而不是置灰）：置灰会留下一个
+     "只有一行灰字"的气泡，反而挡住格子；这一项消失时，
+     如果单位也没别的活可干，气泡会直接收起来——那本身就是
+     "这回合它动完了"的信号。 */
+  if (!u.moved) {
+    ops.push({ act: 'move', label: '移动', hint: u.mov + ' 点', on: state.mode === 'move' });
+  }
 
   /* 火炮展收：drag 类单位永远有这一项，做不了就置灰并写原因 */
   if (isTowed(u)) {
@@ -5572,20 +5670,187 @@ function unitOps(u) {
 }
 
 const UOPS_HINT = {
+  move: '点蓝格移动；再点「移动」或按 Esc 退出',
   fort: '选一种工事，然后点本格或相邻格施工',
   mine: '点相邻空格布雷',
   clear: '点相邻雷区排雷',
   bridge: '点相邻河流格架桥'
 };
 
+/* ── 气泡定位 ──
+   障碍只有两类，而且都不需要"整圈格子"那种规模：
+   ① 兵牌 —— 压住空地无所谓（玩家也不指望点它做任何事），压住一支友军会让人点不开它；
+   ② 移动模式下的可达格 —— 此时气泡已经收成小胶囊，90×22 这么一条，
+      塞进蓝圈外的缝里毫无压力，没必要再像上一版那样往外飘 260px。
+   上一版的问题是它要躲的是一整圈蓝格，而手里拿的是 200×250 的整组按钮，
+   怎么放都在圈里，只能越躲越远。**缩小面板比扩大搜索半径便宜得多**。 */
+function uopsObstacles() {
+  const out = [];
+  const moving = !!(state && state.mode === 'move');
+  const els = document.querySelectorAll('#board .hex');
+  for (let i = 0; i < els.length; i++) {
+    const el = els[i];
+    const hit = el.querySelector('.unit') ||
+                (moving && (el.classList.contains('move') || el.classList.contains('pass')));
+    if (!hit) continue;
+    const r = el.getBoundingClientRect();
+    if (r.width > 1) out.push(r);
+  }
+  return out;
+}
+/* 压住了几格。判据是"交叠面积超过该格的四分之一"，不是严格相交：
+   六角形是犬牙交错的，用严格相交的话每个候选都"压住"几格，算法等于失效。 */
+function uopsCover(x, y, w, h, rects) {
+  let n = 0;
+  for (let i = 0; i < rects.length; i++) {
+    const r = rects[i];
+    const ox = Math.min(x + w, r.right) - Math.max(x, r.left);
+    const oy = Math.min(y + h, r.bottom) - Math.max(y, r.top);
+    if (ox > 0 && oy > 0 && ox * oy > r.width * r.height * 0.22) n++;
+  }
+  return n;
+}
+
+function placeUops(box, u) {
+  const hexEl = document.querySelector('.hex[data-r="' + u.pos[0] + '"][data-c="' + u.pos[1] + '"]');
+  if (!hexEl) return;
+  const r0 = hexEl.getBoundingClientRect();
+  const w = box.offsetWidth, hh = box.offsetHeight;
+  /* 边界不能用 window，要用棋盘容器——棋盘右侧紧挨着侧栏，
+     只按 window 判断的话气泡会"合法地"浮到侧栏上面，把侧栏内容盖掉。
+     右边界取侧栏的左沿，不是 boardWrap 的右沿：boardWrap 会因子元素溢出
+     被撑得比可视区宽，拿它当边界等于没判断。 */
+  const sideEl = document.querySelector('aside.side');
+  const sr = sideEl ? sideEl.getBoundingClientRect() : null;
+  const wrapEl = document.getElementById('boardWrap');
+  const br = wrapEl ? wrapEl.getBoundingClientRect() : null;
+  const L0 = br ? br.left + 10 : 8;
+  const R0 = (sr && sr.width > 0) ? sr.left - 6 : window.innerWidth - 8;
+  /* 上下边界也收进棋盘容器：气泡跑到外面会盖住图例（● 可移动 / 仅可跨过…）
+     和右下角的缩放按钮——那两处虽然不致命，但一眼看上去就是"界面坏了"。
+     盖住图例和盖住格子在视觉上的差别，比"少一个候选位置"重要。 */
+  const T0 = br ? br.top + 8 : 6;
+  const B0 = br ? Math.min(window.innerHeight - 6, br.bottom - 8) : window.innerHeight - 6;
+
+  const cx = r0.left + r0.width / 2, cy = r0.top + r0.height / 2;
+  /* 在兵牌周围按 20px 步长扫一圈，每格算一次"压住了几个可走/可打的格子"。
+     为什么不只试八个方向：六角格是犬牙交错的，正右方压两格，往右下 30px
+     就可能一格不压——八个方向扫不到这种缝。289 个候选 × 十几个障碍，
+     一次不到 1ms，比玩家多点一次便宜多了。 */
+  const obs = uopsObstacles();
+  /* 半径 160，比上一版的 260 收了整整一圈：障碍从"一整圈蓝格"缩成"几支兵牌"之后，
+     气泡只需要侧移一格就能找到空位，没必要再往远处飘。
+     步长仍取 20：六角格是犬牙交错的，正右方压一格，往右下 20px 就可能刚好避开，
+     八个方向扫不到这种缝。17×17 个候选、十来个障碍，一次远在 1ms 以内。 */
+  const RANGE = 160, STEP = 20;
+  let best = null;
+  for (let dy = -RANGE; dy <= RANGE; dy += STEP) {
+    for (let dx = -RANGE; dx <= RANGE; dx += STEP) {
+      const x = cx + dx - w / 2, y = cy + dy - hh / 2;
+      if (x < L0 + 4 || x + w > R0 - 4) continue;     // 横向越界：这个位置不可用
+      if (y < T0 || y + hh > B0) continue;            // 纵向越界
+      const cov = uopsCover(x, y, w, hh, obs);
+      /* 代价 = 压住的格数 × 400 + 离兵牌的距离。
+         400 这个系数是"宁可飘 200px 也不压一格"——遮挡是玩家点不到格子，
+         飘远只是眼睛多找一下，后者便宜得多。 */
+      const cost = cov * 400 + Math.abs(dx) + Math.abs(dy);
+      if (!best || cost < best.cost) best = { x: x, y: y, cost: cost, cov: cov };
+    }
+  }
+  if (!best) {
+    /* 连一个合法位置都没有（视口比气泡还窄）。退回老办法：
+       贴着兵牌往右，再钳进视口 */
+    best = { x: Math.max(L0 + 4, Math.min(r0.right + 6, R0 - w - 4)),
+             y: Math.max(T0, Math.min(cy - hh / 2, B0 - hh)) };
+  }
+  box.style.left = Math.round(best.x) + 'px';
+  box.style.top = Math.round(best.y) + 'px';
+}
+
+/* 只重算位置、不重建 DOM。拖动地图 / 按缩放键 / 窄屏自动居中之后都要调一次：
+   气泡是 position:fixed，棋盘却是靠 transform 平移缩放的——
+   不重算的话它会停在原地，看起来像"跳到别的格子上去了"。
+   不重建 DOM 是因为拖动时每帧都会走到这里，重绑一遍事件太贵。 */
+function repositionUops() {
+  const box = document.getElementById('unitOps');
+  if (!box || box.classList.contains('hidden')) return;
+  const u = state && state.selected;
+  if (!u) return;
+  /* 窄屏两种状态都钉在底部横条上，跟棋盘位置无关 */
+  if (window.innerWidth <= 640) return;
+  /* 从窄屏转回宽屏时，窄屏留下的 bottom / maxWidth 还挂在行内样式上。
+     不清掉的话它和新算的 top 同时生效，气泡会被拉成一整条——
+     这和"展开态收成胶囊"是同一个坑，只是入口在 resize。 */
+  box.style.bottom = '';
+  box.style.maxWidth = '';
+  placeUops(box, u);
+}
+
+/* 窄屏的落位：钉在棋盘下沿、水平居中，展开态与小胶囊共用这一个槽。
+   居中不用 translateX(-50%)：.uops 的入场动画里有 transform，
+   动画属性在层叠里压过行内样式，translate 会被动画的 transform:none 抹掉。
+   直接算 left 最稳，也省得跟关键帧打架。 */
+function dockBottom(box) {
+  box.style.top = 'auto';
+  box.style.bottom = '10px';
+  box.style.transform = '';
+  box.style.maxWidth = (window.innerWidth - 24) + 'px';
+  box.style.left = Math.max(8, Math.round((window.innerWidth - box.offsetWidth) / 2)) + 'px';
+}
+
 function syncUnitOps() {
   const box = document.getElementById('unitOps');
   if (!box) return;
   const u = state && state.selected;
   const ops = unitOps(u);
-  if (!ops.length) { box.classList.add('hidden'); box.innerHTML = ''; return; }
+  if (!ops.length) {
+    box.classList.add('hidden');
+    box.classList.remove('mini');
+    box.innerHTML = '';
+    return;
+  }
 
-  let h = '<div class="uops-h">' + (isTowed(u) && ops.length === 1 ? '火炮状态' : '作业') + '</div>';
+  box.style.left = '';
+  box.style.top = '';
+  /* 这几个是一组，必须一起清：窄屏展开态把气泡钉成底部横条
+     （top:auto; bottom:10px; maxWidth），回到小胶囊时只清 top/left 的话，
+     残留的 bottom:10px 会和新的 top 一起生效，把 90×22 的胶囊拉成一整条
+     竖着的白框。进「移动」时菜单必然从展开态收起，所以这条现在每一局都会走到。 */
+  box.style.bottom = '';
+  box.style.transform = '';
+  box.style.maxWidth = '';
+
+  /* 收起态：只渲染一个入口。展开是可选的，收起是默认的——
+     原因见 placeUops 上面那段。 */
+  if (!uopsOpen) {
+    box.classList.add('mini');
+    /* 小胶囊的文案跟着模式走。进了移动模式菜单就收起来了，场上只剩这么一小条；
+       如果还写着「行动 1」，玩家会以为刚才那一按没生效——写「移动中」既是状态回执，
+       也点题"现在鼠标该落在地图的蓝格上"。剩几点机动直接放在胶囊上，
+       不然得为了看数字再展开一次。 */
+    const moving = state.mode === 'move';
+    box.innerHTML = '<button class="uops-open" data-op="__open" title="' +
+      (moving ? '移动中：点蓝格走位，Esc 退出' : '展开：移动 / 工程 / 火炮') + '">' +
+      (moving ? '移动中<i>' + u.mov + ' 点</i>' : '行动<i>' + ops.length + '</i>') +
+      '</button>';
+    box.classList.remove('hidden');
+    box.querySelectorAll('button[data-op]').forEach(b => {
+      b.addEventListener('click', () => runOp(b.dataset.op));
+    });
+    /* 窄屏上这个小胶囊也钉到底部，和展开态同一个槽。
+       让它浮在兵牌旁边这条路在手机上走不通：屏幕就那么宽，可达圈把兵牌围满，
+       胶囊要么压住一圈蓝格，要么被挤到屏幕另一头——实测离兵牌 200px，
+       玩家看不出它跟谁是同一个单位。 */
+    if (window.innerWidth <= 640) { dockBottom(box); return; }
+    placeUops(box, u);
+    return;
+  }
+
+  box.classList.remove('mini');
+  /* 标题带上兵牌简称：气泡会为了不挡格子飘开几十像素，不带名字的话
+     玩家一眼看不出这组按钮是哪个单位的。 */
+  let h = '<div class="uops-h">' + (isTowed(u) && ops.length === 1 ? '火炮状态' : '行动') +
+          ' · ' + u.abbr + '</div>';
   ops.forEach((o, i) => {
     h += '<button data-op="' + o.act + '"' + (o.dis ? ' disabled' : '') +
          (o.on ? ' class="on"' : '') + '><b>' + o.label + '</b>' +
@@ -5596,7 +5861,14 @@ function syncUnitOps() {
     h += '<div class="uops-h" style="padding-top:6px;letter-spacing:0;font-weight:600;color:#9A968C">' +
          UOPS_HINT[state.mode] + '</div>';
   }
-  h += '<button class="uops-x" data-op="__close">收起</button>';
+  /* 收起 / 取消：两个都要有。收起只是把浮层让开（选中还在，接着能点蓝格），
+     取消才是"我不操作这支了"。只留一个的话总有一种意图没出口：
+     只有取消 → 想瞄一眼地图就得重新选一次；
+     只有收起 → 又回到"取消了却不知道怎么退选中"的老问题。 */
+  h += '<div class="uops-foot">' +
+       '<button class="uops-x" data-op="__close" title="只关掉这个菜单，单位保持选中">收起</button>' +
+       '<button class="uops-x" data-op="__cancel" title="取消选中（Esc）">取消</button>' +
+       '</div>';
   box.innerHTML = h;
   box.classList.remove('hidden');
 
@@ -5604,55 +5876,44 @@ function syncUnitOps() {
     b.addEventListener('click', () => runOp(b.dataset.op));
   });
 
-  /* 定位：贴在被选中兵牌的右侧，超出屏幕就翻到左侧并钳制在视口内。
-     用 getBoundingClientRect 而不是棋盘坐标——棋盘在窄屏有 transform 缩放，
-     算坐标必然对不上。 */
   /* 窄屏没有"旁边的空地"，气泡再贴边也会盖住单位本身。
      直接改成底部横条，像手机上的操作栏，比浮在半空好点。 */
   if (window.innerWidth <= 640) {
-    box.style.top = 'auto';
-    box.style.bottom = '10px';
-    box.style.transform = '';
-    box.style.maxWidth = (window.innerWidth - 24) + 'px';
-    /* 居中不用 translateX(-50%)：.uops 的入场动画里有 transform，
-       动画属性在层叠里压过行内样式，translate 会被动画的 transform:none 抹掉。
-       直接算 left 最稳，也省得跟关键帧打架。 */
-    box.style.left = Math.max(8, Math.round((window.innerWidth - box.offsetWidth) / 2)) + 'px';
+    dockBottom(box);
     return;
   }
   box.style.bottom = '';
   box.style.transform = '';
-
-  const hexEl = document.querySelector('.hex[data-r="' + u.pos[0] + '"][data-c="' + u.pos[1] + '"]');
-  if (!hexEl) return;
-  const r0 = hexEl.getBoundingClientRect();
-  const w = box.offsetWidth, hh = box.offsetHeight;
-  /* 边界不能用 window，要用棋盘容器——棋盘右侧紧挨着侧栏，
-     只按 window 判断的话气泡会"合法地"浮到侧栏上面，把侧栏内容盖掉。 */
-  /* 右边界取侧栏的左沿，不是 boardWrap 的右沿：
-     boardWrap 会因子元素溢出而把盒子撑得比可视区宽，
-     拿它当边界等于没判断——气泡照样浮到侧栏上面。 */
-  const sideEl = document.querySelector('aside.side');
-  const sr = sideEl ? sideEl.getBoundingClientRect() : null;
-  const wrapEl = document.getElementById('boardWrap');
-  const br = wrapEl ? wrapEl.getBoundingClientRect() : null;
-  const wr = {
-    left: br ? br.left : 8,
-    right: (sr && sr.width > 0) ? sr.left - 6 : window.innerWidth - 8
-  };
-  let L = r0.right + 8;
-  if (L + w > wr.right - 6) L = r0.left - w - 8;
-  if (L < wr.left + 6) L = Math.max(wr.left + 6, Math.min(r0.left, wr.right - w - 6));
-  let T = r0.top + r0.height / 2 - hh / 2;
-  T = Math.max(8, Math.min(T, window.innerHeight - hh - 8));
-  box.style.left = Math.round(L) + 'px';
-  box.style.top = Math.round(T) + 'px';
+  placeUops(box, u);
 }
 
 function runOp(act) {
   const u = state && state.selected;
   if (!u) return;
-  if (act === '__close') { clearSelection(); render(); renderUnitBox(); return; }
+  /* 展开 / 收起只动浮层，不动选中。
+     以前的「收起」是 clearSelection()——玩家点一下收起，单位也被取消选中了，
+     等于把面板的收起键做成了"顺带清选择"，很别扭。 */
+  if (act === '__open') { uopsOpen = true; FX.sfx('uiClick'); render(); return; }
+  if (act === '__close') { uopsOpen = false; FX.sfx('uiClick'); render(); return; }
+  /* 取消 = 连选中一起清掉。和「收起」分开，见 .uops-foot 的注释 */
+  if (act === '__cancel') { FX.sfx('uiClick'); deselect(); return; }
+  /* 移动模式：不是一个要"执行"的动作，而是把可达区标出来等下一次点击。
+     再点一次就退出（和工事 / 布雷那几个开关一致），单点误触也不会卡在模式里。 */
+  if (act === 'move') {
+    const entering = state.mode !== 'move';
+    state.mode = entering ? 'move' : null;
+    FX.sfx('select');
+    /* 进移动模式要顺手把菜单收成小胶囊：展开态高约 250px、宽近 200px，
+       而可达圈就是绕着兵牌的一两圈——不收起来等于"刚点亮范围又立刻压住它"。
+       退出时反而是玩家刚在菜单里点了一下，让菜单留在原地，他可能还要选别的活。
+       收起 ≠ 取消：选中还在，小胶囊上写着「移动中」，点它随时能再展开。 */
+    if (entering) uopsOpen = false;
+    /* 窄屏上可达区经常有一半在屏幕外，进移动模式时顺手把单位带回视野
+       （centerOnCell 只在贴边时才真平移，所以不会每次点都跳一下） */
+    if (state.mode === 'move') centerOnCell(u.pos[0], u.pos[1]);
+    render();
+    return;
+  }
   if (act.indexOf('fort:') === 0) {
     const k = act.slice(5);
     const same = state.mode === 'fort' && state.fortKind === k;
@@ -5670,14 +5931,12 @@ function runOp(act) {
   renderUnitBox();
 }
 
-/* 滚动 / 缩放 / 转屏之后气泡会飘走，重算一次位置。
-   只重定位不重建，避免每次滚动都重绑一遍事件。 */
+/* 滚动 / 转屏之后气泡会飘走，重算一次位置。
+   这里必须用 repositionUops 而不是 syncUnitOps：
+   scroll 事件很密，全量重建 DOM + 重绑事件会让滚动发涩，
+   而且重建的瞬间气泡会闪一下（innerHTML 清空 → 重新出现）。 */
 if (typeof window !== 'undefined') {
-  const reposition = () => {
-    const box = document.getElementById('unitOps');
-    if (!box || box.classList.contains('hidden')) return;
-    syncUnitOps();
-  };
+  const reposition = () => repositionUops();
   window.addEventListener('resize', reposition);
   window.addEventListener('scroll', reposition, true);
 }
@@ -5732,6 +5991,7 @@ function renderUnitBox() {
        '<span class="tag ' + (u.side === 'blue' ? 'b' : 'r') + '">' +
        (u.side === 'blue' ? '我方' : '敌方') + '</span></div>';
   h += '<div class="ub-meta">' + ty.name + ' · ' + ty.role + ' · ' + coordName(u.pos) + ' ' + t.name + '</div>';
+  h += '<div class="ub-esc">再点一次该兵牌 / Esc / 右键 = 取消选中</div>';
 
   const hbNow = homeBonus(u);
   const fullStr = (LEVEL.units.find(x => x.id === u.id) || {}).str || u.str;
@@ -5768,8 +6028,8 @@ function renderUnitBox() {
       h += '<div class="kv"><span>当前</span><b class="' + (u.packed ? 'warn' : 'ok') + '">' +
            (u.packed ? '行军 · 已收炮' : '已展开 · 可射击') + '</b></div>';
       h += '<div class="hint">' + (u.packed
-        ? '行军状态不能射击，也不能转移。展开要点<b>兵牌旁的作业气泡</b>。'
-        : '转移阵地前必须先收炮。操作在<b>兵牌旁的作业气泡</b>里。') + '</div></div>';
+        ? '行军状态不能射击，也不能转移。展开要点<b>兵牌旁的「行动」</b>。'
+        : '转移阵地前必须先收炮。操作在<b>兵牌旁的「行动」</b>里。') + '</div></div>';
     }
     /* 补给点保留预览：它讲的是"建在这里值不值"，属于决策信息，不是按钮 */
     if (u.type === 'sup' && !u.fired) {
@@ -5790,7 +6050,7 @@ function renderUnitBox() {
       h += '</div>';
     }
     if (unitOps(u).length) {
-      h += '<div class="grp"><div class="hint">修工事 / 布雷 / 架桥 / 展开收炮这些作业，' +
+      h += '<div class="grp"><div class="hint">移动 / 修工事 / 布雷 / 架桥 / 展开收炮，' +
            '都在<b>兵牌旁边弹出的气泡</b>里——选中部队后看地图上。</div></div>';
     }
     const tgs = state.targets.filter(x => x.side === 'red');
@@ -5893,6 +6153,8 @@ function applyView() {
   if (!isNarrow()) {
     boardView.style.transform = '';
     boardWrap.style.height = '';
+    /* 桌面端没有 transform，但转屏 / 改窗口大小会让格子重排，气泡得跟着走 */
+    repositionUops();
     return;
   }
   const { h } = boardSize();
@@ -5907,6 +6169,13 @@ function applyView() {
   const box = innerBox();
   const needPan = (w * vK > box.w + 1) || (h * vK > box.h + 1);
   boardWrap.style.touchAction = needPan ? 'none' : 'pan-y';
+  /* transform 改完必须重算气泡位置。
+     气泡是 position:fixed、棋盘是 transform 平移缩放，两者不联动——
+     不重算的话，拖动地图时气泡会死钉在屏幕上，看起来像"跑到别的格子上去了"。
+     placeUops 里有网格搜索（324 个候选 × 障碍格），实测单次 < 1ms，
+     拖动时每帧一次可以接受；这里刻意**不**改成全量 syncUnitOps，
+     因为那会重建 DOM + 重绑事件，每帧一遍就真卡了。 */
+  repositionUops();
 }
 
 /* 适应屏幕：keep=true 时保留当前缩放，只重算边界 */
@@ -5963,6 +6232,17 @@ function centerOnCell(r, c, force) {
 let gLast = null;                 // 单指上一帧位置
 let gDist = 0;                    // 双指起始间距
 let gAnchor = null;               // 双指中心（相对 wrap）
+
+/* 桌面端右键 = 取消选中 / 收起气泡，和 Esc 一个意思，但不用把手从鼠标上拿开。
+   只在"确实有东西可取消"时才拦系统菜单——否则连想右键另存为都会被吃掉。 */
+boardWrap.addEventListener('contextmenu', e => {
+  if (!state || state.result) return;
+  if (!state.selected && !state.terrainSel && !uopsOpen && !state.cardId) return;
+  e.preventDefault();
+  if (state.cardId) { cancelCard(); return; }
+  if (uopsOpen) { uopsOpen = false; render(); return; }
+  deselect();
+});
 
 function touchDist(t) {
   const dx = t[0].clientX - t[1].clientX;
@@ -6241,8 +6521,9 @@ function dexStat(t) {
    每一条都对应一个具体操作或一个反直觉的数值。 */
 const AIDE = [
   { q: '第一步该干什么？',
-    a: '<b>点兵牌 → 看它脚下亮起什么色。</b>蓝色是可移动，淡蓝是只能穿过去、不能停，' +
-       '红色是可攻击。一支兵一回合<b>移动一次、射击一次</b>，顺序可以颠倒。<br>' +
+    a: '<b>点自己的兵牌 → 兵牌旁弹出「行动」→ 点「移动」。</b>这时候脚下才会亮起格子：' +
+       '蓝色是可移动，淡蓝是只能穿过去、不能停；红色是可攻击（选中就看得见，不用点移动）。' +
+       '一支兵一回合<b>移动一次、射击一次</b>，顺序可以颠倒。<br>' +
        '拿不准的仗别打：点红色格之前先看侧栏的 <code>1.5:1</code> 这类比值，' +
        '<code>3:1</code> 以上才划算。' },
   { q: '为什么我点友军格子，变成了切换选中，而不是移动过去？',
@@ -6516,13 +6797,24 @@ window.addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && !e.shiftKey && String(e.key).toLowerCase() === 'z') {
     e.preventDefault(); doUndo(); return;
   }
-  /* Esc 的优先级：先收最上层的东西。HQ 面板 > 待命中的战术卡 > 操作说明，
+  /* Esc 的优先级：先收最上层的东西。HQ 面板 > 待命中的战术卡 > 说明 > 展开的作业气泡 > 选中。
      顺序反了会出现"按 Esc 关掉了下面的面板，上面那层还盖着"。 */
   const hqEl = document.getElementById('hqScreen');
   if (e.key === 'Escape' && hqEl && !hqEl.classList.contains('hidden')) { closeHQ(); return; }
   if (e.key === 'Escape' && state && state.cardId) { cancelCard(); return; }
-  if (e.key === 'Escape') { closeTips(); return; }
-  if (e.key === ' ' && !tipsEl.classList.contains('hidden')) { e.preventDefault(); closeTips(); return; }
+  const tipsOpen = tipsEl && !tipsEl.classList.contains('hidden');
+  if (e.key === 'Escape' && tipsOpen) { closeTips(); return; }
+  /* 展开态的气泡先收成 mini，再按一次才取消选中——
+     一次 Esc 把浮层和选择全清掉太狠，玩家往往只是想挪开那块面板。 */
+  if (e.key === 'Escape' && uopsOpen) { uopsOpen = false; render(); return; }
+  /* 移动模式：Esc 先退模式、保留选中。这时气泡已经是小胶囊（uopsOpen === false），
+     少了这一步，玩家想"退出移动、换个动作"就变成"整支都不选了"。
+     顺序必须在 uopsOpen 之后：展开态按 Esc 的语义是"收面板"，不是"退移动"。 */
+  if (e.key === 'Escape' && state && state.mode) { state.mode = null; render(); return; }
+  /* 选中态也吃 Esc。手机上尤其需要：点错了单位，没有"右键"可用，
+     只能去点一块走不到的地面（这条是用户反馈的原话）。 */
+  if (e.key === 'Escape') { deselect(); return; }
+  if (e.key === ' ' && tipsOpen) { e.preventDefault(); closeTips(); return; }
   if (e.key === ' ' && state && state.phase === 'blue' && !state.result) {
     e.preventDefault(); endBluePhase();
   }
@@ -6845,9 +7137,12 @@ window.__WAR__ = {
   onHexClick, select,
   pushUndo, doUndo, clearUndo, depotPreview, supplyField, supplySources,
   get undoDepth() { return undoStack.length; },
-  /* 视图控制（窄屏缩放/平移），供自动化测试读取状态 */
+  /* 视图控制（窄屏缩放/平移），供自动化测试读取状态。
+     applyView / repositionUops 也导出：气泡跟随是"改 transform 之后有没有重算"
+     的问题，只测 placeUops 单函数测不出来，必须走 applyView 这条真路径。 */
   view: {
     fitView, zoomBy, centerOnCell, isNarrow, boardSize, innerBox,
+    applyView, repositionUops,
     get k() { return vK; }, get x() { return vX; }, get y() { return vY; },
     get maxK() { return vMax; }, get fitK() { return vFit; }
   },

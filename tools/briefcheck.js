@@ -183,7 +183,17 @@ function ok(name, cond, extra) {
     else {
       W.select(eng);
       await wait(60);
+      /* 选中默认是收起态：只有一个"作业 N"的小入口。
+         整组按钮铺开会压住周围两三格，而那几格正是本回合能走的格——
+         用户反馈的"菜单挡住可移动格子"就是它。 */
       ok('选中工兵后气泡出现', !box.classList.contains('hidden'));
+      ok('选中态是收起的小入口', box.classList.contains('mini') &&
+         !!box.querySelector('button[data-op="__open"]'));
+      ok('收起态不铺开按钮', box.querySelectorAll('button[data-op^="fort:"]').length === 0);
+
+      box.querySelector('button[data-op="__open"]').click();
+      await wait(60);
+      ok('点「作业」展开整组按钮', !box.classList.contains('mini'));
       ok('气泡列出工事选项', box.querySelectorAll('button[data-op^="fort:"]').length >= 2);
       ok('气泡有布雷与架桥',
          !!box.querySelector('button[data-op="mine"]') &&
@@ -198,10 +208,54 @@ function ok(name, cond, extra) {
       await wait(40);
       ok('再点格子完成施工', W.getState().forts.length === n0 + 1);
 
-      /* 打完仗（fired）之后不该再出现作业按钮 */
+      /* 打完仗（fired）之后不该再出现行动按钮 */
       W.select(eng);
       await wait(40);
       ok('行动耗尽后气泡自动收起', box.classList.contains('hidden'));
+
+      /* ── 取消选中的三条路 ──
+         以前只有"点一块走不到的地面"这一条，用户反馈的就是这个。
+         挑一个**独占格子**的单位：堆叠格上点自己是"轮换到下一支"，
+         那是另一条规则，混在这里会把断言弄成"有时红有时绿"。 */
+      const pool = W.getState().units.filter(x => x.side === 'blue' && !x.moved && !x.fired);
+      const any = pool.find(x => pool.filter(y =>
+        y.pos[0] === x.pos[0] && y.pos[1] === x.pos[1]).length === 1);
+      if (any) {
+        const press = k => window.dispatchEvent(new window.KeyboardEvent('keydown',
+          { key: k, bubbles: true }));
+
+        W.select(any);
+        await wait(40);
+        ok('取消选中前确实选着', W.getState().selected === any);
+        W.onHexClick(any.pos[0], any.pos[1]);   // 点自己
+        await wait(40);
+        ok('点自己取消选中', W.getState().selected === null);
+        ok('取消后气泡消失', box.classList.contains('hidden'));
+
+        /* Esc：走真实键盘事件，别只测 deselect() 这个函数 */
+        W.select(any);
+        await wait(40);
+        press('Escape');
+        await wait(40);
+        ok('Esc 取消选中', W.getState().selected === null);
+
+        /* 展开气泡时按 Esc 只收气泡，不取消选中——一次清两层太狠 */
+        W.select(any);
+        await wait(40);
+        const op = box.querySelector('button[data-op="__open"]');
+        if (op) {
+          op.click();
+          await wait(40);
+          press('Escape');
+          await wait(40);
+          ok('Esc 先收气泡', box.classList.contains('mini'));
+          ok('收气泡时不丢选中', W.getState().selected === any);
+          W.onHexClick(any.pos[0], any.pos[1]);
+          await wait(40);
+        }
+      } else {
+        ok('找得到独占格子的可动单位（用于测取消选中）', false, '全是堆叠');
+      }
     }
 
     /* 辎重队：建补给点是气泡里的专属项 */
@@ -209,6 +263,8 @@ function ok(name, cond, extra) {
     if (sup) {
       W.select(sup);
       await wait(40);
+      const op2 = box.querySelector('button[data-op="__open"]');
+      if (op2) { op2.click(); await wait(40); }
       ok('辎重队气泡有建立补给点', !!box.querySelector('button[data-op="depot"]'));
       box.querySelector('button[data-op="depot"]').click();
       await wait(60);
@@ -216,6 +272,123 @@ function ok(name, cond, extra) {
          W.getState().depots.some(d => d.r === sup.pos[0] && d.c === sup.pos[1]));
     } else {
       ok('本关没有辎重队，跳过补给点气泡', true);
+    }
+  }
+
+  console.log('[10b] 行动菜单里的「移动」「取消」');
+  /* 用户提的：菜单里要能直接点「移动」，并且要有明确的「取消」。
+     这不是重构，是界面缺了入口——所以要测"点下去发生了什么"，
+     光断言"按钮在不在"会漏掉点了没反应这类问题。
+     顺手把「收起 ≠ 取消」也钉住：这两个键合并成一个，
+     总有一种意图没出口（想瞄地图就得重选 / 想退出却退不干净）。 */
+  {
+    const W = window.__WAR__;
+    const box = doc.getElementById('unitOps');
+    /* 不按 type === 'inf' 筛：这几关的步兵叫 gdn / mech / marm，
+       写死兵种键会让"找得到"变成"永远找不到"，而报错里只写着"没找到"，
+       查半天不知道是没这种兵还是筛错了（第一次就踩了）。
+       按语义筛更稳：菜单里只剩「移动」一项 = 一支没有工程 / 火炮能力的普通部队。 */
+    const onlyMove = u => W.unitOps(u).length === 1 && W.unitOps(u)[0].act === 'move';
+    const inf = W.getState().units.find(
+      u => u.side === 'blue' && !u.moved && !u.fired && onlyMove(u));
+    ok('找得到一支只会移动的单位', !!inf, inf ? inf.name : '没找到');
+    if (inf) {
+      W.select(inf);
+      await wait(40);
+      ok('这种单位选中也有行动入口（以前只有工兵 / 炮兵才有气泡）',
+         !box.classList.contains('hidden'));
+
+      /* 可达范围不再"选中就亮"：没点「移动」之前地图上不该出现蓝格。
+         这条不只是观感——范围常亮时气泡怎么摆都在圈里，只能往远处飘（260px），
+         菜单离开兵牌两个身位，玩家得靠标题认单位。
+         现在"范围可见 ⟺ 移动模式"，气泡也就不用躲蓝圈了。 */
+      const moveCells = () => doc.querySelectorAll('#board .hex.move').length;
+      ok('未点「移动」时不点亮可达范围', moveCells() === 0, moveCells() + ' 格');
+
+      /* 点按钮的辅助：找不到就返回 null、不抛异常。
+         上一版这里是裸 .click()，一旦"进移动模式没收起菜单"这条坏了，
+         下一个 __open 就成了 null，整段测试直接抛出去——后面十几条断言
+         一条都不跑，报告里只剩一行 TypeError，看不出到底坏了哪些东西。 */
+      const tap = async act => {
+        const b = box.querySelector('button[data-op="' + act + '"]');
+        if (b) { b.click(); await wait(40); }
+        return b;
+      };
+
+      await tap('__open');
+      const mv = box.querySelector('button[data-op="move"]');
+      ok('菜单里有「移动」', !!mv);
+      ok('「移动」标出剩余机动', mv && /点/.test(mv.textContent), mv && mv.textContent);
+
+      await tap('move');
+      ok('点「移动」进入移动模式', W.getState().mode === 'move');
+      ok('点「移动」之后可达范围点亮', moveCells() > 0, moveCells() + ' 格');
+      /* 菜单必须同时收成小胶囊：展开态高 250px，正好压在刚点亮的圈上，
+         "点了移动却被自己挡住"就是这么来的。 */
+      ok('进移动模式后菜单收成小入口', box.classList.contains('mini'));
+      ok('小入口改口成「移动中」', /移动中/.test(box.textContent), box.textContent);
+
+      await tap('__open');
+      const mv2 = box.querySelector('button[data-op="move"]');
+      ok('移动模式下按钮高亮', !!mv2 && mv2.classList.contains('on'));
+      ok('移动模式给出下一步提示', /点蓝格/.test(box.textContent));
+
+      /* Esc 是两层：先收面板，再退模式，选中始终留着。
+         气泡此刻已经展开，所以要按两下——这也正是层级正确的证据。 */
+      const press = () => window.dispatchEvent(
+        new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      press();
+      await wait(40);
+      ok('移动模式里 Esc 先收面板',
+         box.classList.contains('mini') && W.getState().mode === 'move');
+      press();
+      await wait(40);
+      ok('Esc 退出移动模式', W.getState().mode === null);
+      ok('Esc 退模式时保留选中', W.getState().selected === inf);
+      ok('Esc 退出后范围收回', moveCells() === 0, moveCells() + ' 格');
+
+      /* 再点一次也能退（按钮是开关，单点误触不会卡在模式里） */
+      await tap('__open');
+      await tap('move');
+      ok('再点一次进入移动模式', W.getState().mode === 'move');
+      await tap('__open');
+      await tap('move');
+      ok('再点一次退出移动模式', W.getState().mode === null);
+
+      const cb = await tap('__cancel');
+      ok('菜单里有「取消」', !!cb);
+      ok('「取消」清掉选中', W.getState().selected === null);
+      ok('「取消」后气泡收起', box.classList.contains('hidden'));
+
+      /* 收起 ≠ 取消 */
+      W.select(inf);
+      await wait(40);
+      await tap('__open');
+      const closeBtn = await tap('__close');
+      ok('菜单里有「收起」', !!closeBtn);
+      ok('「收起」保留选中', W.getState().selected === inf);
+      ok('「收起」后回到小入口', box.classList.contains('mini'));
+
+      /* 视图变换后必须重算位置：气泡是 position:fixed，棋盘是 transform 平移缩放，
+         两者不会一起动。把 left 揉成一个假值再刷一次视图，看它会不会被算回来。
+         少了这一步，手机上拖动地图时气泡会死钉在屏幕上，像"跑到别的格子上去了"。 */
+      box.style.left = '-999px';
+      W.view.applyView();
+      await wait(20);
+      ok('视图刷新后气泡重新定位', box.style.left !== '-999px', box.style.left);
+
+      /* 窄屏把它钉成底部横条（inline bottom:10px），转回宽屏时必须清掉。
+         不清的话 bottom 和 top 同时生效，90px 高的胶囊会被拉成一整条竖白框。 */
+      box.style.bottom = '10px';
+      box.style.maxWidth = '200px';
+      W.view.applyView();
+      await wait(20);
+      ok('转回宽屏后清掉窄屏残留的 bottom / maxWidth',
+         box.style.bottom === '' && box.style.maxWidth === '',
+         box.style.bottom + ' / ' + box.style.maxWidth);
+
+      W.onHexClick(inf.pos[0], inf.pos[1]);       // 收尾：清掉选中
+      await wait(40);
     }
   }
 
