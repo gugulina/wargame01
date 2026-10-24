@@ -215,6 +215,17 @@
     background: rgba(0,0,0,.28); border-radius: 2px; overflow: hidden;
   }
   .unit .orgbar i { display: block; height: 100%; background: rgba(255,255,255,.85); }
+  /* 建制崩溃：红边 + 右下「崩」角标。
+     为什么不用"兵牌变灰"：灰是 .spent（本回合行动已用完）的语义，
+     两者会撞在一起；而崩溃是**状态**不是消耗，用红边区分得开。 */
+  .unit.broken { box-shadow: inset 0 0 0 2px #C0392B; }
+  .unit.broken .orgbar i { background: #F2B8B0; }
+  .unit .brk {
+    position: absolute; right: -2px; top: -4px; z-index: 8;
+    background: #C0392B; color: #fff; font-size: 8px; font-weight: 800;
+    line-height: 11px; height: 11px; padding: 0 2px; border-radius: 3px;
+    pointer-events: none;
+  }
   /* 堆叠：一格两支时上下排成一列（不是斜向错开——斜向会让右下那支越界，
      看起来像站在相邻格上）。同一条中轴、各缩到 72%，一眼就是"一摞"。 */
   .unit.stk { position: absolute; transform: scale(.72); }
@@ -251,6 +262,40 @@
     font-size: 11px; font-weight: 700; letter-spacing: 1px; color: var(--ink3);
     text-transform: uppercase; margin-bottom: 8px;
   }
+  /* block-h 里的右侧小字（战术卡剩余数）。用 em + margin-left:auto，
+     这样它自动贴到标题行右端，不用给每个 block 单开 flex 容器。 */
+  .block-h em {
+    float: right; font-style: normal; font-weight: 600; font-size: 10px;
+    letter-spacing: 0; text-transform: none; color: var(--ink3);
+  }
+  /* ── 关卡界面的战术卡条 ──
+     一行一张卡：卡名 + 标签 + 一句效果。为什么不做成横排小方块：
+     这个面板宽 330px，两张并排就放不下"炮火准备 · 目标组织度 −20"这种句子，
+     而玩家恰恰要读这一句才知道该用哪张。 */
+  .tcbar { display: flex; flex-direction: column; gap: 5px; }
+  .tcbar .tc-empty { font-size: 11px; color: var(--ink3); line-height: 1.6; }
+  .tc {
+    display: flex; align-items: baseline; gap: 6px; width: 100%;
+    text-align: left; cursor: pointer; font-family: inherit;
+    background: #FBFAF5; border: 1px solid var(--line); border-radius: 7px;
+    padding: 6px 8px; transition: background .12s, border-color .12s;
+  }
+  .tc:hover { background: #F3F0E4; }
+  .tc .tc-k {
+    flex: 0 0 auto; font-size: 9px; font-weight: 800; letter-spacing: .5px;
+    color: #fff; background: #6B6656; border-radius: 3px; padding: 1px 4px;
+  }
+  .tc .tc-n { font-size: 12px; font-weight: 700; flex: 0 0 auto; }
+  .tc .tc-d { font-size: 10.5px; color: var(--ink3); flex: 1 1 auto; line-height: 1.45; }
+  /* 等待选目标的那张：整条反色，地图上同时会把合法目标圈出来 */
+  .tc.on { background: #2B2A26; border-color: #2B2A26; }
+  .tc.on .tc-n { color: #fff; }
+  .tc.on .tc-d { color: #CFC9B8; }
+  .tc.on .tc-k { background: #C9A227; }
+  .tc.used { opacity: .42; cursor: default; }
+  .tc.used .tc-n { text-decoration: line-through; }
+  .tc.off { opacity: .55; cursor: default; }
+  .tc .tc-key { flex: 0 0 auto; font-size: 9.5px; color: var(--ink3); font-variant-numeric: tabular-nums; }
   .row { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 2px 0; font-size: 12px; }
   .row span { color: var(--ink2); }
   .row b { font-weight: 650; }
@@ -982,7 +1027,7 @@
       <span class="pill" id="phasePill">我方阶段</span>
       <!-- 全项目唯一的版本标记：tools/export-levels.js 按这个 span 的原样文本抓版本号，
            开始页撤掉之后它挪到了顶栏，标签必须保持 <span id="verTag"> 这个形状 -->
-      <span id="verTag">v4.5</span>
+      <span id="verTag">v4.6</span>
       <button id="btnMenu" class="hqbtn" title="返回菜单页：换关、看进度、导存档">菜单</button>
       <button id="btnHQ" class="hqbtn" title="指挥部：兵种图鉴 / 战术卡 / 副官 / 存档">HQ</button>
       <button id="btnTips" class="tipsbtn" title="操作说明">?</button>
@@ -1016,6 +1061,14 @@
   </main>
 
   <aside class="side">
+    <!-- 战术卡：v4.6 之前只能从 HQ 里点「立即使用」，等于每次用一张卡
+         都要开一层全屏面板、再回到地图上找目标。现在它常驻在关卡界面里，
+         点卡 → 地图上点目标，两个动作连着做完。HQ 只保留「配牌」（携带 / 卸下），
+         那是局外决策，放在 HQ 里合适。 -->
+    <div class="block">
+      <div class="block-h">战术卡<em id="cardHint">本局 3 / 3</em></div>
+      <div id="cardBar" class="tcbar"></div>
+    </div>
     <div class="block">
       <div class="block-h">战役态势</div>
       <div id="goalBox"></div>
@@ -1494,6 +1547,14 @@ const TYPE = {
 /* ───────────────────────── 裁决表 ─────────────────────────
    CRT[tier][d6] = [攻方损失, 守方损失]，单位：战力点
    守方无法反击时，攻方损失强制为 0 */
+/* 骰子随机源。默认就是 Math.random，只在自动化测试里被换掉。
+   为什么值得开这么一个口子：整个引擎只有这一处随机，换掉它就能让
+   自战跑局完全可复现——平衡对比时"改了有效"和"这次运气好"才分得开。
+   之前 C3B 同一个数值两次跑出 47.5% / 57.5%，就是因为没法复现，
+   谁也不敢说 10 个点的差别是真信号还是采样噪声。 */
+let rng = Math.random;
+function setRng(f) { rng = (typeof f === 'function') ? f : Math.random; }
+
 const CRT = [
   [[0,4],[0,5],[1,5],[0,6],[1,6],[1,7]],
   [[1,3],[0,4],[1,4],[1,5],[2,5],[2,6]],
@@ -2490,7 +2551,9 @@ const LEVELS = [
   when: '新历 1208 年 2 月 19 日', where: '岚口 · 机场跑道',
   teaser: '市区已经丢了，残部退守机场。跑道还要再撑十个回合，直到最后一批运输机起飞。',
   ready: true,
-  open: true,
+  /* 不再 open。原来那句是"先放出来让人试玩"的临时措施，现在按正常链路解锁：
+     前置是第 2 关——附属关本身不挡主线，见 accessPrereq。
+     验收/截图时用 ?lv=C3B&demo=none，那条路走 demo 分支，不查解锁。 */
   win: { kind: 'survive', keep: ['runway'] },
   prev: {
     win:  '岚口市区守到了第 12 回合，主力趁夜撤过江。机场还在我们手里，最后一班运输机没停。',
@@ -2776,9 +2839,10 @@ const LEVELS = [
   when: '新历 1208 年 4 月 11 日', where: '南部海岸 · 波尔瓦萨港',
   teaser: '敌军机动兵力三天推到港外。四支部队临时编成港口特遣军，港内七条军舰的炮口对着岸上。',
   ready: true,
-  /* 临时开放试玩，和 C3B 一样。正式版的解锁条件由 levelAccess 统一管：
-     第 4 关的前置是第 3 关（附属关 C3B 会被跳过，见 levelAccess 里那句注释）。 */
-  open: true,
+  /* 不再 open。第四关是主线终点，必须通关第 3 关才开——零进度就能跳最后一关，
+     前三关的仗就白打了。解锁条件统一由 accessPrereq / levelAccess 管：
+     前置是第 3 关，附属关 C3B 会被跳过。 */
+  
   /* 用户给的条件是"坚守 20 回合 / 敌军全灭"——两条并列，任一达成。
      前半句由 survive 走到 maxTurns 判，后半句由 checkEnd 判（见 allWavesIn）。 */
   win: { kind: 'survive', keep: ['fort', 'city'] },
@@ -3493,6 +3557,24 @@ const FX = {
   }
 };
 
+/* ───────────────────────── 调试日志 ─────────────────────────
+   引擎里原本 console.* 是 0 条。代码干净是好事，但代价是：凡是走了
+   "静默降级"分支的地方（简报没渲染出来、音频解锁没成功、存档读不回来），
+   玩家看到的现象只有"没动画 / 没声音 / 不能续关"——而你手里一条线索都没有。
+   所以给这些地方开一条通道：默认静默，URL 上带 ?debug=1 才输出。
+   不设成"总是输出"是因为玩家不该在控制台看到一堆噪音；
+   不设成"干脆不打日志"是因为那样等于把唯一的线索也扔了。 */
+const DEBUG = (function () {
+  try {
+    if (typeof location === 'undefined' || !location || !location.search) return false;
+    return /(^|[?&])debug=1(&|$)/.test(location.search);
+  } catch (e) { return false; }
+})();
+function LOG() {
+  if (!DEBUG) return;
+  try { console.log.apply(console, ['[cangyu]'].concat([].slice.call(arguments))); } catch (e) {}
+}
+
 /* ───────────────────────── 六角格数学 ───────────────────────── */
 const HEX_S = 27;
 const HEX_W = Math.sqrt(3) * HEX_S;
@@ -3750,13 +3832,14 @@ function useCard(id, tgt) {
 
 /* 挂起一张卡，等玩家在地图上点目标。
    进入这个状态时一定要 clearSelection()：否则"选中的部队"和"等待中的卡"
-   会同时存在，玩家点自己那支会触发移动判定而不是用卡。 */
+   会同时存在，玩家点自己那支会触发移动判定而不是用卡。
+   v4.6 起入口只有关卡界面的卡条（renderCardBar），
+   所以这里不再调 closeHQ()——HQ 已经不再是使用入口了。 */
 function armCard(id) {
   const c = CARDS[id];
   if (!c || !state || state.result || state.phase !== 'blue') return false;
   if (state.cardUsed[id]) return false;
   if (!deckOf().includes(id)) return false;
-  closeHQ();
   clearSelection();
   state.cardId = id;
   if (typeof FX !== 'undefined' && FX.banner) {
@@ -3781,6 +3864,62 @@ function clearCardBuffs() {
   for (const u of state.units) { u.cardAtk = 0; u.cardDef = 0; u.cardMov = 0; }
 }
 const HQ_TYPES   = ['hqd', 'hqb', 'hkg', 'hkc'];
+
+/* ─────────────────── 组织度崩溃 ───────────────────
+   组织度不是"血量"：它乘进有效战力（`str × org/100`），所以掉到 2 成就等于
+   一支 10 战力的部队只剩 2 战力——但这个效果是**连续**的，玩家很难从数字上
+   意识到"这支部队已经不成建制了"。崩溃机制就是给这条连续曲线加一个拐点。
+
+   规则（阈值可被关卡覆盖：`LEVEL.orgBreak` / `LEVEL.orgRally`）：
+     · 崩溃：org ≤ 25
+     · 解除：org > 40（**滞回**，不是回到 26 就立刻恢复）
+     · 表现：不能主动攻击（反击照常——枪还在手上，只是组织不起进攻）
+     · 恢复：每回合结算时，**周围 2 格无敌军 且 补给不是「断绝」** → org +10
+   两个阈值留了 15 点差，是为了避免"卡在 25 / 26 反复横跳"：
+   org 在阈值附近来回抖时，玩家会看到标记一直闪，而规则本身没变。
+
+   为什么只做单位级、不做阵营级：阵营级的"平均组织度"会被一堆后方辎重队
+   稀释，判定线几乎没有可解释性；单位级则是玩家能一眼看到"哪个营垮了"。 */
+const ORG_BREAK_DEF = 25;
+const ORG_RALLY_DEF = 40;
+function orgBreakLine() {
+  return (LEVEL && typeof LEVEL.orgBreak === 'number') ? LEVEL.orgBreak : ORG_BREAK_DEF;
+}
+function orgRallyLine() {
+  return (LEVEL && typeof LEVEL.orgRally === 'number') ? LEVEL.orgRally : ORG_RALLY_DEF;
+}
+/* 已经崩过（u.broken）的，要回到恢复线以上才算解除；否则按崩溃线判。
+   这么写的好处：事件直接扣 org 的路径（applyEffect 的 org 效果）不需要手动
+   维护标记，`isBroken` 立刻就是对的；u.broken 只负责"滞回"和"只播一次台词"。 */
+function isBroken(u) {
+  if (!u || u.str <= 0) return false;
+  return u.broken ? (u.org <= orgRallyLine()) : (u.org <= orgBreakLine());
+}
+/* 脱离接触：2 格内没有敌军。崩溃的部队要退下来、缓一口气才能重新成军，
+   所以"贴着敌人"和"补给断了"这两种情况都不给恢复。 */
+function disengaged(u) {
+  if (!u || !u.pos) return false;
+  const foe = other(u.side);
+  return !alive(foe).some(e => hexDist(e.pos, u.pos) <= 2);
+}
+/* 每回合结算时刷新标记。日志只在**进入**崩溃的那一次写，
+   否则一支垮掉的营会连续 8 个回合每回合刷一行，把战报淹掉。 */
+function refreshBroken() {
+  for (const u of state.units) {
+    if (u.str <= 0) { u.broken = false; continue; }
+    const now = isBroken(u);
+    if (now && !u.broken) {
+      u.broken = true;
+      log(u.abbr + ' ' + u.name + ' 组织度跌破 ' + orgBreakLine() +
+          '%，**建制崩溃**：本回合无法发起攻击，需脱离接触后收拢。',
+          u.side === 'blue' ? 'hi' : 'r');
+      if (u.side === 'blue') FX.pop('崩溃', u.pos.slice(), 'r');
+    } else if (!now && u.broken) {
+      u.broken = false;
+      log(u.abbr + ' ' + u.name + ' 收拢完毕，恢复建制。', u.side === 'blue' ? 'b' : 'sys');
+    }
+  }
+}
 const CAPTURE_TYPES = ['inf', 'gdn', 'mob', 'mech', 'mrb', 'larm', 'marm', 'harm', 'eng', 'engc', 'para'];
 function isArty(u) { return ARTY_TYPES.includes(u.type); }
 function isDirectArty(u) { return ARTY_DIRECT.includes(u.type); }
@@ -4100,10 +4239,15 @@ function canHitAir(u) { return isAA(u) || isAir(u); }
 /* 反击判定：射程够不到，或远程单位被近战贴脸 → 无法反击
    例外：直瞄火炮可以放平了打贴脸目标 */
 function canCounter(att, def) {
-  /* 挨空中打击时能还手的只有两类：防空单位，和**别的飞机**。
+  /* 挨空中打击时能还手的只有三类：防空单位、**别的飞机**、
+     以及**站在防空阵地上的地面单位**（v4.6 新增，见 FORT.F.aaBack）。
      飞机这一条不能漏——轰炸机"仅可对空反击"全靠它：atk 白名单不许它主动挑
-     飞机打，但被战斗机咬住时自卫机枪要能响，否则那条规则在纸面上永远不成立。 */
-  if (isAir(att) && !(isAA(def) || isAir(def))) return false;
+     飞机打，但被战斗机咬住时自卫机枪要能响，否则那条规则在纸面上永远不成立。
+     第三类同理不能漏：少了它，F 阵地就只是个"减伤地形"，
+     而不是"架在码头上的高炮"。 */
+  if (isAir(att) && !(isAA(def) || isAir(def))) {
+    if (!onAABunker(def)) return false;
+  }
   /* 贴到防守方近界以内，它根本够不着，不算反击。
      这条已经覆盖了"榴弹炮打不了自己脚下"，不需要再对远射程单位额外设限——
      以前那句 `dr >= 2 && ar <= 1 → 只有直瞄炮能反击` 是近界出现之前的替代品，
@@ -4183,6 +4327,11 @@ function previewAttack(att, def, fields) {
     if (TA.vs) attMod += TA.vs[tclass(def)] || 0;
     if (TA.vsType) attMod += TA.vsType[def.type] || 0;
   }
+  /* 防空阵地替驻军补对空火力（见 FORT.F.aaBack）。
+     只给**非防空兵种**：aac / aab 本来就有对空修正，再加一份等于白送。
+     也只看 att 自己站的那一格——阵地是"架在格子上的高炮"，
+     不跟着人去别处。 */
+  attMod += aaBunkerBonus(att, def);
   attMod += recBonus(att, def.pos);
   attMod -= aaPenalty(att, def.pos);
   /* 工事抗炮击：远程火力打有工事的目标，攻击额外减成。
@@ -4230,6 +4379,10 @@ function inRangeTargets(u, fields) {
 }
 function targetsFor(u, fields) {
   if (u.rng === 0) return [];
+  /* 建制崩溃的部队组织不起进攻：列不出任何目标。
+     只拦**主动攻击**——被咬住时的反击照常（见 canCounter），
+     否则一支被压住的营会同时失去进攻和自卫，那是"阵亡"不是"崩溃"。 */
+  if (isBroken(u)) return [];
   /* 弹药打光了就不能开火。以前这里只认炮兵（isArty），因为 v4.3 之前
      有弹药的只有炮；v4.4 给军舰和飞机也写了 `am`，而它们**打得完但不会补**——
      战列舰 6 发、巡洋舰 8 发，20 回合里每回合都能开火是不可能的，
@@ -4670,22 +4823,36 @@ function levelById(lvId) { return LEVELS.find(l => l.id === lvId) || null; }
    · 其余关卡：前面最近的一个"已制作"关卡必须已通关。
      中间没做出来的关跳过不看。
    返回 { ok, why }：why 给关卡选择页显示"先通过 XX"用 */
+/* 解锁前置关：返回"必须先通关哪一关"，null 表示开局就能进。
+   单拎成函数是为了让 `data/levels.js` 能把**结论**直接带给菜单页。
+
+   踩过的坑：菜单页原来自己复刻了一份"往前扫第一个已制作的关"的逻辑，
+   漏掉了"附属关不挡主线"这一条——玩家通关第 3 关之后，菜单页仍把他
+   锁在"先通过「岚口机场保卫战」"上，而引擎里第 4 关明明已经开了。
+   两份实现迟早会走样，所以改成只算一次、把结果导出。 */
+function accessPrereq(lvId) {
+  const lv = levelById(lvId);
+  if (!lv || !lv.ready || lv.open) return null;
+  for (let k = LEVELS.indexOf(lv) - 1; k >= 0; k--) {
+    const pre = LEVELS[k];
+    if (!pre.ready) continue;
+    if (pre.sub) continue;
+    return pre.id;
+  }
+  return null;
+}
+
 function levelAccess(lvId) {
   const lv = levelById(lvId);
   if (!lv) return { ok: false, why: '没有这一关' };
   if (!lv.ready) return { ok: false, why: '制作中' };
   if (lv.open) return { ok: true, why: '' };
+  const need = accessPrereq(lvId);
+  if (!need) return { ok: true, why: '' };
   const p = readProgress();
-  const idx = LEVELS.indexOf(lv);
-  for (let k = idx - 1; k >= 0; k--) {
-    const pre = LEVELS[k];
-    if (!pre.ready) continue;
-    /* 附属关（sub:true）是主线的分岔，不是主线的台阶。
-       第 4 关曾经卡在"先通过岚口机场保卫战"上——那是场可选仗，
-       不打就不许推进，等于把主线绑在支线上。 */
-    if (pre.sub) continue;
-    if (!p.cleared[pre.id]) return { ok: false, why: '先通过「' + pre.name + '」' };
-    return { ok: true, why: '' };
+  if (!p.cleared[need]) {
+    const pre = levelById(need);
+    return { ok: false, why: '先通过「' + (pre ? pre.name : need) + '」' };
   }
   return { ok: true, why: '' };
 }
@@ -4752,20 +4919,72 @@ function saveGame() {
    多关之后多一层校验：档里记的是哪一关，就用那一关的尺寸去核对，
    而不是拿"当前 LEVEL"去比——否则从 C3 的档回到选择页、指针停在 C1 时，
    一个本来完好的档会被判成损坏。 */
+/* 存档内容校验，两条路径共用：本地读档（readSave）和文件导入（applySaveFile）。
+   为什么要抽出来：导入路径原来只校验了 pack.v 和 pack.lv，然后就把整段
+   `pack.save` 原样 JSON.stringify 塞进 localStorage，下次 restoreGame 会把它
+   整个接过来。也就是说**手改过的存档文件能造出 NaN 战力、不存在的兵种、
+   界外的坐标**，游戏不崩但状态被污染，而且症状要到几回合后才显形。
+   校验放在这里，两扇门就只有一套尺子。 */
+/* 进度的清洗。readProgress 里那套"字段必须是这个类型否则退回默认值"的逻辑
+   只保护了本地读档；导入是从文件来的，同样要过一遍。
+   不这么做的后果很具体：文件里 deck 写个不存在的卡 id，牌组会**静默少一张**
+   （renderCardBar 里 `if (!c) return ''` 把它跳过了），玩家只会觉得"我怎么只带了两张"。
+   last 指向已删关卡也一样——回来时读不到推荐关，像进度丢了。 */
+function cleanProgress(p) {
+  const obj = o => (o && typeof o === 'object' && !Array.isArray(o)) ? o : {};
+  if (!p || typeof p !== 'object' || Array.isArray(p)) return null;
+  return {
+    cleared: obj(p.cleared),
+    played: obj(p.played),
+    deck: Array.isArray(p.deck) ? p.deck.filter(id => !!CARDS[id]) : null,
+    last: (typeof p.last === 'string' && levelById(p.last)) ? p.last : null
+  };
+}
+
+function validateSave(s) {
+  if (!s || typeof s !== 'object' || Array.isArray(s)) return { ok: false, msg: '存档内容不是一个对象。' };
+  if (s.v !== SAVE_VER) return { ok: false, msg: '存档版本不符：文件是 v' + s.v + '，本作是 v' + SAVE_VER + '。' };
+  const lv = levelById(s.lv);
+  if (!lv || !lv.ready) return { ok: false, msg: '存档指向的关卡不存在或还没制作。' };
+  if (!Array.isArray(s.map) || s.map.length !== lv.rows) {
+    return { ok: false, msg: '存档的地图与关卡规模对不上（' + (Array.isArray(s.map) ? s.map.length : '无') +
+                             ' 行，应为 ' + lv.rows + ' 行）。' };
+  }
+  if (!Array.isArray(s.units) || !s.units.length) return { ok: false, msg: '存档里没有任何部队。' };
+  /* 逐个兵牌过一遍。放得比较宽松——只管"会不会把状态搞坏"，
+     不管"数值合不合理"。玩家的存档是自己打的，没必要像防外挂一样防他；
+     真正要挡住的是 NaN / undefined 这类会顺着算术一路传下去的东西。 */
+  for (const u of s.units) {
+    if (!u || typeof u !== 'object') return { ok: false, msg: '存档里有一条部队记录格式不对。' };
+    if (typeof u.id !== 'string' || !u.id) return { ok: false, msg: '存档里有部队缺少编号。' };
+    if (u.side !== 'blue' && u.side !== 'red') return { ok: false, msg: '部队 ' + u.id + ' 的阵营无效。' };
+    if (!TYPE[u.type]) return { ok: false, msg: '部队 ' + u.id + ' 的兵种「' + u.type + '」不存在。' };
+    if (!Number.isFinite(u.str) || u.str < 0) return { ok: false, msg: '部队 ' + u.id + ' 的战力不是有效数字。' };
+    if (!Number.isFinite(u.org) || u.org < 0 || u.org > 100) {
+      return { ok: false, msg: '部队 ' + u.id + ' 的组织度不在 0–100 之间。' };
+    }
+    if (!Array.isArray(u.pos) || u.pos.length !== 2 ||
+        !Number.isInteger(u.pos[0]) || !Number.isInteger(u.pos[1]) ||
+        u.pos[0] < 0 || u.pos[0] >= lv.rows || u.pos[1] < 0 || u.pos[1] >= lv.cols) {
+      return { ok: false, msg: '部队 ' + u.id + ' 的坐标在战场之外。' };
+    }
+  }
+  return { ok: true, msg: '', level: lv };
+}
+
 function readSave() {
   try {
     if (typeof localStorage === 'undefined' || !localStorage) return null;
     const raw = localStorage.getItem(SAVE_KEY);
     if (!raw) return null;
     const s = JSON.parse(raw);
-    if (!s || s.v !== SAVE_VER) return null;
-    const lv = levelById(s.lv);
-    if (!lv || !lv.ready) return null;
-    if (!Array.isArray(s.map) || s.map.length !== lv.rows) return null;
-    if (!Array.isArray(s.units) || !s.units.length) return null;
-    s._level = lv;
+    const v = validateSave(s);
+    /* "读不回来"有多种原因：档是旧版本、指向的关卡被删了、内容被改坏了。
+       玩家看到的都一样（没有续关按钮），但排查时要分得清，所以落一条日志。 */
+    if (!v.ok) { LOG('存档校验未通过，已忽略：', v.msg); return null; }
+    s._level = v.level;
     return s;
-  } catch (e) { return null; }
+  } catch (e) { LOG('读取存档时抛错：', e); return null; }
 }
 
 function clearSave() {
@@ -4814,8 +5033,8 @@ function applySaveFile(pack) {
     return { ok: false, msg: '存档版本不符：文件是 v' + pack.v + '，本作是 v' + SAVE_VER + '，无法读取。' };
   }
   if (pack.save) {
-    const lv = levelById(pack.save.lv);
-    if (!lv || !lv.ready) return { ok: false, msg: '存档指向的关卡不存在或还没制作。' };
+    const v = validateSave(pack.save);
+    if (!v.ok) return { ok: false, msg: '存档内容有问题：' + v.msg };
   }
   try {
     if (typeof localStorage === 'undefined' || !localStorage) {
@@ -4823,7 +5042,8 @@ function applySaveFile(pack) {
     }
     if (pack.save) localStorage.setItem(SAVE_KEY, JSON.stringify(pack.save));
     else localStorage.removeItem(SAVE_KEY);
-    if (pack.progress) localStorage.setItem(PROGRESS_KEY, JSON.stringify(pack.progress));
+    const pr = cleanProgress(pack.progress);
+    if (pr) localStorage.setItem(PROGRESS_KEY, JSON.stringify(pr));
     else localStorage.removeItem(PROGRESS_KEY);
   } catch (e) {
     return { ok: false, msg: '写入失败：本地存储已满或被禁用。' };
@@ -5226,9 +5446,16 @@ function doAttack(att, def) {
   /* 最后一道闸：界面上列不出来是一回事，真打进去是另一回事。
      AI、战术卡、测试都能绕过 targetsFor 直接调这里，所以白名单要在这里也验一次。 */
   if (!canTarget(att, def)) return false;
+  /* 崩溃的第二道闸。放在 canTarget 之后、结算之前：
+     中断的路径里已经可能改过 org（比如政治事件扣组织度），
+     所以这里要按**当下**的组织度再判一次，不能只信 targetsFor 那一刻的结果。 */
+  if (isBroken(att)) {
+    log(att.abbr + ' 建制崩溃，组织不起进攻。', 'sys');
+    return false;
+  }
   pushUndo();
   const pv = previewAttack(att, def, state.fields);
-  const die = Math.floor(Math.random() * 6);
+  const die = Math.floor(rng() * 6);
   const row = CRT[pv.tier][die];
   const flanks = pv.attHelp.length;
   let attLoss = pv.counter ? row[0] : 0;
@@ -5340,7 +5567,15 @@ const FORT = {
        note: '封锁渡口。敌军进相邻渡口损失 2 战力；结算阶段自动对 2 格内渡口/河岸格敌军开火（3 点伤害）。耐久 4。' },
   F: { name: '防空阵地', code: 'F', def: 0.10, hp: 3, shell: 0.30,
        by: ['eng', 'aac', 'aab'], req: null,
-       note: '半径 2 内敌方航空攻击再降 25%（与防空营取高值，不叠乘）。耐久 3。' }
+       /* aaBack = 「驻军对空反击」。这是 v4.6 加的：
+          原来 F 只会削减敌机的攻击修正（aaPenalty 里的 0.25），自己不开火，
+          于是"把高炮摆到码头上"这件事只对挨打有用，对敌机毫无威胁。
+          现在**站在这个格子上的地面单位**在遭到空袭时可以还击，
+          不需要自带 aa 标记——阵地上有高射机枪和指挥仪，谁来操作都能打。
+          代价与限制：只在 1 格内（飞机扑到头顶才有效）、阵地必须仍在工作。 */
+       aaBack: { bonus: 0.55 },
+       note: '半径 2 内敌方航空攻击再降 25%（与防空营取高值，不叠乘）。' +
+             '驻守本格的地面部队遭空袭时可对敌机反击（+0.55），不必自带防空武器。耐久 3。' }
 };
 const FORT_KEYS = ['H', 'B', 'P', 'A', 'F'];
 
@@ -5364,6 +5599,31 @@ function fortSuppressed(f) {
   return !!(u && u.side !== f.side);
 }
 function fortWorking(f) { return fortAlive(f) && !fortSuppressed(f); }
+
+/* 站在「己方、仍在工作」的防空阵地格上的地面单位。
+   返回阵地对象，没有就返回 null。
+   为什么必须 fortWorking：格子里混进敌军（fortSuppressed）或者耐久打光，
+   这片阵地就不归你指挥了，高射机枪自然也打不响。 */
+function onAABunker(u) {
+  if (!u || !u.pos || isAir(u)) return null;
+  const f = fortAt(u.pos[0], u.pos[1]);
+  if (!f || f.kind !== 'F' || f.side !== u.side) return null;
+  if (!fortWorking(f)) return null;
+  return f;
+}
+
+/* 站在防空阵地上、抬头打飞机时额外拿到的对空修正。
+   单拎成一个函数是为了**能直接测得动**：光看 previewAttack 的比值，
+   位置一换地形就跟着换（防守方格本身的地形防御不同），
+   对地目标那一条永远测不准——上一版就是这么写出 2.38 vs 3.34 的假红。
+   三个条件分别对应：打的是飞机、自己不是防空兵、脚下有我方好端端的阵地。 */
+function aaBunkerBonus(att, def) {
+  if (!att || !def) return 0;
+  if (!isAir(def)) return 0;
+  if (isAA(att)) return 0;
+  if (!onAABunker(att)) return 0;
+  return (FORT.F.aaBack && FORT.F.aaBack.bonus) || 0.55;
+}
 
 /* 攻坚：攻方伤害先扣耐久，扣光才轮到守军。
    返回「穿透到守军身上的伤害」。 */
@@ -5600,12 +5860,14 @@ function onHexClick(r, c) {
       /* 移动优先：目标格有友军但还有空位时，点它 = 把当前选中单位移过去堆叠。
          这一条必须放在"选中"之前——以前这里无条件 select(u) 就 return，
          有友军的格子永远进不到下面的 doMove 分支，堆叠在界面上等于不存在。 */
-      if (state.selected && state.selected !== u &&
+      if (state.mode === 'move' && state.selected && state.selected !== u &&
           state.reachable.stop && state.reachable.stop[kk(r, c)] !== undefined) {
-        /* 这里刻意不看 state.mode：可达范围现在只在「移动」模式里画出来，
-           但"选中后直接点可达格"这条路留着。两种入口并存，
-           点错了还有撤销（每次 doMove 都进撤销栈），
-           比强制玩家先点一次「移动」再回来点格子宽容。 */
+        /* **必须先看 state.mode。** v4.3 把移动收进菜单之后，这里留了"选中后
+           直接点可达格"的捷径，理由是"点了还能撤销"。但它和菜单是两套入口，
+           而可达范围只在移动模式下才画出来——于是出现最糟的一种组合：
+           屏幕上没有任何蓝格提示，玩家只是点了一下旁边的友军格，部队就走了。
+           用户报的"移动已进菜单，点地块仍会移动"就是这条。
+           现在移动只有一条路：菜单点「移动」→ 点亮蓝格 → 点蓝格。 */
         doMove(state.selected, [r, c]);
         return;
       }
@@ -5630,8 +5892,9 @@ function onHexClick(r, c) {
       doAttack(state.selected, rTgt);
       return;
     }
-    if (state.selected && state.reachable.stop && state.reachable.stop[kk(r, c)] !== undefined) {
-      doMove(state.selected, [r, c]);   // 同上：不要求先点「移动」
+    if (state.mode === 'move' && state.selected &&
+        state.reachable.stop && state.reachable.stop[kk(r, c)] !== undefined) {
+      doMove(state.selected, [r, c]);   // 同上：移动只从菜单进，这里必须已在移动模式
       return;
     }
     if (!u) { selectTerrain(r, c); return; }
@@ -5722,6 +5985,14 @@ function settlePhase() {
     }
   }
 
+  /* 崩溃收拢的名单必须在**本回合恢复之前**定下来。
+     踩过的坑：这段原来写成"结算循环之后再来一遍，看谁还 isBroken"，
+     结果自然恢复（光环内 +25）一回合就把 20 顶到 45，跨过恢复线 40，
+     `isBroken()` 当场翻 false —— 这 10 点永远发不出来，实测 20 → 45，
+     等于这条规则根本不存在，而报表上看起来"组织度在涨"，谁都不会怀疑。
+     于是先拍快照：谁在回合开始时处于崩溃态，谁才有资格收拢。 */
+  const rallying = state.units.filter(u => u.str > 0 && isBroken(u));
+
   for (const u of state.units) {
     const s = supplyOf(u, state.fields);
     if (s.label === '断绝') {
@@ -5750,6 +6021,21 @@ function settlePhase() {
       u.fortify = Math.min(0.30, u.fortify + 0.15);
     }
   }
+
+  /* 崩溃部队收拢：脱离接触 + 补给没断，才给这 10 点。
+     注意这条在单位的回合结算之后**单独走一遍**，而不是并进上面的 org 恢复：
+     上面那条的前提是"整回合没动没打"（原地休整），崩溃收拢的前提是
+     "退下来、离敌人 2 格以上"，两者条件不同，混在一起会让玩家搞不清
+     为什么有些部队恢复得快。名单用回合开始时拍的 rallying 快照，理由见上面。 */
+  for (const u of rallying) {
+    if (u.str <= 0) continue;
+    const s2 = supplyOf(u, state.fields);
+    if (s2.label === '断绝') continue;
+    if (!disengaged(u)) continue;
+    u.org = Math.min(100, u.org + 10);
+  }
+  /* 标记与台词统一在这里刷新：一回合只播一次，进入 / 解除各一条 */
+  refreshBroken();
 
   /* 雷区结算 */
   for (const m of state.mines.slice()) {
@@ -6272,8 +6558,58 @@ function render() {
   renderUnitBox();
   renderLog();
   syncUndoBtn();
+  renderCardBar();
   /* 气泡要等 renderBoard 把 DOM 换完才能定位，所以放在最后 */
   syncUnitOps();
+}
+
+/* ── 关卡界面里的战术卡条 ──
+   为什么放在侧栏而不是做成弹窗：它的使用频率是"每回合可能一张"，
+   任何需要先开面板的入口都会让玩家懒得用。现在点卡 → 地图上点目标，
+   两个动作连着做完。目标格子会被 .cardtgt 圈出来（见 renderBoard）。
+
+   HQ 里那一页保留，但只负责**局外配牌**（携带 / 卸下）。
+   局内换牌没意义——这一局的牌组开局就定了，能换反而让玩家以为可以中途改。 */
+function renderCardBar() {
+  const bar = document.getElementById('cardBar');
+  if (!bar) return;
+  const deck = deckOf();
+  const used = (state && state.cardUsed) || {};
+  const live = !!(state && state.units && state.units.length &&
+                  !state.result && state.phase === 'blue');
+  const left = deck.filter(id => !used[id]).length;
+  const hint = document.getElementById('cardHint');
+  if (hint) hint.textContent = deck.length ? ('剩余 ' + left + ' / ' + deck.length) : '未携带';
+
+  if (!deck.length) {
+    bar.innerHTML = '<div class="tc-empty">本局没有携带战术卡。到 HQ → 战术卡 里选三张带上。</div>';
+    return;
+  }
+  bar.innerHTML = deck.map((id, i) => {
+    const c = CARDS[id];
+    if (!c) return '';
+    const done = !!used[id];
+    const armed = !!(state && state.cardId === id);
+    const cls = 'tc' + (armed ? ' on' : '') + (done ? ' used' : '') + (live ? '' : ' off');
+    const tip = done ? '本局已经用过'
+      : !live ? '现在不是我方行动阶段'
+      : c.desc + ' ' + c.note;
+    return '<button class="' + cls + '" data-tc="' + id + '" title="' + tip + '">' +
+      '<span class="tc-k">' + c.tag + '</span>' +
+      '<span class="tc-n">' + c.name + '</span>' +
+      '<span class="tc-d">' + (done ? '本局已用' : c.short) + '</span>' +
+      '<span class="tc-key">' + (i + 1) + '</span></button>';
+  }).join('');
+
+  bar.querySelectorAll('[data-tc]').forEach(el => {
+    el.addEventListener('click', () => {
+      const id = el.dataset.tc;
+      /* 再点一次同一张 = 撤下。和地图上按 Esc 等价，
+         但手机上按不到 Esc，这就是它的退路。 */
+      if (state && state.cardId === id) { cancelCard(); return; }
+      if (!armCard(id)) FX.sfx('lose');
+    });
+  });
 }
 
 function renderBoard() {
@@ -6348,11 +6684,17 @@ function renderBoard() {
         else if (isNaval(u2)) uc += ' sea';
         if (u2.moved || u2.fired) uc += ' spent';
         if (u2.packed) uc += ' packed';
+        /* 崩溃标记：兵牌上加一条红边，并在组织度条上叠一个叉。
+           只加 class 不够——组织度条本来就短，玩家分不清"是掉光了还是崩了"，
+           所以 title 里要写清楚。 */
+        if (isBroken(u2)) uc += ' broken';
         if (state.selected === u2) uc += ' sel';
-        inner += '<div class="' + uc + '" title="' + u2.name + '">' +
+        inner += '<div class="' + uc + '" title="' + u2.name +
+                 (isBroken(u2) ? '（建制崩溃：本回合不能发起攻击）' : '') + '">' +
                  '<span class="n">' + u2.abbr + '</span>' +
                  '<span class="s">' + Math.max(0, u2.str) + '</span>' +
                  '<span class="orgbar"><i style="width:' + Math.max(0, u2.org) + '%"></i></span>' +
+                 (isBroken(u2) ? '<span class="brk">崩</span>' : '') +
                  '</div>';
       });
       const mine = state.mines.find(m => m.r === r && m.c === c);
@@ -6949,6 +7291,14 @@ function renderUnitBox() {
        (hbNow ? ' <span class="ok">（为了祖国 +' + hbNow + '）</span>' : '') + '</b></div>';
   h += '<div class="kv"><span>有效战力</span><b>' + eff.toFixed(1) + '</b></div>';
   h += '<div class="kv"><span>组织度</span><b class="' + (u.org >= 70 ? 'ok' : u.org >= 40 ? 'warn' : 'bad') + '">' + Math.round(u.org) + '%</b></div>';
+  /* 崩溃状态必须在面板里说清楚"为什么这支部队不能攻击"，
+     否则玩家只会看到射程、目标都正常，点了却打不出去。 */
+  if (isBroken(u)) {
+    h += '<div class="kv"><span>状态</span><b class="bad">建制崩溃</b></div>' +
+         '<div class="ub-esc" style="color:#A83A3A">组织度低于 ' + orgBreakLine() +
+         '%：本回合无法发起攻击。脱离接触（2 格内无敌军）且补给未断时，' +
+         '每回合恢复 10 点，回到 ' + orgRallyLine() + '% 以上恢复建制。</div>';
+  }
   h += '<div class="kv"><span>机动</span><b>' + u.mov + ' 点</b></div>';
   /* 射程以前对非炮兵一律写死 '1'——那时候战场上最远的东西就是炮，
      现在驱逐舰 8 格、战列舰 20 格，再写死就是骗人。 */
@@ -7400,7 +7750,7 @@ async function enterLevel(lvId, opt) {
   try { FX.unlock(); } catch (e) {}   // 必须留在这次点击的同一个调用栈里
   /* 过场再好看也只是壳，它抛错绝不能把开局一起拽下来 */
   if (!(opt && opt.noIntro)) {
-    try { await runBriefing(); } catch (e) { /* 静默降级：直接开局 */ }
+    try { await runBriefing(); } catch (e) { LOG('简报渲染失败，已降级为直接开局', e); }
   }
   newGame({ level: lvId, noSave: !!(opt && opt.noSave) });
   fitView(false);
@@ -7521,11 +7871,15 @@ const AIDE = [
     a: '<b>有效战力 = 战力 × (组织度 / 100)。</b><br>' +
        '被打会掉组织度，掉到 60 就等于只剩六成力气。它每回合靠指挥部、补给缓慢恢复，' +
        '所以<b>连续挨打的部队会越来越软</b>。<br>' +
+       '<b>跌破 25% 就是建制崩溃</b>：兵牌上会出现红边和「崩」字，这支部队<b>不能主动攻击</b>' +
+       '（被咬住时的反击还在）。退到 2 格内无敌军、且补给没断的位置，每回合恢复 10 点，' +
+       '回到 40% 以上恢复建制。<br>' +
        '反过来说：炮击的真正杀伤不是打死人，是把人打散——这也是机场那种' +
        '"人还在、阵地没了"的局面的成因。' },
   { q: '战术卡怎么用？',
-    a: '在上面的「战术卡」页选好要带的 3 张（跨关沿用）。局内点顶栏 <b>HQ</b> → 战术卡 → ' +
-       '点「立即使用」，然后<b>在地图上点目标单位</b>就生效。<br>' +
+    a: '在上面的「战术卡」页选好要带的 3 张（跨关沿用）——这一页只管<b>配牌</b>。<br>' +
+       '真正使用时看<b>右侧「战术卡」栏</b>：点一张卡，然后在地图上点目标单位（键盘 1 / 2 / 3 同效），' +
+       '合法目标会被圈出来，再点一次卡或按 Esc 撤回。<br>' +
        '每张卡整局只能用一次，加成只持续到下一次我方阶段开始——' +
        '但<b>防守类会完整覆盖敌方那一轮</b>，这正是坚守卡的价值。' },
   { q: '坦克有三种，该怎么选？',
@@ -7567,7 +7921,10 @@ function renderHQ() {
   else if (hqTab === 'save') { box.innerHTML = hqSave(); }
   else { box.innerHTML = hqAide(); }
 
-  /* 卡片上的按钮 */
+  /* 战术卡的「携带 / 卸下」绑定。
+     v4.6 起这里**没有**「立即使用」了：使用入口在关卡界面的卡条上
+     （renderCardBar）。HQ 只做局外配牌——这一页在局内也打得开，
+     但局内改牌组没意义，所以 inGame 时整页只显示"回地图上点卡片"。 */
   box.querySelectorAll('[data-cardpick]').forEach(b => {
     b.addEventListener('click', () => {
       const id = b.dataset.cardpick;
@@ -7590,9 +7947,6 @@ function renderHQ() {
         document.getElementById('fileImport').click();
       }
     });
-  });
-  box.querySelectorAll('[data-carduse]').forEach(b => {
-    b.addEventListener('click', () => armCard(b.dataset.carduse));
   });
   /* 副官手风琴 */
   box.querySelectorAll('.aide-q > button').forEach(b => {
@@ -7645,18 +7999,21 @@ function hqCards() {
   h += '<div style="font-size:10.5px;color:#9A968C;margin:-6px 0 12px;line-height:1.7">' +
     '每张卡整局只能用一次，加成持续到下一次我方阶段开始。牌组跨关沿用。</div>';
   h += '<div class="card-list">';
-  /* 局内 / 局外是两套按钮。局内改"携带"没有意义——这一局的牌组已经定了，
-     只会让玩家以为能中途换牌。局内只留「立即使用」和已用掉的灰标。 */
+  /* 局内 / 局外是两套按钮。局内既不能换牌（state.deck 开局就固定了），
+     也不能用牌（v4.6 起使用入口在关卡界面的卡条上）——所以这一页在局内是**只读**的，
+     只显示"这一局带了哪三张、用掉没有"。
+     以前局内这里挂的是「立即使用」，那是全项目最绕的一条路：
+     开 HQ → 找卡 → 点使用 → HQ 自动关掉 → 回地图点目标。 */
   const inGame = !!(state && state.units && state.units.length &&
                     !state.result && state.phase === 'blue');
   for (const id of CARD_IDS) {
     const c = CARDS[id], on = deck.includes(id);
     const used = !!(state && state.cardUsed && state.cardUsed[id]);
     let btn;
-    if (inGame && on) {
-      btn = used
-        ? '<span class="tcard-b" style="background:none;border-color:#E2DCCD;color:#B8B2A4;cursor:default">本局已用</span>'
-        : '<button class="tcard-b" data-carduse="' + id + '">立即使用</button>';
+    if (inGame) {
+      const txt = !on ? '未携带' : used ? '本局已用' : '本局未用';
+      btn = '<span class="tcard-b" style="background:none;border-color:#E2DCCD;color:#8D887B;' +
+            'cursor:default">' + txt + '</span>';
     } else {
       btn = '<button class="tcard-b' + (on ? ' drop' : '') + '" data-cardpick="' + id + '">' +
             (on ? '卸下' : '携带') + '</button>';
@@ -7668,6 +8025,11 @@ function hqCards() {
       '<div class="tcard-n">' + c.note + '</div></div>' + btn + '</div>';
   }
   h += '</div>';
+  if (inGame) {
+    h += '<div style="font-size:10.5px;color:#9A968C;margin-top:12px;line-height:1.7">' +
+      '这一局已经开始，牌组不能再改。<b>用卡请回到地图</b>，点右侧「战术卡」栏里的一张，' +
+      '再点地图上的目标单位。</div>';
+  }
   return h;
 }
 
@@ -7783,6 +8145,22 @@ window.addEventListener('keydown', e => {
      只能去点一块走不到的地面（这条是用户反馈的原话）。 */
   if (e.key === 'Escape') { deselect(); return; }
   if (e.key === ' ' && tipsOpen) { e.preventDefault(); closeTips(); return; }
+  /* 数字 1 / 2 / 3 = 用牌组里的第 1 / 2 / 3 张卡。
+     加的这条捷径是有代价的：数字键以前什么都不做，现在占掉了；
+     换来的是"手不离手位"地用卡——炮火准备 + 集中突击这种连招，
+     真人会想连着按，而不是每次去点侧栏。 */
+  if (!e.ctrlKey && !e.metaKey && !e.altKey && /^[1-9]$/.test(e.key) &&
+      state && state.phase === 'blue' && !state.result) {
+    const deck = deckOf();
+    const idx = Number(e.key) - 1;
+    if (idx < deck.length) {
+      e.preventDefault();
+      const id = deck[idx];
+      if (state.cardId === id) cancelCard();
+      else if (!armCard(id)) FX.sfx('lose');
+      return;
+    }
+  }
   if (e.key === ' ' && state && state.phase === 'blue' && !state.result) {
     e.preventDefault(); endBluePhase();
   }
@@ -8055,7 +8433,7 @@ window.__WAR__ = {
   get LEVEL() { return LEVEL; },
   TERRAIN, TYPE, CRT, TIER_LABEL, ASSETS, FX,
   /* 多关框架 */
-  LEVELS, levelById, levelAccess, prevReadyLevel, nextReadyLevel,
+  LEVELS, levelById, levelAccess, accessPrereq, prevReadyLevel, nextReadyLevel,
   recommendLevel, readProgress, writeProgress, markResult, enterLevel,
   levelNoText,
   PROGRESS_KEY,
@@ -8066,7 +8444,7 @@ window.__WAR__ = {
   newGame, alive, uid, unitAt, terrainAt, cheb, hexDist, neighbors,
   /* 存档：selftest 会用 saveSnapshot / restoreGame 做往返一致性校验 */
   saveGame, readSave, clearSave, restoreGame, saveSnapshot,
-  SAVE_KEY, SAVE_VER,
+  SAVE_KEY, SAVE_VER, LOG, DEBUG,
   computeReach, previewAttack, targetsFor, supplyOf, effStr, terrainDefFor,
   doMove, doAttack, endBluePhase, settlePhase, judgeFinal, render,
   objectiveControl, ctrlState, updateControl, checkEvents, applyEffect, modAtk, modDef, spawnGroup,
@@ -8074,11 +8452,15 @@ window.__WAR__ = {
      这两件事必须能从测试里直接驱动——不然"某部队行动后触发对话"这类事件
      id 写错了也查不出来，只会安静地永不触发。 */
   noteAct, triggerMet,
-  fortAt, fortDef, doFort, FORT, FORT_KEYS, fortKindsFor, fortKind, fortReqOk,
+  fortAt, fortDef, doFort, FORT, FORT_KEYS, fortKindsFor, fortKind, fortReqOk, onAABunker, aaBunkerBonus,
   doMine, doClearMine, doBridge, doDepot, doDrop, dropSpot,
   fortFire, fortAlive, fortWorking, fortSuppressed, damageFort, ARM_FIRE,
   isDirectArty, attackRange, aaPenalty, minRange, canCounter,
   blueScore, redScore, canCounter, isArty, canCapture, isNaval,
+  /* 组织度崩溃：阈值函数与判定要能单独驱动，
+     不然"崩溃后不能攻击"这条规则只能靠整局打完才知道对不对。 */
+  isBroken, orgBreakLine, orgRallyLine, refreshBroken, disengaged, render, setRng,
+  ORG_BREAK_DEF, ORG_RALLY_DEF,
   isHQ, hqBonus, homeBonus, hqRadius, hqAura, makeUnit,
   HQ_TYPES, ARTY_TYPES, CAPTURE_TYPES,
   /* 火炮射程换算与展收机制 */
@@ -8094,6 +8476,7 @@ window.__WAR__ = {
   unitOps, syncUnitOps, runOp,
   /* 存档文件 */
   buildSaveFile, applySaveFile, importSaveText, exportSave, SAVE_FILE_APP,
+  validateSave, cleanProgress, readSave, clearSave,
   /* hqSaveNote 导出是为了让测试能真的打到渲染端。
      存档导入的 XSS 防线在这一行函数的 textContent 上，光测 applySaveFile
      返回的 msg 没用——那一步从来不产生 HTML，改回 innerHTML 也不会变红。 */

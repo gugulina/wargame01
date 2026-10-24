@@ -36,6 +36,24 @@ let hash = 0;
 for (let i = 0; i < html.length; i++) hash = (hash * 31 + html.charCodeAt(i)) | 0;
 const srcSig = html.length + ':' + (hash >>> 0).toString(36);
 
+/* 版本号只有一个真源：引擎顶栏那个 #verTag。package.json 是第二条副本
+   （npm 需要它，删不掉），README 标题是第三条（人看的）。
+   副本越少越好，既然删不掉，至少让它们和真源对上——否则会出现
+   "引擎 v4.5、package.json 4.3、README v4.2"这种三个数字互相打脸的场面。
+   这条校验放在生成和 --check 都跑，因为改版本号时往往只改一处。 */
+let pkgVer = '';
+try {
+  pkgVer = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version || '';
+} catch (e) { pkgVer = ''; }
+/* 比到 major.minor 就够了：npm 要三段（4.5.0），顶栏给人看的是两段（v4.5）。
+   补丁号不进展示版本，所以 4.5.1 与 v4.5 算一致——但 4.6.0 与 v4.5 必须报错。 */
+const pkgShort = pkgVer ? pkgVer.split('.').slice(0, 2).join('.') : '';
+if (ver && pkgShort && ('v' + pkgShort) !== ver) {
+  console.error('✗ 版本号不一致：引擎顶栏是 ' + ver + '，package.json 是 ' + pkgVer);
+  console.error('  以引擎顶栏为准。改 package.json 的 version 后重跑本命令。');
+  process.exit(1);
+}
+
 const levels = (api.LEVELS || []).map(lv => {
   const blue = lv.units.filter(u => u.side === 'blue');
   const red = lv.units.filter(u => u.side === 'red');
@@ -51,6 +69,10 @@ const levels = (api.LEVELS || []).map(lv => {
     teaser: lv.teaser || '',
     ready: !!lv.ready,
     open: !!lv.open,
+    /* 解锁前置：由引擎算好带过来，菜单页不再自己复刻一遍规则。
+       之前菜单页扫"前面第一个已制作的关"，漏了"附属关不挡主线"，
+       通关第 3 关之后仍把玩家锁在支线上。两份实现必然走样。 */
+    prevId: api.accessPrereq(lv.id),
     /* 序号文案由引擎自己算（"序 · " / "第 3 关 · 附属 · "）。
        首页照着显示，就不会出现"第 0 关"这种只有别处才有的说法。 */
     noText: api.levelNoText(lv),

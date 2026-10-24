@@ -29,10 +29,18 @@ const { window } = dom;
 const doc = window.document;
 const wait = ms => new Promise(r => setTimeout(r, ms));
 
-let pass = 0, fail = 0;
+let pass = 0, fail = 0, skipped = 0;
 function ok(name, cond, extra) {
   if (cond) { pass++; console.log('  ✓ ' + name); }
   else { fail++; console.log('  ✗ ' + name + (extra ? '  → ' + extra : '')); }
+}
+/* 断言"不适用"时用这个，而不是 ok(..., true)。
+   写 ok(名字, true) 会让通过数虚涨——测试数字越来越好而覆盖面一点没变，
+   以后再有人照抄这条写法，整套测试就慢慢变成一个报数机器。
+   skip 单独计数、单独显示，数字是诚实的。 */
+function skip(name, why) {
+  skipped++;
+  console.log('  · ' + name + (why ? '  （跳过：' + why + '）' : '  （跳过）'));
 }
 
 (async () => {
@@ -90,7 +98,7 @@ function ok(name, cond, extra) {
     const a = api.levelAccess(lockedLv.id);
     ok('未制作的关不可进', !a.ok && a.why === '制作中', a.why);
   } else {
-    ok('未制作的关不可进', true, '（已经没有占位关，跳过）');
+    skip('未制作的关不可进', '所有关都已制作，没有占位关可测');
   }
   const fa = api.levelAccess(firstReady.id);
   ok('第一个可玩关开局即可进', fa.ok, fa.why);
@@ -118,7 +126,7 @@ function ok(name, cond, extra) {
     ok('通关第一关后它解锁', api.levelAccess(gated.id).ok, api.levelAccess(gated.id).why);
     try { window.localStorage.removeItem(api.PROGRESS_KEY); } catch (e) {}
   } else {
-    ok('第三关（非 open）在零进度下锁着', true, '（没有受锁的关，跳过）');
+    skip('第三关（非 open）在零进度下锁着', '零进度下没有受锁的关');
   }
 
   console.log('[3] 选关只在菜单页（引擎不再自带关卡列表）');
@@ -293,10 +301,42 @@ function ok(name, cond, extra) {
       if (h !== e) cmp2.push(lv.id + '：首页 ' + (h ? '可进' : '锁') + ' / 引擎 ' + (e ? '可进' : '锁'));
     }
     ok('全通关后每一关的解锁结论一致', cmp2.length === 0, cmp2.join('；'));
+
+    /* 第三种状态：打到附属关所在的位置，但**跳过附属关本身**。
+       这是最容易漏测的一种。零进度和全通关两种极端下，"往前扫最近一个
+       已制作的关"这种写法结论都对；只有中间态会分岔——菜单页把附属关
+       当成主线的下一道台阶锁着，引擎则跳过了它。
+       实际上就发生过：玩家通关第 3 关后，菜单页写着"先通过「岚口机场保卫战」"，
+       而引擎里第 4 关早就开了。加这一段是为了让那个 bug 不可能再回来。 */
+    const subLv = readyAll.find(l => l.sub);
+    if (subLv) {
+      const partial = {};
+      const subIdx = LV.indexOf(subLv);
+      for (const l of readyAll) {
+        if (l.sub) continue;
+        if (LV.indexOf(l) > subIdx) break;
+        partial[l.id] = 'win';
+      }
+      api.writeProgress({ cleared: partial, played: {}, deck: null, last: null });
+      const homePartial = loadHome('try{localStorage.setItem(' + progressKey + ',' +
+        JSON.stringify(JSON.stringify({ cleared: partial })) + ')}catch(e){}').window.__HOME__;
+      const cmp3 = [];
+      for (const lv of LV) {
+        const h = homePartial.access(homePartial.levels.find(x => x.id === lv.id)).ok;
+        const e = api.levelAccess(lv.id).ok;
+        if (h !== e) cmp3.push(lv.id + '：首页 ' + (h ? '可进' : '锁') + ' / 引擎 ' + (e ? '可进' : '锁'));
+      }
+      ok('跳过附属关的中间态下，首页与引擎结论一致（' + subLv.id + ' 未通关）',
+         cmp3.length === 0, cmp3.join('；'));
+      ok('该状态下主线继续往下开（附属关没有把主线卡住）',
+         api.levelAccess(readyAll[readyAll.length - 1].id).ok);
+      try { window.localStorage.removeItem(api.PROGRESS_KEY); } catch (e) {}
+    }
     try { window.localStorage.removeItem(api.PROGRESS_KEY); } catch (e) {}
   }
 
   console.log('');
-  console.log('通过 ' + pass + ' 项，失败 ' + fail + ' 项');
+  console.log('通过 ' + pass + ' 项' + (skipped ? ' · 跳过 ' + skipped + ' 项' : '') +
+              '，失败 ' + fail + ' 项');
   process.exit(fail ? 1 : 0);
 })().catch(e => { console.error('异常：', e); process.exit(1); });

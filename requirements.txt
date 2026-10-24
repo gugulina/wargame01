@@ -1,0 +1,16 @@
+# Python 工具链依赖（仅音效选型用，不是日常必需）
+#
+# 这三支脚本负责"挑音效时量四个数"（时长 / 峰值 / RMS / 频谱重心）：
+#   tools/audiostat.py  量指标
+#   tools/audioviz.py   画波形与频谱图（用 matplotlib）
+#   tools/sfxprep.py    批量裁剪、归一化、转 ogg
+#
+# 游戏本体**零运行时依赖**，这份清单只服务上面三支脚本。
+# 装法： pip install -r requirements.txt
+# 注意：miniaudio 需要能编译 C 扩展；Windows 上如果装不上，
+#      先试 `pip install --only-binary :all: miniaudio`，
+#      再不行就装 Visual Studio Build Tools。
+
+numpy>=1.24
+miniaudio>=1.59
+matplotlib>=3.7

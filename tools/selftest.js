@@ -516,6 +516,16 @@ console.log('\n[14] 堆叠与穿越');
   const qp = Q.pos.slice();
   api.select(P);
   ok('点击前：P 的可停格包含 Q 所在格', api.getState().reachable.stop[k(qp[0], qp[1])] !== undefined);
+  /* v4.6 起移动只有一条路：菜单点「移动」→ 点可达格。
+     这几条断言原来直接点格子就走，正好是用户报的那个 bug 的行为，
+     所以必须在点击前补上"点菜单"这一步——`runOp('move')` 就是那个按钮。 */
+  ok('未进移动模式时点可达格不会移动（v4.6 修复的残留响应）',
+     (() => { const p0 = api.uid('B1A').pos.join(','); api.onHexClick(qp[0], qp[1]);
+              return api.uid('B1A').pos.join(',') === p0; })(),
+     'P 已在 ' + api.uid('B1A').pos.join(','));
+  api.select(P);
+  api.runOp('move');
+  ok('点「移动」后进入移动模式', api.getState().mode === 'move');
   api.onHexClick(qp[0], qp[1]);
   ok('点友军格 = P 移动过去（而不是切换选中）',
      api.uid('B1A').pos.join(',') === qp.join(','),
@@ -559,10 +569,12 @@ console.log('\n[14] 堆叠与穿越');
   f1.pos = [7, 6]; f1.moved = false;
   f2.pos = [7, 7]; f2.moved = false;
   api.select(f1);
+  api.runOp('move');
   api.onHexClick(8, 6);
   ok('渡口格：第一支点进去能站住', api.unitsAt(8, 6).length === 1,
      '格内 ' + api.unitsAt(8, 6).length + ' 支');
   api.select(f2);
+  api.runOp('move');
   api.onHexClick(8, 6);
   ok('渡口格：第二支点同一格能堆叠进去', api.unitsAt(8, 6).length === 2,
      '格内 ' + api.unitsAt(8, 6).length + ' 支');
@@ -1599,12 +1611,20 @@ console.log('\n[28] 第四关：波尔瓦萨港（海军基地保卫战）');
      `window.localStorage.removeItem(...)` 会静默抛 TypeError（被 catch 吃掉），
      进度根本没清——这一条断言第一次跑就是这么假绿的。 */
   sandbox.localStorage.removeItem(api.PROGRESS_KEY);
-  const wasOpen = L4.open;
-  L4.open = false;          // 临时摘掉"试玩开放"，看真正的前置是谁
   const acc4 = api.levelAccess('C4');
+  ok('零进度下第四关锁着（不再靠 open:true 试玩开放）', !acc4.ok, acc4.why);
   ok('第四关的前置是第 3 关，不是附属关 C3B',
      /岚口要地争夺战/.test(acc4.why) && !/机场/.test(acc4.why), acc4.why);
-  L4.open = wasOpen;
+  ok('前置关系由引擎算好（accessPrereq），菜单页不再自己复刻',
+     api.accessPrereq('C4') === 'C3' && api.accessPrereq('C3B') === 'C3',
+     api.accessPrereq('C4') + ' / ' + api.accessPrereq('C3B'));
+
+  /* 通关第 3 关就够——附属关 C3B 没打过也该开。
+     这一条是那次"菜单页锁住、引擎开着"的真 bug 的回归防线。 */
+  api.writeProgress({ cleared: { T1: 1, C1: 1, C2: 1, C3: 1 }, played: {}, deck: null, last: null });
+  const acc4b = api.levelAccess('C4');
+  ok('通关第 3 关（跳过附属关）后第四关解锁', acc4b.ok, acc4b.why);
+  ok('此时附属关 C3B 也开着（它的前置是第 3 关，同一条主线）', api.levelAccess('C3B').ok);
   sandbox.localStorage.removeItem(api.PROGRESS_KEY);
 
   /* ── 28.8 新地形与新兵种 ── */
@@ -1629,6 +1649,262 @@ console.log('\n[28] 第四关：波尔瓦萨港（海军基地保卫战）');
 
   NG4();
   ok('重开一局能进第四关', api.LEVEL.id === 'C4', api.LEVEL.id);
+}
+
+console.log('\n[29] 组织度崩溃');
+{
+  api.newGame();
+  const u = api.uid('B1A');
+  ok('默认崩溃线是 25', api.orgBreakLine() === 25, api.orgBreakLine());
+  ok('默认恢复线是 40', api.orgRallyLine() === 40, api.orgRallyLine());
+  ok('满组织度不崩', api.isBroken(u) === false, u.org);
+
+  /* 阈值边界：25 崩、26 不崩。这条必须掐着数字测——
+     写成「调到 10 会崩」那种断言，阈值改成 20 也照样绿，等于没测。 */
+  u.org = 26;
+  ok('组织度 26 还不算崩溃', api.isBroken(u) === false, u.org);
+  u.org = 25;
+  ok('组织度 25 正好崩溃（≤ 阈值）', api.isBroken(u) === true, u.org);
+
+  /* 崩溃后列不出目标。
+     **必须先证明"不崩的时候它本来能打"**——否则这条是假绿：
+     单位旁边根本没有敌人时，崩不崩都是 0 个目标，把闸删掉断言照样绿。
+     这条假防线是 mutcheck 逮出来的（"删掉 targetsFor 那道闸"没变红）。 */
+  api.select(u);
+  let spot = null;
+  for (const d of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, -1], [-1, 1]]) {
+    const p = [u.pos[0] + d[0], u.pos[1] + d[1]];
+    if (p[0] < 0 || p[0] >= api.LEVEL.rows || p[1] < 0 || p[1] >= api.LEVEL.cols) continue;
+    if (!api.unitAt(p[0], p[1])) { spot = p; break; }
+  }
+  const near = api.alive('red')[0];
+  const nearKeep = near.pos.slice();
+  ok('前提：找得到一个相邻空格来摆敌军', !!spot, spot ? spot.join(',') : '没有');
+  if (spot) {
+    near.pos = spot;
+    u.org = 100;
+    const nOK = api.targetsFor(u, api.getState().fields).length;
+    ok('前提：满组织度 + 贴脸敌军时它列得出目标', nOK > 0, nOK + ' 个目标');
+    u.org = 25;
+    const nBroken = api.targetsFor(u, api.getState().fields).length;
+    ok('崩溃的部队列不出攻击目标', nBroken === 0, nBroken + ' 个目标');
+  }
+  /* 但反击还在：被咬住时枪还在手上。
+     注意别再写死 uid('R3A')——那是第三波的单位，开局不在场上，
+     api.uid() 返回 null，下一行就 TypeError 把整个套件崩掉。 */
+  const foe = api.alive('red')[0];
+  foe.pos = [u.pos[0] + 1, u.pos[1]];
+  ok('崩溃不影响反击（canCounter 仍为真）', api.canCounter(foe, u) === true);
+
+  /* doAttack 也要拦：这条闸是给"绕过 targetsFor 的调用"准备的 */
+  const foe2 = foe;
+  const strBefore = foe2.str;
+  const fired = api.doAttack(u, foe2);
+  ok('崩溃单位直接调 doAttack 也打不出去', fired === false && foe2.str === strBefore,
+     '返回 ' + fired + '，敌战力 ' + foe2.str + ' / ' + strBefore);
+
+  /* 恢复：脱离接触 + 补给不断才 +10。
+     不能直接断言「20 涨到 30」——settlePhase 本身还有自然恢复
+     （光环内 15 + 光环值；脱指 7 / 12），叠一起是 45。
+     要测的是**崩溃额外多给的那 10 点**，所以先量一遍不崩时涨多少，再比差值。
+     直接写死 30 这种数字，改了自然恢复速度测试就假红（上一版就是这样）。 */
+  api.newGame();
+  const ctl = api.uid('B1A');
+  api.alive('red').forEach(f => { f.pos = [0, 0]; });
+  ctl.org = 60;                                   // 60 > 恢复线 40，不算崩溃
+  api.settlePhase();
+  const gainBase = ctl.org - 60;
+
+  api.newGame();
+  const r1 = api.uid('B1A');
+  r1.org = 20;
+  api.alive('red').forEach(f => { f.pos = [0, 0]; });          // 全部挪到远处，保证脱离接触
+  api.refreshBroken();
+  ok('进入崩溃会写上标记（只播一次台词靠它）', r1.broken === true);
+  api.settlePhase();
+  ok('脱离接触 + 补给未断：崩溃部队每回合额外 +10 组织度',
+     r1.org - 20 === gainBase + 10,
+     '基础 +' + gainBase + '，崩了之后 +' + (r1.org - 20));
+
+  api.newGame();
+  const r2 = api.uid('B1A');
+  r2.org = 20;
+  api.alive('red').forEach(f => { f.pos = [0, 0]; });
+  r2.pos = [0, 1];                                  // 贴到敌军旁边，不算脱离接触
+  api.refreshBroken();
+  const orgBefore = r2.org;
+  api.settlePhase();
+  ok('贴着敌军不算脱离接触，不给这 10 点', r2.org <= orgBefore, orgBefore + ' → ' + r2.org);
+
+  /* 滞回：崩过之后要回到 40 以上才解除，26 不算 */
+  api.newGame();
+  const r3 = api.uid('B1A');
+  r3.org = 20; api.refreshBroken();
+  ok('前提：已经崩了', r3.broken === true);
+  r3.org = 35;
+  ok('35 仍算崩溃（滞回：崩过的要回到 40 以上）', api.isBroken(r3) === true, r3.org);
+  r3.org = 41;
+  api.refreshBroken();
+  ok('回到 41 恢复建制', r3.broken === false && api.isBroken(r3) === false, r3.org);
+
+  /* 阈值可配置：关卡覆盖全局默认。
+     注意改的必须是**当前正在跑的那个 LEVEL**（api.LEVEL），
+     不能是 api.levelById('C1') 拿到的数据副本——orgBreakLine() 读的是模块内的
+     LEVEL 变量，改副本它会静默返回 25，测试当场假绿。 */
+  const cur = api.LEVEL;
+  const keepB = cur.orgBreak;
+  cur.orgBreak = 60;
+  ok('LEVEL.orgBreak 能覆盖全局阈值', api.orgBreakLine() === 60, api.orgBreakLine());
+  delete cur.orgBreak;
+  ok('摘掉覆盖后回到 25', api.orgBreakLine() === 25, api.orgBreakLine());
+  if (keepB !== undefined) cur.orgBreak = keepB;
+}
+
+console.log('\n[30] 防空阵地对空反击');
+{
+  api.newGame({ level: 'C4', noSave: true });
+  const S = api.getState();
+  const bunker = (S.forts || []).find(f => f.kind === 'F' && f.side === 'blue');
+  ok('前提：地图上有我方防空阵地', !!bunker, bunker && [bunker.r, bunker.c].join(','));
+
+  const inf = api.alive('blue').find(u => u.type === 'inf');
+  /* 轰炸机在第 3 波（第 7 回合）才进场，开局 alive() 里找不到它。
+     直接从关卡数据造一个出来，别为了测试去推回合——推回合会连带触发一堆事件。
+     makeUnit 已导出，第二个参数 true = 本回合已行动（不影响反击判定）。 */
+  const bmbDef = api.LEVEL.units.find(u => u.type === 'bmb');
+  if (!api.alive('red').some(u => u.type === 'bmb')) {
+    api.getState().units.push(api.makeUnit(bmbDef, true));
+  }
+  const bmb = api.alive('red').find(u => u.type === 'bmb');
+  ok('前提：场上有一架敌轰炸机', !!bmb);
+  /* 敌机放在阵地相邻格：飞机打地面只有 1 格射程，贴脸才有反击 */
+  bmb.pos = [bunker.r - 1, bunker.c];
+  bmb.str = 12;
+
+  inf.pos = [bunker.r + 1, bunker.c];      // 先放在阵地外
+  ok('不在防空阵地上的步兵打不了飞机', api.canCounter(bmb, inf) === false);
+  inf.pos = [bunker.r, bunker.c];
+  ok('站上防空阵地后可以对敌机反击', api.canCounter(bmb, inf) === true);
+
+  const offPv = api.previewAttack(inf, bmb, S.fields);
+  inf.pos = [bunker.r + 1, bunker.c];
+  const onPv2 = api.previewAttack(inf, bmb, S.fields);
+  inf.pos = [bunker.r, bunker.c];
+  const onPv = api.previewAttack(inf, bmb, S.fields);
+  ok('阵地加成真的进了攻击修正（比值提高）', onPv.ratio > onPv2.ratio,
+     '阵地外 ' + onPv2.ratio.toFixed(2) + ' → 阵地上 ' + onPv.ratio.toFixed(2));
+
+  /* 阵地失效就不算：格子里混进敌军 = 被压制 */
+  const save = inf.pos.slice();
+  const foe = api.alive('red')[0];
+  const foeKeep = foe.pos.slice();
+  /* 把敌方地面单位塞进阵地格 = 阵地被压制（fortWorking 返回 false） */
+  foe.pos = [bunker.r, bunker.c];
+  ok('阵地格被敌军压住时反击失效', api.canCounter(bmb, inf) === false);
+  foe.pos = foeKeep;
+  inf.pos = save;
+  ok('（复位）阵地恢复后又能反击', api.canCounter(bmb, inf) === true);
+
+  /* 防空兵不叠加这份加成：aac / aab 本来就有对空修正 */
+  const aac = api.alive('blue').find(u => u.type === 'aac');
+  if (aac) {
+    aac.pos = [bunker.r, bunker.c];
+    const pvA = api.previewAttack(aac, bmb, S.fields);
+    aac.pos = [bunker.r + 1, bunker.c];
+    const pvB = api.previewAttack(aac, bmb, S.fields);
+    ok('防空连不吃阵地那 +0.55（避免叠成怪物）',
+       Math.abs(pvA.ratio - pvB.ratio) < 0.001,
+       pvA.ratio.toFixed(2) + ' vs ' + pvB.ratio.toFixed(2));
+  }
+
+  /* 适用范围：只对空中目标。
+     这一段**必须直接测 aaBunkerBonus**。之前拿 previewAttack 的比值去比
+     "站在阵地上打地面目标" vs "站在旁边打地面目标"，两次测量连防守方格都换了，
+     格子地形的防御修正跟着变，测出来是 2.38 vs 3.34 —— 红得毫无意义。
+     一条断言如果换个位置就能翻，那它测的不是规则。 */
+  const redInf = api.alive('red').find(u => u.type === 'inf');
+  inf.pos = [bunker.r, bunker.c];
+  ok('对空中目标：站在阵地上拿到 +0.55', Math.abs(api.aaBunkerBonus(inf, bmb) - 0.55) < 1e-9,
+     api.aaBunkerBonus(inf, bmb));
+  if (redInf) {
+    ok('对地面目标：站在阵地上也不加成', api.aaBunkerBonus(inf, redInf) === 0,
+       api.aaBunkerBonus(inf, redInf));
+  }
+  const aac2 = api.alive('blue').find(u => u.type === 'aac');
+  if (aac2) {
+    aac2.pos = [bunker.r, bunker.c];
+    ok('防空兵不重复吃这份加成', api.aaBunkerBonus(aac2, bmb) === 0, api.aaBunkerBonus(aac2, bmb));
+  }
+  /* 离开阵地格同样归零——"进入阵地"这个动作才有意义 */
+  inf.pos = [bunker.r + 1, bunker.c];
+  ok('离开阵地格就归零', api.aaBunkerBonus(inf, bmb) === 0, api.aaBunkerBonus(inf, bmb));
+}
+
+
+console.log('\n[31] 存档内容校验（导入路径与本地读档共用一套尺子）');
+{
+  api.newGame({ noSave: true });
+  const good = api.buildSaveFile();
+  const clone = () => JSON.parse(JSON.stringify(good.save));
+
+  ok('前提：正常存档能通过校验', api.validateSave(clone()).ok);
+
+  /* 每一条都对应"手改存档能造出来"的污染，不是假想：
+     它们不会让游戏崩，只会让战力算成 NaN、兵种查不到、坐标落到图外。 */
+  const c1 = clone(); c1.units[0].str = null;
+  ok('战力不是数字 → 拒绝', !api.validateSave(c1).ok && /战力/.test(api.validateSave(c1).msg),
+     api.validateSave(c1).msg);
+
+  const c2 = clone(); c2.units[0].type = 'zzz';
+  ok('兵种不存在 → 拒绝', !api.validateSave(c2).ok && /兵种/.test(api.validateSave(c2).msg),
+     api.validateSave(c2).msg);
+
+  const c3 = clone(); c3.units[0].pos = [999, 999];
+  ok('坐标在战场之外 → 拒绝', !api.validateSave(c3).ok && /坐标/.test(api.validateSave(c3).msg),
+     api.validateSave(c3).msg);
+
+  const c4 = clone(); c4.units[0].org = 200;
+  ok('组织度超出 0–100 → 拒绝', !api.validateSave(c4).ok && /组织度/.test(api.validateSave(c4).msg),
+     api.validateSave(c4).msg);
+
+  const c5 = clone(); c5.v = 1;
+  ok('存档格式版本不符 → 拒绝', !api.validateSave(c5).ok);
+
+  const c6 = clone(); c6.map = c6.map.slice(1);
+  ok('地图行数与关卡对不上 → 拒绝', !api.validateSave(c6).ok);
+
+  const c7 = clone(); c7.units = [];
+  ok('没有任何部队 → 拒绝', !api.validateSave(c7).ok);
+
+  /* readSave 走的是同一个函数：把污染档写进 localStorage，读回来必须是 null。
+     这一条测的是"那两扇门真的都关着"，而不是"我写了个函数"。
+     localStorage 在沙箱里挂在**全局**上（window.localStorage 是 undefined），
+     所以这里只能用全局那个。 */
+  api.clearSave();
+  ok('前提：清档后 readSave 读不到东西', api.readSave() === null);
+  /* 注意 localStorage 只在 **沙箱里**是全局变量，本文件跑在 Node 主进程上，
+     直接写 localStorage 会 ReferenceError（上次就写成了 window.localStorage，
+     在 node 下根本没有 window）。要碰存储只能走 loadGame 返回的 sandbox。 */
+  const LS = sandbox.localStorage;
+  LS.setItem(api.SAVE_KEY, JSON.stringify(c3));
+  /* 必须先确认真的写进去了。不确认的话，setItem 静默失败时下面那条
+     "读不回来"照样绿——测的就不是校验，而是"本地存储坏了"。 */
+  ok('前提：污染档确实写进了 localStorage', LS.getItem(api.SAVE_KEY) !== null);
+  ok('被污染的存档读不回来（readSave 返回 null）', api.readSave() === null,
+     api.readSave() ? '竟然读回来了' : '');
+
+  /* 导入路径：applySaveFile 必须给出可读的理由，而不是"导入成功"然后炸在几回合后 */
+  const r = api.applySaveFile({ app: api.SAVE_FILE_APP, kind: 'save', v: 3, save: c2 });
+  ok('导入被污染的存档 → 失败并说明原因', !r.ok && /兵种/.test(r.msg), r.msg);
+  api.clearSave();
+
+  /* 进度的清洗：不存在的卡 id 要剔掉，指向已删关卡的 last 要清空。
+     不清的话牌组会静默少一张，玩家只会觉得"我怎么只带了两张"。 */
+  const pr = api.cleanProgress({ cleared: {}, played: {}, deck: ['forced', 'nosuchcard'], last: 'NOPE' });
+  ok('进度清洗：非法卡 id 被剔除', pr.deck.length === 1 && pr.deck[0] === 'forced',
+     JSON.stringify(pr.deck));
+  ok('进度清洗：指向不存在关卡的 last 被清空', pr.last === null, String(pr.last));
+  ok('进度清洗：完全不是对象时返回 null', api.cleanProgress('hello') === null);
 }
 
 

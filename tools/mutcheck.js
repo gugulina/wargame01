@@ -112,6 +112,38 @@ const MUTANTS = [
    "    } else if (isNaval(u) && !u.moved && s.label === '充足') {",
    "    } else if (isNaval(u) && !u.moved && !u.fired && s.label === '充足') {",
    '舰船停泊 + 补给充足时，开过火的回合也补弹'],
+
+  /* ── v4.6 的崩溃机制 ── */
+  ['崩溃的部队照样能列攻击目标（删掉 targetsFor 里那道闸）',
+   '  if (isBroken(u)) return [];',
+   '  if (false) return [];',
+   '崩溃的部队列不出攻击目标'],
+
+  ['崩溃的部队绕过 doAttack 也能打出去（删掉第二道闸）',
+   "  if (isBroken(att)) {\n    log(att.abbr + ' 建制崩溃，组织不起进攻。', 'sys');\n    return false;\n  }",
+   '',
+   '崩溃单位直接调 doAttack 也打不出去'],
+
+  ["崩溃收拢改成'结算完再看谁还崩着'（自然恢复一回合就跨过恢复线，+10 永远发不出来）",
+   '  const rallying = state.units.filter(u => u.str > 0 && isBroken(u));',
+   '  const rallying = [];',
+   '脱离接触 + 补给未断：崩溃部队每回合额外 +10 组织度'],
+
+  ['防空阵地不加对空修正（删掉 aaBunkerBonus 的加成）',
+   "  return (FORT.F.aaBack && FORT.F.aaBack.bonus) || 0.55;",
+   '  return 0;',
+   '对空中目标：站在阵地上拿到 +0.55'],
+
+  /* ── 存档校验：这两条要证明"导入那道闸真的在用" ── */
+  ['导入路径不再校验存档内容（只留 v 与 lv）',
+   "    const v = validateSave(pack.save);\n    if (!v.ok) return { ok: false, msg: '存档内容有问题：' + v.msg };",
+   '',
+   '导入被污染的存档 → 失败并说明原因'],
+
+  ['兵种合法性不校验（改坏的兵种能写进存档）',
+   "    if (!TYPE[u.type]) return { ok: false, msg: '部队 ' + u.id + ' 的兵种「' + u.type + '」不存在。' };",
+   '',
+   '兵种不存在 → 拒绝'],
 ];
 
 /* 锚点按 LF 写，但 campaign.html 是 CRLF（7356 行全是）。

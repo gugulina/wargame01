@@ -410,16 +410,20 @@
      · 其余：往前找最近一个"已制作"的关，它通关了才解锁
      改规则的话，两处一起改。 */
   function chainAccess(lv) {
+    /* 解锁规则只有一份，在引擎里（accessPrereq），结论经 data/levels.js 的
+       prevId 带过来。这里只做一次查表，不再自己复刻"往前扫"的逻辑——
+       复刻的那一版漏掉了"附属关不挡主线"，玩家通关第 3 关之后仍被锁在
+       "先通过「岚口机场保卫战」"上，而引擎里第 4 关早就开了。
+       prevId 缺失（旧快照）时按"没有前置"处理，宁可放行也不要误锁。 */
     const idx = LV.indexOf(lv);
     /* 不认识的关卡一律当"进不去"。传了别的关卡对象进来（比如引擎那份数据）
-       时 indexOf 会给 -1，循环一次都不跑，最后那句 return 会把"未知"当成"可进"——
-       这正是回归测试第一次跑出来时踩到的假通过。 */
+       时 indexOf 会给 -1，不能让它落到下面的"可进"分支去。 */
     if (idx < 0) return { ok: false, why: '没有这一关' };
-    for (let k = idx - 1; k >= 0; k--) {
-      const pre = LV[k];
-      if (!pre.ready) continue;
-      if (!progress.cleared[pre.id]) return { ok: false, why: '先通过「' + pre.name + '」' };
-      return { ok: true, why: '' };
+    const need = lv.prevId;
+    if (!need) return { ok: true, why: '' };
+    if (!progress.cleared[need]) {
+      const pre = LV.find(x => x.id === need);
+      return { ok: false, why: '先通过「' + (pre ? pre.name : need) + '」' };
     }
     return { ok: true, why: '' };
   }

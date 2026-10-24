@@ -26,6 +26,28 @@ const file = args.find(a => !a.startsWith('-') && !/^\d+$/.test(a))
   : path.join(__dirname, '..', 'game', 'campaign.html');
 const ROUNDS = Number(roundsArg || 200);
 const VERBOSE = args.includes('--verbose');
+/* --seed=N：固定骰子，同一份代码 + 同一个种子 = 同一串结果。
+   平衡对比时先跑两遍确认真复现（数字必须一模一样），再改数值，
+   才知道差的那 10 个点是改动带来的还是采样噪声。
+   不给这个参数时完全走原来的 Math.random。 */
+const SEED_ARG = args.find(a => a.startsWith('--seed='));
+const SEED = SEED_ARG ? Number(SEED_ARG.slice(7)) : null;
+if (SEED_ARG && !Number.isFinite(SEED)) {
+  console.error('--seed 后面要跟一个数字，例如 --seed=1234');
+  process.exit(1);
+}
+/* mulberry32：32 位状态，够快够均匀，不需要引依赖。
+   返回 [0,1)，和 Math.random 同签名，直接塞给 api.setRng。 */
+function lcg(seed) {
+  let a = seed >>> 0;
+  return function () {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
 
 const { api } = loadGame(file);
 
@@ -342,6 +364,10 @@ async function blueTurnBreakout() {
 }
 
 async function playOne(idx) {
+  /* 可复现的骰子。--seed 给了值就按 (种子 + 局号) 派生每局的流，
+     没给就保持原来的 Math.random——默认行为一点不变，
+     免得以前记下的历史数字全部失去可比性。 */
+  if (SEED !== null) api.setRng(lcg(SEED * 100003 + idx * 7919 + 1));
   api.newGame(levelArg ? { level: levelArg, noSave: true } : { noSave: true });
   const st = api.getState();
   L = api.LEVEL;
@@ -446,7 +472,8 @@ async function playOne(idx) {
   const kind = winKind();
 
   console.log('');
-  console.log(L.name + ' · 自战 ' + ROUNDS + ' 局 · 目标 ' + kind);
+  console.log(L.name + ' · 自战 ' + ROUNDS + ' 局 · 目标 ' + kind +
+              (SEED !== null ? ' · 种子 ' + SEED : ' · 无种子（不可复现）'));
   console.log('────────────────────────────────');
   console.log('失败        ' + String(tally.fail).padStart(4) + '   ' + pct(tally.fail));
   console.log('达成        ' + String(tally.win).padStart(4) + '   ' + pct(tally.win));
@@ -499,11 +526,26 @@ async function playOne(idx) {
     }
     /* 0% 触发的事件基本等于死代码。要么触发条件写错了（id / 编制对不上），
        要么条件苛刻到玩家永远碰不到——两种情况都该有人看一眼，
-       而不是让它在数据里躺半年（"205 装甲旅伤亡过半"就是这么躺过来的）。 */
-    const dead = (L.events || []).filter(ev => !(evtTally[ev.id] || 0));
+       而不是让它在数据里躺半年（"205 装甲旅伤亡过半"就是这么躺过来的）。
+
+       ev.rare === true 是作者的**主动声明**："这条是稀有分支，本来就不该每局都响"。
+       有这个标记就放过，没这个标记就一律算死事件——约定写在数据里，
+       不靠人每次盯着报表看。 */
+    const dead = (L.events || []).filter(ev => !(evtTally[ev.id] || 0) && !ev.rare);
+    const rareMiss = (L.events || []).filter(ev => !(evtTally[ev.id] || 0) && ev.rare);
+    if (rareMiss.length) {
+      console.log('稀有分支（声明 rare，0% 可接受）：' + rareMiss.map(e => e.desc).join('、'));
+    }
     if (dead.length) {
       console.log('⚠ 从未触发：' + dead.map(e => e.desc).join('、') +
                   ' —— 查触发条件是否写死了不存在的兵牌 / 要点 / 编制');
+    }
+    /* 门禁。这条约定（"每个事件都必须真的会触发"）原来只靠自觉，
+       现在有退出码兜着：死事件会让脚本非 0 退出，接进任何自动化都会红。
+       --no-gate 留给"我知道它在查、先跑个数"的场合。 */
+    if (dead.length && !args.includes('--no-gate')) {
+      console.log('✗ 有 ' + dead.length + ' 条事件整局未触发，退出码置 1（--no-gate 可跳过此检查）');
+      process.exitCode = 1;
     }
   }
   console.log('');

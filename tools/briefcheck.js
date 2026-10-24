@@ -28,10 +28,16 @@ const { window } = dom;
 const doc = window.document;
 const wait = ms => new Promise(r => setTimeout(r, ms));
 
-let pass = 0, fail = 0;
+let pass = 0, fail = 0, skipped = 0;
 function ok(name, cond, extra) {
   if (cond) { pass++; console.log('  ✓ ' + name); }
   else { fail++; console.log('  ✗ ' + name + (extra ? '  → ' + extra : '')); }
+}
+/* 见 levelcheck 里的同名说明：断言"不适用"时用 skip，别用 ok(..., true)。
+   恒真的"通过"会让测试数字虚涨，而覆盖面一点没变。 */
+function skip(name, why) {
+  skipped++;
+  console.log('  · ' + name + (why ? '  （跳过：' + why + '）' : '  （跳过）'));
 }
 
 (async () => {
@@ -271,7 +277,7 @@ function ok(name, cond, extra) {
       ok('点一下直接建好补给点',
          W.getState().depots.some(d => d.r === sup.pos[0] && d.c === sup.pos[1]));
     } else {
-      ok('本关没有辎重队，跳过补给点气泡', true);
+      skip('本关没有辎重队，跳过补给点气泡', '该关无辎重队');
     }
   }
 
@@ -468,6 +474,7 @@ function ok(name, cond, extra) {
   }
 
   console.log('');
-  console.log('通过 ' + pass + ' 项，失败 ' + fail + ' 项');
+  console.log('通过 ' + pass + ' 项' + (skipped ? ' · 跳过 ' + skipped + ' 项' : '') +
+              '，失败 ' + fail + ' 项');
   process.exit(fail ? 1 : 0);
 })().catch(e => { console.error('异常：', e); process.exit(1); });
