@@ -1,0 +1,5 @@
+# 钩子必须是 LF 行尾：Windows 上 checkout 成 CRLF 之后，sh 会报
+# "/bin/sh: bad interpreter: No such file or directory" —— 报错完全指不到
+# 真正原因（行尾符），查起来很费劲。tools/install-hooks.js 里也做了兜底转换，
+# 但直接在 clone 目录里执行钩子的人不会经过那一步。
+tools/hooks/* text eol=lf
