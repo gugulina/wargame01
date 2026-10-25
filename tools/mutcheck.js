@@ -301,6 +301,42 @@ const MUTANTS = [
    "'对空 +0.60：开着加力追上去，挂空空导弹见谁打谁'",
    '文案里没有超出二战水平的装备'],
 
+  /* 防空压制（驱散）：三条都是少写一句守卫就会静默失效的地方。 */
+  ['压制不再封住原地休整（飞机蹲在伞下照样回血）',
+   '!aaSuppressed(u) && !u.moved && !u.fired',
+   '!u.moved && !u.fired',
+   '伞下静止一回合：不升反降'],
+
+  ['压制只认阵地耐久、不认格子里有没有敌军',
+   "    if (f.kind !== 'F' || f.side === u.side) continue;\n    if (!fortWorking(f)) continue;\n    if (hexDist([f.r, f.c], u.pos) <= rng) return f;",
+   "    if (f.kind !== 'F' || f.side === u.side) continue;\n    if (!fortAlive(f)) continue;\n    if (hexDist([f.r, f.c], u.pos) <= rng) return f;",
+   '阵地被敌军踩住时不再压制天空'],
+
+  ['压制误伤地面单位（去掉 isAir 判定）',
+   'if (!u || !u.pos || !isAir(u)) return null;',
+   'if (!u || !u.pos) return null;',
+   '地面单位站在伞下不会被'],
+
+  ['压制的下限失效（一路把飞机压到崩溃）',
+   'if (u.org <= floor) continue;',
+   'if (false) continue;',
+   '已经低于下限的不再被往下推'],
+
+  ['航空兵又被按回地面补给场（敌境一律断绝）',
+   "if (isAir(u)) return { label: '紧张', mod: 0.88, dist: 0 };",
+   'if (false) return { label: 0, mod: 0.88, dist: 0 };',
+   '飞机在敌境也不判'],
+
+  ['压制半径与命中修正不同步（改 3 只改一处）',
+   "const rng = typeof sp.rng === 'number' ? sp.rng : 2;",
+   'const rng = 3;',
+   '半径外：两边同时不成立'],
+
+  ['单位面板不再提示"被防空压制"（玩家只看到组织度莫名在掉）',
+   '  const aaSup = aaSuppressed(u);\n  if (aaSup) {',
+   '  const aaSup = aaSuppressed(u);\n  if (false) {',
+   '面板点名「被防空压制」', 'brief'],
+
 ];
 
 /* 锚点按 LF 写，但 campaign.html 是 CRLF（7356 行全是）。

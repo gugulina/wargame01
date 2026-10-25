@@ -806,6 +806,35 @@ function skip(name, why) {
        doc.activeElement.id || doc.activeElement.tagName);
   }
 
+  console.log('[19] 防空压制要在单位面板里说得清');
+  {
+    /* 规则做对了、面板不说，玩家只会看到组织度每回合莫名其妙往下掉。
+       这一节专门验**渲染结果**：面板里有没有那句话、数字对不对、有没有解法。 */
+    const W = window.__WAR__;
+    W.newGame({ level: 'C3', noSave: true });
+    const S = W.getState();
+    const bunker = (S.forts || []).find(f => f.kind === 'F' && f.side === 'blue');
+    const fg = W.alive('red').find(u => W.isAir(u));
+    ok('前提：第 3 关有阵地与敌机', !!bunker && !!fg);
+
+    fg.pos = [bunker.r, bunker.c];
+    S.selected = fg;
+    W.render();
+    const box = doc.getElementById('unitBox');
+    ok('面板点名「被防空压制」', /被防空压制/.test(box.textContent));
+    ok('面板写清了每回合掉多少（数字取自数据）',
+       box.textContent.indexOf('−' + W.FORT.F.suppress.org + '%') >= 0,
+       box.textContent.replace(/\s+/g, ' ').slice(0, 90));
+    ok('面板给了应对（飞出去才缓得回来）', /飞出去/.test(box.textContent));
+
+    fg.pos = [bunker.r - 5, bunker.c];      // 飞出伞下（往上，别撞地图边界）
+    W.render();
+    ok('飞出半径之后不再显示压制',
+       !/被防空压制/.test(doc.getElementById('unitBox').textContent));
+    S.selected = null;
+    W.render();
+  }
+
   console.log('');
   console.log('通过 ' + pass + ' 项' + (skipped ? ' · 跳过 ' + skipped + ' 项' : '') +
               '，失败 ' + fail + ' 项');

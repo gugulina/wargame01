@@ -2228,5 +2228,148 @@ console.log('\n[34] 手册文案的显示规矩（加粗 / 不许露代码 / 不
      '<b>对地 +0.50</b>：砸要点');
 }
 
+console.log('\n[35] 防空压制：高炮的「驱散」作用');
+{
+  api.newGame({ level: 'C3', noSave: true });
+  let S = api.getState();
+  const bunker = (S.forts || []).find(f => f.kind === 'F' && f.side === 'blue');
+  ok('前提：第 3 关城区有一座我方防空阵地', !!bunker, bunker && cn([bunker.r, bunker.c]));
+
+  /* 位置不是随手挑的：它必须罩住岚口市那个要点。
+     罩不住的话，这条规则在第 3 关就永远不会被玩家看见——
+     和"事件挂了但从不触发"是同一类错，只是不会报红。 */
+  const city = api.LEVEL.objectives.find(o => o.id === 'city');
+  const rng = api.FORT.F.suppress.rng;
+  ok('阵地罩住了岚口市要点（三个城格至少一个在半径内）',
+     city.cells.some(c => api.hexDist([bunker.r, bunker.c], c) <= rng),
+     city.cells.map(c => api.hexDist([bunker.r, bunker.c], c)).join('/'));
+
+  const fg = api.alive('red').find(u => api.isAir(u));
+  ok('前提：第 3 关有敌方飞机（否则规则无处生效）', !!fg, fg && fg.type);
+  const orgDrop = api.FORT.F.suppress.org;
+  const floor = api.FORT.F.suppress.floor;
+
+  /* ── 半径 ── */
+  fg.pos = [bunker.r, bunker.c];
+  ok('飞机飞到阵地上空：被压制', !!api.aaSuppressed(fg));
+  const far = [bunker.r, bunker.c + rng + 1];
+  const farOk = far[1] < api.LEVEL.cols;
+  if (farOk) {
+    fg.pos = far;
+    ok('出半径一格：不再被压制（半径 = ' + rng + '）', api.aaSuppressed(fg) === null);
+  }
+
+  /* ── 只压敌方飞机 ── */
+  fg.pos = [bunker.r, bunker.c];
+  const rawSide = fg.side;
+  fg.side = 'blue';
+  ok('自家的飞机不吃自家阵地的压制', api.aaSuppressed(fg) === null);
+  fg.side = rawSide;
+  const redInf0 = api.alive('red').find(u => !api.isAir(u));
+  if (redInf0) {
+    const keep = redInf0.pos.slice();
+    /* 一定要放在**阵地旁边的空地**，不能放在阵地上：
+       站到阵地上会同时把 fortSuppressed 触发掉，那样就算删掉 isAir 判定
+       这条也照样绿——测出来的是"阵地被压制"，不是"地面单位不吃压制"。
+       第一版就是这么写的，变异自检当场抓出来了。 */
+    redInf0.pos = [bunker.r - 1, bunker.c];
+    ok('地面单位站在伞下不会被"压制"', api.aaSuppressed(redInf0) === null,
+       cn([bunker.r - 1, bunker.c]) + ' 距阵地 1 格');
+    redInf0.pos = keep;
+  }
+
+  /* ── 阵地不工作时不算 ──
+     两种失效方式都要测：耐久打光、格子里混进敌军（fortSuppressed）。 */
+  const hpKeep = bunker.hp;
+  bunker.hp = 0;
+  ok('阵地被打掉耐久后不再压制', api.aaSuppressed(fg) === null);
+  bunker.hp = hpKeep;
+  ok('（复位）耐久恢复后又能压制', !!api.aaSuppressed(fg));
+
+  const foeKeep = redInf0.pos.slice();
+  if (redInf0) {
+    redInf0.pos = [bunker.r, bunker.c];   // 敌军踩上阵地 = 被压制
+    ok('阵地被敌军踩住时不再压制天空', api.aaSuppressed(fg) === null);
+    redInf0.pos = foeKeep;
+  }
+
+  /* ── 每回合掉组织度 ── */
+  fg.pos = [bunker.r, bunker.c];
+  fg.org = 100;
+  const hit = api.aaSuppressTick();
+  ok('压制结算命中这架飞机', hit.length === 1 && hit[0] === fg, hit.length + ' 架');
+  ok('组织度按数据里的数值下降', Math.abs(fg.org - (100 - orgDrop)) < 1e-9, fg.org);
+
+  /* ── 下限：压制是削弱，不是歼灭 ──
+     没有下限时实测过一版：红方战斗机进城两回合就撞崩溃线，
+     C3 达成率 67.5% → 77.5%，等于把整支航空兵删掉。 */
+  fg.org = floor - 5;
+  const before = fg.org;
+  api.aaSuppressTick();
+  ok('已经低于下限的不再被往下推（压制不负责把它打垮）', fg.org === before,
+     before + ' → ' + fg.org);
+  fg.org = floor + 3;
+  api.aaSuppressTick();
+  ok('刚过下限的只推到下限为止', fg.org === floor, fg.org);
+
+  /* ── 压制会封住"原地休整" ──
+     这一条只能在有补给的格子上测出来：飞机在敌境本来就算断绝，
+     那条 −10 会盖住休整的 +12，看上去"反正也涨不回来"，测不出真假。
+     所以把阵地临时挪到红方后方，让飞机站在自家补给里静止一回合：
+       没有阵地 → +12；脚下有阵地 → −12。两者差 24，翻不了案。 */
+  const nest = [2, 3];
+  const supBefore = api.supplyOf(fg, S.fields).label;
+
+  api.newGame({ level: 'C3', noSave: true });
+  S = api.getState();
+  let f2 = api.alive('red').find(u => api.isAir(u));
+  f2.pos = nest.slice(); f2.org = 60; f2.moved = false; f2.fired = false;
+  const nestSup = api.supplyOf(f2, S.fields);
+  ok('前提：红方后方这个格子是有补给的（否则测不出休整）', nestSup.label !== '断绝', nestSup.label);
+  api.settlePhase();
+  ok('伞外静止一回合：组织度回升（+12）', f2.org === 72, f2.org);
+
+  api.newGame({ level: 'C3', noSave: true });
+  S = api.getState();
+  f2 = api.alive('red').find(u => api.isAir(u));
+  S.forts.push({ r: nest[0] + 1, c: nest[1], kind: 'F', side: 'blue', hp: 3, maxHp: 3 });
+  f2.pos = nest.slice(); f2.org = 60; f2.moved = false; f2.fired = false;
+  ok('（新阵地）罩住了这架飞机', !!api.aaSuppressed(f2));
+  api.settlePhase();
+  ok('伞下静止一回合：不升反降，说明休整被压住了', f2.org === 60 - orgDrop, f2.org);
+
+  /* ── 半径在三个地方各写一遍，必须同口径 ──
+     aaSuppressed（飞机在不在伞下）、aaPenalty（目标在不在伞下）、
+     runAI 的 inAA（选点时的避让圈）。三处都写 2，改一处不同步就会变成
+     "面板说被压制、命中修正却不算"这种对不上的状态。
+     把同一个坐标同时喂给两个函数比结论——比的是规则不是常量，
+     以后谁把高炮改成半径 3，这条会跟着红。 */
+  api.newGame({ level: 'C3', noSave: true });
+  S = api.getState();
+  const bk = (S.forts || []).find(f => f.kind === 'F' && f.side === 'blue');
+  const p2 = api.alive('red').find(u => api.isAir(u));
+  const nearP = [bk.r, bk.c];
+  const farP = [bk.r, bk.c + rng + 1];
+  p2.pos = nearP;                       // 飞机在伞下、目标也在伞下
+  ok('半径内：压制与命中修正在同一处成立',
+     !!api.aaSuppressed(p2) && api.aaPenalty(p2, nearP) > 0);
+  p2.pos = farP;                        // 飞机飞出伞、目标也在伞外
+  ok('半径外：两边同时不成立（口径一致）',
+     api.aaSuppressed(p2) === null && api.aaPenalty(p2, farP) === 0,
+     api.aaPenalty(p2, farP));
+
+  /* ── 航空兵不吃地面补给场 ──
+     这是同一次改动里拆出来的根因：补给场 BFS 只从本方陆上据点扩，
+     飞机在敌境上空必然算"断绝"，于是每架飞机一出生就背着 −30% 战力和
+     每回合 −10 组织度。不拆掉它，上面那条"每回合 −12"就是在给一个
+     本来就在往下掉的东西加速，"不能原地休整"更是永远测不到——
+     断绝分支根本不会走到休整那一支。 */
+  p2.pos = [1, 9];                                  // 红方飞机的出发空域，离本方据点很远
+  const deepSup = api.supplyOf(p2, S.fields);
+  ok('飞机在敌境也不判「断绝」（航空兵不看地面补给线）',
+     deepSup.label !== '断绝', deepSup.label);
+  ok('飞机的补给修正不是断绝那档 0.70', Math.abs(deepSup.mod - 0.70) > 1e-9, deepSup.mod);
+}
+
 console.log('\n通过 ' + pass + ' 项，失败 ' + fail + ' 项');
 process.exit(fail ? 1 : 0);

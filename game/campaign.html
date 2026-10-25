@@ -1114,7 +1114,7 @@
       <span class="pill" id="phasePill">我方阶段</span>
       <!-- 全项目唯一的版本标记：tools/export-levels.js 按这个 span 的原样文本抓版本号，
            开始页撤掉之后它挪到了顶栏，标签必须保持 <span id="verTag"> 这个形状 -->
-      <span id="verTag">v4.6</span>
+      <span id="verTag">v4.7</span>
       <!-- 存档异常：只在真的写失败时出现（隐私模式 / 配额满 / 被清理）。
            默认 display:none，别让它平时占位——一排胶囊里突然多一个红字，
            玩家第一反应是"我是不是哪里点坏了"。 -->
@@ -2409,7 +2409,8 @@ const LEVELS = [
     '敌军先头部队已抢在撤退主力之前抵达岚江东岸，目标岚口市与岚口机场。',
     '任务：12 回合内控制 ≥26 分要点。岚口市 15 分、机场 15 分、青溪镇 10 分、两处渡口各 5 分。',
     '要点一经占领即持久保有，只有敌军实际占据才会易手；守军前出不会丢城。',
-    '守备营在本方城市、机场要点内或相邻格作战时触发「为了祖国」：战力 7 → 10，防御 +0.20。'
+    '守备营在本方城市、机场要点内或相邻格作战时触发「为了祖国」：战力 7 → 10，防御 +0.20。',
+    '市区已构筑防空阵地（F）：半径 2 格内的敌军飞机每回合组织度 −12，且无法原地休整。它打不下飞机，但能把飞机赶走——敌机来一次就掉一次组织度，缓不回来。'
   ],
   maxTurns: 12,
   cols: 20,
@@ -2447,6 +2448,13 @@ const LEVELS = [
     { id:'town', name:'青溪镇',   vp:10, core:false, kind:'town', cells:[[6,8],[6,9],[6,10],[6,11],[7,8],[7,9],[7,10],[7,11]] },
     { id:'fordW',name:'西渡口',   vp:5,  core:false, kind:'ford', cells:[[8,6],[8,7]] },
     { id:'fordE',name:'东渡口',   vp:5,  core:false, kind:'ford', cells:[[8,12],[8,13]] }
+  ],
+  /* 岚口市区预置一座防空阵地。位置选在城心（第 1 旅第 3 营的阵位上），
+     半径 2 正好把三个城格全罩住——玩家一眼能看见"敌机不敢在城上空待着"。
+     这不只是加了一格防御：它把"敌机从哪来"变成了可读的战术问题。
+     红方的战斗机中队（R7）从北面来，要打城区就得进伞，进了就要掉组织度。 */
+  forts: [
+    { r: 12, c: 3, side: 'blue', kind: 'F' }
   ],
   events: [
     /* 控制触发：两处渡口同时被敌占领 */
@@ -3006,7 +3014,13 @@ const LEVELS = [
     { r: 11, c: 16, side: 'blue', kind: 'H' },
     { r: 10, c: 14, side: 'blue', kind: 'H' },
     { r: 12, c: 16, side: 'blue', kind: 'F' },   // 防空阵地：罩住泊位
-    { r: 8,  c: 14, side: 'blue', kind: 'F' }    // 防空阵地：罩住城东
+    { r: 8,  c: 14, side: 'blue', kind: 'F' },   // 防空阵地：罩住城东
+    /* 第三座在码头南端，罩住外泊位那几条船。v4.7 加的——
+       航空兵不再按地面补给场算（见 supplyOf 的 isAir 分支），红方轰炸机
+       从"一出生就背着断绝"变成满状态出动，C4 达成率 81.3% → 72.5%。
+       补回来的办法不是给飞机改数值，而是把港口本来就该有的高炮补齐：
+       这一关的主题是"守港"，防空伞盖不住泊位才是设定上的漏洞。 */
+    { r: 13, c: 17, side: 'blue', kind: 'F' }    // 防空阵地：码头南端
   ],
   /* 海岸线：西北是林地丘陵与一条南北公路，中间偏东是城市，
      城市东南是要塞高地，高地南麓是码头，码头外是港内浅海，再往外是深海。
@@ -3301,14 +3315,19 @@ const LEVELS = [
     { id:'R3H', side:'red', abbr:'空3H', name:'敌航空第 3 联队联队部',        type:'hkg', dm:'air', str:2, mov:8, rng:0, r:2, c:17, corps:'R3', wave:3 },
     { id:'R3A', side:'red', abbr:'空3-战', name:'敌航空第 3 联队战斗机中队',    type:'fgt', str:8,  mov:12, rng:1, r:3, c:16, corps:'R3', wave:3 },
     { id:'R3B', side:'red', abbr:'空3-攻', name:'敌航空第 3 联队攻击机中队',    type:'atk', str:8,  mov:10, rng:1, r:3, c:17, corps:'R3', wave:3 },
-    { id:'R3C', side:'red', abbr:'空3-轰', name:'敌航空第 3 联队轰炸机中队',    type:'bmb', str:12, mov:8,  rng:1, r:4, c:17, corps:'R3', wave:3 },
+    /* 战力 12 → 10，v4.7。不是为了削弱红方航空兵，是**把有效战力折回原位**：
+       以前飞机在敌境一律判「断绝」，实际只打出 12×0.70 = 8.4；
+       现在补给口径改成「紧张」，12×0.88 = 10.6，比原来硬了两成半。
+       改成 10 之后是 10×0.88 = 8.8，与当初调平衡时的那个数基本一致。
+       这次折算完 C4 自战 80 局回到 75.0%（爽局下沿）。 */
+    { id:'R3C', side:'red', abbr:'空3-轰', name:'敌航空第 3 联队轰炸机中队',    type:'bmb', str:10, mov:8,  rng:1, r:4, c:17, corps:'R3', wave:3 },
     /* 原编制还有第 2 攻击机中队（R3D）。它是在修"敌机隔空点名指挥部"之后
        拿掉的：那条规则一上，红方飞机不再拿架次去砸 str 2 的师部，而是集中
        砸城里的炮兵营——同一批飞机干正事，蓝方达成率从 90% 掉到 67.5%
        （40 局同种子）。这不是规则错了，是原来那 20 个点本来就靠"AI 浪费
        架次"撑着。少一架攻击机补回 80%，落在爽局区间（75–95%）里。
        编制上也不再别扭：雷达上的"四个目标"（战 / 攻 / 轰 / 轰）终于对得上了。 */
-    { id:'R3E', side:'red', abbr:'空3-轰2',name:'敌航空第 3 联队第 2 轰炸机中队',type:'bmb', str:12, mov:8, rng:1, r:2, c:18, corps:'R3', wave:3 },
+    { id:'R3E', side:'red', abbr:'空3-轰2',name:'敌航空第 3 联队第 2 轰炸机中队',type:'bmb', str:10, mov:8, rng:1, r:2, c:18, corps:'R3', wave:3 },
 
     /* ── 敌方 · 第四波 · 第 63 步兵师（第 11 回合，北面正面） ── */
     { id:'R4H', side:'red', abbr:'63H',  name:'敌第 63 步兵师师部',            type:'hqd', str:2, mov:8, rng:0, r:1, c:11, corps:'R4', wave:4 },
@@ -4168,6 +4187,18 @@ function supplyOf(u, fields) {
   const e = f[kk(u.pos[0], u.pos[1])];
   /* 辎重自持 */
   if (u.type === 'sup') return { label: '充足', mod: 1.0, dist: 0 };
+
+  /* 航空兵不从地面补给场取补给。它不是"飞过去就能捡到粮"的兵种——
+     基地在战场外，能飞多久看机内油弹（ammo）。以前这里没有这一支，
+     飞机就落进了下面那条通用分支：BFS 补给场只从本方陆上据点扩出去，
+     敌境上空必然算出"断绝"，于是每架飞机一出生就背着 −30% 战力、
+     每回合再掉 10 点组织度，还没接敌就先垮一半。
+     这和舰队那条是同一类坑（见上面 isNaval 的注释），只是不容易被看见：
+     报表上它就是"敌方损失多一点"，不像海军那样一开局战报就写着"断绝"。
+     这里给的是「紧张」而不是「充足」：飞机不吃断粮那 10 点组织度，
+     但出了基地就是远离补给，战力仍打八八折——原来那 −30% 里有一半是
+     这条规则该收的账，只是收错了地方（详见 docs/12）。 */
+  if (isAir(u)) return { label: '紧张', mod: 0.88, dist: 0 };
 
   /* 水面格 cost 是 99，补给场 BFS 根本进不去——舰船一出生就判"断绝"，
      全员 −30%。这不是刻意做的规则，是补给场只认地面机动漏下来的坑：
@@ -5850,7 +5881,16 @@ const FORT = {
           不需要自带 aa 标记——阵地上有高射机枪和指挥仪，谁来操作都能打。
           代价与限制：只在 1 格内（飞机扑到头顶才有效）、阵地必须仍在工作。 */
        aaBack: { bonus: 0.55 },
-       note: '半径 2 内敌方航空攻击再降 25%（与防空营取高值，不叠乘）。' +
+       /* 防空压制 = 高炮的「驱散」作用，v4.7 加。
+          在这之前 F 只做两件事：削减敌机 25% 攻击修正（aaPenalty）、
+          让驻军能还手（aaBack）。两件都是"挨打时"才起作用的被动修正——
+          飞机大可以蹲在阵地上空不动，玩家看不到高炮有任何威慑。
+          现在改成持续效果：伞下的敌机每回合掉组织度，且当回合不能原地休整。
+          于是飞机的正确应对变成"飞出去缓"，这就是驱散。 */
+       suppress: { rng: 2, org: 12, floor: 40 },
+       note: '半径 2 内敌方航空攻击再降 25%（与防空营取高值，不叠乘）；' +
+             '半径 2 内的敌军飞机每回合组织度 −12，且当回合无法原地休整——' +
+             '高炮赶走飞机靠的是这一点，不是把它打下来。' +
              '驻守本格的地面部队遭空袭时可对敌机反击（+0.55），不必自带防空武器。耐久 3。' }
 };
 const FORT_KEYS = ['H', 'B', 'P', 'A', 'F'];
@@ -5899,6 +5939,56 @@ function aaBunkerBonus(att, def) {
   if (isAA(att)) return 0;
   if (!onAABunker(att)) return 0;
   return (FORT.F.aaBack && FORT.F.aaBack.bonus) || 0.55;
+}
+
+/* 这个空中单位是否被敌方防空阵地的伞罩住，返回罩住它的阵地（没有返回 null）。
+   半径与每回合掉多少组织度都读 FORT.F.suppress：
+   aaPenalty 里 F 的半径 2 是写死在循环里的，两边一旦不一致，
+   就会出现"面板说被压制、命中修正却不算"这种对不上的情况。 */
+function aaSuppressed(u) {
+  if (!u || !u.pos || !isAir(u)) return null;
+  const sp = (FORT.F && FORT.F.suppress) || null;
+  if (!sp) return null;
+  const rng = typeof sp.rng === 'number' ? sp.rng : 2;
+  for (const f of (state.forts || [])) {
+    if (f.kind !== 'F' || f.side === u.side) continue;
+    if (!fortWorking(f)) continue;
+    if (hexDist([f.r, f.c], u.pos) <= rng) return f;
+  }
+  return null;
+}
+function aaSuppressOrg() {
+  const sp = (FORT.F && FORT.F.suppress) || {};
+  return typeof sp.org === 'number' ? sp.org : 0;
+}
+/* 压制的下限：高炮的任务是把飞机赶走，不是把它打垮。
+   没有下限时实测过一版——红方战斗机进城两回合就撞到崩溃线，
+   整支航空兵等于被删掉，C3 达成率 67.5% → 77.5%，走的不是这条规则该走的路。
+   有下限之后：组织度掉到 40 就止住，有效战力只剩四成，
+   飞机继续留在伞下每回合都要拿四成力气打仗，自己就想走。 */
+function aaSuppressFloor() {
+  const sp = (FORT.F && FORT.F.suppress) || {};
+  return typeof sp.floor === 'number' ? sp.floor : 0;
+}
+/* 防空压制结算：伞下所有飞机掉组织度，返回被打到的名单（给战报用）。
+   单拎成函数是为了测得动：settlePhase 里还夹着工事自动开火、限时修正倒计时、
+   崩溃收拢、雷区、波次入场，测试为了看组织度变化去调它，
+   等于把五件别的事一起推进——上一条 aaBunkerBonus 就是为同一个理由拆出来的。 */
+function aaSuppressTick() {
+  const hit = [];
+  const d = aaSuppressOrg();
+  const floor = aaSuppressFloor();
+  if (!d) return hit;
+  for (const u of state.units) {
+    if (u.str <= 0) continue;
+    if (!aaSuppressed(u)) continue;
+    /* 已经在下限以下（比如被炮火准备打过）就不再往下推：
+       压制负责"削弱"，掉到多少算崩不该由高炮说了算。 */
+    if (u.org <= floor) continue;
+    u.org = Math.max(floor, u.org - d);
+    hit.push(u);
+  }
+  return hit;
 }
 
 /* 攻坚：攻方伤害先扣耐久，扣光才轮到守军。
@@ -6269,12 +6359,19 @@ function settlePhase() {
      于是先拍快照：谁在回合开始时处于崩溃态，谁才有资格收拢。 */
   const rallying = state.units.filter(u => u.str > 0 && isBroken(u));
 
+  /* 防空压制先于休整恢复结算。顺序上其实两可（下面那条恢复分支加了
+     `!aaSuppressed(u)` 的守卫，谁先谁后净结果一样），但写在前面，
+     战报里"被高炮压住"就会出现在"缓过一口气"之前，读起来符合实际经过。 */
+  const aaHit = aaSuppressTick();
+
   for (const u of state.units) {
     const s = supplyOf(u, state.fields);
     if (s.label === '断绝') {
       u.org = Math.max(0, u.org - 10);
-    } else if (!u.moved && !u.fired) {
-      /* 光环内 = 15 + 光环值；脱指 = 我方 7 / 敌方 12 */
+    } else if (!aaSuppressed(u) && !u.moved && !u.fired) {
+      /* 光环内 = 15 + 光环值；脱指 = 我方 7 / 敌方 12。
+         伞下的飞机不给这一口：高炮在头顶上炸，它只能一直绕圈，
+         这就是「压制」和「驱散」的区别——不是打下来，是让它缓不过来。 */
       const aura = hqBonus(u);
       const base = aura > 0 ? 15 + aura : (u.side === 'blue' ? 7 : 12);
       u.org = Math.min(100, u.org + base);
@@ -6296,6 +6393,16 @@ function settlePhase() {
     if ((u.type === 'inf' || u.type === 'gdn') && !u.moved && !u.fired && u.fortify < 0.30) {
       u.fortify = Math.min(0.30, u.fortify + 0.15);
     }
+  }
+
+  /* 防空压制的战报。逐支报，不合并成一行计数：
+     玩家要能认出"就是那架 3-1 被赶走的"，一句"2 架组织度 −12"看不出是谁。
+     红方飞机被压制写成 hi（对玩家是好消息），蓝方被压制写成 r。 */
+  for (const u of aaHit) {
+    log('  ' + u.abbr + ' ' + u.name + ' 在防空阵地火力下无法休整，组织度 −' +
+        aaSuppressOrg() + '（现 ' + Math.round(u.org) + '%）。',
+        u.side === 'blue' ? 'r' : 'hi');
+    if (u.side !== 'blue') FX.pop('压制', u.pos.slice(), 'sys');
   }
 
   /* 崩溃部队收拢：脱离接触 + 补给没断，才给这 10 点。
@@ -7683,6 +7790,15 @@ function renderUnitBox() {
          '%：本回合无法发起攻击。脱离接触（2 格内无敌军）且补给未断时，' +
          '每回合恢复 10 点，回到 ' + orgRallyLine() + '% 以上恢复建制。</div>';
   }
+  /* 被防空压制的飞机要说清楚"为什么这回合没缓过来"——
+     否则玩家只会看到组织度莫名其妙每回合往下掉。 */
+  const aaSup = aaSuppressed(u);
+  if (aaSup) {
+    h += '<div class="kv"><span>状态</span><b class="bad">被防空压制</b></div>' +
+         '<div class="ub-esc" style="color:#A83A3A">敌方防空阵地（' + coordName([aaSup.r, aaSup.c]) +
+         '）正在射击：本格在它半径 2 内，每回合组织度 −' + aaSuppressOrg() +
+         '%，且不能原地休整。飞出去才缓得回来。</div>';
+  }
   h += '<div class="kv"><span>机动</span><b>' + u.mov + ' 点</b></div>';
   /* 射程以前对非炮兵一律写死 '1'——那时候战场上最远的东西就是炮，
      现在驱逐舰 8 格、战列舰 20 格，再写死就是骗人。 */
@@ -8279,6 +8395,13 @@ const AIDE = [
        '飞机才能对指挥旗下手。飞机自己不算指示者。<br>' +
        '所以你看到敌侦察连往指挥部蹭，<b>先把它打掉</b>，空袭就自然打不出来；' +
        '再在指挥旗下摆一门高炮或修一处防空阵地，来也炸不利索（空袭伤害另减 20%）。' },
+  { q: '防空阵地除了挡飞机，还有什么用？',
+    a: '它会把飞机<b>赶走</b>，这是它最要紧的作用——不是打下来。<br>' +
+       '半径 2 格内的敌军飞机<b>每回合组织度 −12</b>，而且这一回合<b>不能原地休整</b>' +
+       '（正常情况下停着不动能回 12 点）。组织度乘进有效战力：掉到 60，它这一趟就只能打出六成力气。<br>' +
+       '所以敌机来一次掉一次、越打越虚，只能飞回自己后方缓——这就是「驱散」。<br>' +
+       '注意三点：<b>只压敌方</b>、<b>只压飞机</b>；阵地被打光耐久、或者格子被敌军踩住，' +
+       '压制立刻停；组织度掉到 <b>40</b> 就不再往下压——高炮负责削弱，不负责把飞机打垮。' },
   { q: '牵引炮为什么这么难用？',
     a: '这是刻意的。<code>架设 → 射击 → 收炮 → 转移</code> 是一个完整的四回合循环，' +
        '射程就是拿这个节奏换来的。<br>' +
@@ -8928,6 +9051,10 @@ window.__WAR__ = {
      id 写错了也查不出来，只会安静地永不触发。 */
   noteAct, triggerMet,
   fortAt, fortDef, doFort, FORT, FORT_KEYS, fortKindsFor, fortKind, fortReqOk, onAABunker, aaBunkerBonus,
+  /* 防空压制（驱散）：三个都导出。aaSuppressTick 单独导出是因为
+     settlePhase 会连带推进工事开火、修正倒计时、波次入场与事件判定，
+     为看组织度变化去调它，等于一次动了五件事。 */
+  aaSuppressed, aaSuppressOrg, aaSuppressTick,
   doMine, doClearMine, doBridge, doDepot, doDrop, dropSpot,
   fortFire, fortAlive, fortWorking, fortSuppressed, damageFort, ARM_FIRE,
   isDirectArty, attackRange, aaPenalty, minRange, canCounter,
