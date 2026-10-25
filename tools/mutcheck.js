@@ -20,8 +20,13 @@ const ROOT = path.join(__dirname, '..');
 const SRC = path.join(ROOT, 'game', 'campaign.html');
 const TMP = path.join(ROOT, 'game', '_mut_campaign.html');
 
-/* [说明, 原文锚点, 替换成, 期望变红的断言名（子串匹配）]
-   每条盯一个机制，别贪多：一个变异只该打中一两条，打中一片说明断言互相耦合了。 */
+/* [说明, 原文锚点, 替换成, 期望变红的断言名（子串匹配）, 跑哪个脚本]
+   每条盯一个机制，别贪多：一个变异只该打中一两条，打中一片说明断言互相耦合了。
+
+   第 5 项省略时跑 selftest；写 'brief' 表示跑 briefcheck（jsdom）。
+   DOM 那一类防线（esc 转义、战报走 textContent）在 vm 沙箱里根本没有 DOM，
+   只能在 briefcheck 里验——而"验它会不会红"同样得跑一遍变异，
+   否则 v4.6 体检里那条假防线（检查 msg 里有没有 `<b`）的事会重演。 */
 const MUTANTS = [
   ['空中不再恒 1 点（air 分支失效，落到地形价）',
    "  if (dm === 'air') return 1;",
@@ -144,6 +149,59 @@ const MUTANTS = [
    "    if (!TYPE[u.type]) return { ok: false, msg: '部队 ' + u.id + ' 的兵种「' + u.type + '」不存在。' };",
    '',
    '兵种不存在 → 拒绝'],
+
+  /* ── v4.6 体检补的存档防线 ── */
+  ['存档写失败不再报警（退回"只 return false"的老样子）',
+   '  if (state && !state.saveBroken) {',
+   '  if (false) {',
+   '写失败后 state.saveBroken 被置位'],
+
+  ['兵牌名 / 简写不校验字符（假的 "<img onerror>" 名字能进内存）',
+   "    if (saveStrBad(u.name, 64)) return { ok: false, msg: '部队 ' + u.id + ' 的名称里有不允许的字符。' };",
+   '',
+   '兵牌名里带标签 → 拒绝'],
+
+  ['地图只验行数不验地形字符（一行引号能撕开棋盘 HTML）',
+   "      if (!TERRAIN[ch]) return { ok: false, msg: '存档地图第 ' + (r + 1) + ' 行有未知地形「' + ch + '」。' };",
+   '',
+   '地图里出现未知地形字符 → 拒绝'],
+
+  ['战报条数不限（一份档能塞十万条把渲染拖死）',
+   "    if (s.log.length > 200) return { ok: false, msg: '存档的战报条数异常（' + s.log.length + ' 条）。' };",
+   '',
+   '战报条数异常 → 拒绝'],
+
+  ['修正说明不校验字符（mods.label 直接拼进 HUD）',
+   "    if (m.label !== undefined && (typeof m.label !== 'string' || m.label.length > 80 ||\n          SAVE_STR_BAD.test(m.label))) {",
+   '    if (false) {',
+   '修正说明里带标签 → 拒绝'],
+
+  /* ── DOM 出口：这两条只能在 jsdom 里验，所以第 5 项写 'brief' ── */
+  ['兵牌 / 面板不再转义（esc 失效，出口重新开门）',
+   "  .replace(/</g, '&lt;')",
+   '',
+   '棋盘里没有长出 <img>',
+   'brief'],
+
+  ['战报退回拼 innerHTML（textContent 防线拆掉）',
+   '    d.textContent = String(l.text);',
+   '    d.innerHTML = String(l.text);',
+   '战报里没有长出 <img>',
+   'brief'],
+
+  ['存档异常胶囊永不亮（写失败又变回静默）',
+   "  el.style.display = bad ? '' : 'none';",
+   "  el.style.display = 'none';",
+   '顶栏胶囊亮起来',
+   'brief'],
+
+  ['胶囊点了没反应（玩家知道坏了却没有出路）',
+   "document.getElementById('saveWarn').addEventListener('click', () => {\n" +
+   "  FX.sfx('uiClick');\n  openHQ('save');\n});",
+   "document.getElementById('saveWarn').addEventListener('click', () => {\n" +
+   "  FX.sfx('uiClick');\n});",
+   '点胶囊落在存档页（导出是唯一出路）',
+   'brief'],
 ];
 
 /* 锚点按 LF 写，但 campaign.html 是 CRLF（7356 行全是）。
@@ -159,7 +217,7 @@ function resolve(base, anchor, neu) {
 const base = fs.readFileSync(SRC, 'utf8');
 let bad = 0;
 try {
-  for (const [name, old, neu, expect] of MUTANTS) {
+  for (const [name, old, neu, expect, runner] of MUTANTS) {
     const anchor = resolve(base, old, neu);
     if (!anchor) {
       console.log('  ? ' + name + '\n    锚点找不到，引擎这行改过了，MUTANTS 表要更新');
@@ -167,7 +225,8 @@ try {
       continue;
     }
     fs.writeFileSync(TMP, base.replace(anchor[0], anchor[1]), 'utf8');
-    const r = cp.spawnSync(process.execPath, [path.join(__dirname, 'selftest.js'), TMP],
+    const script = runner === 'brief' ? 'briefcheck.js' : 'selftest.js';
+    const r = cp.spawnSync(process.execPath, [path.join(__dirname, script), TMP],
       { encoding: 'utf8', env: process.env });
     const out = (r.stdout || '').split('\n');
     const reds = out.filter(l => l.trim().startsWith('✗')).map(l => l.trim());

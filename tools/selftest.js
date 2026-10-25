@@ -529,7 +529,12 @@ console.log('\n[13] 存档往返');
   delete sandbox.localStorage;
   let threw = null, ret = null;
   try { ret = api.saveGame(); } catch (e) { threw = e; }
-  ok('没有 localStorage 时存档静默失败', threw === null && ret === false, threw && threw.message);
+  /* 不抛错是底线，返回 false 是接口承诺。**"静默"这个词已经不能写了**：
+     v4.6 起失败会亮顶栏红胶囊 + 战报里留一行，这里只测引擎侧的两个返回值，
+     界面那半条在 [32] 里测。 */
+  ok('没有 localStorage 时存档返回 false 且不抛错', threw === null && ret === false,
+     threw && threw.message);
+  ok('没有 localStorage 时置上存档异常标记', api.getState().saveBroken === true);
   ok('没有 localStorage 时读档返回 null', api.readSave() === null);
   sandbox.localStorage = had;
 }
@@ -1939,6 +1944,60 @@ console.log('\n[31] 存档内容校验（导入路径与本地读档共用一套
   const c7 = clone(); c7.units = [];
   ok('没有任何部队 → 拒绝', !api.validateSave(c7).ok);
 
+  /* ── 以下是 v4.6 体检补的内容校验。它们不制造 NaN，而是制造**代码**：
+     渲染层有 25 处 innerHTML，存档里的字符串字段会被直接拼进标签。
+     一份 `"><img src=x onerror=alert(1)>` 的兵牌名，在加校验之前真的能执行
+     （体检时实测 pwn1=1 pwn2=1）。 */
+  const c8 = clone(); c8.units[0].name = '"><img src=x onerror=alert(1)>';
+  ok('兵牌名里带标签 → 拒绝', !api.validateSave(c8).ok && /名称/.test(api.validateSave(c8).msg),
+     api.validateSave(c8).msg);
+
+  const c9 = clone(); c9.units[0].abbr = '<b>x</b>';
+  ok('简写里带标签 → 拒绝', !api.validateSave(c9).ok && /简写/.test(api.validateSave(c9).msg),
+     api.validateSave(c9).msg);
+
+  const c10 = clone(); c10.units[0].corps = '第1"旅';
+  ok('编制号里带引号 → 拒绝', !api.validateSave(c10).ok && /编制号/.test(api.validateSave(c10).msg),
+     api.validateSave(c10).msg);
+
+  /* 地图行：地形字符是直接当 class 拼进棋盘的。只验行数的话，
+     一行里塞一个 `"` 就够把整块棋盘的 HTML 撕开。 */
+  const c11 = clone(); c11.map[0] = '"'.repeat(c11.map[0].length);
+  ok('地图里出现未知地形字符 → 拒绝',
+     !api.validateSave(c11).ok && /地形/.test(api.validateSave(c11).msg),
+     api.validateSave(c11).msg);
+
+  const c12 = clone(); c12.map[0] = c12.map[0].slice(0, -1);
+  ok('地图某行长度不对 → 拒绝', !api.validateSave(c12).ok);
+
+  const c13 = clone(); c13.log = [{ t: 'x', text: 'a'.repeat(600) }];
+  ok('战报单行超长 → 拒绝', !api.validateSave(c13).ok && /战报/.test(api.validateSave(c13).msg),
+     api.validateSave(c13).msg);
+
+  const c14 = clone(); c14.log = new Array(201).fill(0).map(() => ({ t: 'x', text: 'a' }));
+  ok('战报条数异常 → 拒绝', !api.validateSave(c14).ok, '201 条被放行');
+
+  /* 工事的 kind：`FORT[f.kind].name` 在单位面板里是直接取的，给个假 kind
+     会当场 TypeError——玩家看到的是"点兵牌就报错"，不是"存档可疑"。 */
+  const c15 = clone(); c15.forts = [{ kind: 'zzz', side: 'blue', r: 0, c: 0 }];
+  ok('工事类型不存在 → 拒绝', !api.validateSave(c15).ok && /工事/.test(api.validateSave(c15).msg),
+     api.validateSave(c15).msg);
+
+  const c16 = clone(); c16.mods = [{ label: '"><svg onload=alert(1)>' }];
+  ok('修正说明里带标签 → 拒绝', !api.validateSave(c16).ok && /修正/.test(api.validateSave(c16).msg),
+     api.validateSave(c16).msg);
+
+  const c17 = clone(); c17.deck = ['forced', 'nosuchcard'];
+  ok('牌组里有不存在的战术卡 → 拒绝',
+     !api.validateSave(c17).ok && /战术卡/.test(api.validateSave(c17).msg),
+     api.validateSave(c17).msg);
+
+  /* **反向那条同样重要**：正常存档里全是中文字段，校验不能把它们一起杀掉。
+     这一条漏了的话，上面十条全绿也可能是因为校验把所有人都拒了。 */
+  ok('中文兵牌名 / 编制号照常通过（校验没误杀）',
+     api.validateSave(clone()).ok && /[\u4e00-\u9fa5]/.test(good.save.units[0].name),
+     good.save.units[0].name);
+
   /* readSave 走的是同一个函数：把污染档写进 localStorage，读回来必须是 null。
      这一条测的是"那两扇门真的都关着"，而不是"我写了个函数"。
      localStorage 在沙箱里挂在**全局**上（window.localStorage 是 undefined），
@@ -1968,6 +2027,50 @@ console.log('\n[31] 存档内容校验（导入路径与本地读档共用一套
      JSON.stringify(pr.deck));
   ok('进度清洗：指向不存在关卡的 last 被清空', pr.last === null, String(pr.last));
   ok('进度清洗：完全不是对象时返回 null', api.cleanProgress('hello') === null);
+}
+
+
+console.log('\n[32] 存档写失败必须留下痕迹（不能安静地丢一局）');
+{
+  /* 现实里的触发条件不是"玩家点了坏按钮"，是**环境**：
+     Safari 隐私模式的 setItem 直接抛 QuotaExceededError；配额满了也一样。
+     以前 saveGame() 只 `return false`，17 个调用点没有一个看返回值，
+     表现是"玩了三小时，关掉浏览器回来发现还是第一关"。 */
+  api.newGame({ noSave: true });
+  api.clearSave();
+  ok('前提：正常存档能写进去', api.saveGame() === true);
+  ok('前提：写成功后没有异常标记', api.getState().saveBroken !== true);
+
+  const LS = sandbox.localStorage;
+  const realSet = LS.setItem;
+  LS.setItem = () => {
+    const e = new Error('The quota has been exceeded.');
+    e.name = 'QuotaExceededError';
+    throw e;
+  };
+  const before = api.getState().log.length;
+  let ret;
+  try { ret = api.saveGame(); } finally { LS.setItem = realSet; }
+  ok('写失败时 saveGame 返回 false', ret === false, String(ret));
+  ok('写失败后 state.saveBroken 被置位', api.getState().saveBroken === true);
+  /* 战报里必须出现一行。玩家不看顶栏也能在战报区看见"存档没写进去"。 */
+  const added = api.getState().log.slice(before);
+  ok('写失败会在战报里留一行', added.length === 1 && /存档/.test(added[0].text),
+     JSON.stringify(added.map(l => l.text)));
+
+  /* 连续失败只提醒一次。每回合存档都失败的话，一局能刷上百条同样的红字，
+     玩家会把整个战报区当成噪音，连别的消息一起忽略。 */
+  LS.setItem = () => { throw new Error('quota'); };
+  try { api.saveGame(); api.saveGame(); } finally { LS.setItem = realSet; }
+  const added2 = api.getState().log.slice(before);
+  ok('连续失败不重复刷屏（只提醒一次）', added2.length === 1,
+     '期望 1 条，实际 ' + added2.length + ' 条');
+
+  /* 存储恢复之后要能把红字撤掉。清不掉的后果是"一次抖动永久报警"，
+     玩家学会无视它，真出问题那天也看不见。 */
+  ok('存储恢复后重新存档返回 true', api.saveGame() === true);
+  ok('重新写成功后异常标记被清掉', api.getState().saveBroken !== true);
+  api.clearSave();
 }
 
 

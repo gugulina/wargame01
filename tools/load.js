@@ -1,6 +1,17 @@
 const fs = require('fs');
 const vm = require('vm');
 
+/* 取引擎脚本块。
+   不能再用 html.match(/<script>(...)/) 抓"第一个"——v4.7 起 <head> 里多了一段
+   先行兜底脚本（window.onerror + 看门狗），它就排在第一个。抓第一个的后果是
+   加载到那段 30 行的兜底代码，然后报"未导出 window.__WAR__"，看着像引擎坏了。
+   改成取最长的那块：引擎有七千多行，兜底只有几十行，这个判据比"第几个"稳。 */
+function extractScript(html) {
+  const all = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m => m[1]);
+  if (!all.length) return null;
+  return all.reduce((a, b) => (b.length > a.length ? b : a));
+}
+
 function stubEl() {
   return {
     innerHTML: '',
@@ -28,9 +39,8 @@ function stubEl() {
 
 function loadGame(htmlPath) {
   const html = fs.readFileSync(htmlPath, 'utf8');
-  const m = html.match(/<script>([\s\S]*?)<\/script>/);
-  if (!m) throw new Error('未找到 <script> 块：' + htmlPath);
-  const code = m[1];
+  const code = extractScript(html);
+  if (!code) throw new Error('未找到 <script> 块：' + htmlPath);
 
   /* localStorage：纯内存实现，只为让存档往返测试能跑通。
      真实浏览器里隐私模式 / file:// 直开可能直接抛错，代码本身有 typeof 保护，
@@ -94,4 +104,4 @@ function loadGame(htmlPath) {
   return { api: sandbox.window.__WAR__, code, sandbox };
 }
 
-module.exports = { loadGame, stubEl };
+module.exports = { loadGame, stubEl, extractScript };

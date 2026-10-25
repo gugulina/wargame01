@@ -4,6 +4,48 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>岚口要地争夺战 · 战役级</title>
+<!-- 启动兜底：**必须写在主脚本之前**。
+     主脚本 8000 多行，业务层的错误监听原本只出现在文件末尾（第 8306 行），
+     于是解析期的语法错误根本没人接——改关卡数据时少个括号是最常见的失误。
+     实测过：这种情况下页面不是白屏，而是"骨架在、棋盘空、按钮点不动、零报错"，
+     玩家只会说"打不开"，我们这边连一条线索都收不到。
+     这里只用原生 DOM、不引用任何业务符号，所以它自己不会成为新的故障点。 -->
+<script>
+(function () {
+  function bar(msg) {
+    var d = document.getElementById('bootBar');
+    if (!d) {
+      if (!document.body) { setTimeout(function () { bar(msg); }, 80); return; }
+      d = document.createElement('div');
+      d.id = 'bootBar';
+      d.setAttribute('role', 'alert');
+      d.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:99999;background:#A83A3A;' +
+        'color:#fff;font:13px/1.7 system-ui,"PingFang SC","Microsoft YaHei",sans-serif;' +
+        'padding:10px 14px;box-shadow:0 2px 8px rgba(0,0,0,.2)';
+      document.body.appendChild(d);
+    }
+    d.textContent = '加载失败：' + (msg || '未知错误') +
+      ' —— 刷新页面重试；若反复出现，把这行字连同浏览器版本一起反馈。';
+  }
+  window.addEventListener('error', function (e) {
+    /* 引擎已经跑起来就不再插手：业务层的错误条有更完整的诊断信息 */
+    if (window.__WAR__) return;
+    bar((e && e.message) || '脚本没有执行');
+  });
+  window.addEventListener('unhandledrejection', function (e) {
+    if (window.__WAR__) return;
+    bar('异步错误 ' + ((e && e.reason && e.reason.message) || ''));
+  });
+  /* 看门狗：什么异常都没报、但引擎始终没起来（脚本被拦、标签写错、语法错误被吞）。
+     挂在 load 之后而不是写死 3 秒——455 KB 的内联脚本在慢网络上本来就要一会儿，
+     按时间判会把"慢"误报成"坏"。 */
+  window.addEventListener('load', function () {
+    setTimeout(function () {
+      if (!window.__WAR__) bar('引擎未就绪（脚本没有执行，可能被扩展或网络拦截）');
+    }, 800);
+  });
+})();
+</script>
 <style>
   :root {
     --bg: #F4F2EC;
@@ -46,6 +88,13 @@
   }
   .pill.b { background: var(--blue-bg); color: var(--blue); border-color: #C9DBEC; }
   .pill.r { background: var(--red-bg); color: var(--red); border-color: #EBCBCB; }
+  /* 存档异常胶囊：红色 + 可点。它是"提示"，不是"错误"，所以不做闪烁—— */
+  /* 会闪的东西在回合制界面里会把注意力从棋盘上拽走，而这只是一个待办提醒。 */
+  .pill.warn {
+    background: var(--red-bg); color: var(--red); border-color: #EBCBCB;
+    cursor: pointer; font-weight: 700;
+  }
+  .pill.warn:hover { background: #F2DEDE; }
 
   #boardWrap {
     background: var(--card); border: 1px solid var(--line); border-radius: 10px;
@@ -1028,6 +1077,11 @@
       <!-- 全项目唯一的版本标记：tools/export-levels.js 按这个 span 的原样文本抓版本号，
            开始页撤掉之后它挪到了顶栏，标签必须保持 <span id="verTag"> 这个形状 -->
       <span id="verTag">v4.6</span>
+      <!-- 存档异常：只在真的写失败时出现（隐私模式 / 配额满 / 被清理）。
+           默认 display:none，别让它平时占位——一排胶囊里突然多一个红字，
+           玩家第一反应是"我是不是哪里点坏了"。 -->
+      <button id="saveWarn" class="pill warn" style="display:none"
+              title="这一局的进度没能写进本机存储（隐私模式或空间不足）。点这里去导出存档。">存档异常</button>
       <button id="btnMenu" class="hqbtn" title="返回菜单页：换关、看进度、导存档">菜单</button>
       <button id="btnHQ" class="hqbtn" title="指挥部：兵种图鉴 / 战术卡 / 副官 / 存档">HQ</button>
       <button id="btnTips" class="tipsbtn" title="操作说明">?</button>
@@ -3935,6 +3989,20 @@ function isTowed(u) { return TOWED_TYPES.includes(u.type); }
 function isHQ(u) { return HQ_TYPES.includes(u.type); }
 function canCapture(u) { return CAPTURE_TYPES.includes(u.type); }
 function coordName(p) { return String.fromCharCode(65 + p[1]) + (p[0] + 1); }
+
+/* 转义：凡是"可能来自存档"的字符串，拼进 innerHTML 之前都要过一遍。
+   存档是**不可信输入**——玩家会把档发给朋友，而这份 7000 行的渲染层里有 25 处
+   innerHTML。一个 `"><img src=x onerror=...>` 当兵牌名，就足以让"导入别人的档"
+   变成"在别人页面上执行脚本"，能读到 localStorage 里的全部进度再导出。
+   校验层（validateSave）已经在入口挡了一道，这里是第二道：入口漏了也打不穿渲染。 */
+function esc(s) {
+  return String(s === null || s === undefined ? '' : s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 function other(s) { return s === 'blue' ? 'red' : 'blue'; }
 
 /* 敌我 ZOC：6 邻。只算地表部队——天上的飞机不"占地方"，
@@ -4917,10 +4985,38 @@ function saveSnapshot() {
 function saveGame() {
   if (!state || state.result) return false;      // 已分胜负的局不再更新存档
   try {
-    if (typeof localStorage === 'undefined' || !localStorage) return false;
+    if (typeof localStorage === 'undefined' || !localStorage) return saveBroken('浏览器不允许本地存储');
     localStorage.setItem(SAVE_KEY, JSON.stringify(saveSnapshot()));
+    if (state.saveBroken) { state.saveBroken = false; syncSaveWarn(); }
     return true;
-  } catch (e) { return false; }
+  } catch (e) {
+    return saveBroken(e && e.message ? e.message : '未知错误');
+  }
+}
+
+/* 存档写失败：**必须让玩家知道**的一类失败。
+   隐私模式、配额满（QuotaExceededError）、浏览器的自动清理策略都会走到这里。
+   从前 saveGame() 只 `return false`，17 个调用点没有一个看返回值——玩家能
+   安安稳稳打完一整局，关掉标签页之后进度全没，而全程没有任何提示。
+   现在：顶栏挂一个常驻「存档异常」胶囊（点进去就是导出页）+ 第一次失败时一条横幅。
+   只弹一次是刻意的：这个函数每走一步都会被调用，每步都弹等于把战报刷爆。 */
+function saveBroken(msg) {
+  if (state && !state.saveBroken) {
+    state.saveBroken = true;
+    FX.banner('存档写入失败：' + msg, 'r', 4200);
+    log('存档写入失败（' + msg + '）——这一局的进度没有保存，建议去 HQ 导出存档。', 'hi');
+    LOG('存档写入失败：', msg);
+  }
+  syncSaveWarn();
+  return false;
+}
+
+function syncSaveWarn() {
+  const el = document.getElementById('saveWarn');
+  if (!el) return;
+  const bad = !!(state && state.saveBroken);
+  el.style.display = bad ? '' : 'none';
+  if (bad) el.title = '这一局的进度没能写进本机存储（隐私模式或空间不足）。点这里去导出存档。';
 }
 
 /* 读档：任何一项对不上就当没有存档（宁可让玩家重开，也不能载入半个坏局）
@@ -4949,6 +5045,23 @@ function cleanProgress(p) {
   };
 }
 
+/* 存档内容校验：本 **readSave() 与 applySaveFile() 共用同一把尺子**，
+   两处都不能绕过——导入路径曾经只看 `v` 和 `lv` 就把整段 JSON 写进 localStorage。
+
+   校验管两件事：
+   ① **会不会把状态搞坏**（NaN 沿算术传下去、不存在的兵种、界外坐标）；
+   ② **会不会把代码带进来**（字符串字段里有 `<` `>` `"` `'` 之类）。
+   第 ② 条是 v4.6 体检补的：渲染层有 25 处 innerHTML，一份伪造的存档
+   把兵牌名写成 `"><img src=x onerror=...>` 就能在玩家页面上执行脚本
+   （已实测）。渲染层现在也有 esc() 兜着，但**入口这道必须自己有牙**——
+   两道锁总比一道锁加一句"应该没事"强。
+
+   仍然不管"数值合不合理"：单机游戏没必要防玩家改自己的档。 */
+const SAVE_STR_BAD = /[<>&"'\u0000-\u001f]/;
+function saveStrBad(v, maxLen) {
+  return typeof v !== 'string' || !v.length || v.length > (maxLen || 64) || SAVE_STR_BAD.test(v);
+}
+
 function validateSave(s) {
   if (!s || typeof s !== 'object' || Array.isArray(s)) return { ok: false, msg: '存档内容不是一个对象。' };
   if (s.v !== SAVE_VER) return { ok: false, msg: '存档版本不符：文件是 v' + s.v + '，本作是 v' + SAVE_VER + '。' };
@@ -4958,15 +5071,30 @@ function validateSave(s) {
     return { ok: false, msg: '存档的地图与关卡规模对不上（' + (Array.isArray(s.map) ? s.map.length : '无') +
                              ' 行，应为 ' + lv.rows + ' 行）。' };
   }
+  /* 地图逐行验：长度与字符集都要对。只验行数的话，一行 `"` 就能把
+     整块棋盘的 HTML 撕开一个口子（地形字符是直接当 class 拼进去的）。 */
+  for (let r = 0; r < s.map.length; r++) {
+    const row = s.map[r];
+    if (typeof row !== 'string' || row.length !== lv.cols) {
+      return { ok: false, msg: '存档地图第 ' + (r + 1) + ' 行的长度不对。' };
+    }
+    for (const ch of row) {
+      if (!TERRAIN[ch]) return { ok: false, msg: '存档地图第 ' + (r + 1) + ' 行有未知地形「' + ch + '」。' };
+    }
+  }
   if (!Array.isArray(s.units) || !s.units.length) return { ok: false, msg: '存档里没有任何部队。' };
-  /* 逐个兵牌过一遍。放得比较宽松——只管"会不会把状态搞坏"，
-     不管"数值合不合理"。玩家的存档是自己打的，没必要像防外挂一样防他；
-     真正要挡住的是 NaN / undefined 这类会顺着算术一路传下去的东西。 */
   for (const u of s.units) {
     if (!u || typeof u !== 'object') return { ok: false, msg: '存档里有一条部队记录格式不对。' };
     if (typeof u.id !== 'string' || !u.id) return { ok: false, msg: '存档里有部队缺少编号。' };
     if (u.side !== 'blue' && u.side !== 'red') return { ok: false, msg: '部队 ' + u.id + ' 的阵营无效。' };
     if (!TYPE[u.type]) return { ok: false, msg: '部队 ' + u.id + ' 的兵种「' + u.type + '」不存在。' };
+    /* 显示用的三个字符串：兵牌名、简写、编号。它们在界面上出现的位置最多，
+       也是最容易被塞进标签的三个字段。 */
+    if (saveStrBad(u.name, 64)) return { ok: false, msg: '部队 ' + u.id + ' 的名称里有不允许的字符。' };
+    if (saveStrBad(u.abbr, 16)) return { ok: false, msg: '部队 ' + u.id + ' 的简写里有不允许的字符。' };
+    if (u.corps !== undefined && u.corps !== null && saveStrBad(u.corps, 16)) {
+      return { ok: false, msg: '部队 ' + u.id + ' 的编制号里有不允许的字符。' };
+    }
     if (!Number.isFinite(u.str) || u.str < 0) return { ok: false, msg: '部队 ' + u.id + ' 的战力不是有效数字。' };
     if (!Number.isFinite(u.org) || u.org < 0 || u.org > 100) {
       return { ok: false, msg: '部队 ' + u.id + ' 的组织度不在 0–100 之间。' };
@@ -4975,6 +5103,49 @@ function validateSave(s) {
         !Number.isInteger(u.pos[0]) || !Number.isInteger(u.pos[1]) ||
         u.pos[0] < 0 || u.pos[0] >= lv.rows || u.pos[1] < 0 || u.pos[1] >= lv.cols) {
       return { ok: false, msg: '部队 ' + u.id + ' 的坐标在战场之外。' };
+    }
+  }
+  /* 战报：只有最近 80 条会显示，但存档里可以塞任意多条，所以先限量再验内容。 */
+  if (s.log !== undefined && s.log !== null) {
+    if (!Array.isArray(s.log)) return { ok: false, msg: '存档的战报不是一个列表。' };
+    if (s.log.length > 200) return { ok: false, msg: '存档的战报条数异常（' + s.log.length + ' 条）。' };
+    for (const l of s.log) {
+      if (!l || typeof l !== 'object') return { ok: false, msg: '存档的战报里有一条格式不对。' };
+      if (l.text !== undefined && (typeof l.text !== 'string' || l.text.length > 500)) {
+        return { ok: false, msg: '存档的战报里有超长或非文本的行。' };
+      }
+    }
+  }
+  /* 工事：kind 必须是真的工事类型。`FORT[f.kind].name` 在单位面板里是直接取的，
+     给个不存在的 kind 会当场抛 TypeError，玩家看到的是"点兵牌就报错"。 */
+  if (s.forts !== undefined && s.forts !== null) {
+    if (!Array.isArray(s.forts)) return { ok: false, msg: '存档的工事不是一个列表。' };
+    for (const f of s.forts) {
+      if (!f || typeof f !== 'object') return { ok: false, msg: '存档的工事里有一条格式不对。' };
+      if (!FORT[f.kind]) return { ok: false, msg: '存档里有未知的工事「' + f.kind + '」。' };
+      if (f.side !== 'blue' && f.side !== 'red') return { ok: false, msg: '存档的工事阵营无效。' };
+      if (!Number.isInteger(f.r) || !Number.isInteger(f.c) ||
+          f.r < 0 || f.r >= lv.rows || f.c < 0 || f.c >= lv.cols) {
+        return { ok: false, msg: '存档里有工事落在战场之外。' };
+      }
+    }
+  }
+  /* 修正（mods）：label 会进 HUD 的修正列表 */
+  if (s.mods !== undefined && s.mods !== null) {
+    if (!Array.isArray(s.mods)) return { ok: false, msg: '存档的修正列表不是一个列表。' };
+    for (const m of s.mods) {
+      if (!m || typeof m !== 'object') return { ok: false, msg: '存档的修正里有一条格式不对。' };
+      if (m.label !== undefined && (typeof m.label !== 'string' || m.label.length > 80 ||
+          SAVE_STR_BAD.test(m.label))) {
+        return { ok: false, msg: '存档的修正说明里有不允许的字符。' };
+      }
+    }
+  }
+  /* 牌组：不认识的卡 id 会让「本局 3/3」永远差一张 */
+  if (s.deck !== undefined && s.deck !== null) {
+    if (!Array.isArray(s.deck)) return { ok: false, msg: '存档的牌组不是一个列表。' };
+    for (const id of s.deck) {
+      if (!CARDS[id]) return { ok: false, msg: '存档里有不存在的战术卡「' + id + '」。' };
     }
   }
   return { ok: true, msg: '', level: lv };
@@ -6697,9 +6868,9 @@ function renderBoard() {
            所以 title 里要写清楚。 */
         if (isBroken(u2)) uc += ' broken';
         if (state.selected === u2) uc += ' sel';
-        inner += '<div class="' + uc + '" title="' + u2.name +
+        inner += '<div class="' + uc + '" title="' + esc(u2.name) +
                  (isBroken(u2) ? '（建制崩溃：本回合不能发起攻击）' : '') + '">' +
-                 '<span class="n">' + u2.abbr + '</span>' +
+                 '<span class="n">' + esc(u2.abbr) + '</span>' +
                  '<span class="s">' + Math.max(0, u2.str) + '</span>' +
                  '<span class="orgbar"><i style="width:' + Math.max(0, u2.org) + '%"></i></span>' +
                  (isBroken(u2) ? '<span class="brk">崩</span>' : '') +
@@ -6865,7 +7036,7 @@ function renderGoal() {
          等到某一回合它突然消失，只会当成 bug。 */
       const tail = (typeof m.left === 'number') ? '（剩 ' + m.left + ' 回合）' : '';
       html += '<div class="abil" style="font-size:10.5px;color:' +
-              (m.side === 'blue' ? '#2F5C8A' : '#A83A3A') + '">▸ ' + m.label + tail + '</div>';
+              (m.side === 'blue' ? '#2F5C8A' : '#A83A3A') + '">▸ ' + esc(m.label) + tail + '</div>';
     }
   }
   document.getElementById('goalBox').innerHTML = html;
@@ -7137,7 +7308,7 @@ function syncUnitOps() {
   /* 标题带上兵牌简称：气泡会为了不挡格子飘开几十像素，不带名字的话
      玩家一眼看不出这组按钮是哪个单位的。 */
   let h = '<div class="uops-h">' + (isTowed(u) && ops.length === 1 ? '火炮状态' : '行动') +
-          ' · ' + u.abbr + '</div>';
+          ' · ' + esc(u.abbr) + '</div>';
   ops.forEach((o, i) => {
     h += '<button data-op="' + o.act + '"' + (o.dis ? ' disabled' : '') +
          (o.on ? ' class="on"' : '') + '><b>' + o.label + '</b>' +
@@ -7287,7 +7458,7 @@ function renderUnitBox() {
   const canAct = u.side === 'blue' && state.phase === 'blue';
 
   let h = '';
-  h += '<div class="ub-head"><span class="ub-name">' + u.name + '</span>' +
+  h += '<div class="ub-head"><span class="ub-name">' + esc(u.name) + '</span>' +
        '<span class="tag ' + (u.side === 'blue' ? 'b' : 'r') + '">' +
        (u.side === 'blue' ? '我方' : '敌方') + '</span></div>';
   h += '<div class="ub-meta">' + ty.name + ' · ' + ty.role + ' · ' + coordName(u.pos) + ' ' + t.name + '</div>';
@@ -7379,7 +7550,7 @@ function renderUnitBox() {
         const dFt = fortAt(tg.pos[0], tg.pos[1]);
         const fortTag = (dFt && dFt.side === tg.side && dFt.maxHp)
           ? ' · <span class="warn">' + FORT[dFt.kind].code + ' 耐久 ' + dFt.hp + '/' + dFt.maxHp + '</span>' : '';
-        h += '<div class="tgt ' + (pv.tier <= 3 ? '' : 'bad') + '">' + tg.abbr + ' ' + tg.name +
+        h += '<div class="tgt ' + (pv.tier <= 3 ? '' : 'bad') + '">' + esc(tg.abbr) + ' ' + esc(tg.name) +
              '<br><span style="color:#8A867D">' + tg.str + ' 战力 · ' + tt.name +
              ' · 距离 ' + hexDist(u.pos, tg.pos) + '</span>' + fortTag + '<br><b>' + TIER_LABEL[pv.tier] +
              '</b>' + (pv.counter ? (pv.counterSoft ? ' · <span class="warn">对方反击减半</span>' : '') : ' · <span class="ok">对方无法反击</span>') + '</div>';
@@ -7414,10 +7585,23 @@ function renderUnitBox() {
   });
 }
 
+/* 战报行允许的样式类白名单。存档里的 cls 直接当 class 拼会变成属性注入，
+   所以不认识的一律当普通行——宁可少一个颜色，不要多一个可执行片段。 */
+const LOG_CLASSES = ['b', 'r', 'sys', 'hi', ''];
+
 function renderLog() {
   const el = document.getElementById('log');
-  el.innerHTML = state.log.slice(-80).map(l =>
-    '<div class="' + l.cls + '">' + l.text + '</div>').join('');
+  /* 战报是存档的一部分（saveSnapshot 里存最近 80 条），所以 text / cls 都不可信。
+     这里用 textContent 逐条建节点而不是拼字符串：战报是唯一一处"每条都可能带
+     玩家数据的列表"，拼 HTML 只会给校验层开一个必须永远不漏的后门。 */
+  const rows = state.log.slice(-80);
+  el.innerHTML = '';
+  for (const l of rows) {
+    const d = document.createElement('div');
+    d.className = LOG_CLASSES.includes(l.cls) ? l.cls : '';
+    d.textContent = String(l.text);
+    el.appendChild(d);
+  }
   el.scrollTop = el.scrollHeight;
 }
 
@@ -8178,6 +8362,14 @@ window.addEventListener('keydown', e => {
 document.getElementById('btnMenu').addEventListener('click', () => {
   FX.sfx('uiClick');
   location.href = '../index.html';
+});
+
+/* 存档异常的出口只有一条：去 HQ 存档页导出。
+   写失败意味着本机存储不可用，读也是空的，"修复"这个按钮不存在，
+   所以别做成"重试保存"——试点十次也是十次失败，玩家会更慌。 */
+document.getElementById('saveWarn').addEventListener('click', () => {
+  FX.sfx('uiClick');
+  openHQ('save');
 });
 
 /* 重开要点两下。有存档之后误触一次就丢一局进度，不值得 */

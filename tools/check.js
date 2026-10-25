@@ -11,7 +11,7 @@
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
-const { loadGame } = require('./load');
+const { loadGame, extractScript } = require('./load');
 
 const args = process.argv.slice(2);
 const levelArg = (args.find(a => a.startsWith('--level=')) || '').split('=')[1] || '';
@@ -23,14 +23,15 @@ const file = fileArg || path.join(__dirname, '..', 'game', 'campaign.html');
 let fail = 0;
 
 const html = fs.readFileSync(file, 'utf8');
-const m = html.match(/<script>([\s\S]*?)<\/script>/);
-if (!m) {
+/* 取引擎那一块（不是 <head> 里的兜底脚本），判据见 load.js 的 extractScript */
+const src = extractScript(html);
+if (!src) {
   console.error('未找到 <script> 块');
   process.exit(1);
 }
 try {
-  new vm.Script(m[1], { filename: file });
-  console.log('[1/4] 语法校验通过，' + m[1].split('\n').length + ' 行');
+  new vm.Script(src, { filename: file });
+  console.log('[1/4] 语法校验通过，' + src.split('\n').length + ' 行');
 } catch (e) {
   console.error('[1/4] 语法错误：' + e.message);
   process.exit(1);

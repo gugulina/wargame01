@@ -16,7 +16,12 @@ const fs = require('fs');
 const path = require('path');
 const { JSDOM } = require('jsdom');
 
-const file = path.join(__dirname, '..', 'game', 'campaign.html');
+/* 用法：node tools/briefcheck.js [game/campaign.html]
+   接一个可选文件参数是为了 mutcheck.js——DOM 那几条断言（转义、战报 textContent）
+   只能在真 DOM 里验，而"验它会不会红"必须拿一份变异过的引擎去跑。 */
+const file = process.argv[2] && !process.argv[2].startsWith('-')
+  ? path.resolve(process.argv[2])
+  : path.join(__dirname, '..', 'game', 'campaign.html');
 const html = fs.readFileSync(file, 'utf8');
 
 const dom = new JSDOM(html, {
@@ -471,6 +476,131 @@ function skip(name, why) {
          '拿不到 hqSaveNote / #hqSaveNote，防线无法验证');
     }
     dom3.window.close();
+  }
+
+  console.log('[13] 恶意文本打不进 DOM（走真实渲染路径，不是读提示文案）');
+  /* 这一节和 selftest [31] 是两道不同的锁，不能互相顶替：
+     [31] 验的是**入口**把坏档挡在门外；这里验的是**出口**——
+     坏字符串从别的地方进来（老版本存的档、将来新加的字符串源）时，
+     渲染层会不会把它当代码执行。v4.6 体检时在真浏览器里实测过：
+     不加 esc 的版本 pwn1=1，脚本真的跑了。
+
+     做法是**绕过 validateSave**，直接往内存里的 state 塞 payload，
+     再走 render() 这条真路径。走导入接口的话入口那道锁会先把档拒掉，
+     这条断言就永远绿——绿得毫无意义，正是 docs/10 记的那个坑。
+
+     jsdom 不加载外部资源，<img onerror> 不会真的触发，
+     所以这里断言的是 **DOM 结构**（有没有长出 img / onerror 属性），
+     不是"脚本有没有跑"。结构对了，真浏览器里也就跑不了。 */
+  {
+    const W = window.__WAR__;
+    const payload = '"><img src=x onerror="window.__pwn=1">';
+    W.newGame({ noSave: true });
+    const st = W.getState();
+    ok('前提：新开一局有部队', !!(st && Array.isArray(st.units) && st.units.length));
+    const u = st.units.find(x => x.side === 'blue');
+    ok('前提：找得到我方部队', !!u, '蓝方一个单位都没有');
+
+    if (u) {
+      const oldName = u.name, oldAbbr = u.abbr;
+      u.name = payload;
+      u.abbr = payload;
+      W.render();
+
+      const board = doc.getElementById('board');
+      ok('棋盘里没有长出 <img>', board.querySelectorAll('img').length === 0,
+         '多了 ' + board.querySelectorAll('img').length + ' 个 img');
+      ok('棋盘里没有 onerror 属性（引号没截断属性）',
+         board.querySelectorAll('[onerror]').length === 0);
+      /* **不要用 innerHTML.indexOf('<img') 判这件事。** 属性值里的 `<`
+         按 HTML 规范本来就不用转义，jsdom / Chrome 都会把它原样吐出来：
+         title 里那段 `&quot;><img ...` 是**文本**，不是元素。
+         上一版就是这么写的，结果正确实现被判成失败（踩过一次，记在这里）。
+         真正能判的是结构：有没有 IMG 元素、有没有 onerror 属性、span 里的
+         textContent 是不是整串 payload。 */
+      /* 按 title 精确定位那张兵牌。直接 querySelector('.unit .n') 取的是
+         棋盘上第一支部队（可能是敌方的"3炮"），测的根本不是被改过的那张。 */
+      const card = Array.from(board.querySelectorAll('.unit'))
+        .find(e => e.getAttribute('title') === payload);
+      const nSpan = card && card.querySelector('.n');
+      ok('兵牌简称以纯文本显示（转义而不是删掉）',
+         !!nSpan && nSpan.textContent === payload,
+         nSpan ? JSON.stringify(nSpan.textContent.slice(0, 40)) : '没找到被改过的那张兵牌');
+      /* 整串 payload 原样落在 title 里，说明 `"` 被转成了 &quot;；
+         没转的话这里会变成 "（引号提前收尾）。 */
+      ok('兵牌 title 完整保留 payload（走的是转义，不是截断）', !!card);
+
+      /* 单位面板：ub-name 也是拼进 innerHTML 的 */
+      W.select(u);
+      const ub = doc.getElementById('unitBox');
+      ok('单位面板里没有长出 <img>', ub.querySelectorAll('img').length === 0);
+      const nm = ub.querySelector('.ub-name');
+      ok('单位面板把兵牌名当文本显示', !!nm && nm.textContent === payload,
+         nm ? nm.textContent.slice(0, 40) : '没找到 .ub-name');
+
+      /* 战报：renderLog 逐条 textContent 建节点，cls 走白名单 */
+      st.log.push({ t: 'x', cls: 'b" onload="window.__pwn2=1', text: payload });
+      W.render();
+      const logEl = doc.getElementById('log');
+      ok('战报里没有长出 <img>', logEl.querySelectorAll('img').length === 0);
+      ok('战报恶意文本仍完整回显', logEl.textContent.indexOf('onerror') >= 0);
+      const lastRow = logEl.lastElementChild;
+      ok('战报的 cls 走白名单（不认识的一律当普通行）',
+         !!lastRow && lastRow.className === '', lastRow ? lastRow.className : '没有战报行');
+
+      /* 收拾干净：后面的收尾检查还要用这局 state */
+      st.log.pop();
+      u.name = oldName;
+      u.abbr = oldAbbr;
+      W.render();
+    }
+    ok('干净数据下棋盘仍能正常渲染', doc.querySelectorAll('#board .hex, #board [class]').length > 0);
+  }
+
+  console.log('[14] 存档写失败时玩家能看见（顶栏胶囊 + 点进去是导出页）');
+  /* selftest [32] 测的是 state.saveBroken 这个**标记**，测不到玩家眼睛能看到什么。
+     这里走真 DOM：把 localStorage 掐掉 → 存档失败 → 顶栏胶囊必须从 none 变成可见，
+     而且点它要真的跳到 HQ 的存档页（导出是唯一出路：写不进去的时候读也是空的，
+     做一个"重试保存"按钮只会让玩家连点十次都是失败）。
+
+     jsdom 的 localStorage 是 Window 原型上的 getter，`delete` 不掉，
+     要在 window 上盖一个自己的属性把它遮住。测完必须还原——
+     后面别的脚本还要用，而且掩盖着的话会让人以为"存档功能坏了"。 */
+  {
+    const W = window.__WAR__;
+    const el = doc.getElementById('saveWarn');
+    ok('前提：正常情况下顶栏没有存档异常胶囊',
+       !!el && el.style.display === 'none', el ? el.style.display : '没有 #saveWarn');
+
+    if (el) {
+      const realLS = window.localStorage;
+      Object.defineProperty(window, 'localStorage', { value: undefined, configurable: true, writable: true });
+      let wrote;
+      try { wrote = W.saveGame(); } finally {
+        Object.defineProperty(window, 'localStorage', { value: realLS, configurable: true, writable: true });
+      }
+      ok('写不进去时 saveGame 返回 false', wrote === false, String(wrote));
+      ok('顶栏胶囊亮起来', el.style.display !== 'none', JSON.stringify(el.style.display));
+      ok('胶囊文案说清了是什么事', /存档/.test(el.textContent), el.textContent);
+
+      /* 点之前先把 hqTab 挪开。hqTab 是模块级变量，前面几节切过档，
+         直接点的话"存档页那个 .on"可能是上一节留下的——
+         HQ 压根没打开它也是绿的，那这条断言就没有意义了。
+         变异自检抓到过这一幕：删掉 openHQ('save') 之后它照样绿。 */
+      W.openHQ('dex');
+      W.closeHQ();
+      el.click();
+      ok('点胶囊打开 HQ', !doc.getElementById('hqScreen').classList.contains('hidden'));
+      ok('点胶囊落在存档页（导出是唯一出路）',
+         !!doc.querySelector('#hqTabs button[data-tab="save"].on') &&
+         !doc.querySelector('#hqTabs button[data-tab="dex"].on'));
+      W.closeHQ();
+
+      /* 存储恢复后胶囊要自己消失。清不掉的后果是"一次抖动永久报警"，
+         玩家学会无视它，真出问题那天也看不见。 */
+      ok('存储恢复后重新存档成功', W.saveGame() === true);
+      ok('重新存成功后胶囊自己收起', el.style.display === 'none', JSON.stringify(el.style.display));
+    }
   }
 
   console.log('');
