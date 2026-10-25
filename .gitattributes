@@ -1,3 +1,16 @@
+# 文本统一 LF 入库、LF 检出。理由见 tools/export-levels.js 里 srcSig 那段：
+# 指纹现在已经按行尾归一，不怕这个了；但让两边工作区就一样，能少一整类
+# "只在我机器上过"的问题——CRLF 与 LF 的差异在 diff 里看不出来，最难查。
+* text=auto eol=lf
+
+# 二进制必须显式声明：text=auto 靠内容猜，猜错一次就会把 webp 写坏
+*.webp binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.mp3 binary
+*.ogg binary
+
 # 钩子必须是 LF 行尾：Windows 上 checkout 成 CRLF 之后，sh 会报
 # "/bin/sh: bad interpreter: No such file or directory" —— 报错完全指不到
 # 真正原因（行尾符），查起来很费劲。tools/install-hooks.js 里也做了兜底转换，

@@ -22,7 +22,12 @@ const outPath = path.join(root, 'data', 'levels.js');
 
 const checkOnly = process.argv.includes('--check');
 
-const html = fs.readFileSync(gamePath, 'utf8');
+/* 行尾一律归一成 LF 之后再算。git 在 Windows 上按 core.autocrlf 把工作区写成
+   CRLF，Linux 和 CI 检出是 LF —— 同一份提交，两边的原始字节每行差一个 \r。
+   指纹如果吃原始字节，就会"Windows 上绿、CI 上红"，而且两边各自看都像对的：
+   本地跑 --check 一致，CI 跑同一段代码却不一致，第一反应会去怀疑缓存。
+   v4.6.2 的 CI 首跑就是这么红的（srcSig 差了 8920 字节 = 引擎的行数）。 */
+const html = fs.readFileSync(gamePath, 'utf8').replace(/\r\n?/g, '\n');
 const { api } = loadGame(gamePath);
 
 /* 版本号从顶栏那个 <span id="verTag"> 读——它是全项目唯一的版本标记，
@@ -31,7 +36,8 @@ const vm2 = /<span id="verTag">([^<]+)<\/span>/.exec(html);
 const ver = vm2 ? vm2[1].trim() : '';
 
 /* 源文件指纹：文件字节数 + 简易散列。比"生成时间"有用得多——
-   时间每次跑都变，git 里永远是脏的；指纹只在真变了的时候才变。 */
+   时间每次跑都变，git 里永远是脏的；指纹只在真变了的时候才变。
+   注意这里是归一化之后的长度，不是磁盘上的字节数：见上面那段行尾说明。 */
 let hash = 0;
 for (let i = 0; i < html.length; i++) hash = (hash * 31 + html.charCodeAt(i)) | 0;
 const srcSig = html.length + ':' + (hash >>> 0).toString(36);
@@ -104,8 +110,17 @@ window.CANGYU = ${JSON.stringify({
 if (checkOnly) {
   let old = '';
   try { old = fs.readFileSync(outPath, 'utf8'); } catch (e) { old = ''; }
-  if (old !== body) {
+  /* 比对前同样归一化：工作区的 data/levels.js 可能是 CRLF（Windows 检出），
+     而 body 永远是 LF。只差行尾就报"不一致"是最冤的一种红。 */
+  if (old.replace(/\r\n?/g, '\n') !== body) {
     console.error('✗ data/levels.js 与 campaign.html 不一致——跑 node tools/export-levels.js 重新生成');
+    /* 先把指纹摆出来。指纹不同而关卡全同，说明引擎动过、数据没动；
+       反过来才是关卡数据本身的问题。少了这一行，只能靠重新生成 + git diff
+       才看得出差在哪（v4.6.2 查 CI 就是这么查的，绕了一大圈）。 */
+    const sigOf = s => { const m = /"srcSig":\s*"([^"]+)"/.exec(s || ''); return m ? m[1] : '(无)'; };
+    if (sigOf(old) !== srcSig) {
+      console.error('  引擎指纹：文件里 ' + sigOf(old) + '，当前 ' + srcSig);
+    }
     /* 具体差在哪：逐关比 id / name / when，比"两个文件不一样"有用 */
     let prev = null;
     try { prev = require(outPath.includes(':') ? path.resolve(outPath) : outPath); } catch (e) {}
