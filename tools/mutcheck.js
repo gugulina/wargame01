@@ -1,7 +1,7 @@
 /* 变异自检：确认 selftest 的断言**真的会红**。
    用法：node tools/mutcheck.js [--keep] [--grep=关键字]
 
-   --grep 只跑名字里含关键字的几条。全量现在 40 条、其中一半要起 jsdom，
+   --grep 只跑名字里含关键字的几条。全量现在 43 条、其中 15 条要起 jsdom，
    跑一遍两分多钟；调某一条断言时没必要等全部。
 
    为什么要这东西：断言写错时最怕的不是红，是**假绿**。
@@ -257,6 +257,34 @@ const MUTANTS = [
    '    if (false && back) { }',
    '关掉 HQ 后焦点回到棋盘',
    'brief'],
+
+  /* ── 防空同格反击 / 空袭 HQ 的目标指示 ──
+     这两条都是玩家实测报上来的：一个"高炮在敌机贴脸时不还手"，
+     一个"敌机隔着战场点掉指挥部"。断言必须盯住行为，不是盯住注释。 */
+  ['近界对空也生效（玩家报的 bug 原样退回：敌机压头顶，高炮不还手）',
+   '  if (!isAir(att) && hexDist(att.pos, def.pos) < minRange(def)) return false;',
+   '  if (hexDist(att.pos, def.pos) < minRange(def)) return false;',
+   '同格空袭时防空连能反击'],
+
+  ['空袭 HQ 不再需要目标指示（敌机又能隔空点名指挥部）',
+   '  if (isAir(att) && isHQ(def) && !hqAirSpotOk(att.side, def.pos)) return false;',
+   '  if (false) return false;',
+   '没有任何指示者时，飞机打不了 HQ'],
+
+  ['飞机也算"看见"（自己给自己指示，等于没有这条规则）',
+   '    if (isAir(u)) return false;                       // 飞机不能当自己的指示者',
+   '    if (false) return false;',
+   '飞机贴着 HQ 也不算"看见"'],
+
+  ['所有兵种都按侦察半径算（普通营也能在 2 格外指示 HQ）',
+   "    return hexDist(u.pos, pos) <= (u.type === 'rec' ? 2 : 1);",
+   '    return hexDist(u.pos, pos) <= 2;',
+   '普通地面部队在 2 格外不能指示'],
+
+  ['HQ 的空袭掩体修正没进 attMod（一次空袭就能抹掉一个师部）',
+   '  if (isHQ(def) && isAir(att)) attMod -= 0.20;',
+   '',
+   '空袭 HQ 的攻击方多 -0.20'],
 ];
 
 /* 锚点按 LF 写，但 campaign.html 是 CRLF（7356 行全是）。

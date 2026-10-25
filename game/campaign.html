@@ -1404,11 +1404,31 @@ function attackClasses(u) {
   const t = TYPE[u.type];
   return (t && Array.isArray(t.atk)) ? t.atk : null;
 }
+/* 空袭指挥部需要目标指示：情报不是免费的。
+   规则：攻击方必须有"眼睛"贴在 HQ 附近——
+     · 侦察连 ≤2 格（侦察就是这个兵种的职责）
+     · 其他地面 / 水面单位 ≤1 格（已经贴到门口，等于已经看见）
+   航空单位不算指示者：飞机自己就是攻击方，让它"自己给自己指示"等于没这条规则。
+
+   为什么要有这条：HQ 是 str 2 / rng 0 的固定靶，`scoreTarget()` 又给 HQ +0.8，
+   于是 AI 会拿飞机隔着一整个战场把师部点名抹掉——玩家连把高炮挪过去的时间都没有。
+   战场上"空袭指挥部"从来不是看见了就能炸，先得有人摸到跟前把位置报回去；
+   这条规则就是把这句话变成机制。副作用是好的：开局不再有指挥旗被隔空摘掉，
+   玩家有余量去布防空，而"打掉对方摸上来的侦察连"变成一件有回报的事。 */
+function hqAirSpotOk(side, pos) {
+  return alive(side).some(u => {
+    if (isAir(u)) return false;                       // 飞机不能当自己的指示者
+    return hexDist(u.pos, pos) <= (u.type === 'rec' ? 2 : 1);
+  });
+}
 function canTarget(att, def) {
   /* 这里不判 str：str 归零的单位在 doAttack 里还要走完"被歼灭"那一段
      （音效、飘字、removeUnit）。把 0 战力挡在门外，等于把收尾也一起挡了。 */
   if (!att || !def) return false;
   if (isAir(def) && !canHitAir(att)) return false;   // 没防空能力就打不着天上的
+  /* 空袭指挥部要有目标指示（见 hqAirSpotOk）。放在 canTarget 里是最省的一处：
+     单位面板的目标列表、AI 的 targetsFor、doAttack 的第二道闸全都调它。 */
+  if (isAir(att) && isHQ(def) && !hqAirSpotOk(att.side, def.pos)) return false;
   const ac = attackClasses(att);
   if (ac && !ac.includes(tclass(def))) return false;
   return true;
@@ -3257,6 +3277,11 @@ const LEVELS = [
     { id:'R1T', side:'red', abbr:'47反', name:'敌摩步第 47 旅反坦克连',        type:'at',  str:3, mov:5, rng:1, r:3, c:10, corps:'R1', wave:1 },
     { id:'R1D', side:'red', abbr:'47-4', name:'敌摩步第 47 旅第 4 营',          type:'mob', str:9, mov:8, rng:1, r:1, c:10, corps:'R1', wave:1 },
     { id:'R1E', side:'red', abbr:'47工', name:'敌摩步第 47 旅工兵连',          type:'engc',str:2, mov:6, rng:1, r:1, c:9, corps:'R1', wave:1 },
+    /* 旅属侦察连。摩步旅本来就有这个编制，但 C4 之前一支都没有——那时它只是
+       "编制表上缺一格"；现在它决定红方空军能不能炸我方指挥部（见 hqAirSpotOk）。
+       放在第一波、位置偏前：它得活着摸到我方师部 2 格内，飞机才有目标可打。
+       这也给了玩家一个明确的应对——把它打掉，指挥部就安全了。 */
+    { id:'R1R', side:'red', abbr:'47侦', name:'敌摩步第 47 旅侦察连',          type:'rec', str:2, mov:10, rng:1, r:4, c:9, corps:'R1', wave:1 },
 
     /* ── 敌方 · 第二波 · 装甲第 8 师先遣战斗群（第 4 回合，西北） ── */
     { id:'R2H', side:'red', abbr:'8H',   name:'敌装甲第 8 师先遣战斗群群部',    type:'hkg', str:2, mov:8, rng:0, r:1, c:4, corps:'R2', wave:2 },
@@ -3277,7 +3302,12 @@ const LEVELS = [
     { id:'R3A', side:'red', abbr:'空3-战', name:'敌航空第 3 联队战斗机中队',    type:'fgt', str:8,  mov:12, rng:1, r:3, c:16, corps:'R3', wave:3 },
     { id:'R3B', side:'red', abbr:'空3-攻', name:'敌航空第 3 联队攻击机中队',    type:'atk', str:8,  mov:10, rng:1, r:3, c:17, corps:'R3', wave:3 },
     { id:'R3C', side:'red', abbr:'空3-轰', name:'敌航空第 3 联队轰炸机中队',    type:'bmb', str:12, mov:8,  rng:1, r:4, c:17, corps:'R3', wave:3 },
-    { id:'R3D', side:'red', abbr:'空3-攻2',name:'敌航空第 3 联队第 2 攻击机中队',type:'atk', str:8, mov:10, rng:1, r:4, c:16, corps:'R3', wave:3 },
+    /* 原编制还有第 2 攻击机中队（R3D）。它是在修"敌机隔空点名指挥部"之后
+       拿掉的：那条规则一上，红方飞机不再拿架次去砸 str 2 的师部，而是集中
+       砸城里的炮兵营——同一批飞机干正事，蓝方达成率从 90% 掉到 67.5%
+       （40 局同种子）。这不是规则错了，是原来那 20 个点本来就靠"AI 浪费
+       架次"撑着。少一架攻击机补回 80%，落在爽局区间（75–95%）里。
+       编制上也不再别扭：雷达上的"四个目标"（战 / 攻 / 轰 / 轰）终于对得上了。 */
     { id:'R3E', side:'red', abbr:'空3-轰2',name:'敌航空第 3 联队第 2 轰炸机中队',type:'bmb', str:12, mov:8, rng:1, r:2, c:18, corps:'R3', wave:3 },
 
     /* ── 敌方 · 第四波 · 第 63 步兵师（第 11 回合，北面正面） ── */
@@ -4366,11 +4396,18 @@ function canCounter(att, def) {
   if (isAir(att) && !(isAA(def) || isAir(def))) {
     if (!onAABunker(def)) return false;
   }
-  /* 贴到防守方近界以内，它根本够不着，不算反击。
+  /* 近界：贴到防守方近界以内，它根本够不着，不算反击。
      这条已经覆盖了"榴弹炮打不了自己脚下"，不需要再对远射程单位额外设限——
      以前那句 `dr >= 2 && ar <= 1 → 只有直瞄炮能反击` 是近界出现之前的替代品，
-     留着它会让射程 2 的防空营没法还手贴脸飞过来的飞机。 */
-  if (hexDist(att.pos, def.pos) < minRange(def)) return false;
+     留着它会让射程 2 的防空营没法还手贴脸飞过来的飞机。
+
+     **对空例外**：防空炮的"近界"本来就不成立。空中与地表是两层，飞机可以
+     直接压到与高炮同一格；一门高炮不会因为敌机太近而打不着。以前这一条对
+     空也生效，于是敌机贴脸时防空连干脆不还手——兵种说明里写着"对空目标不设
+     近界"（见 TYPE.aac 的 abil），代码却从没这么做过，规则和实现是两套。
+     放开它是安全的：上面那道闸已经拦掉了"非防空单位反击空军"，能走到这里的
+     对空反击方只剩 AA 兵种与 F 阵地驻军，而炮兵（近界 2/3）照样打不了天上。 */
+  if (!isAir(att) && hexDist(att.pos, def.pos) < minRange(def)) return false;
   if (attackRange(def) < attackRange(att)) return false;
   return true;
 }
@@ -4450,6 +4487,11 @@ function previewAttack(att, def, fields) {
      也只看 att 自己站的那一格——阵地是"架在格子上的高炮"，
      不跟着人去别处。 */
   attMod += aaBunkerBonus(att, def);
+  /* 指挥部不是一顶帐篷：防空掩体、警卫分队、疏散预案都是标配。
+     HQ 遭空袭时攻击方额外 -0.20 —— 与 hqAirSpotOk 配套：那条管"能不能看见"，
+     这条管"看见了也炸不利索"。少了这一条，一次空袭就能抹掉一个 str 2 的师部，
+     而师部一没，全师组织度当场 -25（见 TYPE.hqd），等于一条命换掉半个师。 */
+  if (isHQ(def) && isAir(att)) attMod -= 0.20;
   attMod += recBonus(att, def.pos);
   attMod -= aaPenalty(att, def.pos);
   /* 工事抗炮击：远程火力打有工事的目标，攻击额外减成。
@@ -8217,6 +8259,17 @@ const AIDE = [
        '① <b>近界</b>：野炮贴到 2 格以内、重炮贴到 3 格以内就打不到。看侧栏写的"近界 X 格"。<br>' +
        '② <b>没展开</b>：牵引炮进场时是行军状态（兵牌有斜纹），要先花一回合「展开放列」。<br>' +
        '③ <b>没弹药</b>：打光了就哑了。静止且有补给时每回合 +1 发。' },
+  { q: '防空炮为什么能打贴脸的飞机？它不也有近界吗？',
+    a: '防空武器<b>不对空设近界</b>：空中和地表是两层，敌机可以直接压到与高炮同一格，' +
+       '一门高炮不会因为敌机太近反而打不着。<br>' +
+       '所以「近界」那条只拦<b>地表目标</b>——防空营照样打不了贴到脚下的步兵，' +
+       '但飞机飞过来就打得着，而且挨炸时能<b>反击</b>（这是它与普通炮兵最关键的区别）。' },
+  { q: '敌人飞机老是绕过来炸我的指挥部，怎么防？',
+    a: '敌机不能隔空点名指挥部了：<b>必须有人替它指示目标</b>——' +
+       '侦察单位摸到指挥部 <b>2 格</b>内，或其他地面部队压到 <b>1 格</b>内，' +
+       '飞机才能对指挥旗下手。飞机自己不算指示者。<br>' +
+       '所以你看到敌侦察连往指挥部蹭，<b>先把它打掉</b>，空袭就自然打不出来；' +
+       '再在指挥旗下摆一门高炮或修一处防空阵地，来也炸不利索（空袭伤害另减 20%）。' },
   { q: '牵引炮为什么这么难用？',
     a: '这是刻意的。<code>架设 → 射击 → 收炮 → 转移</code> 是一个完整的四回合循环，' +
        '射程就是拿这个节奏换来的。<br>' +

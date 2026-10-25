@@ -2074,5 +2074,107 @@ console.log('\n[32] 存档写失败必须留下痕迹（不能安静地丢一局
 }
 
 
+console.log('\n[33] 高炮同格反击 + 空袭指挥部要有目标指示');
+{
+  /* 两条都来自同一个玩家反馈：
+       ① 防空炮打不了压到自己头上的敌机
+       ② 敌机隔着整个战场优先点掉指挥部
+     ① 是规则与实现不一致——TYPE.aac 的说明写着"对空目标不设近界"，
+        而 canCounter 里那条近界判定对空也在生效，dist 0 < minRange 1 → 不还手。
+     ② 是缺一条规则：HQ 是 str 2 / rng 0 的固定靶，scoreTarget 又给 +0.8，
+        于是 AI 用飞机把师部点名抹掉。现在空袭 HQ 需要攻击方先有"眼睛"贴上去。 */
+  api.newGame({ level: 'C4', noSave: true });
+  const S = api.getState();
+  const aac = api.alive('blue').find(u => u.type === 'aac');
+  ok('前提：C4 有我方防空连', !!aac);
+  const bmbDef = api.LEVEL.units.find(u => u.type === 'bmb');
+  if (!api.alive('red').some(u => u.type === 'bmb')) {
+    S.units.push(api.makeUnit(bmbDef, true));
+  }
+  const bmb = api.alive('red').find(u => u.type === 'bmb');
+  ok('前提：场上有一架敌轰炸机', !!bmb);
+
+  /* ── 33.1 同格反击 ──
+     空中与地表是两层，敌机可以和防空炮站在同一格。以前那 1 格近界让高炮
+     在"敌机压到头顶"这个最该开火的时候恰好哑火。 */
+  aac.pos = [10, 12];
+  bmb.pos = [10, 12];
+  ok('前提：敌机与防空连同格（dist 0）', api.hexDist(aac.pos, bmb.pos) === 0);
+  ok('同格空袭时防空连能反击（近界对空不成立）', api.canCounter(bmb, aac) === true);
+  /* 相邻 1 格本来就打得了，别把修好的规则改坏 */
+  bmb.pos = [10, 13];
+  ok('相距 1 格时同样能反击', api.canCounter(bmb, aac) === true);
+  /* 近界对地面目标照旧生效：炮兵贴脸还是打不了。
+     这条和上面两条一起才能证明"改的是对空这一支"，而不是把近界整条删了。 */
+  const art = api.alive('blue').find(u => u.type === 'art' || u.type === 'hr');
+  if (art) {
+    const redFoot = api.alive('red').find(u => u.type === 'inf' || u.type === 'mob');
+    art.pos = [10, 12];
+    redFoot.pos = [10, 12];
+    ok('贴脸时炮兵对地面目标仍然不能反击（近界只对空放开）',
+       api.canCounter(redFoot, art) === false);
+  }
+
+  /* ── 33.2 空袭 HQ 的目标指示 ── */
+  const hq = api.alive('blue').find(u => api.isHQ(u));
+  ok('前提：我方场上至少有一个指挥节点', !!hq);
+  const hqPos = hq.pos.slice();
+  const rec = api.alive('red').find(u => u.type === 'rec');
+  ok('前提：C4 红方编成里有侦察连（没有它这条规则永远不触发）', !!rec);
+  const foot = api.alive('red').find(u => u.type === 'inf' || u.type === 'mob');
+  ok('前提：红方有普通地面部队', !!foot);
+
+  /* 先把所有红方非航空单位挪到角落，保证只有被点名的那个在 HQ 附近 */
+  const stash = api.alive('red').filter(u => u !== bmb && !api.isAir(u));
+  const keep = stash.map(u => u.pos.slice());
+  stash.forEach(u => { u.pos = [0, 0]; });
+  ok('没有任何指示者时，飞机打不了 HQ（canTarget 直接拒）',
+     api.canTarget(bmb, hq) === false);
+
+  rec.pos = [hqPos[0], hqPos[1] + 3];
+  ok('侦察连在 3 格外仍指示不了'
+     + '（否则这条规则又变成"全图可见"）',
+     api.canTarget(bmb, hq) === false);
+  rec.pos = [hqPos[0], hqPos[1] + 2];
+  ok('侦察连进到 2 格内 → HQ 可以被空袭', api.canTarget(bmb, hq) === true);
+
+  rec.pos = [0, 0];
+  foot.pos = [hqPos[0], hqPos[1] + 2];
+  ok('普通地面部队在 2 格外不能指示（只有侦察看得那么远）',
+     api.canTarget(bmb, hq) === false);
+  foot.pos = [hqPos[0], hqPos[1] + 1];
+  ok('普通地面部队贴到 1 格就能指示（已经到门口了）',
+     api.canTarget(bmb, hq) === true);
+
+  /* 飞机不能当自己的指示者——否则这条规则等于不存在 */
+  foot.pos = [0, 0];
+  bmb.pos = [hqPos[0], hqPos[1] + 1];
+  ok('飞机贴着 HQ 也不算"看见"（航空单位不当指示者）',
+     api.canTarget(bmb, hq) === false);
+
+  /* ── 33.3 指挥部的防空掩体 ── */
+  rec.pos = [hqPos[0], hqPos[1] + 2];
+  bmb.pos = [hqPos[0] + 1, hqPos[1]];
+  const pvHq = api.previewAttack(bmb, hq, S.fields);
+  /* 对照组：同格位置换成一个辎重队。地形、防空压制、协同全都一样，
+     唯一的差别是"打的是不是指挥节点"。直接比两次 attMod 才能证明这 -0.20
+     真的进了修正，而不是靠比值（比值里混着守方战力，看不出是攻击修正改了）。 */
+  const supB = api.alive('blue').find(u => u.type === 'sup');
+  if (supB) {
+    const supKeep = supB.pos.slice();
+    supB.pos = hqPos.slice();
+    const pvSup = api.previewAttack(bmb, supB, S.fields);
+    supB.pos = supKeep;
+    ok('空袭 HQ 的攻击方多 -0.20（同位置打辎重队没有）',
+       Math.abs((pvSup.attMod - pvHq.attMod) - 0.20) < 1e-9,
+       'HQ ' + pvHq.attMod.toFixed(2) + ' / 辎重队 ' + pvSup.attMod.toFixed(2));
+  }
+
+  /* 复位：别的节次要接着用这些单位 */
+  stash.forEach((u, i) => { u.pos = keep[i]; });
+  api.newGame({ level: 'C4', noSave: true });
+}
+
+
 console.log('\n通过 ' + pass + ' 项，失败 ' + fail + ' 项');
 process.exit(fail ? 1 : 0);
