@@ -2176,5 +2176,57 @@ console.log('\n[33] 高炮同格反击 + 空袭指挥部要有目标指示');
 }
 
 
+console.log('\n[34] 手册文案的显示规矩（加粗 / 不许露代码 / 不许超时代装备）');
+{
+  /* 三条都是玩家看着屏幕提出来的，而且都不是"数值不对"这种能靠读代码发现的问题：
+       ① 兵种说明里写了两百多处 **重点**，渲染时原样拼进 DOM —— 玩家看到星号。
+       ② 文案里夹着 `atk 里没有 air`、`check.js 会拦`、`~` 这类代码层表述。
+       ③ 战斗机写"挂着空空导弹"，而本作的技术水平对标二战。
+     这类东西只有在**渲染结果**上才看得出来，所以断言打在渲染口，不扫源码：
+     扫源码会把注释里的同样字眼一起命中，改注释还得改测试，很快就没人维护。 */
+  const bad = [
+    [/atk\s*里|check\.js|TYPE\.|abil\b|attMod/, '代码字段名'],
+    [/`/, '反引号'],
+    [/导弹|喷气|直升机|无人机|雷达制导|电子对抗/, '超出二战水平的装备'],
+    [/\*\*/, '没有被转换的加粗标记']
+  ];
+  /* 把所有玩家能读到的文案攒成一条长串：兵种说明、地形说明、战术卡、副官问答。
+     少收一处就会出现"改了但没测到"的缝，所以按来源一处处收全。 */
+  const texts = [];
+  for (const k of Object.keys(api.TYPE)) {
+    const T = api.TYPE[k];
+    texts.push(T.name + '|' + T.role);
+    (T.abil || []).forEach(x => texts.push(x));
+  }
+  for (const k of Object.keys(api.TERRAIN)) {
+    const t = api.TERRAIN[k];
+    if (t && t.note) texts.push(t.note);
+  }
+  for (const id of api.CARD_IDS) {
+    const c = api.CARDS[id];
+    texts.push(c.name + '|' + c.desc + '|' + c.note);
+  }
+  api.AIDE.forEach(x => texts.push(x.q + '|' + x.a));
+
+  ok('前提：确实收上来一批文案', texts.length > 120, texts.length + ' 条');
+
+  for (const [re, why] of bad) {
+    /* 加粗标记例外：`**` 允许存在于**原始数据**里（bold() 负责转换），
+       所以这一项要问的是"转换之后还留不留星号"，不是原始串里有没有。
+       其余三项原始串里就不该出现。 */
+    const hits = re.source === '\\*\\*'
+      ? texts.filter(t => /\*\*/.test(api.bold(t)))
+      : texts.filter(t => re.test(t));
+    ok('文案里没有' + why, hits.length === 0,
+       hits.slice(0, 3).map(t => t.slice(0, 42)).join(' ⏐ '));
+  }
+
+  /* 转换本身：成对的换成 <b>，落单的原样留着（宁可露一个星号，也别吞正文） */
+  ok('bold 把成对标记转成 <b>', api.bold('**甲**乙') === '<b>甲</b>乙');
+  ok('bold 保留落单的星号', api.bold('2 ** 3') === '2 ** 3');
+  ok('bold 不吃掉正文里的其它符号', api.bold('**对地 +0.50**：砸要点') ===
+     '<b>对地 +0.50</b>：砸要点');
+}
+
 console.log('\n通过 ' + pass + ' 项，失败 ' + fail + ' 项');
 process.exit(fail ? 1 : 0);

@@ -645,6 +645,14 @@ function skip(name, why) {
        body.querySelectorAll('.dex').length + ' 张');
     ok('图鉴用的是当前关卡（不是写死某一关）',
        body.textContent.indexOf(W.LEVEL.name) >= 0, W.LEVEL.name);
+    /* 加粗必须在**渲染结果**上验，不能只验数据：这些 **重点** 原本是原样
+       拼进 DOM 的，玩家在手机上看兵种说明时满屏星号。数据侧一个字没改，
+       改的是渲染口——所以断言的落点也必须是渲染口。
+       反向验证：把 bold() 改成恒等函数，这两条一起红。 */
+    ok('图鉴里的加粗真的渲染成 <b>（不是露星号）',
+       body.querySelectorAll('.dex li b').length > 0,
+       body.querySelectorAll('.dex li b').length + ' 处');
+    ok('图鉴文本里不留 ** 标记', body.textContent.indexOf('**') < 0);
 
     tab('cards').click();
     ok('切到战术卡页签', tab('cards').classList.contains('on'));
@@ -671,6 +679,16 @@ function skip(name, why) {
     ok('同时只有一个页签是选中态',
        doc.querySelectorAll('#hqTabs button.on').length === 1,
        doc.querySelectorAll('#hqTabs button.on').length + ' 个');
+
+    /* HQ_TABS 是菜单页跳页签（?hq=dex）的白名单，必须和 DOM 里的按钮一一对应。
+       少一个 id，菜单页的「战时手册」就会被当成非法值、静默落回存档页——
+       玩家点了"手册"却看见存档页，不会报错，只会觉得点错了。 */
+    const domTabs = Array.from(doc.querySelectorAll('#hqTabs button'))
+      .map(b => b.getAttribute('data-tab'));
+    ok('HQ_TABS 与页签按钮一一对应',
+       W.HQ_TABS.length === domTabs.length &&
+       domTabs.every(t => W.HQ_TABS.indexOf(t) >= 0),
+       W.HQ_TABS.join(',') + ' / ' + domTabs.join(','));
 
     W.closeHQ();
     ok('关掉 HQ 后遮罩收起', hq.classList.contains('hidden'));

@@ -482,6 +482,14 @@
     '导出 / 导入存档文件',
     () => go('game/campaign.html?hq=1')));
 
+  /* 战时手册也摆在门面上。它在引擎里只是顶栏一个"指挥部"按钮，
+     而兵种说明、战术卡、副官问答恰恰是**开局之前**才该看的东西——
+     让人先进战场再点开，等于把说明书锁在驾驶室里。
+     ?hq=dex 直接落在兵种图鉴页（新写法，hq=1 仍指存档页）。 */
+  acts.appendChild(btn('btn-ghost', '战时手册',
+    '兵种图鉴 / 战术卡 / 副官',
+    () => go('game/campaign.html?hq=dex')));
+
   /* ── 进度条 ── */
   if (playable) {
     cellsBox.innerHTML = LV.filter(l => l.ready).map(l => {
