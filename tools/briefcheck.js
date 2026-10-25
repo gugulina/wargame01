@@ -678,6 +678,117 @@ function skip(name, why) {
   }
 
   console.log('');
+  console.log('[17] 存档导入：每条失败分支都要在写档之前拦住');
+  {
+    const W = window.__WAR__;
+    /* 为什么连 localStorage 一起看：只断言返回值不够。
+       真正会毁档的是"先写了一部分、后一半才发现不对"——返回值照样 ok:false，
+       本机存档却已经被污染了，玩家只会觉得"我导了个坏文件，怎么原来的档也没了"。 */
+    const good = W.saveSnapshot();
+    const pack = { app: W.SAVE_FILE_APP, kind: 'save', v: W.SAVE_VER, save: good };
+    const r0 = W.importSaveText(JSON.stringify(pack));
+    ok('好档能导入', r0.ok, r0.msg);
+    const base = window.localStorage.getItem(W.SAVE_KEY);
+    ok('导入成功后本机存档里真的有内容', !!base);
+
+    const r1 = W.importSaveText('{ 这不是 JSON');
+    ok('坏 JSON：拒绝并说明是 JSON 的问题', !r1.ok && /JSON/.test(r1.msg), r1.msg);
+    ok('坏 JSON：本机存档原封不动', window.localStorage.getItem(W.SAVE_KEY) === base);
+
+    const r2 = W.applySaveFile({ app: '别的东西', kind: 'save', v: W.SAVE_VER });
+    ok('不是本作的存档：拒绝', !r2.ok && /苍屿战役/.test(r2.msg), r2.msg);
+
+    const r3 = W.applySaveFile({ app: W.SAVE_FILE_APP, kind: 'save', v: 999 });
+    ok('版本不符：拒绝，且提示里能看见两个版本号',
+       !r3.ok && /999/.test(r3.msg) && r3.msg.indexOf(String(W.SAVE_VER)) >= 0, r3.msg);
+
+    /* 入口那道内容校验：名字里带尖括号的档必须挡在门外（渲染端另有一道，见 [13]） */
+    const bad = JSON.parse(JSON.stringify(pack));
+    if (bad.save && bad.save.units && bad.save.units.length) {
+      bad.save.units[0].name = '<img src=x onerror=alert(1)>';
+      const r4 = W.applySaveFile(bad);
+      ok('内容非法（名字带标签）：拒绝', !r4.ok, r4.msg);
+      ok('内容非法：本机存档没被替换', window.localStorage.getItem(W.SAVE_KEY) === base);
+    } else {
+      ok('内容非法（名字带标签）：拒绝', false, 'saveSnapshot() 里没有 units，造不出坏档');
+    }
+
+    /* 没有 save 字段是合法形态：只导进度（"重置到某一关"就是靠这个） */
+    const r5 = W.applySaveFile({ app: W.SAVE_FILE_APP, kind: 'save', v: W.SAVE_VER, progress: {} });
+    ok('没有战斗存档的文件也能导入（只导进度）', r5.ok, r5.msg);
+  }
+
+  console.log('');
+  console.log('[18] 棋盘键盘化：方向键 / 回车 / 焦点归属');
+  {
+    const W = window.__WAR__;
+    W.newGame({ noSave: true });
+    const board = doc.getElementById('board');
+    ok('棋盘可聚焦（tabindex=0）', board.getAttribute('tabindex') === '0');
+    ok('棋盘声明了 role 与用途说明',
+       board.getAttribute('role') === 'application' &&
+       /方向键/.test(board.getAttribute('aria-label') || ''));
+
+    W.setKbCur(null);
+    doc.getElementById('btnTips').focus();   // 先离开棋盘，确保下面 focus 真的触发事件
+    board.focus();
+    ok('Tab 进棋盘时自动落到一格（不是一片空白）', Array.isArray(W.getKbCur()),
+       String(W.getKbCur()));
+    ok('光标格画出来了（.kbcur 只有一个）',
+       board.querySelectorAll('.hex.kbcur').length === 1);
+    ok('aria-activedescendant 指向那一格',
+       board.getAttribute('aria-activedescendant') ===
+         'h' + W.getKbCur()[0] + '-' + W.getKbCur()[1]);
+    ok('读屏播报写进了 aria-live 区域',
+       (doc.getElementById('kbSay') || {}).textContent.length > 4);
+
+    W.setKbCur([5, 5]);
+    window.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
+    ok('方向上 = 行 -1、列不动', W.getKbCur()[0] === 4 && W.getKbCur()[1] === 5,
+       String(W.getKbCur()));
+    window.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    ok('方向右 = 列 +1', W.getKbCur()[0] === 4 && W.getKbCur()[1] === 6, String(W.getKbCur()));
+    /* 只数"有没有 .kbcur"不够：render 没跑的话旧格还留着，数量照样是 1。
+       必须核到坐标，否则这条在"光标根本没重画"时也是绿的。 */
+    const kc = board.querySelector('.hex.kbcur');
+    ok('移动后高亮落在新格上（旧格没留着）',
+       board.querySelectorAll('.hex.kbcur').length === 1 && !!kc &&
+       kc.dataset.r === String(W.getKbCur()[0]) && kc.dataset.c === String(W.getKbCur()[1]),
+       kc ? kc.dataset.r + ',' + kc.dataset.c : '没有 .kbcur');
+
+    /* 贴边不许绕到对面一行——那样玩家会以为地图是环形的 */
+    W.setKbCur([0, 0]);
+    window.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
+    window.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+    ok('顶到边界就停住，不绕到对面', W.getKbCur()[0] === 0 && W.getKbCur()[1] === 0,
+       String(W.getKbCur()));
+
+    /* 回车 = 点这一格：走的是同一个 onHexClick，不是另写一套 */
+    const mine = W.getState().units.filter(u => u.side === 'blue')[0];
+    W.setKbCur(mine.pos.slice());
+    window.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    ok('回车选中了光标格的部队', W.getState().selected === mine,
+       W.getState().selected ? W.getState().selected.name : 'null');
+
+    /* 焦点不在棋盘上时，方向键必须不管地图——否则 Tab 到顶栏后按方向键，
+       会莫名其妙地发现地图上有个光标在动 */
+    W.setKbCur([5, 5]);
+    doc.getElementById('btnTips').focus();
+    window.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    ok('焦点在顶栏按钮时方向键不动棋盘', W.getKbCur()[0] === 5 && W.getKbCur()[1] === 5,
+       String(W.getKbCur()));
+
+    /* 对话框的基本礼貌：焦点从哪来回哪去 */
+    board.focus();
+    W.openHQ('dex');
+    ok('打开 HQ 后焦点进了面板',
+       doc.getElementById('hqScreen').contains(doc.activeElement));
+    W.closeHQ();
+    ok('关掉 HQ 后焦点回到棋盘', doc.activeElement === board,
+       doc.activeElement.id || doc.activeElement.tagName);
+  }
+
+  console.log('');
   console.log('通过 ' + pass + ' 项' + (skipped ? ' · 跳过 ' + skipped + ' 项' : '') +
               '，失败 ' + fail + ' 项');
   process.exit(fail ? 1 : 0);

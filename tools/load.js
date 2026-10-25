@@ -26,6 +26,13 @@ function stubEl() {
     dataset: {},
     addEventListener() {},
     removeEventListener() {},
+    /* 属性操作：键盘光标要设 aria-activedescendant。
+       stub 缺方法时引擎会抛 TypeError（不是断言变红），看起来像引擎坏了，
+       所以 stub 要补齐"引擎真的会用到的"那几个。 */
+    setAttribute() {},
+    getAttribute() { return null; },
+    removeAttribute() {},
+    focus() {},
     remove() {},
     removeChild() {},
     insertBefore() {},

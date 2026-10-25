@@ -1,0 +1,34 @@
+name: test
+
+# 为什么要有 CI：本地钩子靠 .git/hooks，而那只存在于"装过钩子的那台机器"。
+# 换台电脑 clone、或者有人顺手 --no-verify，闸门就没了。
+# 这里跑的是同一套 npm test，成本几乎为零，却是唯一不依赖本机状态的一道闸。
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      # package-lock.json 在库里，用 ci 保证装的就是锁住的那一版
+      - run: npm ci
+
+      # 一条命令跑全套：selftest / check / levelcheck / briefcheck /
+      # export-levels --check / orgcheck
+      - run: npm test
+
+      # 覆盖率底线。数字掉了不一定是坏事（可能只是加了新函数没人测），
+      # 但必须有人看一眼才知道是不是坏事——所以让它红，别让它悄悄溜过去。
+      # 引擎里有几块天然难覆盖（音频 unlock、开场动画 _showCutin），
+      # 85% 是"现在的 90.3% 掉下来就会被告警"的位置，不是理想值。
+      - run: node tools/cov.js --min=85 --top=10

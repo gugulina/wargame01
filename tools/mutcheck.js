@@ -1,5 +1,8 @@
 /* 变异自检：确认 selftest 的断言**真的会红**。
-   用法：node tools/mutcheck.js [--keep]
+   用法：node tools/mutcheck.js [--keep] [--grep=关键字]
+
+   --grep 只跑名字里含关键字的几条。全量现在 40 条、其中一半要起 jsdom，
+   跑一遍两分多钟；调某一条断言时没必要等全部。
 
    为什么要这东西：断言写错时最怕的不是红，是**假绿**。
    38b8b3d 给存档 XSS 加的那条断言就是这么废掉的——它检查 msg 里有没有 `<b`，
@@ -208,6 +211,52 @@ const MUTANTS = [
    'content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"',
    'viewport 没有禁掉用户缩放',
    'brief'],
+
+  /* ── 键盘光标（P2-2）：这一组全是"界面上的手感"，最容易写出一条
+     只验了类名、不验坐标的假绿。所以断言一律核到 dataset。 ── */
+  ['键盘光标不夹边界（顶到边上会绕到对面一行）',
+   "  const r = Math.max(0, Math.min(LEVEL.rows - 1, kbCur[0] + dr));\n" +
+   "  const c = Math.max(0, Math.min(LEVEL.cols - 1, kbCur[1] + dc));",
+   "  const r = (kbCur[0] + dr + LEVEL.rows) % LEVEL.rows;\n" +
+   "  const c = (kbCur[1] + dc + LEVEL.cols) % LEVEL.cols;",
+   '顶到边界就停住，不绕到对面',
+   'brief'],
+
+  ['键盘光标不画出来（选了但屏幕上没标记）',
+   "      if (kbCur && kbCur[0] === r && kbCur[1] === c) cls += ' kbcur';",
+   "      if (false) cls += ' kbcur';",
+   '光标格画出来了',
+   'brief'],
+
+  ['光标移动后不重画（高亮停在旧格）',
+   "  kbCur = [r, c];\n  kbAnnounce();\n  render();\n  kbScrollIntoView();",
+   "  kbCur = [r, c];\n  kbAnnounce();\n  kbScrollIntoView();",
+   '移动后高亮落在新格上',
+   'brief'],
+
+  ['aria-activedescendant 不设（读屏不知道光标在哪一格）',
+   "  if (kbCur && state) b.setAttribute('aria-activedescendant', 'h' + kbCur[0] + '-' + kbCur[1]);",
+   "  if (false) b.setAttribute('aria-activedescendant', 'h' + kbCur[0] + '-' + kbCur[1]);",
+   'aria-activedescendant 指向那一格',
+   'brief'],
+
+  ['回车不再等于"点这一格"（键盘用户选完什么都做不了）',
+   'function kbEnter() {\n  if (!state || state.result) return false;',
+   'function kbEnter() {\n  if (true) return false;',
+   '回车选中了光标格的部队',
+   'brief'],
+
+  ['方向键不判焦点（Tab 到顶栏后按方向键，地图上的光标会乱走）',
+   "  if (boardEl && document.activeElement === boardEl) {",
+   "  if (boardEl) {",
+   '焦点在顶栏按钮时方向键不动棋盘',
+   'brief'],
+
+  ['关掉 HQ 不还焦点（键盘用户被丢回 body，下一次 Tab 从页首数起）',
+   '    if (back && back.focus) { try { back.focus({ preventScroll: true }); } catch (e) { back.focus(); } }',
+   '    if (false && back) { }',
+   '关掉 HQ 后焦点回到棋盘',
+   'brief'],
 ];
 
 /* 锚点按 LF 写，但 campaign.html 是 CRLF（7356 行全是）。
@@ -221,9 +270,11 @@ function resolve(base, anchor, neu) {
 }
 
 const base = fs.readFileSync(SRC, 'utf8');
+const GREP = (process.argv.find(a => a.startsWith('--grep=')) || '').slice(7);
 let bad = 0;
 try {
   for (const [name, old, neu, expect, runner] of MUTANTS) {
+    if (GREP && name.indexOf(GREP) < 0) continue;
     const anchor = resolve(base, old, neu);
     if (!anchor) {
       console.log('  ? ' + name + '\n    锚点找不到，引擎这行改过了，MUTANTS 表要更新');

@@ -1,0 +1,63 @@
+#!/bin/sh
+# pre-commit：让那堆校验真的成为"坏代码进不来"的闸门。
+#
+# v4.6 之前这里只跑 check.js + export-levels --check。反例很直接：
+# 菜单页把第 4 关锁死那次的 bug 落在 index.html，而钩子只跑 check.js，
+# 那支脚本根本不看菜单页——于是它一路进了库，直到 levelcheck 才发现。
+#
+# 现在：引擎/数据/工具一动就跑到全量（实测约 50 秒），只改文档跑快照一致性（<1 秒）。
+# 别让"写一段 README"也等 50 秒——等两次之后人就会开始用 --no-verify，
+# 而 --no-verify 一用，这道闸就等于没有。
+#
+# 装/更新：node tools/install-hooks.js
+
+set -e
+
+if [ -n "$NODE" ]; then
+  :
+elif command -v node >/dev/null 2>&1; then
+  NODE=node
+else
+  echo "[pre-commit] ⚠ 找不到 node，跳过校验（设置 NODE 环境变量或把 node 加入 PATH）"
+  exit 0
+fi
+
+# jsdom 装在项目 node_modules 里（npm ci / npm install 都会装）。
+# 不设这一条，levelcheck / briefcheck 会 import 失败，钩子变成"永远红"。
+if [ -d "$PWD/node_modules/jsdom" ]; then
+  NODE_PATH="$PWD/node_modules"
+  export NODE_PATH
+fi
+
+CHANGED=$(git diff --cached --name-only)
+
+run() {
+  label=$1
+  shift
+  printf '[pre-commit]   %-16s' "$label"
+  if out=$("$@" 2>&1); then
+    echo '✓'
+  else
+    echo '✗'
+    echo "$out" | tail -30
+    echo "[pre-commit] 上面是最后 30 行，单独跑一次看全貌。"
+    exit 1
+  fi
+}
+
+# 快照一致性：任何改动都跑。它只比一份生成文件的指纹，几乎不花时间，
+# 而"改了引擎忘了重新导出"是本项目最高频的遗漏。
+run '快照一致性' $NODE tools/export-levels.js --check
+
+if echo "$CHANGED" | grep -qE '^(game/|data/|index\.html|tools/|package\.json)'; then
+  echo '[pre-commit] 引擎/数据/工具有改动 → 跑全量校验（约 50 秒）'
+  run 'selftest'   $NODE tools/selftest.js
+  run 'check'      $NODE tools/check.js game/campaign.html
+  run 'levelcheck' $NODE tools/levelcheck.js
+  run 'briefcheck' $NODE tools/briefcheck.js
+  run 'orgcheck'   $NODE tools/orgcheck.js
+else
+  echo '[pre-commit] 只有文档类改动 → 跳过全量'
+fi
+
+echo '[pre-commit] ✓ 全部通过'

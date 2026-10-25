@@ -75,6 +75,21 @@
     --hex-h: 54px;
   }
   * { box-sizing: border-box; }
+  /* 焦点可见（WCAG 2.4.7）。v4.6 之前全项目 0 处 :focus 样式：
+     键盘用户按 Tab 摸到顶栏按钮时，屏幕上没有任何变化，等于摸黑操作。
+     用 :focus-visible 而不是 :focus —— 鼠标点完按钮不该留一圈描边。 */
+  button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
+    outline: 2px solid var(--blue);
+    outline-offset: 2px;
+  }
+  /* 棋盘自己不要那圈大框：它比整个地图还大，反而看不出位置。
+     真正指示"我在哪一格"的是 .hex.kbcur。 */
+  #board:focus-visible { outline: none; }
+  /* 只给读屏用的文本（键盘光标的播报）。不能 display:none —— 那样读屏也读不到。 */
+  .sr {
+    position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
+    overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
+  }
   body {
     margin: 0;
     background: var(--bg);
@@ -153,6 +168,14 @@
   }
   .hex:hover { filter: brightness(.96); }
   .hex.river { cursor: not-allowed; }
+  /* 键盘光标（方向键移动的那一格）。不能用 outline ——
+     .hex 有 clip-path，outline 会被裁在六边形外面看不见。
+     也不能用 drop-shadow：它作用在整个元素上，会把格子里的兵牌一起染上蓝边，
+     而兵牌本身就是蓝的，等于没加任何区分。
+     所以走 ::after 的双层内描边：白 2px 打底 + 蓝 3px 压上。
+     白边是必要的——纯蓝圈落在蓝方兵牌上完全看不出来。 */
+  .hex.kbcur { z-index: 3; }
+  .hex.kbcur::after { box-shadow: inset 0 0 0 2px #fff, inset 0 0 0 5px rgba(58,110,165,.95); }
   .hex::after {
     content: ''; position: absolute; inset: 0;
     clip-path: inherit; pointer-events: none;
@@ -1102,7 +1125,11 @@
       <button id="btnTips" class="tipsbtn" title="操作说明">?</button>
     </div>
     <div id="boardWrap">
-      <div id="boardView"><div id="board"></div><div id="fxLayer"></div></div>
+      <div id="boardView"><div id="board" tabindex="0" role="application"
+        aria-label="战场。方向键移动光标，回车执行当前格，Esc 取消选中"></div><div id="fxLayer"></div></div>
+      <!-- 键盘光标落到哪一格，读屏就跟到哪。aria-live=polite 只在文本变化时念一遍，
+           不会打断它正在读的东西。 -->
+      <div id="kbSay" class="sr" aria-live="polite"></div>
       <div class="zctrl">
         <button id="zIn" title="放大">＋</button>
         <button id="zOut" title="缩小">－</button>
@@ -1189,7 +1216,7 @@
      一个面板装三件事：兵种图鉴（查）、战术卡（选携带）、副官（问答式操作指南）。
      做成三页签而不是三个面板，是因为它们的使用时机完全一样——
      都是"打之前想弄明白点什么"的那一刻。 -->
-<div class="hq hidden" id="hqScreen">
+<div class="hq hidden" id="hqScreen" role="dialog" aria-modal="true" aria-label="作战指挥部：战时手册">
   <div class="hq-card">
     <div class="hq-head">
       <div class="hq-title">
@@ -5282,6 +5309,7 @@ function restoreGame(s) {
   if (s._level && s._level !== LEVEL) LEVEL = s._level;
   LEVEL.map = s.map.slice();                    // 恢复架桥 / 任何地形改动
   syncLevelHeader();
+  kbCur = null;                                 // 读档同理：按新地图重新落点
   state = {
     turn: s.turn,
     phase: 'blue',                              // 存档只在"我方阶段静止时"写，强制回我方
@@ -5421,6 +5449,9 @@ function newGame(opt) {
      上一局架过的桥会留到这一局——单关时代就一直有这个坑，只是没人注意到。 */
   LEVEL.map = (LEVEL.mapSrc || LEVEL.map).slice();
   syncLevelHeader();
+  /* 上局的光标位置不能带进新一局：换关之后行列上限都变了，
+     旧坐标可能落在界外（kbCur 只在自己移动时才夹紧）。 */
+  kbCur = null;
   state = {
     turn: 1,
     phase: 'blue',
@@ -6755,6 +6786,102 @@ function render() {
   renderCardBar();
   /* 气泡要等 renderBoard 把 DOM 换完才能定位，所以放在最后 */
   syncUnitOps();
+  kbSyncAria();
+}
+
+/* ── 键盘光标 ──
+   v4.6 之前棋盘只能点：352 个 .hex 是 <div> + click，Tab 跳不到、读屏也读不出，
+   键盘用户完全进不了核心玩法。
+
+   为什么不把 352 个格子都做成 <button tabindex="0">：
+   ① Tab 要按 352 下才路过地图，而玩家真正想去的是后面的「结束阶段」；
+   ② renderBoard 每回合重建整块 DOM，焦点每次都会丢（还得额外记录/恢复）；
+   ③ 六角格是二维的，方向键才是它的自然操作方式，不是 Tab。
+   所以给 #board 一个焦点 + 一个"当前格"：方向键移格、回车执行（复用 onHexClick）、
+   Esc 走原来那三层。格子本身仍然不是焦点目标。
+
+   kbCur 用模块变量而不是塞进 state：它不进存档、不参与任何战斗判定，
+   放进 state 只会让 saveSnapshot 和 validateSave 白背一个字段。 */
+let kbCur = null;
+
+/* 首次进棋盘时的落点：我方的第一支部队。落在别处的话，
+   键盘玩家第一件事是"从地图角落一路挪到自己的部队"。 */
+function kbHome() {
+  if (!state || !state.units) return null;
+  const mine = state.units.filter(u => u.side === 'blue');
+  if (mine.length) return mine[0].pos.slice();
+  return [Math.floor(LEVEL.rows / 2), Math.floor(LEVEL.cols / 2)];
+}
+
+/* 上下只改行、左右只改列。严格按六邻居算的话，"上"有两个候选格
+   （左上/右上），每次都得挑一个，玩家按五下会看到一条斜线。
+   列不变时视觉上是左右各偏半格的"之"字，整体仍然垂直——更像"往上走"。 */
+function kbMove(dr, dc) {
+  if (!state || state.result) return false;
+  if (!kbCur) kbCur = kbHome();
+  if (!kbCur) return false;
+  const r = Math.max(0, Math.min(LEVEL.rows - 1, kbCur[0] + dr));
+  const c = Math.max(0, Math.min(LEVEL.cols - 1, kbCur[1] + dc));
+  if (r === kbCur[0] && c === kbCur[1]) return false;   // 已经贴边，别白重画一次
+  kbCur = [r, c];
+  kbAnnounce();
+  render();
+  kbScrollIntoView();
+  return true;
+}
+
+function kbEnter() {
+  if (!state || state.result) return false;
+  if (!kbCur) kbCur = kbHome();
+  if (!kbCur) return false;
+  onHexClick(kbCur[0], kbCur[1]);
+  return true;
+}
+
+/* 读屏播报。role=application 里格子是 div，读屏不会自己念，
+   所以把"这一格是什么"写进一个 aria-live 区域，靠内容变化触发朗读。 */
+function kbAnnounce() {
+  const el = document.getElementById('kbSay');
+  if (!el || !kbCur) return;
+  const [r, c] = kbCur;
+  const t = terrainAt(r, c);
+  if (!t) return;
+  const bits = ['第 ' + (r + 1) + ' 行第 ' + (c + 1) + ' 列', t.name];
+  const here = unitsAt(r, c);
+  if (here.length) {
+    /* 红方兵牌名自带「敌」字前缀（关卡数据统一这么写，兵牌上显示的也是它），
+       所以这里只给蓝方补"我方"——两边都补的话会念成"敌方敌第 14 步兵师…"。 */
+    bits.push(here.map(u => (u.side === 'blue' ? '我方：' : '') + u.name +
+      '，兵力 ' + Math.max(0, u.str)).join('；'));
+  } else {
+    bits.push('无部队');
+  }
+  const o = objAt(r, c);
+  if (o) bits.push('要点 ' + o.name);
+  const f = fortAt(r, c);
+  if (f && FORT[f.kind]) bits.push(FORT[f.kind].name);
+  el.textContent = bits.join('，');
+}
+
+/* aria-activedescendant 要指向真实存在的元素，所以只能在 renderBoard 之后设。
+   格子的 id 是 h<行>-<列>（见 renderBoard 的拼接）。 */
+function kbSyncAria() {
+  const b = document.getElementById('board');
+  if (!b) return;
+  if (kbCur && state) b.setAttribute('aria-activedescendant', 'h' + kbCur[0] + '-' + kbCur[1]);
+  else b.removeAttribute('aria-activedescendant');
+}
+
+/* 光标跑出视野就要把它带回来。
+   窄屏靠 centerOnCell（棋盘是 transform 平移，不归浏览器滚）；
+   桌面端棋盘跟着页面流走，用 scrollIntoView。两者不能混：桌面上调 centerOnCell
+   会直接 return（它开头就有 isNarrow 判断），窄屏用 scrollIntoView 会和 transform 打架。 */
+function kbScrollIntoView() {
+  if (!kbCur) return;
+  const [r, c] = kbCur;
+  if (isNarrow()) { centerOnCell(r, c); return; }
+  const el = board.querySelector('.hex.kbcur');
+  if (el && el.scrollIntoView) el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 }
 
 /* ── 关卡界面里的战术卡条 ──
@@ -6852,6 +6979,10 @@ function renderBoard() {
       if (here.some(x => state.targets.includes(x))) cls += ' atk';
       if (state.selected && state.selected.pos[0] === r && state.selected.pos[1] === c) cls += ' cur';
       if (state.terrainSel && state.terrainSel[0] === r && state.terrainSel[1] === c) cls += ' cur';
+      /* 键盘光标。和 .cur（选中单位那一格）是两回事：
+         .cur 是"我选了谁"，kbcur 是"我的光标停在哪"。两者经常不同格
+         （选中一支部队后，用方向键去看别的格子）。 */
+      if (kbCur && kbCur[0] === r && kbCur[1] === c) cls += ' kbcur';
       if (state.mode === 'fort' && state.selected && hexDist(state.selected.pos, [r, c]) <= 1 &&
           fortKindsFor(state.selected, [r, c]).includes(state.fortKind || 'H')) cls += ' selfort';
       if (state.mode === 'mine' && state.selected && hexDist(state.selected.pos, [r, c]) === 1 && !here.length) cls += ' selmine';
@@ -6917,6 +7048,7 @@ function renderBoard() {
       }
 
       html += '<div class="' + cls + '" data-r="' + r + '" data-c="' + c + '" ' +
+              'id="h' + r + '-' + c + '" ' +
               'style="left:' + p.x.toFixed(1) + 'px;top:' + p.y.toFixed(1) + 'px">' + inner + '</div>';
     }
   }
@@ -6956,6 +7088,13 @@ function renderBoard() {
     el.addEventListener('click', () => {
       if (supClick) return;                 // 刚刚是拖动 / 捏合，不算点击
       const r = Number(el.dataset.r), c = Number(el.dataset.c);
+      /* 点一下就把键盘光标挪到这一格，并把焦点交给棋盘。
+         这样"点选 → 方向键打量四周 → 回车确认"是连贯的，不用再 Tab 一次。
+         preventScroll 是必须的：board 是 tabindex=0 的大元素，
+         默认的 focus() 会把它滚进视野，桌面端点一下半屏地图就跳走了。 */
+      kbCur = [r, c];
+      if (board.focus) { try { board.focus({ preventScroll: true }); } catch (e) { board.focus(); } }
+      kbSyncAria();
       /* 全图状态下格子只有十几个像素，点下去既点不准也看不清：
          先把它放大到能操作的倍数，再按原来的逻辑处理这一次点击。 */
       if (isNarrow() && vK < vFit * 1.45) {
@@ -7626,6 +7765,20 @@ function renderLog() {
 const boardView = document.getElementById('boardView');
 const boardWrap = document.getElementById('boardWrap');
 
+/* Tab 进棋盘时先给个落点。没有这一下，键盘用户 Tab 过去看到的是
+   "整张地图没有任何标记"——既不知道光标在哪，也不知道该怎么开始。
+   注意只在 kbCur 为空时重画：鼠标点击的路径上 kbCur 已经设好了，
+   这里再 render 一次就是同一帧画两遍。 */
+document.getElementById('board').addEventListener('focus', () => {
+  if (!state || state.result) return;
+  if (!kbCur) {
+    kbCur = kbHome();
+    if (!kbCur) return;
+    render();
+    kbScrollIntoView();
+  }
+  kbAnnounce();     // 每次聚焦都要念一遍"现在在哪一格"，读屏用户没有别的线索
+});
 const MQ_NARROW = (typeof matchMedia === 'function')
   ? matchMedia('(max-width: 860px)') : null;
 const MQ_LAND = (typeof matchMedia === 'function')
@@ -8107,19 +8260,37 @@ const AIDE = [
 
 let hqTab = 'dex';
 
+/* 打开 HQ 前的焦点位置。关闭时还给它——
+   dialog 的基本礼貌：焦点从哪来回哪去，不能把键盘用户丢在 <body> 上
+   （那样下一次 Tab 要从页面开头重新数起）。 */
+let hqReturnFocus = null;
+
 function openHQ(tab) {
   if (tab) hqTab = tab;
   renderHQ();
+  hqReturnFocus = document.activeElement;
   document.getElementById('hqScreen').classList.remove('hidden');
+  /* 焦点要真的进到对话框里，否则 Tab 会从"HQ 按钮的下一个"继续走，
+     在视觉上等于跳过了整个面板。第一个可聚焦元素就是页签栏。 */
+  const first = document.querySelector('#hqScreen button');
+  if (first && first.focus) { try { first.focus({ preventScroll: true }); } catch (e) { first.focus(); } }
   FX.sfx('uiClick');
 }
 function closeHQ() {
-  document.getElementById('hqScreen').classList.add('hidden');
+  const el = document.getElementById('hqScreen');
+  const wasOpen = !!el && !el.classList.contains('hidden');
+  if (el) el.classList.add('hidden');
   /* 顺手把内容清掉。遮罩隐着但 DOM 还在的话，图鉴那几十张卡一直挂着，
      更难缠的是里面全是 <button>——隐藏容器里的按钮仍然会被
      Tab / 全局快捷键扫到，变成一批"看不见但能聚焦"的东西。
      下次 openHQ 反正会整块重画，清掉没有副作用。 */
   document.getElementById('hqBody').innerHTML = '';
+  if (wasOpen) {
+    const back = (hqReturnFocus && hqReturnFocus.focus && hqReturnFocus !== document.body)
+      ? hqReturnFocus : document.getElementById('board');
+    hqReturnFocus = null;
+    if (back && back.focus) { try { back.focus({ preventScroll: true }); } catch (e) { back.focus(); } }
+  }
 }
 
 function renderHQ() {
@@ -8338,6 +8509,18 @@ window.addEventListener('keydown', e => {
   if (cs && !cs.classList.contains('hidden')) return;
   if ((e.ctrlKey || e.metaKey) && !e.shiftKey && String(e.key).toLowerCase() === 'z') {
     e.preventDefault(); doUndo(); return;
+  }
+  /* 棋盘键盘化：只在焦点真的落在棋盘上时才接管方向键 / 回车。
+     用 activeElement 判断而不是全局劫持——否则玩家 Tab 到顶栏后按方向键，
+     会莫名其妙地发现地图上有个光标在动。
+     空格不归键盘光标管：它已经是「结束我方阶段」，抢过来会让习惯按空格的
+     玩家突然结束不了回合。回车才是"执行这一格"。 */
+  const boardEl = document.getElementById('board');
+  if (boardEl && document.activeElement === boardEl) {
+    const dir = e.key === 'ArrowUp' ? [-1, 0] : e.key === 'ArrowDown' ? [1, 0]
+      : e.key === 'ArrowLeft' ? [0, -1] : e.key === 'ArrowRight' ? [0, 1] : null;
+    if (dir) { e.preventDefault(); kbMove(dir[0], dir[1]); return; }
+    if (e.key === 'Enter') { e.preventDefault(); kbEnter(); return; }
   }
   /* Esc 的优先级：先收最上层的东西。HQ 面板 > 待命中的战术卡 > 说明 > 展开的作业气泡 > 选中。
      顺序反了会出现"按 Esc 关掉了下面的面板，上面那层还盖着"。 */
@@ -8692,6 +8875,11 @@ window.__WAR__ = {
   CARDS, CARD_IDS, CARD_MAX, DEFAULT_DECK, cardById, readDeck, writeDeck, deckOf,
   armCard, cancelCard, useCard, cardFitsUnit, clearCardBuffs,
   openHQ, closeHQ, renderHQ, AIDE, DEX_GROUPS, dexStat,
+  /* 键盘光标：方向键移格 / 回车执行。导出是必须的——
+     它在 <div> 上而不是可点元素上，jsdom 里点不到，只能直接驱动函数；
+     靠"派发 keydown 到 window"也能测，但那样测的是监听器而不是逻辑本身。 */
+  getKbCur: () => kbCur, setKbCur: v => { kbCur = v; },
+  kbHome, kbMove, kbEnter, kbAnnounce, kbSyncAria,
   /* 地图内作业气泡 */
   unitOps, syncUnitOps, runOp,
   /* 存档文件 */
