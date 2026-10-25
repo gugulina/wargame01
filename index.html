@@ -141,6 +141,9 @@
   }
   .lv:not(.locked):hover { background: var(--paper); border-color: var(--line); }
   .lv:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
+  /* 顶栏的导出/导入、音频开关这些按钮原来只有鼠标 hover 反馈，
+     键盘 Tab 过去看不出焦点在哪。和引擎里的规则保持一致。 */
+  button:focus-visible, a:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
   .lv.locked { cursor: default; }
 
   .lv .dot {
