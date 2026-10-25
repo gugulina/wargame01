@@ -2,7 +2,7 @@ const fs = require('fs');
 const vm = require('vm');
 
 /* 取引擎脚本块。
-   不能再用 html.match(/<script>(...)/) 抓"第一个"——v4.7 起 <head> 里多了一段
+   不能再用 html.match(/<script>(...)/) 抓"第一个"——v4.6.1 起 <head> 里多了一段
    先行兜底脚本（window.onerror + 看门狗），它就排在第一个。抓第一个的后果是
    加载到那段 30 行的兜底代码，然后报"未导出 window.__WAR__"，看着像引擎坏了。
    改成取最长的那块：引擎有七千多行，兜底只有几十行，这个判据比"第几个"稳。 */

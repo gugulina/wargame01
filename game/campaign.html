@@ -2,8 +2,13 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>岚口要地争夺战 · 战役级</title>
+<!-- 不写 maximum-scale / user-scalable=no：那是 WCAG 1.4.4 明确禁止的
+     （浏览器缩放是低视力用户唯一的放大手段）。棋盘上手势冲突靠
+     #boardView { touch-action: none } 局部解决，不需要把整页钉死。 -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- 引擎要跑六关（序章 + C1–C4），标题不能写死某一关的关名——
+     从菜单页点进第 1 关，标签页上却写着"岚口要地争夺战"，会让人以为进错了。 -->
+<title>苍屿战役 · 战役级</title>
 <!-- 启动兜底：**必须写在主脚本之前**。
      主脚本 8000 多行，业务层的错误监听原本只出现在文件末尾（第 8306 行），
      于是解析期的语法错误根本没人接——改关卡数据时少个括号是最常见的失误。
@@ -51,8 +56,16 @@
     --bg: #F4F2EC;
     --card: #FFFFFF;
     --ink: #2B2A26;
-    --ink2: #6E6B64;
-    --ink3: #9A968C;
+    /* 三级灰阶全部按 WCAG AA 的 4.5:1 定过（底色 #F4F2EC / 卡片 #FFFFFF）：
+         ink  #2B2A26  12.83 / 14.36
+         ink2 #55524C   6.95 /  7.78
+         ink3 #6E6B64   4.75 /  5.32
+       ink3 原来是 #9A968C，只有 2.64 / 2.95 —— 它被 31 处 10–12px 的
+       说明文字用着（图例注、时间、射程单位…），等于一整层字都读不清。
+       往暗里调会让 ink2 和 ink3 挤在一起，所以 ink2 也一起往下压了一档；
+       层次还在，不是把两级并成一级。 */
+    --ink2: #55524C;
+    --ink3: #6E6B64;
     --line: #E2DED3;
     --blue: #3A6EA5;
     --blue-bg: #E8EFF7;
@@ -106,7 +119,9 @@
   }
   .legend span { display: inline-flex; align-items: center; }
   /* 括号里的补充说明：小一号、更淡，不能抢正题的字重 */
-  .legend em { font-style: normal; font-size: 10px; color: #B3ADA0; margin-left: 2px; }
+  /* 图例里那半句注解原来是 #B3ADA0（2.00:1）10px，属于"设计上就没打算让人看清"。
+     改成跟正文注解同一个 ink2、11px：图例是第一次进战场时唯一的说明书。 */
+  .legend em { font-style: normal; font-size: 11px; color: var(--ink2); margin-left: 2px; }
   .legend .k {
     display: inline-block; width: 11px; height: 11px; border-radius: 3px;
     margin-right: 5px; vertical-align: -1px;
@@ -7316,7 +7331,7 @@ function syncUnitOps() {
   });
   /* 选了工事种类之后，提示"下一步点哪"，否则玩家不知道要不要再点一次 */
   if (UOPS_HINT[state.mode]) {
-    h += '<div class="uops-h" style="padding-top:6px;letter-spacing:0;font-weight:600;color:#9A968C">' +
+    h += '<div class="uops-h" style="padding-top:6px;letter-spacing:0;font-weight:600;color:var(--ink3)">' +
          UOPS_HINT[state.mode] + '</div>';
   }
   /* 收起 / 取消：两个都要有。收起只是把浮层让开（选中还在，接着能点蓝格），
@@ -7551,7 +7566,7 @@ function renderUnitBox() {
         const fortTag = (dFt && dFt.side === tg.side && dFt.maxHp)
           ? ' · <span class="warn">' + FORT[dFt.kind].code + ' 耐久 ' + dFt.hp + '/' + dFt.maxHp + '</span>' : '';
         h += '<div class="tgt ' + (pv.tier <= 3 ? '' : 'bad') + '">' + esc(tg.abbr) + ' ' + esc(tg.name) +
-             '<br><span style="color:#8A867D">' + tg.str + ' 战力 · ' + tt.name +
+             '<br><span style="color:var(--ink3)">' + tg.str + ' 战力 · ' + tt.name +
              ' · 距离 ' + hexDist(u.pos, tg.pos) + '</span>' + fortTag + '<br><b>' + TIER_LABEL[pv.tier] +
              '</b>' + (pv.counter ? (pv.counterSoft ? ' · <span class="warn">对方反击减半</span>' : '') : ' · <span class="ok">对方无法反击</span>') + '</div>';
       }
@@ -8100,6 +8115,11 @@ function openHQ(tab) {
 }
 function closeHQ() {
   document.getElementById('hqScreen').classList.add('hidden');
+  /* 顺手把内容清掉。遮罩隐着但 DOM 还在的话，图鉴那几十张卡一直挂着，
+     更难缠的是里面全是 <button>——隐藏容器里的按钮仍然会被
+     Tab / 全局快捷键扫到，变成一批"看不见但能聚焦"的东西。
+     下次 openHQ 反正会整块重画，清掉没有副作用。 */
+  document.getElementById('hqBody').innerHTML = '';
 }
 
 function renderHQ() {
@@ -8158,7 +8178,7 @@ function hqDex() {
     const rows = g.types.filter(t => TYPE[t]);
     if (!rows.length) continue;
     h += '<div class="hq-group"><div class="hq-gh">' + g.name + '</div>';
-    h += '<div style="font-size:10.5px;color:#9A968C;margin:-4px 0 9px">' + g.note + '</div>';
+    h += '<div style="font-size:10.5px;color:var(--ink3);margin:-4px 0 9px">' + g.note + '</div>';
     h += '<div class="hq-grid">';
     for (const t of rows) {
       const T = TYPE[t], st = dexStat(t);
@@ -8188,7 +8208,7 @@ function hqCards() {
     (left > 0 ? '<span>还能再带 <b>' + left + '</b> 张</span>'
               : '<span class="warn">已满，先卸一张再选</span>') +
     '</div>';
-  h += '<div style="font-size:10.5px;color:#9A968C;margin:-6px 0 12px;line-height:1.7">' +
+  h += '<div style="font-size:10.5px;color:var(--ink3);margin:-6px 0 12px;line-height:1.7">' +
     '每张卡整局只能用一次，加成持续到下一次我方阶段开始。牌组跨关沿用。</div>';
   h += '<div class="card-list">';
   /* 局内 / 局外是两套按钮。局内既不能换牌（state.deck 开局就固定了），
@@ -8218,7 +8238,7 @@ function hqCards() {
   }
   h += '</div>';
   if (inGame) {
-    h += '<div style="font-size:10.5px;color:#9A968C;margin-top:12px;line-height:1.7">' +
+    h += '<div style="font-size:10.5px;color:var(--ink3);margin-top:12px;line-height:1.7">' +
       '这一局已经开始，牌组不能再改。<b>用卡请回到地图</b>，点右侧「战术卡」栏里的一张，' +
       '再点地图上的目标单位。</div>';
   }
@@ -8236,7 +8256,7 @@ function hqSave() {
   h += '<div class="card-bar">本机现状' +
        '<span style="flex:1"></span>' +
        (sv ? '<b>' + levelById(sv.lv).name + '</b> · 第 ' + sv.turn + ' 回合'
-           : '<span style="color:#9A968C">没有进行中的战斗</span>') +
+           : '<span style="color:var(--ink3)">没有进行中的战斗</span>') +
        ' ｜ 已通关 <b>' + done + '</b> 关</div>';
 
   h += '<div style="display:flex;gap:8px;margin-top:12px">' +

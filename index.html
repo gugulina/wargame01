@@ -506,11 +506,11 @@
     else if (r) { state = '已达成'; stateCls = 'done'; }
     else if (!lv.ready) { state = '制作中'; stateCls = 'wip'; }
     else if (!acc.ok) { state = '未解锁'; stateCls = 'lock'; stateTip = acc.why; }
-    else if (lv.open && !chainAccess(lv).ok) {
-      /* open:true 但前面还有没通关的关——这关是临时放出来试玩的。
-         直接写"进入"会让人以为战役已经推进到这儿了。 */
-      state = '试玩'; stateCls = 'go'; stateTip = '前置关卡尚未通关，暂时开放试玩';
-    }
+    /* 这里曾经有一条「试玩」分支（open:true 但前置没通关时显示"试玩"）。
+       v4.6 把 open 只留在序章与第 1 关之后它就再也不可能亮——
+       两关都在链条最前面，chainAccess 永远成立。删掉而不是留着：
+       一条永远不亮的分支等于一段没人验过的代码，下次有人动 access()
+       还会以为它在兜底。真要把中间某关临时开出来，再按当时的形状加回去。 */
     else { state = '进入'; stateCls = 'go'; }
 
     const li = document.createElement('li');

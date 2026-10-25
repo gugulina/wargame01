@@ -603,6 +603,80 @@ function skip(name, why) {
     }
   }
 
+  console.log('[15] 可访问性：页面允许浏览器缩放');
+  /* WCAG 1.4.4 要求内容在 200% 缩放下可用，`maximum-scale=1` / `user-scalable=no`
+     是明确违规的写法。棋盘自己需要手势，但那是 #boardView { touch-action:none }
+     的事，不该拿整页缩放去换。
+     这条是**回归护栏**：这行 meta 很容易在"修手机手势"的时候被顺手加回去，
+     而它的代价（低视力用户无法放大）在开发机上一点都看不出来。 */
+  {
+    const mv = doc.querySelector('meta[name="viewport"]');
+    ok('前提：找得到 viewport', !!mv);
+    if (mv) {
+      const c = mv.getAttribute('content') || '';
+      ok('viewport 没有禁掉用户缩放', !/user-scalable\s*=\s*no/i.test(c), c);
+      ok('viewport 没有锁死最大缩放倍数', !/maximum-scale/i.test(c), c);
+      ok('viewport 仍然适配刘海屏', /viewport-fit\s*=\s*cover/i.test(c), c);
+    }
+    /* 棋盘的手势限制要落在棋盘自己身上，不是整页。
+       jsdom 的 getComputedStyle 不认识 touch-action（会返回 undefined），
+       所以这条退一步查样式表原文——弱一点，但至少不是"元素存在就算过"。 */
+    const css = Array.from(doc.querySelectorAll('style')).map(s => s.textContent).join('\n');
+    ok('棋盘元素单独关掉浏览器手势（#boardView 上写了 touch-action:none）',
+       /#boardView\s*\{[^}]*touch-action\s*:\s*none/.test(css));
+  }
+
+  console.log('[16] HQ 四页签真 UI 覆盖（这一块在四个脚本里一个都没跑到）');
+  /* renderHQ() 是**唯一的存档出入口**（导出 / 导入都在存档页），
+     但在这一节之前，没有任何脚本跑过它的 DOM：briefcheck [12] 直接调
+     hqSaveNote()，把整块 HQ 跳过去了。用 V8 覆盖度量出来是 0 次执行。
+     所以这里把四个页签逐个点开，验"内容真的换掉了"和"每条规则都在界面上成立"。 */
+  {
+    const W = window.__WAR__;
+    const hq = doc.getElementById('hqScreen');
+    const body = doc.getElementById('hqBody');
+    const tab = t => doc.querySelector('#hqTabs button[data-tab="' + t + '"]');
+
+    W.openHQ('dex');
+    ok('HQ 打开', !hq.classList.contains('hidden'));
+    ok('兵种图鉴有分组', body.querySelectorAll('.hq-group').length >= 3,
+       body.querySelectorAll('.hq-group').length + ' 组');
+    ok('兵种图鉴列出了兵种卡', body.querySelectorAll('.dex').length >= 10,
+       body.querySelectorAll('.dex').length + ' 张');
+    ok('图鉴用的是当前关卡（不是写死某一关）',
+       body.textContent.indexOf(W.LEVEL.name) >= 0, W.LEVEL.name);
+
+    tab('cards').click();
+    ok('切到战术卡页签', tab('cards').classList.contains('on'));
+    ok('卡页显示携带数量', /携带/.test(body.querySelector('.card-bar').textContent));
+    ok('切页签后旧内容被换掉（不是叠在一起）', body.querySelectorAll('.dex').length === 0);
+    /* v4.6 的规则：局内只读。以前这里挂着「立即使用」，
+       点它 → HQ 自动关掉 → 回地图点目标，是全项目最绕的一条路。 */
+    ok('局内不能在这里换牌 / 用牌（没有「立即使用」）',
+       body.textContent.indexOf('立即使用') < 0);
+
+    tab('save').click();
+    ok('存档页有两个动作按钮（导出 / 导入）',
+       body.querySelectorAll('[data-saveact]').length === 2);
+    ok('存档页写清了"导入会覆盖本机存档"', /覆盖/.test(body.textContent));
+
+    const aideN = (W.AIDE || []).length;
+    tab('aide').click();
+    ok('副官页渲染出全部问答', body.querySelectorAll('.aide-q').length === aideN,
+       body.querySelectorAll('.aide-q').length + ' / ' + aideN);
+    ok('每条问答都有正文',
+       Array.from(body.querySelectorAll('.aide-a')).every(e => e.textContent.trim().length > 0));
+
+    /* 页签同屏只能有一个选中态。两个都带 .on 的话玩家分不清自己在哪一页 */
+    ok('同时只有一个页签是选中态',
+       doc.querySelectorAll('#hqTabs button.on').length === 1,
+       doc.querySelectorAll('#hqTabs button.on').length + ' 个');
+
+    W.closeHQ();
+    ok('关掉 HQ 后遮罩收起', hq.classList.contains('hidden'));
+    ok('关掉 HQ 后内容被清掉（不留在 DOM 里）', body.innerHTML === '');
+  }
+
   console.log('');
   console.log('通过 ' + pass + ' 项' + (skipped ? ' · 跳过 ' + skipped + ' 项' : '') +
               '，失败 ' + fail + ' 项');

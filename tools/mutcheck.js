@@ -202,6 +202,12 @@ const MUTANTS = [
    "  FX.sfx('uiClick');\n});",
    '点胶囊落在存档页（导出是唯一出路）',
    'brief'],
+
+  ['viewport 重新钉死缩放（WCAG 1.4.4 违规，开发机上看不出来）',
+   'content="width=device-width, initial-scale=1, viewport-fit=cover"',
+   'content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"',
+   'viewport 没有禁掉用户缩放',
+   'brief'],
 ];
 
 /* 锚点按 LF 写，但 campaign.html 是 CRLF（7356 行全是）。
