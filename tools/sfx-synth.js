@@ -564,6 +564,49 @@ function sTrack(seed) {
   return { L, R, dur, note: '履带 · 42 次/秒金属节拍 + 低频轰鸣' };
 }
 
+/* ── 舰体推进：给实录水声垫一层低频 ──
+   实录里能拿到的只有浪。61012 实测 2 kHz 以上占 0.55、20–120 Hz 只占 0.035，
+   那是有"水"没有"船"：螺旋桨空化与主机的推力在浪声里根本不存在，
+   也没法从浪里提出来，只能补一层。
+
+   和 sEngine 的差别不只是频率低。**这一层是循环垫子，不能有起振也不能渐弱**，
+   两端振幅必须一样，否则 loop 每次回头都"轰"一下。所以不写 e 包络，
+   呼吸用一个**周期整除时长**的 LFO（1.6 秒正好一整个周期），接缝处相位连续。
+   engine 那层反过来必须有起振——它是"点了一下移动"的反馈，不是背景。 */
+function sHull(seed) {
+  const dur = 1.6, n = Math.round(dur * SR);
+  const L = new Float32Array(n), R = new Float32Array(n);
+  const rng = makeRng(seed);
+  const lpL = new Biquad().set('lp', 320, 0.7);
+  const lpR = new Biquad().set('lp', 340, 0.7);
+  const spL = new Biquad().set('bp', 1100, 0.9);
+  const spR = new Biquad().set('bp', 1200, 0.9);
+  /* 出口再低通一次。sat 会把 45 Hz 的锯齿推出十几阶谐波，
+     不挡的话重心落在 2.8 kHz —— 听感是"嗡嗡的电机"，不是"船在推水"。
+     加了这道 220 Hz 之后 20–120 Hz 占比从 0.26 提到 0.6 上下。 */
+  const outL = new Biquad().set('lp', 220, 0.72);
+  const outR = new Biquad().set('lp', 235, 0.72);
+  let p1 = 0, p2 = 0, p3 = 0;
+  for (let i = 0; i < n; i++) {
+    const t = i / SR;
+    /* 45 Hz 基频：螺旋桨叶频就在 40–60 Hz 这一段，再低就成"地震"了 */
+    const f = 45;
+    p1 += f / SR; if (p1 >= 1) p1 -= 1;
+    p2 += f * 2 / SR; if (p2 >= 1) p2 -= 1;
+    p3 += f * 3 / SR; if (p3 >= 1) p3 -= 1;
+    const saw = (p1 * 2 - 1) * 0.62 + (p2 * 2 - 1) * 0.24 + (p3 * 2 - 1) * 0.09;
+    /* 1.6 秒一次的呼吸：不是节拍，是螺旋桨负荷随浪起伏 */
+    const breathe = 1 + 0.10 * Math.sin(TAU * t / dur);
+    const nzL = rng(), nzR = rng();
+    /* 水声只垫 0.03、频段压到 1.1 kHz：它要和实录那层接得上，不能自己冒出来 */
+    const l = lpL.p(saw * breathe) * 0.97 + spL.p(nzL) * 0.03;
+    const r = lpR.p(saw * 1.004 * breathe) * 0.97 + spR.p(nzR) * 0.03;
+    L[i] = outL.p(sat(l, 1.15));
+    R[i] = outR.p(sat(r, 1.15));
+  }
+  return { L, R, dur, note: '舰体推进 · 45Hz 稳态，循环垫子（无起振）' };
+}
+
 /* ── 战场底噪：唯一真缺的槽 ──
    60 秒无缝循环。四层：
      低频轰鸣（远处持续炮击的空气声，20–90 Hz）
@@ -704,6 +747,9 @@ const SPEC = {
   step:  { fn: sStep,   seed: 0x5C07, mode: 'peak', target: -7.0, out: 'step-synth'   },
   engine:{ fn: sEngine, seed: 0x2A9D, mode: 'rms',  target: -19.0, out: 'engine-synth' },
   track: { fn: sTrack,  seed: 0x6F53, mode: 'rms',  target: -19.5, out: 'track-synth'  },
+  /* hull 不是独立音效，是**叠层**：实录只有浪，推进的低频得自己补。
+     定标比主层低 1 dB——它是垫在下面的，叠的时候还要再乘 0.6 左右。 */
+  hull:  { fn: sHull,   seed: 0x37C1, mode: 'rms',  target: -22.0, out: 'hull-synth'  },
   amb:   { fn: sAmb,   seed: 0x4B73, mode: 'rms',  target: -31.0, out: 'amb-synth'  }
 };
 

@@ -2948,18 +2948,19 @@ const ASSETS = {
     win:     'sfx/win.ogg',
     lose:    'sfx/lose.ogg',
 
-    /* 按兵种分派用的四个槽（见下面的 SONIC 表）。都是每回合要响的，
+    /* 按兵种分派用的六个槽（见下面的 SONIC 表）。都是每回合要响的，
        所以全在 preload 里——等第一次触发才下载会明显迟一拍。
 
-       素材来源分两种，别默认全是合成的：
-         rifle / step / track ← freesound 实录（CC0），走 tools/sfx-import.js 导入，
-                                 原始链接与处理参数见 assets/sfx/CREDITS.md 第十节
-         engine               ← 仍是自制（谱在 tools/sfx-synth.js，`npm run sfx engine`）
+       来源：六条的**骨架层**都是 freesound 实录（授权与处理参数见
+       assets/sfx/CREDITS.md 第十节），只有 ship 多叠了一层合成——
+       现场录音里只有浪，推进的低频得自己补，见第十节的「舰船」条。
        换素材用 `node tools/sfx-import.js <槽> <文件>`，它会自动改这里的路径。 */
     rifle:   'sfx/rifle-take1.ogg',   // 步兵攻击：四连点射叠 5 发机枪（65–95ms / 125ms 两种射速）
     step:    'sfx/step-take1.ogg',    // 步兵机动：混凝土行军实录，切一步
-    engine:  'sfx/engine-synth.ogg',  // 轮式机动：42→58 Hz 起步
-    track:   'sfx/track-take1.ogg'    // 履带机动：T-26 实车录像收音 + 5dB 低搁架
+    engine:  'sfx/engine-take1.ogg',  // 轮式机动：消防车引擎实录 + 8dB 低搁架，连续无节拍
+    track:   'sfx/track-take1.ogg',   // 履带机动：T-26 实车录像收音 + 5dB 低搁架
+    prop:    'sfx/prop-take1.ogg',    // 螺旋桨机动：Spitfire 滑行经过，叶频 131Hz
+    ship:    'sfx/ship-take1.ogg'     // 舰艇机动：浪拍船侧 + 合成 45Hz 推进层
   },
 
   /* 音乐：循环轨，建议 ogg 96kbps 或 mp3 128kbps，单条 1~3 分钟。
@@ -3039,24 +3040,27 @@ const SONIC = {
     sha:  { m: 'track',  a: 'shell' },
     spa:  { m: 'track',  a: 'shell' },
 
-    /* ── 航空：地面声场里没有它自己的音色，先用实弹枪声顶 ──
-       螺旋桨机的机枪与地面步枪同属 7.62 级，比合成步枪更接近。
-       这一层迟早要换成"高空多普勒 + 螺旋桨"，现在没有素材。 */
-    fgt:  { m: 'engine', a: 'fire' },
-    atk:  { m: 'engine', a: 'fire' },
-    bmb:  { m: 'engine', a: 'shell' },
-    trp:  { m: 'engine', a: 'fire' },
+    /* ── 航空：机动走螺旋桨，攻击仍借地面枪炮 ──
+       螺旋桨机的机炮与地面步枪同属 7.62 级，差别在距离感与多普勒，
+       所以攻击侧暂时借 fire。但**机动**侧不能借——拿卡车声去配飞机，
+       一耳朵就听出来"飞机在地上跑"。 */
+    fgt:  { m: 'prop', a: 'fire' },
+    atk:  { m: 'prop', a: 'fire' },
+    bmb:  { m: 'prop', a: 'shell' },    // 轰炸机投的是炸弹，不是机枪
+    trp:  { m: 'prop', a: 'fire' },
 
-    /* ── 水面：舰炮就是炮声，机动是主机 ── */
-    gbt:  { m: 'engine', a: 'shell' },
-    ptb:  { m: 'engine', a: 'shell' },
-    ffg:  { m: 'engine', a: 'shell' },
-    dd:   { m: 'engine', a: 'shell' },
-    ca:   { m: 'engine', a: 'shell' },
-    bb:   { m: 'engine', a: 'shell' },
-    cv:   { m: 'engine', a: 'fire' },
-    ss:   { m: 'engine', a: 'shell' },
-    lst:  { m: 'engine', a: 'shell' }
+    /* ── 水面：舰炮就是炮声，机动是主机 ──
+       主机的音高比卡车低一个八度，连续、没有节拍；
+       高频那层是水声，不是排气。 */
+    gbt:  { m: 'ship', a: 'shell' },
+    ptb:  { m: 'ship', a: 'shell' },
+    ffg:  { m: 'ship', a: 'shell' },
+    dd:   { m: 'ship', a: 'shell' },
+    ca:   { m: 'ship', a: 'shell' },
+    bb:   { m: 'ship', a: 'shell' },
+    cv:   { m: 'ship', a: 'fire' },     // 航母自身只有少量防空武器
+    ss:   { m: 'ship', a: 'shell' },
+    lst:  { m: 'ship', a: 'shell' }
   },
 
   /* 兜底：表里没有就等于一个步兵。宁可听起来像步兵，
@@ -3099,8 +3103,10 @@ const FX = {
   /* 每种音效最多同时叠几个。炮声有 2 秒尾音，只允许一个：
      一回合打三炮时宁可后一炮盖掉前一炮，也不要糊成一团噪音 */
   /* 引擎和履带是 1 秒级的持续音，一次能叠 3 个就等于"三台车同时轰"，
-     听感变成一片糊；压到 2。步枪和脚步短，默认 3 够用。 */
-  _max: { shell: 1, alarm: 1, win: 1, lose: 1, kill: 2, engine: 2, track: 2, default: 3 },
+     听感变成一片糊；压到 2。步枪和脚步短，默认 3 够用。
+     螺旋桨与舰体同理——都是长音，而且都是低频厚的，叠多了只会更糊。 */
+  _max: { shell: 1, alarm: 1, win: 1, lose: 1, kill: 2, engine: 2, track: 2,
+          prop: 2, ship: 2, default: 3 },
   /* 不进 preload 的槽。amb 是 60 秒循环环境层，529 KB——一旦跟着首屏走，
      首屏就从 455 KB 涨到近 1 MB。BGM 那边白捡的按需加载，正好被它吃掉。 */
   _noPreload: { amb: true },

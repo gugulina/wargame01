@@ -2460,6 +2460,17 @@ console.log('\n[37] 音效按兵种分派');
   ok('摩步营机动 = 引擎', S.of('mob', 'm') === 'engine', S.of('mob', 'm'));
   ok('牵引炮兵机动 = 引擎（炮不会自己走）', S.of('art', 'm') === 'engine', S.of('art', 'm'));
 
+  /* 航空与水面原来**共用** engine —— 一个槽顶三件事。
+     这两族要挡住的是"卡车声配飞机"这种看起来很省的复用：
+     正面验它们各自有槽，反面验一个都没留在 engine 上。
+     只写正面的话，谁把 prop 又改回 engine、同时留一个航空兵在 prop，
+     照样能过。 */
+  ok('战斗机机动 = 螺旋桨', S.of('fgt', 'm') === 'prop', S.of('fgt', 'm'));
+  ok('驱逐舰机动 = 舰体主机', S.of('dd', 'm') === 'ship', S.of('dd', 'm'));
+  const AIRSEA = ['fgt', 'atk', 'bmb', 'trp', 'gbt', 'ptb', 'ffg', 'dd', 'ca', 'bb', 'cv', 'ss', 'lst'];
+  const stillEngine = AIRSEA.filter(k => S.tab[k] && S.tab[k].m === 'engine');
+  ok('航空与水面没有任何一个还借轮式引擎声', stillEngine.length === 0, stillEngine.join(','));
+
   /* 表里写的名字必须在 ASSETS 里真有。写成 'rifle-synth' 这种文件名
      （而不是槽位名）不会抛错，只会静默降级成无声。 */
   const bad = [];
