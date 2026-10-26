@@ -923,6 +923,25 @@ function skip(name, why) {
          Array.from(statsEl.querySelectorAll('.stat')).map(d => d.textContent).join(' | '));
   }
 
+  console.log('[22] 背景音乐：指挥部换 menu 曲，关掉要接回原来那一曲');
+  {
+    const W = window.__WAR__;
+    const FX = W.FX;
+    /* 这里看的是 FX._bgmName 而不是听声音——jsdom 放不出音频。
+       选它是因为它是"引擎认为现在该播哪一曲"的唯一真相：
+       bgm() 同名不重播也靠它，写错了这一处，后面全都不响还不报错。 */
+    const before = FX._bgmName;
+    ok('前提：判定后停在结算曲', before === 'win' || before === 'lose', String(before));
+
+    W.openHQ('dex');
+    ok('进指挥部切到 menu 曲', FX._bgmName === 'menu', String(FX._bgmName));
+
+    W.closeHQ();
+    /* 不能写死 'battle'：打完一关再翻一次存档页，回去该是结算曲。
+       写死的话庆功曲会被无名地掐掉，换成平稳的小军鼓。 */
+    ok('关掉指挥部接回结算曲（不是战斗曲）', FX._bgmName === before, String(FX._bgmName));
+  }
+
   console.log('');
   console.log('通过 ' + pass + ' 项' + (skipped ? ' · 跳过 ' + skipped + ' 项' : '') +
               '，失败 ' + fail + ' 项');

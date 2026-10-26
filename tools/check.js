@@ -80,6 +80,38 @@ try {
 
 const { api } = loadGame(file);
 
+/* ── 素材引用 ──
+   ASSETS 里写错一个文件名、或者换了素材忘了搬文件，表现全都是**静默无声**：
+   FX.sfx / FX.bgm 内部有 try/catch，play() 被拒也只是一个空 catch。
+   玩家听到的是"这游戏没声音"，而所有断言照常绿——因为在此之前没有任何工具
+   读过 ASSETS。v4.10 接 BGM 时正好踩在这个口子上（5 首要是一首没搬进来，
+   那句"BGM 做完了"就成了瞎话），所以补一条：每个路径都 stat 一遍，缺了点名。
+   null 是"有意留空"（ui/unit/fort 那些槽位还没素材），跳过不算错。 */
+{
+  let bad = 0;
+  const baseDir = path.dirname(file);
+  const walk = (obj, prefix) => {
+    for (const k of Object.keys(obj || {})) {
+      const v = obj[k];
+      const label = prefix + '.' + k;
+      if (v && typeof v === 'object') { walk(v, label); continue; }
+      if (typeof v !== 'string' || !v) continue;
+      const abs = path.join(baseDir, api.ASSETS.base || '', v);
+      if (!fs.existsSync(abs)) {
+        console.error('[1c/4] 素材缺失：' + label + ' → ' + v + '（' + abs + '）');
+        bad++;
+      }
+    }
+  };
+  ['sfx', 'bgm', 'story'].forEach(k => walk(api.ASSETS[k], k));
+  if (!bad) {
+    const cnt = o => Object.keys(o || {}).filter(x => typeof o[x] === 'string').length;
+    console.log('[1c/4] 素材引用正常：音效 ' + cnt(api.ASSETS.sfx) + ' 个、音乐 ' +
+      cnt(api.ASSETS.bgm) + ' 首、图片 ' + cnt(api.ASSETS.story) + ' 张，全部在磁盘上');
+  }
+  fail += bad;
+}
+
 /* 引擎有多关（LEVELS）；单关的老页面已经删了，但这里仍按数组取，兼容单关形态 */
 const all = Array.isArray(api.LEVELS) ? api.LEVELS : [api.LEVEL];
 const ready = all.filter(l => l.ready);
