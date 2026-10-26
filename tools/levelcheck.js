@@ -82,6 +82,37 @@ function skip(name, why) {
   ok('每关元信息齐全（id/no/name/when/where/teaser/type，no 允许为 0）', metaOk,
      LV.filter(l => !(l.id && l.no !== undefined && l.name && l.when && l.where && l.teaser && l.type))
        .map(l => l.id + ':' + (!l.name ? 'name ' : '') + (!l.type ? 'type ' : '')).join(' '));
+  /* 按**纯文本**渲染的文案字段里不许出现 HTML 标签。
+     踩过的坑：第 4 关 intro 里写着 `<b>舰队打不到飞机。</b>`，而 intro 是逐条塞进
+     战报的，战报渲染先 esc 再 bold —— 于是玩家在右下角看见字面的 `<b>` 和 `</b>`，
+     从 v4.5 一直挂到 v4.8 体检才从截图里看出来。作者以为是 HTML，渲染口当纯文本，
+     两边都不报错。
+
+     约定：能不能加粗由渲染口决定，数据只写 `**重点**`。
+     `briefing` 的正文不在此列——那一块本来就是按 HTML 拼的，<b> 有效。 */
+  {
+    const plain = (lv) => {
+      const out = [];
+      for (const k of ['name', 'when', 'where', 'teaser', 'type']) if (lv[k]) out.push([k, lv[k]]);
+      (lv.intro || []).forEach((s, i) => out.push(['intro[' + i + ']', s]));
+      for (const k of ['win', 'fail']) if (lv.prev && lv.prev[k]) out.push(['prev.' + k, lv.prev[k]]);
+      (lv.events || []).forEach((e, i) => {
+        if (e.desc) out.push(['events[' + i + '].desc', e.desc]);
+        (e.ef || e.effects || []).forEach((f, j) => {
+          if (f && typeof f.text === 'string') out.push(['events[' + i + '].ef[' + j + ']', f.text]);
+        });
+      });
+      return out;
+    };
+    const bad = [];
+    for (const l of LV) {
+      for (const [where, s] of plain(l)) {
+        if (/[<>]/.test(String(s))) bad.push(l.id + '.' + where);
+      }
+    }
+    ok('纯文本文案里没有 HTML 标签（要加粗请写 **重点**）', bad.length === 0, bad.slice(0, 8).join(', '));
+  }
+
   const readyOk = readyAll.every(l => Array.isArray(l.map) && l.map.length === l.rows && l.units.length);
   ok('ready 的关都有完整地图与编制', readyOk);
   const srcOk = LV.every(l => Array.isArray(l.mapSrc));

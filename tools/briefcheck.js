@@ -538,7 +538,7 @@ function skip(name, why) {
       ok('单位面板把兵牌名当文本显示', !!nm && nm.textContent === payload,
          nm ? nm.textContent.slice(0, 40) : '没找到 .ub-name');
 
-      /* 战报：renderLog 逐条 textContent 建节点，cls 走白名单 */
+      /* 战报：renderLog 先 esc 再 bold，cls 走白名单 */
       st.log.push({ t: 'x', cls: 'b" onload="window.__pwn2=1', text: payload });
       W.render();
       const logEl = doc.getElementById('log');
@@ -547,6 +547,23 @@ function skip(name, why) {
       const lastRow = logEl.lastElementChild;
       ok('战报的 cls 走白名单（不认识的一律当普通行）',
          !!lastRow && lastRow.className === '', lastRow ? lastRow.className : '没有战报行');
+
+      /* 战报唯一的文案通道是 bold()，而且它和 esc 在同一条路径上。
+         两条断言必须一起有：只验第 1 条（星号变 <b>）的话，
+         把 esc 删掉照样绿——那正好是 XSS 的形状；只验第 2 条（保存原样），
+         把 bold 删掉也照样绿。分开验，两个都少不得。 */
+      st.log.push({ text: '前 **重点** 后', cls: 'sys' });
+      st.log.push({ text: '<b>不该加粗</b>', cls: 'sys' });
+      W.render();
+      const rows2 = doc.getElementById('log').children;
+      const rowB = rows2[rows2.length - 2], rowT = rows2[rows2.length - 1];
+      ok('战报里的 **重点** 渲染成 <b>（不是星号）',
+         !!rowB && !!rowB.querySelector('b') && rowB.querySelector('b').textContent === '重点',
+         rowB ? JSON.stringify(rowB.innerHTML.slice(0, 60)) : '没有这一行');
+      ok('战报里的 <b> 字面量仍是文本（先 esc 再 bold，顺序不能反）',
+         !!rowT && rowT.querySelectorAll('b').length === 0 && rowT.textContent === '<b>不该加粗</b>',
+         rowT ? JSON.stringify(rowT.textContent) : '没有这一行');
+      st.log.pop(); st.log.pop();
 
       /* 收拾干净：后面的收尾检查还要用这局 state */
       st.log.pop();
@@ -629,6 +646,11 @@ function skip(name, why) {
     const css = fs.readFileSync(cssPath, 'utf8');
     ok('棋盘元素单独关掉浏览器手势（#boardView 上写了 touch-action:none）',
        /#boardView\s*\{[^}]*touch-action\s*:\s*none/.test(css));
+    /* 样式表真的被引进来。少了这一条，href 写错（或者拆文件时漏了 <link>）
+       会让页面变成一坨没有样式的裸文本，而所有断言照样绿——因为断言读的是磁盘。 */
+    const link = doc.querySelector('link[rel="stylesheet"][href*="campaign.css"]');
+    ok('页面引了 campaign.css（不是靠 <style> 内联）', !!link,
+       link ? link.getAttribute('href') : '没有 <link rel="stylesheet">');
   }
 
   console.log('[16] HQ 四页签真 UI 覆盖（这一块在四个脚本里一个都没跑到）');
@@ -840,7 +862,7 @@ function skip(name, why) {
     W.render();
   }
 
-  console.log('[17] 顶栏副标题：章 · 关 · 类型');
+  console.log('[20] 顶栏副标题：章 · 关 · 类型');
   {
     const W = window.__WAR__;
     /* 进附属关要它的正关先通关。这里直接写进度而不是真打十二个回合：
@@ -861,6 +883,7 @@ function skip(name, why) {
     ok('「附属」只说一次', (sub.match(/附属/g) || []).length === 1, sub);
     ok('副标题保留了类型与日期', /防御/.test(sub) && /新历/.test(sub), sub);
   }
+
 
   console.log('');
   console.log('通过 ' + pass + ' 项' + (skipped ? ' · 跳过 ' + skipped + ' 项' : '') +

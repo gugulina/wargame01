@@ -186,11 +186,11 @@ const MUTANTS = [
    '棋盘里没有长出 <img>',
    'brief'],
 
-  ['战报退回拼 innerHTML（textContent 防线拆掉）',
-   '    d.textContent = String(l.text);',
-   '    d.innerHTML = String(l.text);',
-   '战报里没有长出 <img>',
-   'brief'],
+  /* 原来的「战报退回拼 innerHTML」已经由下面两条取代：renderLog 从
+     `textContent = text` 改成了 `innerHTML = bold(esc(text))`，
+     旧锚点 `d.textContent = String(l.text);` 在引擎里不存在了。
+     留着只会报"锚点找不到"——这类失效锚点比没断言更坏，
+     它会让整张表看起来还在守，实际那条早已空转。 */
 
   ['存档异常胶囊永不亮（写失败又变回静默）',
    "  el.style.display = bad ? '' : 'none';",
@@ -344,6 +344,19 @@ const MUTANTS = [
    "  if (s) s.textContent = levelNoText(LEVEL, true) + levelTypeText(LEVEL) + ' · ' + LEVEL.when;",
    "  if (s) s.textContent = levelNoText(LEVEL, true) + LEVEL.type + ' · ' + LEVEL.when;",
    '「附属」只说一次', 'brief'],
+
+
+  /* 战报两条通道：bold（作者的 `**重点**` 能加粗）与 esc（存档里的标签只能是文本）。
+     两条断言必须各配一条变异——只变异其中一条，另一条永远是"没被证明过的绿"。 */
+  ['战报退回纯文本（作者的 **重点** 又变成星号）',
+   '    d.innerHTML = bold(esc(String(l.text)));',
+   '    d.textContent = String(l.text);',
+   '**重点** 渲染成 <b>', 'brief'],
+
+  ['战报不做转义（存档里的 <b> 变成真标签）',
+   '    d.innerHTML = bold(esc(String(l.text)));',
+   '    d.innerHTML = String(l.text);',
+   '字面量仍是文本', 'brief'],
 
   /* 点击路由：一格两层时该打谁。三条分别对应"开火优先""只打真能打的""卡也认层"。 */
   ['点格子又退回"先判是不是我方单位"（防空炮打不了同格敌机）',

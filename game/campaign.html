@@ -2015,7 +2015,7 @@ const LEVELS = [
     '港内还有波尔瓦萨海军基地分舰队：4 艘驱逐舰、2 艘巡洋舰、1 艘战列舰。它们不出港，炮口对着岸上——' +
     '射程从 8 格到 20 格，整个战场都在它们的射界里。',
     '任务：坚守 20 回合，港口要塞与波尔瓦萨市必须始终在我方手中。敌军全灭则提前达成；全部兵牌被歼立即判负。',
-    '<b>舰队打不到飞机。</b> 敌军航空队已经抵达港外空域，能挡它们的只有高炮营、防空连与防空阵地——' +
+    '**舰队打不到飞机。** 敌军航空队已经抵达港外空域，能挡它们的只有高炮营、防空连与防空阵地——' +
     '把防空摆在码头，不要摆在城里。'
   ],
   maxTurns: 20,
@@ -7515,14 +7515,23 @@ const LOG_CLASSES = ['b', 'r', 'sys', 'hi', ''];
 function renderLog() {
   const el = document.getElementById('log');
   /* 战报是存档的一部分（saveSnapshot 里存最近 80 条），所以 text / cls 都不可信。
-     这里用 textContent 逐条建节点而不是拼字符串：战报是唯一一处"每条都可能带
-     玩家数据的列表"，拼 HTML 只会给校验层开一个必须永远不漏的后门。 */
+     这里**先 esc 再 bold**，两个都不能省：
+       - esc 是安全边界。存档里的战报文本可以被改成任意字符串（validateSave 只验
+         类型与长度，不验字符集），不逃逸就等于开了个 innerHTML 后门。
+       - bold 是文案通道。作者在 LEVEL.intro / 事件 log 里写的 `**重点**` 要靠它
+         转成 <b>，否则玩家看到的是星号。
+     顺序不能反：先 bold 再 esc 会把刚生成的 <b> 一起转义掉，页面上留下 &lt;b&gt;。
+
+     v4.8 之前这里是 `textContent = text`，图省事。代价是第 4 关 intro 里那句
+     `<b>舰队打不到飞机。</b>` 从 v4.5 起一直原样显示在战报里——作者按 HTML 写，
+     渲染口按纯文本出，两边谁都不知道对方怎么想。现在统一成 `**…**`：
+     能不能加粗归渲染口回答，数据只管标重点。 */
   const rows = state.log.slice(-80);
   el.innerHTML = '';
   for (const l of rows) {
     const d = document.createElement('div');
     d.className = LOG_CLASSES.includes(l.cls) ? l.cls : '';
-    d.textContent = String(l.text);
+    d.innerHTML = bold(esc(String(l.text)));
     el.appendChild(d);
   }
   el.scrollTop = el.scrollHeight;
