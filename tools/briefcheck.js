@@ -14,7 +14,17 @@
 
 const fs = require('fs');
 const path = require('path');
-const { JSDOM } = require('jsdom');
+const { JSDOM, VirtualConsole } = require('jsdom');
+
+/* jsdom 不实现 <audio> 的 load()/play()，每次预载十几条 "Not implemented"
+   直接冲到 stderr，把断言输出淹掉（以前只是被 grep 滤掉所以没人在意）。
+   只吞这一类，其他脚本异常照旧打出来——那是真问题。 */
+const vc = new VirtualConsole();
+vc.on('jsdomError', e => {
+  if (!/Not implemented/.test(String(e && e.message))) {
+    console.error('[jsdom] ' + String(e && (e.detail || e.message || e)));
+  }
+});
 
 /* 用法：node tools/briefcheck.js [game/campaign.html]
    接一个可选文件参数是为了 mutcheck.js——DOM 那几条断言（转义、战报 textContent）
@@ -27,6 +37,7 @@ const html = fs.readFileSync(file, 'utf8');
 const dom = new JSDOM(html, {
   runScripts: 'dangerously',
   pretendToBeVisual: true,
+  virtualConsole: vc,
   url: 'http://127.0.0.1/game/campaign.html?lv=T1&nointro=1'
 });
 const { window } = dom;
@@ -933,13 +944,84 @@ function skip(name, why) {
     const before = FX._bgmName;
     ok('前提：判定后停在结算曲', before === 'win' || before === 'lose', String(before));
 
+    /* 底噪的三条也放这里：指挥部与战场是同一对进出点，分两段写会重复建局。
+       先手动点起来模拟"仗打到一半翻档案柜"——不点的话 _ambWant 本来就是
+       false，下面"进指挥部把炮声停了"是空转（写这条时第一版就是这么假绿的）。 */
+    FX.amb(true);
     W.openHQ('dex');
     ok('进指挥部切到 menu 曲', FX._bgmName === 'menu', String(FX._bgmName));
+    ok('进指挥部把炮声停了（menu 曲上没有垫层）', FX._ambWant === false && !!FX._ambEl,
+       'want=' + FX._ambWant + ' el=' + !!FX._ambEl);
 
     W.closeHQ();
     /* 不能写死 'battle'：打完一关再翻一次存档页，回去该是结算曲。
        写死的话庆功曲会被无名地掐掉，换成平稳的小军鼓。 */
     ok('关掉指挥部接回结算曲（不是战斗曲）', FX._bgmName === before, String(FX._bgmName));
+    /* 已分胜负就不接回炮声：结算页上说"战斗结束"、耳朵里还在轰，自相矛盾 */
+    ok('已分胜负时出指挥部不接回炮声', FX._ambWant === false, 'want=' + FX._ambWant);
+
+    /* 反过来那一半也得守：把守卫写成永不接回，上面那条照样绿。
+       临时把 result 抹掉，模拟"打到一半进指挥部又出来"。 */
+    const st = W.getState();
+    const keepResult = st.result;
+    st.result = null;
+    W.openHQ('dex');
+    W.closeHQ();
+    st.result = keepResult;
+    ok('仗没打完时出指挥部要接回炮声', FX._ambWant === true, 'want=' + FX._ambWant);
+  }
+
+  console.log('[23] 战场底噪：不能跟首屏走，打完要停');
+  {
+    const W = window.__WAR__;
+    const FX = W.FX;
+    const baseDir = path.join(path.dirname(file), W.ASSETS.base || 'assets/');
+
+    /* 前提先立住：槽位不存在或文件缺了，下面几条会"因为没东西可测"而假绿 */
+    const ambRel = (W.ASSETS.sfx || {}).amb;
+    const ambFile = ambRel ? path.join(baseDir, ambRel) : '';
+    ok('前提：amb 槽指向的文件存在', !!ambRel && fs.existsSync(ambFile), String(ambRel));
+
+    /* 打完要停：**必须自己把底噪点起来再走一遍结算**，不能借前面那局的现成状态。
+       第一版就是直接读 _ambWant，而 [22] 的 openHQ 也调过 amb(false)——
+       删掉 showOverlay 里那一行，断言照样绿（实测过）。这正是"测不该发生的
+       事，却让它被另一个原因挡住"的典型形状。 */
+    /* 先手动关一次：不清场的话"进关后底噪起来了"可能只是 [22] 留下的，
+       enterLevel 到底有没有真的开新局，那条断言分不出来。 */
+    FX.amb(false);
+    /* 附属关要正关先通关（同 [20]）。写成空进度时 enterLevel 会静默返回 false，
+       而 LEVEL 还停在上一次的 C3B 上，看上去一切正常——这个坑 [21] 已经踩过一回。 */
+    try {
+      window.localStorage.setItem(W.PROGRESS_KEY, JSON.stringify({ cleared: { C3: 'win' } }));
+    } catch (e) {}
+    W.writeProgress({ cleared: { C3: 'win' }, played: {}, deck: null, last: null });
+    W.enterLevel('C3B', { noIntro: true, noSave: true });
+    ok('前提：进关后底噪起来了',
+       W.LEVEL.id === 'C3B' && FX._ambWant === true && !!FX._ambEl,
+       'lv=' + W.LEVEL.id + ' want=' + FX._ambWant + ' el=' + !!FX._ambEl);
+
+    W.getState().turn = W.LEVEL.maxTurns;
+    W.judgeFinal();
+    ok('结算后底噪已停', FX._ambWant === false, 'want=' + FX._ambWant);
+
+    /* 首屏预算：amb 是 60 秒循环环境层。真正会犯的错不是"忘了关"，
+       而是"顺手把它加进了 ASSETS.sfx 就跟着 preload 走了"——那一步不报错，
+       只是首屏从 158 KB 涨到 686 KB，手机进关白等。 */
+    FX._pool = {};
+    FX.preload();
+    const pooled = Object.keys(FX._pool);
+    ok('preload 没把 amb 拉进首屏', pooled.includes('amb') === false, pooled.join(','));
+    let bytes = 0;
+    for (const k of pooled) {
+      try { bytes += fs.statSync(path.join(baseDir, W.ASSETS.sfx[k])).size; } catch (e) {}
+    }
+    ok('预载音效总量 ≤ 250 KB', bytes <= 250 * 1024, Math.round(bytes / 1024) + ' KB');
+
+    /* 起播：底噪必须是循环轨。少了 loop，60 秒后战场就安静了，
+       而且不会有任何报错——玩家只会觉得"后面怎么没声了"。 */
+    FX.amb(true);
+    ok('amb 起来后是循环轨', !!(FX._ambEl && FX._ambEl.loop === true && FX._ambWant === true),
+       FX._ambEl ? 'loop=' + FX._ambEl.loop : '没建元素');
   }
 
   console.log('');

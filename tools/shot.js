@@ -26,6 +26,7 @@ const WAIT = Number((process.argv.find(a => a.startsWith('--wait=')) || '--wait=
 /* --eval 用来量真实 DOM 尺寸。截图里看着"像溢出/像太小"经常是假象
    （DPI、缩放、图片被查看器再缩放），量一次 rect 比改三轮 CSS 便宜。 */
 const EVAL = (process.argv.find(a => a.startsWith('--eval=')) || '').slice(7);
+const USER_GESTURE = process.argv.includes('--gesture');
 
 if (!url) { console.error('用法: node tools/shot.js <url> <out.png> [w] [h] [--mobile] [--wait=ms]'); process.exit(1); }
 
@@ -87,7 +88,13 @@ async function waitPort() {
   await send('Page.navigate', { url });
   await new Promise(r => setTimeout(r, WAIT));
   if (EVAL) {
-    const r = await send('Runtime.evaluate', { expression: EVAL, returnByValue: true });
+    const r = await send('Runtime.evaluate', {
+      expression: EVAL, returnByValue: true,
+      /* --gesture：让这段脚本算作"用户手势"。测音频/自动播放时必须加——
+         不加以人工 dispatchEvent 触发的 click 是 untrusted，play() 会被
+         判成自动播放而拒绝（NotAllowedError），看着像功能坏了。 */
+      userGesture: USER_GESTURE
+    });
     console.log(JSON.stringify(r.result && r.result.value, null, 2));
     /* eval 常常是"改点状态再截"，改完要等一帧图和 CSS 过渡落定。
        不等的话会截到上一步的画面，看起来像功能没生效。 */
