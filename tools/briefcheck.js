@@ -620,8 +620,13 @@ function skip(name, why) {
     }
     /* 棋盘的手势限制要落在棋盘自己身上，不是整页。
        jsdom 的 getComputedStyle 不认识 touch-action（会返回 undefined），
-       所以这条退一步查样式表原文——弱一点，但至少不是"元素存在就算过"。 */
-    const css = Array.from(doc.querySelectorAll('style')).map(s => s.textContent).join('\n');
+       所以这条退一步查样式表原文——弱一点，但至少不是"元素存在就算过"。
+       v4.8 把样式拆到 game/campaign.css 之后，这里必须跟着改成读文件：
+       jsdom 不开 resources:'usable' 就不加载外部样式表，`<style>` 已经一个都没有，
+       继续读 DOM 只会拿到空串，让这条断言永远红（或者更糟：被改成恒真）。
+       读文件反而比读 DOM 多验一层——CSS 文件丢了、路径写错了，这里也会红。 */
+    const cssPath = require('path').join(__dirname, '..', 'game', 'campaign.css');
+    const css = fs.readFileSync(cssPath, 'utf8');
     ok('棋盘元素单独关掉浏览器手势（#boardView 上写了 touch-action:none）',
        /#boardView\s*\{[^}]*touch-action\s*:\s*none/.test(css));
   }

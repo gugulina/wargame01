@@ -37,6 +37,47 @@ try {
   process.exit(1);
 }
 
+/* ── 样式表引用 ──
+   v4.8（体检 P3-1 第一步）把 <style> 整块搬到 game/campaign.css。
+   拆文件的风险不是语法错误——浏览器对坏 CSS 一向静默——而是**引用对不上**：
+   href 拼错、文件没跟着提交、?v= 忘了跟版本走。三种都让页面变成一坨裸文本，
+   或者让玩家一半新一半旧，而 JS 侧一条断言都不会红：所有测试读的是磁盘上的
+   两份文件，不是浏览器真实的加载结果。所以这一节只验"磁盘上的这两样东西
+   能不能拼成一次正确的加载"。 */
+{
+  const cssPath = path.join(path.dirname(file), 'campaign.css');
+  const cssVer = html.match(/id="verTag">v([0-9]+)\.([0-9]+)/);
+  const linkM = html.match(/<link[^>]+href="campaign\.css\?v=([^"]+)"/);
+  let cssBad = 0;
+  if (!linkM) {
+    console.error('[1b/4] 引擎里没有引用 campaign.css（缺 <link rel="stylesheet" href="campaign.css?v=…">）');
+    cssBad++;
+  } else if (cssVer) {
+    const want = cssVer[1] + '.' + cssVer[2];
+    if (linkM[1] !== want) {
+      console.error('[1b/4] campaign.css 的 ?v=' + linkM[1] + ' 与顶栏版本 v' + want +
+        ' 不一致——改了样式但没改 query，玩家会吃到 GitHub Pages 的旧缓存');
+      cssBad++;
+    }
+  }
+  /* 4 KB 是个下限而不是规格：整份样式五十多 KB，缩到 4 KB 以下只可能是
+     搬的时候截断了。用"文件在不在"判不了这种情况。 */
+  let cssSize = 0;
+  try { cssSize = fs.statSync(cssPath).size; } catch (e) {}
+  if (!cssSize) {
+    console.error('[1b/4] 找不到 ' + cssPath + '（<link> 指过去是空的）');
+    cssBad++;
+  } else if (cssSize < 4096) {
+    console.error('[1b/4] ' + cssPath + ' 只有 ' + cssSize + ' 字节，看着像搬的时候截断了');
+    cssBad++;
+  }
+  if (!cssBad) {
+    console.log('[1b/4] 样式表引用正常：campaign.css?v=' + linkM[1] + '，' +
+      Math.round(cssSize / 1024) + ' KB');
+  }
+  fail += cssBad;
+}
+
 const { api } = loadGame(file);
 
 /* 引擎有多关（LEVELS）；单关的老页面已经删了，但这里仍按数组取，兼容单关形态 */
