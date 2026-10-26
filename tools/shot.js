@@ -27,6 +27,13 @@ const WAIT = Number((process.argv.find(a => a.startsWith('--wait=')) || '--wait=
    （DPI、缩放、图片被查看器再缩放），量一次 rect 比改三轮 CSS 便宜。 */
 const EVAL = (process.argv.find(a => a.startsWith('--eval=')) || '').slice(7);
 const USER_GESTURE = process.argv.includes('--gesture');
+/* --await：等 eval 里的 Promise 落定再取值。
+   验音频必须用它——解码是异步的，不等的话读到的是"还在 loading"，
+   和"文件坏了"看起来一模一样，会把人引到错误的方向。
+   注意：不加 userGesture 时它只适合**不需要手势的操作**（fetch、
+   decodeAudioData、OfflineAudioContext）；一旦要 play()，手势不会
+   穿过 await 传到后续的同步栈，必须改用 --gesture 走同步路径。 */
+const AWAIT = process.argv.includes('--await');
 
 if (!url) { console.error('用法: node tools/shot.js <url> <out.png> [w] [h] [--mobile] [--wait=ms]'); process.exit(1); }
 
@@ -89,7 +96,7 @@ async function waitPort() {
   await new Promise(r => setTimeout(r, WAIT));
   if (EVAL) {
     const r = await send('Runtime.evaluate', {
-      expression: EVAL, returnByValue: true,
+      expression: EVAL, returnByValue: true, awaitPromise: AWAIT,
       /* --gesture：让这段脚本算作"用户手势"。测音频/自动播放时必须加——
          不加以人工 dispatchEvent 触发的 click 是 untrusted，play() 会被
          判成自动播放而拒绝（NotAllowedError），看着像功能坏了。 */

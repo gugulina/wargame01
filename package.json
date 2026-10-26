@@ -9,6 +9,7 @@
     "cov": "node tools/cov.js",
     "bgm": "node tools/bgm-render.js",
     "sfx": "node tools/sfx-synth.js",
+    "sfx:import": "node tools/sfx-import.js",
     "sfx:embed": "node tools/sfx-embed.js",
     "hooks": "node tools/install-hooks.js"
   },
