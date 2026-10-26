@@ -61,11 +61,16 @@ if (ver && pkgShort && ('v' + pkgShort) !== ver) {
 }
 
 const levels = (api.LEVELS || []).map(lv => {
-  const blue = lv.units.filter(u => u.side === 'blue');
-  const red = lv.units.filter(u => u.side === 'red');
+  /* 占位关没有 units（ready:false，只有元信息）。这里必须兜住——
+     以前这里是 `lv.units.filter(...)`，加第一个占位关就会整条命令崩掉，
+     而崩的地方在生成脚本里，看起来像"引擎坏了"。 */
+  const units = lv.units || [];
+  const blue = units.filter(u => u.side === 'blue');
+  const red = units.filter(u => u.side === 'red');
   const sum = arr => arr.reduce((s, u) => s + u.str, 0);
   return {
     id: lv.id,
+    ch: lv.ch,
     no: lv.no,
     sub: !!lv.sub,
     name: lv.name,
@@ -80,7 +85,8 @@ const levels = (api.LEVELS || []).map(lv => {
        通关第 3 关之后仍把玩家锁在支线上。两份实现必然走样。 */
     prevId: api.accessPrereq(lv.id),
     /* 序号文案由引擎自己算（"序 · " / "第 3 关 · 附属 · "）。
-       首页照着显示，就不会出现"第 0 关"这种只有别处才有的说法。 */
+       首页照着显示，就不会出现"第 0 关"这种只有别处才有的说法。
+       brief 形式：菜单页按章分组，章名在组头上。 */
     noText: api.levelNoText(lv),
     win: lv.win && lv.win.kind ? lv.win.kind : 'score',
     turns: lv.maxTurns,
@@ -88,6 +94,25 @@ const levels = (api.LEVELS || []).map(lv => {
     rows: lv.rows,
     blue: { cards: blue.length, str: sum(blue) },
     red: { cards: red.length, str: sum(red) }
+  };
+});
+
+/* 章节表也一起带出去。首页要按章分组渲染，章名 / 时间跨度 / 一句话主题
+   都是引擎里那份的副本——手抄必然会走样，所以同样由这里生成。
+   `total` 收的是**全部**关卡数（含占位），`ready` 只数做出来的：
+   前者给"这一章规划了多少仗"，后者给"现在能打几关"。 */
+const chapters = (api.CHAPTERS || []).map(c => {
+  const mine = levels.filter(l => l.ch === c.no);
+  return {
+    no: c.no,
+    name: c.name,
+    span: c.span,
+    where: c.where,
+    teaser: c.teaser,
+    total: mine.length,
+    main: mine.filter(l => !l.sub).length,
+    sub: mine.filter(l => l.sub).length,
+    ready: mine.filter(l => l.ready).length
   };
 });
 
@@ -103,6 +128,7 @@ window.CANGYU = ${JSON.stringify({
   /* 首页要自己读存档与进度，key 与版本号也一并带出来。
      首页硬编码一份的话，SAVE_VER 一升，首页就会把每份存档都当成"版本不符"。 */
   storage: { save: api.SAVE_KEY, saveVer: api.SAVE_VER, progress: api.PROGRESS_KEY },
+  chapters,
   levels
 }, null, 2)};
 `;
@@ -133,7 +159,7 @@ if (checkOnly) {
     }
     for (let i = 0; i < Math.max(oldLevels.length, levels.length); i++) {
       const a = oldLevels[i] || {}, b = levels[i] || {};
-      const diff = ['id', 'name', 'when', 'where', 'no', 'ready', 'open']
+      const diff = ['id', 'ch', 'no', 'name', 'when', 'where', 'ready', 'open']
         .filter(k => String(a[k]) !== String(b[k]));
       if (diff.length) {
         console.error('  ' + (b.id || a.id) + '：' + diff.map(k => k + ' ' + JSON.stringify(a[k]) + ' → ' + JSON.stringify(b[k])).join('，'));
@@ -146,10 +172,20 @@ if (checkOnly) {
 }
 
 fs.writeFileSync(outPath, body, 'utf8');
-console.log('✓ 已写 data/levels.js：' + levels.length + ' 关（' + ver + '）');
+console.log('✓ 已写 data/levels.js：' + levels.length + ' 关 / ' + chapters.length + ' 章（' + ver + '）');
+/* 按章打出来。8 章 60 多关一口气平铺，人是看不出结构的——
+   而"哪一章还只有 2 关"恰恰是最需要一眼看见的东西。 */
+let curCh = null;
 for (const l of levels) {
+  if (l.ch !== curCh) {
+    curCh = l.ch;
+    const c = chapters.find(x => x.no === l.ch);
+    console.log('  ── ' + (l.ch === 0 ? '序章' : '第 ' + l.ch + ' 章 · ' + (c ? c.name : '(未登记章节)')));
+    if (c) console.log('     ' + c.main + ' 主关 + ' + c.sub + ' 附属 = ' + c.total +
+      '，已制作 ' + c.ready + ' 关');
+  }
   console.log('   ' + (l.noText + l.name).padEnd(26, ' ') +
-    (l.ready ? (l.sub ? '附属' : '可玩') : '制作中').padEnd(5, ' ') +
+    (l.ready ? (l.sub ? '附属' : '可玩') : '制作中').padEnd(4, ' ') +
     ' 蓝 ' + l.blue.cards + ' 牌 ' + l.blue.str + ' / 红 ' + l.red.cards + ' 牌 ' + l.red.str +
     ' · ' + l.when);
 }

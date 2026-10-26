@@ -56,17 +56,26 @@ function skip(name, why) {
   console.log('[1] 关卡数据完整性');
   ok('LEVELS 是数组', Array.isArray(LV));
   ok('至少 4 关（序章 + 三关战役）', LV.length >= 4, '实际 ' + LV.length);
-  /* 编号递增：附属关与正关共用编号（第 3 关 / 岚口机场），所以允许相等，
-     但必须先正后附，且附属关不能出现在它的正关之前 */
-  let mono = true, subOk = true;
+  /* 编号递增要**按章分组**看。`no` 是章内序号，跨章会回到 1，
+     "全局单调递增"这条断言在章节结构下必然失败——而它失败并不代表数据错了。
+     现在三条各管一件事：章号不倒退 / 章内编号递增 / 附属关紧跟正关。 */
+  let mono = true, subOk = true, chMono = true;
   for (let i = 1; i < LV.length; i++) {
     const a = LV[i - 1], b = LV[i];
-    if (!(b.no > a.no || (b.no === a.no && b.sub))) mono = false;
-    if (b.sub && !(!a.sub && a.no === b.no)) subOk = false;
+    if (b.ch < a.ch) chMono = false;
+    if (b.ch === a.ch && !(b.no > a.no || (b.no === a.no && b.sub))) mono = false;
+    if (b.sub && !(!a.sub && a.ch === b.ch && a.no === b.no)) subOk = false;
   }
-  ok('编号递增（附属关允许与正关同号）', mono);
-  ok('附属关紧跟在它的正关之后', subOk,
-     LV.filter(l => l.sub).map(l => l.id + '@' + l.no).join(','));
+  ok('章号不倒退', chMono);
+  ok('章内编号递增（附属关允许与正关同号）', mono);
+  ok('附属关紧跟在它的正关之后（同章同号）', subOk,
+     LV.filter(l => l.sub).map(l => l.id + '@ch' + l.ch + ':' + l.no).join(','));
+  /* 每章第一关的序号必须是 1。少了这条，某章从"第 2 关"开始也能过上面两条。 */
+  const firstOfCh = new Map();
+  LV.forEach(l => { if (!firstOfCh.has(l.ch)) firstOfCh.set(l.ch, l); });
+  ok('每章第一关的章内序号是 1（序章是 0）',
+     [...firstOfCh].every(([ch, l]) => (ch === 0 ? l.no === 0 : l.no === 1)),
+     [...firstOfCh].map(([ch, l]) => 'ch' + ch + ':' + l.no).join(' '));
   /* no:0 是序章，用 !!l.no 会把 0 当成缺失——踩过 */
   const metaOk = LV.every(l => l.id && l.no !== undefined && l.name && l.when &&
                                l.where && l.teaser && l.type);
@@ -82,8 +91,11 @@ function skip(name, why) {
   ok('scene/survive/reach 三种目标都有实装关卡',
      kinds.has('score') && kinds.has('survive') && kinds.has('reach'),
      [...kinds].join('/'));
-  /* 前三关不许出现重型坦克，中坦也要克制 */
-  const first3 = readyAll.filter(l => l.no >= 1 && l.no <= 3);
+  /* 第 1 章前三关不许出现重型坦克，中坦也要克制。
+     **必须带 ch**：`no` 改成章内序号之后，只筛 no 会把每章的第 1–3 关全选进来——
+     现在它们是占位关（没有 units），这条断言会当场崩；将来实装了，
+     又会拿着第 7 章的重装备去判第 1 章的账。 */
+  const first3 = readyAll.filter(l => l.ch === 1 && l.no >= 1 && l.no <= 3);
   const heavy = first3.reduce((s, l) => s + l.units.filter(u => u.type === 'harm').length, 0);
   ok('前三关没有任何重型坦克', heavy === 0, '实际 ' + heavy + ' 台');
   const med = first3.reduce((s, l) => s + l.units.filter(u => u.type === 'marm').length, 0);
@@ -248,7 +260,7 @@ function skip(name, why) {
 
     /* 逐关对字段。关名 / 日期 / 地点这些是纯文案，一旦首页是手抄的副本，
        改完数据忘了重跑导出，玩家就会在首页看到上一版的关卡名。 */
-    const fields = ['name', 'when', 'where', 'type', 'ready', 'open', 'no'];
+    const fields = ['name', 'when', 'where', 'type', 'ready', 'open', 'no', 'ch'];
     const drift = [];
     for (const lv of LV) {
       const h = homeEmpty.levels.find(x => x.id === lv.id);
@@ -333,6 +345,83 @@ function skip(name, why) {
       try { window.localStorage.removeItem(api.PROGRESS_KEY); } catch (e) {}
     }
     try { window.localStorage.removeItem(api.PROGRESS_KEY); } catch (e) {}
+  }
+
+  console.log('[10] 章节结构（8 章 × 5–6 主关 + 2–3 附属关）');
+  const CHS = api.CHAPTERS || [];
+  const CH_NAMES = ['艰难时刻', '兵临城下', '一步不退', '破灭神话',
+                    '战略决战', '反攻号角', '决胜一击', '伟大胜利'];
+  ok('章节表是 8 章', CHS.length === 8, '实际 ' + CHS.length);
+  ok('八章章名与约定一致',
+     CHS.length === 8 && CHS.every((c, i) => c.name === CH_NAMES[i]),
+     CHS.map(c => c.name).join(' / '));
+  ok('每章都有时间跨度 / 战区 / 一句话主题',
+     CHS.every(c => c.span && c.where && c.teaser));
+
+  const orphan = LV.filter(l => l.no !== 0 && !CHS.some(c => c.no === l.ch));
+  ok('每一关都挂在已登记的章节上（序章 ch:0 例外）', orphan.length === 0,
+     orphan.map(l => l.id + '@ch' + l.ch).join(','));
+
+  /* 配比是产品需求，不是审美：5–6 关对应"一章约两小时"的时长契约，
+     2–3 个附属是"主线之外还有可选挑战"的密度契约。
+     这条断言的用途是**将来加关卡时立刻报警**。 */
+  const ratioBad = [];
+  CHS.forEach(c => {
+    const mine = LV.filter(l => l.ch === c.no);
+    const main = mine.filter(l => !l.sub).length;
+    const sub = mine.filter(l => l.sub).length;
+    if (main < 5 || main > 6 || sub < 2 || sub > 3) {
+      ratioBad.push('第' + c.no + '章 ' + main + ' 主 + ' + sub + ' 附');
+    }
+  });
+  ok('每章 5–6 个正关 + 2–3 个附属关', ratioBad.length === 0, ratioBad.join('；'));
+
+  /* 已实装的**正关**必须在章内从第 1 关起连续，不许中间挖空。
+     这条比"配比"要紧，因为它是**存档安全**问题而不是工作量问题：
+     accessPrereq() 会 `continue` 掉未实装关，所以"先做第 3 关、后补第 2 关"时，
+     第 3 关的前置会从上一章末关变成第 2 关——**已经通关第 3 关的玩家，回头发现那关锁上了**。
+     不报错、不崩溃，玩家只会以为存档坏了。
+
+     附属关不在此列：它是分岔不是台阶，可以缺任意一个。
+     排序用 no 而不是数组下标：数组顺序由另一条断言管，这里只问"集合有没有空洞"。 */
+  const gapBad = [];
+  CHS.forEach(c => {
+    const mains = LV.filter(l => l.ch === c.no && !l.sub).sort((a, b) => a.no - b.no);
+    const firstGap = mains.findIndex(l => !l.ready);
+    if (firstGap < 0) return;                       // 整章都做完了
+    const orphan = mains.slice(firstGap + 1).filter(l => l.ready);
+    if (orphan.length) {
+      gapBad.push('第' + c.no + '章：' + orphan.map(l => l.id + '（第' + l.no + '关）').join('、') +
+                  ' 已实装，但它前面还有没做的正关');
+    }
+  });
+  ok('已实装的正关在章内是从头连续的一段', gapBad.length === 0, gapBad.join('；'));
+
+  /* 跨章解锁**没有第二条规则**：它靠的就是"第 N 章第一关紧挨着第 N−1 章最后一关"。
+     所以这条顺序断言等价于在测跨章门槛——accessPrereq 往前扫第一个已制作的正关，
+     扫到的必然落在上一章。顺序一乱，跨章门槛会指向自己章里的关，而且不报错。 */
+  const crossBad = [];
+  CHS.forEach(c => {
+    const first = LV.find(l => l.ch === c.no);
+    const idx = LV.indexOf(first);
+    if (idx <= 0) return;
+    const prev = LV[idx - 1];
+    if (prev.ch !== c.no - 1) crossBad.push('ch' + c.no + ' 前面是 ch' + prev.ch);
+  });
+  ok('每章第一关都紧接在上一章最后一关之后（跨章解锁靠这个顺序）',
+     crossBad.length === 0, crossBad.join('；'));
+
+  /* 第 2 章实装后要补一条"通了第 1 章末关、第 2 章第一关就开"的断言。
+     现在第 2 章全是占位关，accessPrereq 对未制作的关直接返回 null，
+     测不出东西来——写一条永远绿的断言比不写更坏，所以显式跳过。 */
+  const ch2FirstReady = LV.find(l => l.ch === 2 && l.no === 1 && !l.sub && l.ready);
+  if (ch2FirstReady) {
+    const ch1last = LV.filter(l => l.ch === 1 && l.ready && !l.sub).slice(-1)[0];
+    ok('第 2 章第一关的前置是第 1 章最后一个已制作正关',
+       api.accessPrereq(ch2FirstReady.id) === ch1last.id,
+       api.accessPrereq(ch2FirstReady.id) + ' / ' + ch1last.id);
+  } else {
+    skip('第 2 章第一关的跨章前置', '第 2 章还没有可玩关卡');
   }
 
   console.log('');

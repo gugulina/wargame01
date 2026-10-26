@@ -122,11 +122,50 @@
   }
   .col-head .hint { margin-left: auto; font-size: 11px; color: var(--ink3); }
 
-  /* 时间轴：一条竖线串起五关。用时间轴而不是卡片网格，
-     是因为这些关是"同一场战役的先后"，横向并排只能表达"有五个" */
-  .levels { position: relative; margin: 12px 0 0; padding: 0 0 0 22px; list-style: none; }
-  .levels::before {
-    content: ''; position: absolute; left: 5px; top: 22px; bottom: 22px;
+  /* 时间轴 → 章节分组（v4.8）。原来是「一条竖线串起五关」，因为那五关就是
+     同一场撤退的五个时刻；现在八章六十多关，一条竖线会拉成一根面条，
+     玩家只能看到"很长"。所以改成**按章折叠**：章头一行读完一章的定位，
+     要打再展开。展开的章里仍然是原来那条时间轴，视觉语言没换。 */
+  .chapters { margin: 12px 0 0; }
+  .ch {
+    border-top: 1px solid var(--line);
+  }
+  .ch:first-child { border-top: 0; }
+
+  .ch-head {
+    display: flex; align-items: baseline; gap: 9px; width: 100%;
+    padding: 13px 4px 9px; background: none; border: 0;
+    font: inherit; color: inherit; text-align: left; cursor: pointer;
+    transition: color .13s;
+  }
+  .ch-head:hover { color: var(--ink); }
+  .ch-no {
+    font-size: 10px; letter-spacing: 1.6px; color: var(--ink3);
+    text-transform: uppercase; white-space: nowrap;
+  }
+  .ch-name { font-size: 15.5px; font-weight: 700; letter-spacing: .8px; }
+  .ch-meta {
+    margin-left: auto; font-size: 10.5px; color: var(--ink3);
+    white-space: nowrap; letter-spacing: .3px;
+  }
+  .ch-meta b { color: var(--ink2); font-weight: 600; }
+  .ch-caret {
+    font-size: 10px; color: var(--ink3); transition: transform .16s;
+    display: inline-block; transform: rotate(0deg);
+  }
+  .ch[data-open="0"] .ch-caret { transform: rotate(-90deg); }
+  .ch-teaser {
+    margin: 0 4px 11px; font-size: 12px; color: var(--ink2); line-height: 1.8;
+  }
+  .ch[data-open="0"] .ch-teaser { display: none; }
+  .ch[data-open="0"] .ch-list { display: none; }
+  /* 没做过任何一关的章：整块压暗，但不隐藏——玩家要知道"后面还有七章"。 */
+  .ch.empty .ch-name { color: var(--ink2); }
+  .ch.empty .ch-teaser { color: var(--ink3); }
+
+  .ch-list { position: relative; margin: 0 0 8px; padding: 0 0 0 22px; list-style: none; }
+  .ch-list::before {
+    content: ''; position: absolute; left: 5px; top: 18px; bottom: 18px;
     width: 1px; background: var(--line);
   }
 
@@ -205,8 +244,11 @@
   /* 窄屏：时间轴往外让一点，圆点才不至于贴到屏幕边；
      右侧那行兵力数据在手机上会把标题挤成两行，直接收掉 */
   @media (max-width: 560px) {
-    .levels { padding-left: 17px; }
-    .levels::before { left: 4px; }
+    .ch-list { padding-left: 17px; }
+    .ch-list::before { left: 4px; }
+    .ch-head { padding: 12px 2px 8px; gap: 7px; }
+    .ch-name { font-size: 14.5px; }
+    .ch-meta { font-size: 10px; }
     .lv { padding: 10px 8px; }
     .lv .dot { left: -17px; top: 16px; }
     .lv-org { display: none; }
@@ -297,9 +339,9 @@
       <h2>战役线</h2>
       <span class="hint" id="colHint">点一关直接进</span>
     </div>
-    <ol class="levels" id="levels">
-      <li style="padding:14px 0;color:var(--ink3);font-size:12.5px">正在读取关卡数据…</li>
-    </ol>
+    <div class="chapters" id="levels">
+      <div style="padding:14px 0;color:var(--ink3);font-size:12.5px">正在读取关卡数据…</div>
+    </div>
   </section>
 
   <div class="foot-grid">
@@ -378,7 +420,12 @@
 
   document.getElementById('verTag').textContent = D.ver ? '构建 ' + D.ver : '';
 
-  const LV = D.levels.slice().sort((a, b) => (a.no - b.no) || ((a.sub ? 1 : 0) - (b.sub ? 1 : 0)));
+  /* 排序：**先按章，再按章内序号**。
+     以前只有 `no`（全局递增），一行排序就够；现在 `no` 是章内序号，
+     只按 no 排会把"第 1 章第 1 关"和"第 2 章第 1 关"排在一起——
+     页面看上去仍然"有序"，但那是一条假的战役线，没人会立刻发现。 */
+  const LV = D.levels.slice().sort((a, b) =>
+    ((a.ch || 0) - (b.ch || 0)) || (a.no - b.no) || ((a.sub ? 1 : 0) - (b.sub ? 1 : 0)));
   const ST = (D.storage || {});
 
   /* ── 本机存档与进度 ─────────────────────────────
@@ -490,20 +537,56 @@
     '兵种图鉴 / 战术卡 / 副官',
     () => go('game/campaign.html?hq=dex')));
 
-  /* ── 进度条 ── */
+  /* ── 进度条 ──
+     一格代表**一章**，不是一关。六十多关一格一关会细成一片灰；
+     而"哪一章打完了、哪一章还是空的"才是这一栏要回答的问题。
+     章内完成度用渐变填充表达（4/5 就是八分满），一眼看得出进度不是"全或无"。 */
+  const CH = (D.chapters || []).slice().sort((a, b) => a.no - b.no);
   if (playable) {
-    cellsBox.innerHTML = LV.filter(l => l.ready).map(l => {
-      const r = progress.cleared[l.id];
-      const cls = r === 'perfect' ? 'perfect' : r ? 'done' : '';
-      return '<i class="' + cls + '" title="' + (l.noText + l.name) + '"></i>';
+    cellsBox.innerHTML = CH.map(c => {
+      const mine = LV.filter(l => l.ch === c.no && l.ready);
+      const done = mine.filter(l => progress.cleared[l.id]).length;
+      const allPerfect = mine.length > 0 && mine.every(l => progress.cleared[l.id] === 'perfect');
+      const pct = mine.length ? Math.round(done / mine.length * 100) : 0;
+      const col = allPerfect ? '#2E7D5B' : 'var(--blue)';
+      const bg = pct > 0
+        ? 'linear-gradient(90deg,' + col + ' ' + pct + '%,#DFDACD ' + pct + '%)'
+        : '#DFDACD';
+      return '<i style="background:' + bg + '" title="第 ' + c.no + ' 章 · ' + c.name +
+        ' · 已通 ' + done + '/' + mine.length + ' 关"></i>';
     }).join('');
     barText.textContent = doneCount + ' / ' + playable + ' 关';
   }
 
-  /* ── 战役线 ── */
+  /* ── 战役线（按章分组 + 折叠） ──
+     展开状态只存在 DOM 的 data-open 上，不写 localStorage：
+     "上次展开了哪几章"算不上玩家的东西，换台机器还会莫名展开一堆。
+     默认展开规则：序章永远展开；有已制作关卡且没打完的章展开；其余收起。 */
   const recId = rec ? rec.id : null;
+  /* 自动展开的判据是**推荐关所在的那一章**，不是"所有没打完的章"。
+     后者在打完第 1 章、开始第 2 章之后会让两章同时展开，越往后越长，
+     二十关以后首屏能滚两屏——折叠的意义就没了。
+     序章没有章节元信息（CHAPTERS 只管正篇 8 章），标题走特判。 */
+  const recChNo = rec ? (rec.ch || 0) : null;
   levelsBox.innerHTML = '';
+
+  /* 按章切组。ch 缺失（旧快照）的关一律归 0，宁可显示成"序章"，
+     也不要因为找不到 ch 就静默漏掉一关——漏掉的那一关在页面上没有痕迹。 */
+  const groups = [];
   LV.forEach(lv => {
+    const no = lv.ch || 0;
+    let g = groups.find(x => x.no === no);
+    if (!g) { g = { no: no, meta: CH.find(c => c.no === no) || null, list: [] }; groups.push(g); }
+    g.list.push(lv);
+  });
+
+  /* 第一个"至少有一关做出来了"的正篇章节。零进度的玩家会用到它（见下面的展开规则）。 */
+  const firstGP = groups.find(g => g.no > 0 && g.list.some(l => l.ready));
+  const firstPlayCh = firstGP ? firstGP.no : -1;
+
+  /* 单关的 li。抽成函数是因为现在要先分组再渲染，
+     而这一大段 status / 事件 逻辑没必要跟着分组重写一遍。 */
+  function levelItem(lv) {
     const acc = access(lv);
     const r = progress.cleared[lv.id];
     const cls = ['lv'];
@@ -561,8 +644,58 @@
     li.addEventListener('keydown', e => {
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); enter(); }
     });
+    return li;
+  }
 
-    levelsBox.appendChild(li);
+  groups.forEach(g => {
+    const readyG = g.list.filter(l => l.ready);
+    const doneG = readyG.filter(l => progress.cleared[l.id]).length;
+    const isSeq = g.no === 0;
+
+    const sec = document.createElement('section');
+    sec.className = 'ch' + (readyG.length ? '' : ' empty');
+    sec.dataset.ch = String(g.no);
+    /* 展开规则：**推荐关所在章** + （推荐关还在序章时）**第一个有正篇关卡的章**。
+       第二条是给新玩家的：序章只有一关，如果他停在序章，只展开序章的话
+       整条战役线会全收起，第一次进来的人看不到"第 1 章有五关"，
+       得先点一下才明白这游戏有多长。两章展开一共十来行，不占地方。
+
+       不展开"所有没打完的章"：那样打完第 1 章之后两章同时展开，越往后越长，
+       折叠就没有意义了。 */
+    const open = g.no === recChNo || (recChNo === 0 && g.no === firstPlayCh);
+    sec.dataset.open = open ? '1' : '0';
+
+    const head = document.createElement('button');
+    head.type = 'button';
+    head.className = 'ch-head';
+    head.setAttribute('aria-expanded', open ? 'true' : 'false');
+    head.innerHTML =
+      '<span class="ch-no">' + (isSeq ? '序章' : '第 ' + g.no + ' 章') + '</span>' +
+      '<b class="ch-name">' + (isSeq ? '战前演习' : (g.meta ? g.meta.name : '未登记章节')) + '</b>' +
+      '<span class="ch-meta">' + (readyG.length
+        ? '<b>' + doneG + '</b> / ' + readyG.length + ' 关'
+        : (g.meta ? g.meta.main + ' 主 ' + g.meta.sub + ' 附 · 待制作' : '')) + '</span>' +
+      '<span class="ch-caret" aria-hidden="true">▾</span>';
+    head.addEventListener('click', () => {
+      const nowOpen = sec.dataset.open === '1';
+      sec.dataset.open = nowOpen ? '0' : '1';
+      head.setAttribute('aria-expanded', nowOpen ? 'false' : 'true');
+    });
+    sec.appendChild(head);
+
+    if (g.meta && g.meta.teaser) {
+      const t = document.createElement('p');
+      t.className = 'ch-teaser';
+      t.textContent = g.meta.teaser;
+      sec.appendChild(t);
+    }
+
+    const ol = document.createElement('ol');
+    ol.className = 'ch-list';
+    g.list.forEach(lv => ol.appendChild(levelItem(lv)));
+    sec.appendChild(ol);
+
+    levelsBox.appendChild(sec);
   });
 
   if (save) colHint.textContent = '有一局没打完，可以继续';
@@ -572,6 +705,7 @@
      或者反过来"明明该能进却进不去"，而这两种都不会报错，只会让人以为页面坏了。 */
   window.__HOME__ = {
     levels: LV,
+    chapters: CH,
     data: D,
     access: access,
     chainAccess: chainAccess,

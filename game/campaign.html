@@ -1114,7 +1114,7 @@
       <span class="pill" id="phasePill">我方阶段</span>
       <!-- 全项目唯一的版本标记：tools/export-levels.js 按这个 span 的原样文本抓版本号，
            开始页撤掉之后它挪到了顶栏，标签必须保持 <span id="verTag"> 这个形状 -->
-      <span id="verTag">v4.7</span>
+      <span id="verTag">v4.8</span>
       <!-- 存档异常：只在真的写失败时出现（隐私模式 / 配额满 / 被清理）。
            默认 display:none，别让它平时占位——一排胶囊里突然多一个红字，
            玩家第一反应是"我是不是哪里点坏了"。 -->
@@ -1687,8 +1687,10 @@ const TIER_LABEL = ['3:1', '2:1', '1.5:1', '1:1', '1:1.5', '1:2', '1:3'];
    每个关卡是一份完整数据表，引擎只认当前那一份（变量 LEVEL）。
    切关只改 LEVEL 的指向，74 处 LEVEL.xxx 引用一行都不用动。
 
-   元信息字段（前六个是关卡选择页用的，引擎不读）：
-     no      序号，同时决定时间线顺序
+   元信息字段（关卡选择页用，引擎基本不读）：
+     ch      章节号（1–8），序章是 0
+     no      **章内**序号。跨章会回到 1，所以任何"编号递增"的判断都要先按 ch 分组
+     sub     true = 附属关。与它所属的正关共用 no，只作番外 / 分支，不卡主线解锁
      when    战役时间点。**这是跨关连续性的锚**——关卡选择页按它排成时间轴，
              玩家一眼能看出"第 1 天 → 第 2 天 → 第 3 天"是同一场战役
      where   地点
@@ -1700,9 +1702,60 @@ const TIER_LABEL = ['3:1', '2:1', '1.5:1', '1:1', '1:1.5', '1:2', '1:3'];
              win / fail 各自一句；上一关没打过就不出。
              **这是"剧情连续"的落点**：不在关卡里硬编码前史，而是由上一关的结果生成。
 
+   id 规则：`C<战役内全局序>`，附属关在正关号后加字母（C3B = 第 3 关的第 2 个附属）。
+   为什么不把章号编进 id：id 是存档里 cleared / played 的键，改一次就作废一批进度；
+   而"属于哪一章"是会随着剧本调整变化的**展示信息**，它应该住在 ch 字段里，不住在键里。
+
    地图副本 mapSrc 在下面统一生成。doBridge 会就地改写 LEVEL.map（架桥），
    所以每局开局必须从 mapSrc 重新拷一份，否则架过的桥会留到下一局。
 */
+
+/* ═══════════════════ 章节表 ═══════════════════
+   八章，每章 5–6 个正关 + 2–3 个附属关。
+
+   **章节只是分组，不是第二套解锁机制。** 解锁仍然只有一条链，还是 accessPrereq()
+   那一个函数：章内按关序推进，章与章之间自然衔接——某章第一关的"前一关"就是
+   上一章最后一个已制作的正关（附属关被跳过）。这样一来"上一章没打完就打不了下一章"
+   不需要额外写一句判定，它是链式解锁的必然结果。
+
+   每章 5–6 正关 / 2–3 附属关由 tools/levelcheck.js 的 [10] 节盯着：不是审美问题，
+   是这个配比决定了单章的游戏时长（5 关约 2 小时）。章里只有 2 关就"一章"了，
+   玩家会觉得被骗；9 关又打不到头。 */
+const CHAPTERS = [
+  { no: 1, name: '艰难时刻',
+    span: '新历 1207 年 9 月 – 1208 年 8 月',
+    where: '北岭 – 青溪 – 岚口 – 波尔瓦萨',
+    teaser: '边境七十二小时崩溃。你带着被留下来的人一路打一路退，退到不能再退。' },
+  { no: 2, name: '兵临城下',
+    span: '新历 1208 年 9 月 – 1208 年 12 月',
+    where: '岚京北郊 – 环城铁路 – 中央车站',
+    teaser: '首都圈成了最后一道防线。敌军的炮口已经能打到城里的钟楼。' },
+  { no: 3, name: '一步不退',
+    span: '新历 1209 年 1 月 – 1209 年 5 月',
+    where: '雾岭雪线 – 青溪冰面 – 三号公路',
+    teaser: '冬天封了山，也封了补给。没有援军，没有弹药，脚下这块地不退。' },
+  { no: 4, name: '破灭神话',
+    span: '新历 1209 年 6 月 – 1209 年 10 月',
+    where: '铁砧高地 – 长湾北岸 – 海峡',
+    teaser: '灰原近卫装甲师从没输过。这一章要做的事，就是让这句话变成过去式。' },
+  { no: 5, name: '战略决战',
+    span: '新历 1209 年 11 月 – 1210 年 3 月',
+    where: '潮汐湾 – 长湾海峡 – 岚京外海',
+    teaser: '双方主力全部投入。这一仗打完，战争的方向就定了。' },
+  { no: 6, name: '反攻号角',
+    span: '新历 1210 年 4 月 – 1210 年 8 月',
+    where: '青溪 – 岚口 – 雾岭 – 北岭',
+    teaser: '从渡江开始，一站一站往回打。回到北岭要塞那天，那里只剩断墙。' },
+  { no: 7, name: '决胜一击',
+    span: '新历 1210 年 9 月 – 1210 年 12 月',
+    where: '灰原第 7 旅 – 三号公路 – 口袋',
+    teaser: '把他们的主力装进口袋，然后收紧。' },
+  { no: 8, name: '伟大胜利',
+    span: '新历 1211 年 1 月 – 1211 年 3 月',
+    where: '岚京 – 灰岭 – 灰原首都',
+    teaser: '解围、反攻、终局。最后一仗不在我们的土地上打。' }
+];
+
 const LEVELS = [
 {
   /* ═══════════ T1 · 教学关：军校沙盘 ═══════════
@@ -1726,7 +1779,7 @@ const LEVELS = [
      为什么保留一个会还手的靶标：全静的靶场教不出"看比值"这件事。
      有一个能反击的对手，攻击预览里的 1:1 / 3:1 才有意义——
      但它只有 2 点战力，最坏结果也就是掉一点组织度。 */
-  id: 'T1', no: 0, name: '军校沙盘', type: '教学',
+  id: 'T1', ch: 0, no: 0, name: '军校沙盘', type: '教学',
   when: '战前 · 新历 1207 年 8 月下旬', where: '西部军区陆军学校 · 沙盘教室',
   teaser: '六种兵牌，一个不会推进的靶场。把按钮点一遍，再上真正的战场。',
   ready: true,
@@ -1873,7 +1926,7 @@ const LEVELS = [
          第二波从南面绕（第 6 回合）。蓝方 11 支部队守 15 格城，必须分兵。
        · 丘陵脊（第 7 列）在第 4 行断了一个口子，红方自然从这里灌进来，
          而（4,10）的要塞炮正好覆盖这个缺口——"要塞"的价值被摆在地图上，不用讲。 */
-  id: 'C1', no: 1, name: '北岭要塞', type: '坚守',
+  id: 'C1', ch: 1, no: 1, name: '北岭要塞', type: '坚守',
   when: '新历 1207 年 9 月 6 日', where: '西部边陲 · 北岭要塞',
   teaser: '敌军三个师自西面压向边陲，第 1 边防旅与第 103 步兵师被围在要塞里。守住八个回合。',
   ready: true,
@@ -2139,7 +2192,7 @@ const LEVELS = [
        · 内层封锁线已经摆在正面（corps R3），它不动，蓝方必须打穿。
        · 南北两个装甲/摩步集群从两翼压过来（corps R1 / R2），把合围圈收口。
      */
-  id: 'C2', no: 2, name: '青溪渡口', type: '突围',
+  id: 'C2', ch: 1, no: 2, name: '青溪渡口', type: '突围',
   when: '新历 1207 年 11 月 27 日', where: '青溪 · 上游渡口',
   teaser: '第三方面军即将被合围。第 107 步兵师与第 201 坦克旅在东侧，撕开封锁线，至少四支部队过江。',
   ready: true,
@@ -2394,7 +2447,18 @@ const LEVELS = [
   ]
 },
 {
-  id: 'C3', no: 3, name: '岚口要地争夺战', type: '防御',
+  /* ── 附属 · 青溪夜渡（占位）──
+     主关 C2 是"天亮了，撕开封锁线过江"。这一关是它的前一晚：浮桥还没架通，
+     工兵连在敌火下作业，第一批辎重能不能送过去决定 C2 开局有几个炮兵基数。
+     **附属关不卡主线**，所以它的结论只影响氛围与后续补给修正，不写进 cleared 门槛。 */
+  id: 'C2B', ch: 1, no: 2, sub: true, name: '青溪夜渡', type: '附属 · 特种',
+  when: '新历 1207 年 11 月 25 日', where: '青溪 · 上游浅滩',
+  teaser: '渡口还在敌人手里。工兵连夜架一座浮桥，赶在天亮前把第一批辎重送过江。',
+  ready: false,
+  win: { kind: 'reach' }
+},
+{
+  id: 'C3', ch: 1, no: 3, name: '岚口要地争夺战', type: '防御',
   when: '新历 1208 年 2 月 8 日', where: '岚口 · 岚江东岸',
   teaser: '主力东撤，你们留下。守住岚口市与机场十二个回合。',
   ready: true,
@@ -2673,7 +2737,7 @@ const LEVELS = [
     跑道有 16 格，红方不必夺走整条道面——蹭上任意一格就够麻烦；
     但这一关判的不是"跑道上有没有敌人"，而是"道面上谁的兵多"。
     所以玩家的功课是"往跑道上压人"，把预备队填进去，而不是把跑道当禁区不敢站。 */
-  id: 'C3B', no: 3, sub: true, name: '岚口机场保卫战', type: '附属 · 防御',
+  id: 'C3B', ch: 1, no: 3, sub: true, name: '岚口机场保卫战', type: '附属 · 防御',
   when: '新历 1208 年 2 月 19 日', where: '岚口 · 机场跑道',
   teaser: '市区已经丢了，残部退守机场。跑道还要再撑十个回合，直到最后一批运输机起飞。',
   ready: true,
@@ -2961,7 +3025,7 @@ const LEVELS = [
         的时间。第 7 回合航空队一到，节奏立刻变。 */
 
   {
-  id: 'C4', no: 4, name: '波尔瓦萨港', type: '坚守',
+  id: 'C4', ch: 1, no: 4, name: '波尔瓦萨港', type: '坚守',
   when: '新历 1208 年 4 月 11 日', where: '南部海岸 · 波尔瓦萨港',
   teaser: '敌军机动兵力三天推到港外。四支部队临时编成港口特遣军，港内七条军舰的炮口对着岸上。',
   ready: true,
@@ -3369,6 +3433,495 @@ const LEVELS = [
     { wave: 5, turn: 15, text: '敌军近卫装甲第 2 师投入战场。这是他们最后一把力气。' },
     { wave: 6, turn: 19, text: '敌军第 9 装甲师先遣团沿海岸公路从西面插上来——他们想绕开正面，直接冲码头。' }
   ]
+},
+
+/* ════════════════════════════════════════════════════════════════
+   以下是**章节框架**（2026-10 建）。除已实装的 5 关外，其余均为
+   `ready:false` 的占位：只有元信息，没有地图与编制。
+
+   占位关存在的意义不是"假装有内容"，是让三件事现在就成立：
+     ① 解锁链与章节推进可以按真实长度验证（不是拿 4 关演示 60 关的链）
+     ② 菜单页的章节分组、进度统计、折叠交互有真实数据可渲染
+     ③ 每一关的**叙事位置**先钉死（时间、地点、战役意义），
+        以后做地图时只需填地形与编制，不用再想"这一仗为什么打"
+
+   写占位关的三条约定：
+     · ready:false，不带 map / units / events，任何遍历都要先筛 ready
+     · no 是**章内**序号，附属关与正关同号并紧跟在它后面
+     · teaser 必须写"这一仗要解决什么问题"，不许写"激战即将爆发"这种空话
+   ════════════════════════════════════════════════════════════════ */
+
+/* ─────────── 第 1 章 · 艰难时刻（续） ─────────── */
+{
+  /* 附属 · 港口撤离。主关 C4 是"守住港"，这一关是守不住之后的"把人带走"。
+     两关共用 C4 的地图（做的时候用同一张，改西码头为登船区），
+     所以它是附属关里最省工的一个。 */
+  id: 'C4B', ch: 1, no: 4, sub: true, name: '港口撤离', type: '附属 · 撤离',
+  when: '新历 1208 年 4 月 18 日', where: '南部海岸 · 波尔瓦萨港 · 西码头',
+  teaser: '要塞昨晚丢了。舰队还有最后一班出港时间，码头上是三万人的行李和两个师的残部。',
+  ready: false,
+  win: { kind: 'reach' }
+},
+{
+  /* 南岭阻击：从南部海岸往首都圈退的最后一段公路。输赢不看歼敌，
+     看"主力走过去的时候，敌人还在几公里外"。 */
+  id: 'C5', ch: 1, no: 5, name: '南岭阻击', type: '迟滞',
+  when: '新历 1208 年 6 月 3 日', where: '中部 · 南岭公路 17 号桥',
+  teaser: '后撤的主力要从这条公路上过，四个师，两天两夜。你手上是一个被打残的旅和一座桥。',
+  ready: false,
+  win: { kind: 'survive' }
+},
+{
+  /* 第 1 章的收尾。到这里"撤退"结束，后面是守首都。 */
+  id: 'C6', ch: 1, no: 6, name: '岚京外围', type: '防御',
+  when: '新历 1208 年 8 月 15 日', where: '首都圈 · 岚京北郊防线',
+  teaser: '退到不能再退。城外最后一道防线后面就是首都，防线上只有刚补满的新兵。',
+  ready: false,
+  win: { kind: 'survive' }
+},
+
+/* ─────────── 第 2 章 · 兵临城下 ─────────── */
+{
+  id: 'C7', ch: 2, no: 1, name: '岚京北郊', type: '防御',
+  when: '新历 1208 年 9 月 12 日', where: '首都圈 · 岚京北郊',
+  teaser: '敌军的先头侦察已经能看见城里的钟楼。北郊这几座村子，是首都的最后一道门槛。',
+  ready: false,
+  win: { kind: 'survive' }
+},
+{
+  /* 附属 · 破袭。正关是"守"，这一关是"让对方守不成"——
+     同一片战场，反过来打。 */
+  id: 'C7B', ch: 2, no: 1, sub: true, name: '环城铁路', type: '附属 · 破袭',
+  when: '新历 1208 年 9 月 20 日', where: '首都圈 · 环城铁路东段',
+  teaser: '敌军的弹药靠这条铁路运到城下。一晚上，拆掉三座桥涵，别让他们天亮前修好。',
+  ready: false,
+  win: { kind: 'score' }
+},
+{
+  /* 城市基础设施第一次成为"要点"：水厂丢了，全城断水，后面几关的组织度上限下调。 */
+  id: 'C8', ch: 2, no: 2, name: '城北水厂', type: '坚守',
+  when: '新历 1208 年 10 月 2 日', where: '首都圈 · 岚京城北水厂',
+  teaser: '两百万人喝的水从这里来。水厂一丢，城里的守军撑不过一周。',
+  ready: false,
+  win: { kind: 'survive' }
+},
+{
+  id: 'C9', ch: 2, no: 3, name: '广播大楼', type: '巷战',
+  when: '新历 1208 年 10 月 14 日', where: '首都圈 · 岚京市中心 · 广播大楼',
+  teaser: '大楼里的发射机还在播送。谁控制它，谁就控制这座城听到的声音。',
+  ready: false,
+  win: { kind: 'score' }
+},
+{
+  /* 夜战：视野半径从 4 降到 2，火炮不能校射。占位时先把类型钉住。 */
+  id: 'C9B', ch: 2, no: 3, sub: true, name: '断电之夜', type: '附属 · 夜战',
+  when: '新历 1208 年 10 月 19 日', where: '首都圈 · 岚京老城区',
+  teaser: '电厂停了，全城没有一盏灯。敌我都在黑暗里，靠声音判断对面是谁。',
+  ready: false,
+  win: { kind: 'score' }
+},
+{
+  id: 'C10', ch: 2, no: 4, name: '中央车站', type: '争夺',
+  when: '新历 1208 年 10 月 28 日', where: '首都圈 · 岚京中央车站',
+  teaser: '城里的补给全靠这个站台。站台底下还有三条没被炸断的隧道。',
+  ready: false,
+  win: { kind: 'score' }
+},
+{
+  id: 'C11', ch: 2, no: 5, name: '外环防线', type: '防御',
+  when: '新历 1208 年 11 月 15 日', where: '首都圈 · 岚京外环',
+  teaser: '外环是包围圈的内缘。守住它，城里的粮食还能再进一个月。',
+  ready: false,
+  win: { kind: 'survive' }
+},
+{
+  /* 护送关：胜负不看歼敌，看"出去多少人"。这类关卡是全篇节奏的换气口。 */
+  id: 'C11B', ch: 2, no: 5, sub: true, name: '平民撤离', type: '附属 · 护送',
+  when: '新历 1208 年 11 月 20 日', where: '首都圈 · 岚京西郊公路',
+  teaser: '车队有四十公里长，走不快。敌军的侦察机已经在头顶转了两天。',
+  ready: false,
+  win: { kind: 'reach' }
+},
+{
+  id: 'C12', ch: 2, no: 6, name: '岚京保卫战', type: '防御',
+  when: '新历 1208 年 12 月 6 日', where: '首都圈 · 岚京市区',
+  teaser: '第 2 章的收尾。城还在，但城外已经没有一支援军了。',
+  ready: false,
+  win: { kind: 'survive' }
+},
+
+/* ─────────── 第 3 章 · 一步不退 ─────────── */
+{
+  /* 冬季规则第一次全面生效：机动 −1、侦察 −1、空中出动 −1、补给消耗 −1。 */
+  id: 'C13', ch: 3, no: 1, name: '雾岭雪线', type: '相持',
+  when: '新历 1209 年 1 月 8 日', where: '中部 · 雾岭主脊',
+  teaser: '雪封了山，也封了双方的后勤。谁也不进攻，就看谁先在雪里冻掉一个营。',
+  ready: false,
+  win: { kind: 'survive' }
+},
+{
+  /* 补给断绝：全场没有补给源，全靠开局带的那点弹药。 */
+  id: 'C14', ch: 3, no: 2, name: '断粮七日', type: '坚守',
+  when: '新历 1209 年 1 月 23 日', where: '中部 · 雾岭北坡 4 号阵地',
+  teaser: '后方被切断了七天。弹药还剩两个基数，口粮还剩三天，命令是"不许退"。',
+  ready: false,
+  win: { kind: 'survive' }
+},
+{
+  /* 防空 + 空投：占位阶段先钉住"这一关教的是防空伞该怎么摆"。 */
+  id: 'C14B', ch: 3, no: 2, sub: true, name: '空投补给', type: '附属 · 防空',
+  when: '新历 1209 年 1 月 26 日', where: '中部 · 雾岭北坡空投场',
+  teaser: '运输机今晚来，投十二个伞包。敌军战斗机也在等同一批伞包。',
+  ready: false,
+  win: { kind: 'survive' }
+},
+{
+  /* 冰面：河流可以通行，但重装备过冰面会掉组织度。地形规则的新用法。 */
+  id: 'C15', ch: 3, no: 3, name: '青溪冰面', type: '防御',
+  when: '新历 1209 年 2 月 14 日', where: '北部 · 青溪下游',
+  teaser: '江面冻实了，天险没了。敌军装甲可以直接从冰上过来，你的阵地却还修在去年的位置上。',
+  ready: false,
+  win: { kind: 'survive' }
+},
+{
+  id: 'C16', ch: 3, no: 4, name: '三号公路', type: '阻击',
+  when: '新历 1209 年 3 月 5 日', where: '中部 · 三号公路 42 公里处',
+  teaser: '一个装甲师要从这条路过去。你有一个反坦克连、两个步兵营和两天时间。',
+  ready: false,
+  win: { kind: 'survive' }
+},
+{
+  /* 搜救：把"救人"做成胜负条件，逼玩家放弃火力优势去换时间。 */
+  id: 'C16B', ch: 3, no: 4, sub: true, name: '雪地救援', type: '附属 · 搜救',
+  when: '新历 1209 年 3 月 9 日', where: '中部 · 三号公路以东林区',
+  teaser: '一架运输机掉在林子里，机组还活着。雪还在下，敌军搜索队比你先出发两小时。',
+  ready: false,
+  win: { kind: 'reach' }
+},
+{
+  id: 'C17', ch: 3, no: 5, name: '野战医院', type: '护送',
+  when: '新历 1209 年 4 月 2 日', where: '中部 · 雾岭南麓',
+  teaser: '医院要整体后撤，三百个不能自己走的人。路上不能开炮，开了就等于告诉敌人你在哪。',
+  ready: false,
+  win: { kind: 'reach' }
+},
+{
+  /* 第 3 章唯一一次主动出击：守住整个冬天之后，第一次反击。 */
+  id: 'C18', ch: 3, no: 6, name: '冬季反突击', type: '进攻',
+  when: '新历 1209 年 5 月 11 日', where: '中部 · 雾岭北麓',
+  teaser: '雪化之前，敌军以为这个冬天不会有人进攻。把他们的前沿阵地连根拔掉。',
+  ready: false,
+  win: { kind: 'score' }
+},
+
+/* ─────────── 第 4 章 · 破灭神话 ─────────── */
+{
+  id: 'C19', ch: 4, no: 1, name: '铁砧高地', type: '防御',
+  when: '新历 1209 年 6 月 10 日', where: '北部 · 铁砧高地',
+  teaser: '高地是整条战线的支点。守不住它，反攻的出发阵地就没了。',
+  ready: false,
+  win: { kind: 'survive' }
+},
+{
+  /* 全篇第一个"必须打赢"的目标：歼灭近卫装甲第 2 师。
+     它是第 1 章 C4 里压垮港口的那支部队——玩家等这场已经等了四章。 */
+  id: 'C20', ch: 4, no: 2, name: '近卫装甲第 2 师', type: '歼灭',
+  when: '新历 1209 年 7 月 2 日', where: '北部 · 铁砧高地以东',
+  teaser: '两年前在波尔瓦萨港，是这支部队把码头碾平的。今天它被切断了退路。',
+  ready: false,
+  win: { kind: 'score' }
+},
+{
+  id: 'C20B', ch: 4, no: 2, sub: true, name: '铁蹄残部', type: '附属 · 追击',
+  when: '新历 1209 年 7 月 5 日', where: '北部 · 铁砧以东河谷',
+  teaser: '包围圈漏了一个口子，三十多辆坦克趁着夜色跑了。追不追？追就是离开补给线。',
+  ready: false,
+  win: { kind: 'score' }
+},
+{
+  id: 'C21', ch: 4, no: 3, name: '长湾北岸', type: '进攻',
+  when: '新历 1209 年 7 月 28 日', where: '东部 · 长湾北岸',
+  teaser: '第一次把战场推到海上。谁控制这段海岸，谁就掐住了对方的海运。',
+  ready: false,
+  win: { kind: 'score' }
+},
+{
+  id: 'C22', ch: 4, no: 4, name: '海空封锁', type: '争夺',
+  when: '新历 1209 年 8 月 16 日', where: '东部 · 长湾海峡',
+  teaser: '制空权和制海权是同一条线。这一段海峡，双方谁都不肯让。',
+  ready: false,
+  win: { kind: 'score' }
+},
+{
+  /* 渗透：没有战线，没有正面对抗，只有"别被发现"。 */
+  id: 'C22B', ch: 4, no: 4, sub: true, name: '敌后电台', type: '附属 · 渗透',
+  when: '新历 1209 年 8 月 20 日', where: '敌后 · 长湾北岸 3 号灯塔',
+  teaser: '敌军舰队靠一座灯塔引导夜航。带了四个人、一台电台，没有重武器，也没有退路。',
+  ready: false,
+  win: { kind: 'reach' }
+},
+{
+  /* 无线电静默：全场不能使用战术卡（等同于"不能呼叫支援"），
+     逼玩家用纯兵力打赢。规则型关卡，不是数值型。 */
+  id: 'C23', ch: 4, no: 5, name: '无线电静默', type: '特种',
+  when: '新历 1209 年 9 月 4 日', where: '东部 · 长湾北岸纵深',
+  teaser: '敌人能听见我们每一次呼叫。这一仗不许开电台——没有炮火支援，没有侦察报告。',
+  ready: false,
+  win: { kind: 'score' }
+},
+{
+  id: 'C24', ch: 4, no: 6, name: '神话终结', type: '会战',
+  when: '新历 1209 年 10 月 12 日', where: '东部 · 长湾北岸平原',
+  teaser: '第 4 章的收尾。灰原陆军从不承认自己会输，今天得让他们承认一次。',
+  ready: false,
+  win: { kind: 'score' }
+},
+{
+  id: 'C24B', ch: 4, no: 6, sub: true, name: '受降', type: '附属 · 对峙',
+  when: '新历 1209 年 10 月 18 日', where: '东部 · 长湾北岸 · 3 号公路桥',
+  teaser: '对面派了联络官来谈条件。谈的时候，双方的前沿都还压着火。',
+  ready: false,
+  win: { kind: 'survive' }
+},
+
+/* ─────────── 第 5 章 · 战略决战 ─────────── */
+{
+  id: 'C25', ch: 5, no: 1, name: '会战前夜', type: '侦察',
+  when: '新历 1209 年 11 月 20 日', where: '东部 · 潮汐湾以北',
+  teaser: '大会战前最后一次侦察。看到什么，决定明天从哪儿打。',
+  ready: false,
+  win: { kind: 'reach' }
+},
+{
+  /* 登陆：水上投送 + 登陆场。全篇规模最大的一次两栖作战。 */
+  id: 'C26', ch: 5, no: 2, name: '潮汐湾登陆', type: '登陆',
+  when: '新历 1210 年 1 月 9 日', where: '南部 · 潮汐湾',
+  teaser: '天亮前第一波上岸。沙滩上的工事是敌军用三个月修起来的，你有六个小时。',
+  ready: false,
+  win: { kind: 'score' }
+},
+{
+  id: 'C26B', ch: 5, no: 2, sub: true, name: '登陆艇队', type: '附属 · 护航',
+  when: '新历 1210 年 1 月 9 日', where: '南部 · 潮汐湾外海',
+  teaser: '运兵船走得慢，敌方岸炮和快艇都盯着这几条船。船到不了，岸上的人就是孤军。',
+  ready: false,
+  win: { kind: 'survive' }
+},
+{
+  id: 'C27', ch: 5, no: 3, name: '滩头扩张', type: '进攻',
+  when: '新历 1210 年 1 月 16 日', where: '南部 · 潮汐湾滩头',
+  teaser: '登陆场还太窄。撑不到十公里纵深，下一波船就靠不上岸。',
+  ready: false,
+  win: { kind: 'score' }
+},
+{
+  /* 敌反扑：刚夺下来的港口反过来守，是全篇最难受的一类关口。 */
+  id: 'C28', ch: 5, no: 4, name: '港口反击', type: '防御',
+  when: '新历 1210 年 2 月 3 日', where: '南部 · 潮汐湾港区',
+  teaser: '港口刚拿下三天，敌军的反击就来了。这次换他们来抢，你来守。',
+  ready: false,
+  win: { kind: 'survive' }
+},
+{
+  /* 海战：纯海军编成的关卡，舰炮与防空伞是唯一手段。 */
+  id: 'C29', ch: 5, no: 5, name: '长湾海峡突破', type: '海战',
+  when: '新历 1210 年 2 月 20 日', where: '东部 · 长湾海峡南口',
+  teaser: '海峡里布了雷，两岸都有炮台。护航舰队必须在天黑前把运输船送过去。',
+  ready: false,
+  win: { kind: 'reach' }
+},
+{
+  id: 'C30', ch: 5, no: 6, name: '决战日', type: '会战',
+  when: '新历 1210 年 3 月 15 日', where: '东部 · 长湾北岸平原',
+  teaser: '第 5 章的收尾，也是全篇兵力最厚的一关。双方主力都在场，谁先崩谁就输掉整场战争。',
+  ready: false,
+  win: { kind: 'score' }
+},
+{
+  id: 'C30B', ch: 5, no: 6, sub: true, name: '夜色中的舰队', type: '附属 · 夜战',
+  when: '新历 1210 年 3 月 17 日', where: '东部 · 长湾海峡夜航段',
+  teaser: '夜战没有校射，没有侦察，只有雷达上的一次次回波和不到四千米的射程。',
+  ready: false,
+  win: { kind: 'score' }
+},
+
+/* ─────────── 第 6 章 · 反攻号角 ─────────── */
+{
+  /* 与第 1 章 C2 是同一个渡口。玩家在第 1 章守过、丢过，现在回来夺。 */
+  id: 'C31', ch: 6, no: 1, name: '青溪再夺', type: '争夺',
+  when: '新历 1210 年 4 月 12 日', where: '北部 · 青溪上游渡口',
+  teaser: '两年前从这个渡口撤出去，浮桥是自己炸的。今天要把它夺回来。',
+  ready: false,
+  win: { kind: 'score' }
+},
+{
+  id: 'C32', ch: 6, no: 2, name: '南岸桥头堡', type: '进攻',
+  when: '新历 1210 年 5 月 2 日', where: '北部 · 青溪南岸',
+  teaser: '渡口拿下来了，但南岸的桥头堡还在敌人手里。纵深不够，重装备就过不去。',
+  ready: false,
+  win: { kind: 'score' }
+},
+{
+  /* 岚口：第 1 章 C3/C3B 的旧战场。收复它，是整章的情绪高点。 */
+  id: 'C33', ch: 6, no: 3, name: '岚口收复', type: '进攻',
+  when: '新历 1210 年 5 月 28 日', where: '北部 · 岚口市',
+  teaser: '两年前在这里守了十二个回合，最后把机场让了出去。今天的命令只有两个字：收回。',
+  ready: false,
+  win: { kind: 'score' }
+},
+{
+  id: 'C33B', ch: 6, no: 3, sub: true, name: '跑道突击', type: '附属 · 突袭',
+  when: '新历 1210 年 5 月 28 日', where: '北部 · 岚口机场跑道',
+  teaser: '正面还在打，跑道这边先动手。炸掉停机坪上的飞机，城里的守军就等不到空中支援。',
+  ready: false,
+  win: { kind: 'score' }
+},
+{
+  /* 刚夺回的机场立刻要守：敌军的反扑一定冲着跑道来。 */
+  id: 'C34', ch: 6, no: 4, name: '机场再开', type: '防御',
+  when: '新历 1210 年 6 月 15 日', where: '北部 · 岚口机场',
+  teaser: '跑道刚修好第一条，敌军的炮就开始试射。这一次机场不能丢——丢了就没有下一次了。',
+  ready: false,
+  win: { kind: 'survive' }
+},
+{
+  /* 隘口：地形决定战术。一条山谷，两边都是山，谁占住高地谁封路。 */
+  id: 'C35', ch: 6, no: 5, name: '雾岭通道', type: '突破',
+  when: '新历 1210 年 7 月 6 日', where: '中部 · 雾岭隘口',
+  teaser: '隘口只有三公里宽，两侧都是爬不上去的雪线。正面硬顶，代价会很大。',
+  ready: false,
+  win: { kind: 'score' }
+},
+{
+  /* 回到第 1 章 C1 的要塞。它已经被炸成断墙——地图复用 C1，工事全毁。 */
+  id: 'C36', ch: 6, no: 6, name: '北岭归来', type: '进攻',
+  when: '新历 1210 年 8 月 1 日', where: '西部边陲 · 北岭要塞',
+  teaser: '第 6 章的收尾。开局那场守了八个回合的仗，现在要反过来打一遍。',
+  ready: false,
+  win: { kind: 'score' }
+},
+{
+  id: 'C36B', ch: 6, no: 6, sub: true, name: '要塞清剿', type: '附属 · 清剿',
+  when: '新历 1210 年 8 月 4 日', where: '西部边陲 · 北岭要塞地下工事',
+  teaser: '地堡里还有人不肯出来。清剿比攻占难，因为你不能把整座要塞再炸一遍。',
+  ready: false,
+  win: { kind: 'score' }
+},
+
+/* ─────────── 第 7 章 · 决胜一击 ─────────── */
+{
+  id: 'C37', ch: 7, no: 1, name: '合围圈', type: '机动',
+  when: '新历 1210 年 9 月 10 日', where: '西部 · 灰原第 7 旅侧后',
+  teaser: '两个集团军要在四天之内合拢。走慢了，口袋里就是自己人。',
+  ready: false,
+  win: { kind: 'reach' }
+},
+{
+  /* 空降：整篇唯一一次空降作战。落点错了就是全军覆没。 */
+  id: 'C37B', ch: 7, no: 1, sub: true, name: '空降断桥', type: '附属 · 空降',
+  when: '新历 1210 年 9 月 12 日', where: '西部 · 河口大桥',
+  teaser: '桥是敌军唯一的退路。夜里跳下去，天亮前炸掉它——没有重装备，没有第二次机会。',
+  ready: false,
+  win: { kind: 'score' }
+},
+{
+  /* 与第 1 章呼应：这是当年从北岭一路追着我们的那支部队。 */
+  id: 'C38', ch: 7, no: 2, name: '灰原第 7 旅', type: '歼灭',
+  when: '新历 1210 年 9 月 28 日', where: '西部 · 河口以东',
+  teaser: '从北岭要塞一路追着我们走了三年的，就是这支部队。今天它的退路全断了。',
+  ready: false,
+  win: { kind: 'score' }
+},
+{
+  id: 'C38B', ch: 7, no: 2, sub: true, name: '敌指挥部', type: '附属 · 斩首',
+  when: '新历 1210 年 10 月 2 日', where: '西部 · 河口镇教堂地下室',
+  teaser: '他们的军长还在地下室里发报。抓活的，还是炸平？两道命令中间只有十分钟。',
+  ready: false,
+  win: { kind: 'score' }
+},
+{
+  id: 'C39', ch: 7, no: 3, name: '口袋收紧', type: '压缩',
+  when: '新历 1210 年 10 月 20 日', where: '西部 · 河口包围圈',
+  teaser: '包围圈里还剩六个师。收紧的时候最怕的不是他们突围，是自己人打到自己人。',
+  ready: false,
+  win: { kind: 'score' }
+},
+{
+  /* 敌突围：最考验"预备队放哪儿"的一关。 */
+  id: 'C40', ch: 7, no: 4, name: '突围与反突围', type: '防御',
+  when: '新历 1210 年 11 月 8 日', where: '西部 · 口袋南缘',
+  teaser: '被围的部队集中了全部装甲，朝南面一个点砸。那里只有一个师，还是刚补满的。',
+  ready: false,
+  win: { kind: 'survive' }
+},
+{
+  id: 'C40B', ch: 7, no: 4, sub: true, name: '雪夜追歼', type: '附属 · 追击',
+  when: '新历 1210 年 11 月 11 日', where: '西部 · 河口以南雪原',
+  teaser: '他们跑不动了，我们也跑不动了。谁先放弃追击，谁就多留一个师在明年。',
+  ready: false,
+  win: { kind: 'score' }
+},
+{
+  /* 阻击：整章最后一次"用空间换时间"。 */
+  id: 'C41', ch: 7, no: 5, name: '最后一条公路', type: '阻击',
+  when: '新历 1210 年 12 月 1 日', where: '西部 · 三号公路西段',
+  teaser: '第 7 章的收尾。这条公路是敌军最后一个集团军唯一的补给线，也是我们最后一块拼图。',
+  ready: false,
+  win: { kind: 'survive' }
+},
+
+/* ─────────── 第 8 章 · 伟大胜利 ─────────── */
+{
+  id: 'C42', ch: 8, no: 1, name: '解围', type: '进攻',
+  when: '新历 1211 年 1 月 6 日', where: '首都圈 · 岚京西郊',
+  teaser: '首都已经被围了两年。外面的部队打到城下这一天，城里的粮食只剩十天。',
+  ready: false,
+  win: { kind: 'score' }
+},
+{
+  /* 威慑：不用打到底，靠兵力态势逼对方签字。全篇唯一一关以"不打"为最优解。 */
+  id: 'C43', ch: 8, no: 2, name: '城下之盟', type: '威慑',
+  when: '新历 1211 年 1 月 20 日', where: '首都圈 · 岚京城下',
+  teaser: '围城的部队已经被围了。他们还有一战之力，但已经没有打赢的可能。',
+  ready: false,
+  win: { kind: 'score' }
+},
+{
+  id: 'C43B', ch: 8, no: 2, sub: true, name: '停战线', type: '附属 · 对峙',
+  when: '新历 1211 年 1 月 22 日', where: '首都圈 · 岚京北郊停战线',
+  teaser: '谈判在进行，前沿还在对峙。任何一次走火，都可能让桌上的纸作废。',
+  ready: false,
+  win: { kind: 'survive' }
+},
+{
+  id: 'C44', ch: 8, no: 3, name: '岚京光复', type: '巷战',
+  when: '新历 1211 年 2 月 3 日', where: '首都圈 · 岚京市区',
+  teaser: '城里的敌人还没放下枪。逐街逐屋清过去，最后打到中央广场。',
+  ready: false,
+  win: { kind: 'score' }
+},
+{
+  /* 终局前的最后一关：打到对方首都。地图是全篇最大的一张。 */
+  id: 'C45', ch: 8, no: 4, name: '灰原首都', type: '进攻',
+  when: '新历 1211 年 2 月 24 日', where: '灰原 · 灰岭城外围',
+  teaser: '战争打了三年半，第一次踏上对方的土地。城里有四十万人，也有四个师的守军。',
+  ready: false,
+  win: { kind: 'score' }
+},
+{
+  id: 'C45B', ch: 8, no: 4, sub: true, name: '地下通道', type: '附属 · 渗透',
+  when: '新历 1211 年 2 月 26 日', where: '灰原 · 灰岭城地下管网',
+  teaser: '城里有一套 1910 年代修的下水道，图纸在档案馆地板上摊了半张。',
+  ready: false,
+  win: { kind: 'reach' }
+},
+{
+  /* 终局。多目标权重结算——占位阶段先把类型钉住。 */
+  id: 'C46', ch: 8, no: 5, name: '胜利日', type: '终局',
+  when: '新历 1211 年 3 月 15 日', where: '灰原 · 灰岭城中心',
+  teaser: '第 8 章的收尾，也是整场战役的最后一关。三年前从北岭要塞退出来的那批人，今天站在这里。',
+  ready: false,
+  win: { kind: 'score' }
 }
 ];
 
@@ -5055,6 +5608,12 @@ function levelAccess(lvId) {
   const p = readProgress();
   if (!p.cleared[need]) {
     const pre = levelById(need);
+    /* 跨章门槛单独措辞：只说"先通过北岭要塞"，玩家不知道那是上一章的末关，
+       会以为是同一章里卡住了。章末门槛要明说是"整章"。 */
+    if (pre && pre.ch !== lv.ch) {
+      const pc = chapterOf(pre);
+      return { ok: false, why: '先打完第 ' + pre.ch + ' 章' + (pc ? '「' + pc.name + '」' : '') };
+    }
     return { ok: false, why: '先通过「' + (pre ? pre.name : need) + '」' };
   }
   return { ok: true, why: '' };
@@ -5510,17 +6069,51 @@ function doUndo() {
 /* 序号文案。no:0 是序章（教学关），写「第 0 关」很别扭——玩家会以为自己漏了一关。
    附属关（sub:true）与正关共用编号，靠前缀区分：第 3 关是岚口，机场是它的附属。
    统一走这个函数，标题栏和关卡列表才会用同一种说法。 */
-function levelNoText(lv) {
+function chapterOf(lv) {
+  if (!lv || lv.ch === undefined) return null;
+  return CHAPTERS.find(c => c.no === lv.ch) || null;
+}
+
+/* 一章的进度快照。**只统计 ready 的关**——占位关既不算"待打"也不算"已打"。
+   把它们算进去，一部 66 关的作品会永远显示 "5 / 67"，玩家会以为进度条坏了；
+   而如果把它们算成"已打"，又等于凭空送进度。两种都错，所以只数做出来的。 */
+function chapterStat(chNo) {
+  const lv = LEVELS.filter(l => l.ch === chNo && l.ready);
+  const main = lv.filter(l => !l.sub);
+  const p = readProgress();
+  const cleared = lv.filter(l => p.cleared[l.id]).length;
+  const mainCleared = main.filter(l => p.cleared[l.id]).length;
+  return {
+    total: lv.length,
+    main: main.length,
+    cleared,
+    mainCleared,
+    done: lv.length > 0 && cleared === lv.length,
+    /* 章内任一关可进 = 这一章已经开始打了。菜单页据此决定要不要自动展开。 */
+    opened: lv.some(l => levelAccess(l.id).ok)
+  };
+}
+
+/* 关卡编号文案。**两套长度是刻意的**：
+   brief  「第 3 关 · 附属 · 」  —— 菜单页按章分组，章名在组头上，再说一遍是噪音
+   full   「第 1 章 · 第 3 关 · 」—— 顶栏、结算、提示这类**离开章节上下文**的地方，
+          玩家必须知道自己在哪一章，否则"第 1 关"在一部 8 章的作品里毫无信息量 */
+function levelNoText(lv, full) {
   if (!lv) return '';
   if (lv.no === 0) return '序 · ';
-  return '第 ' + lv.no + ' 关 · ' + (lv.sub ? '附属 · ' : '');
+  const core = '第 ' + lv.no + ' 关 · ' + (lv.sub ? '附属 · ' : '');
+  if (!full) return core;
+  const ch = chapterOf(lv);
+  return ch ? ('第 ' + ch.no + ' 章 · ' + core) : core;
 }
 
 function syncLevelHeader() {
   const n = document.getElementById('lvName');
   const s = document.getElementById('lvSub');
   if (n) n.textContent = LEVEL.name;
-  if (s) s.textContent = levelNoText(LEVEL) + LEVEL.type + ' · ' + LEVEL.when;
+  /* 顶栏这一行是玩家唯一"随时看得到"的定位信息：章 + 关 + 类型 + 时间。
+     之前只有"第 3 关 · 防御 · 日期"，8 章之后就不能只说关号了。 */
+  if (s) s.textContent = levelNoText(LEVEL, true) + LEVEL.type + ' · ' + LEVEL.when;
   if (document && document.title) document.title = LEVEL.name + ' · 苍屿战役';
 }
 
@@ -6700,7 +7293,9 @@ function showOverlay() {
   const nxt = nextReadyLevel(LEVEL.id);
   if (state.result !== 'fail' && nxt) {
     mNext.classList.remove('hidden');
-    mNext.textContent = '进入' + levelNoText(nxt) + nxt.name;
+    /* 结算面板这里用 full（带章号）：结算页是"这一段打完了"的时刻，
+       跨章时玩家最需要知道的就是"接下来是第几章"。 */
+    mNext.textContent = '进入' + levelNoText(nxt, true) + nxt.name;
     mNote.classList.add('hidden');
   } else if (state.result !== 'fail') {
     mNext.classList.add('hidden');
@@ -9075,7 +9670,7 @@ window.__WAR__ = {
   /* 多关框架 */
   LEVELS, levelById, levelAccess, accessPrereq, prevReadyLevel, nextReadyLevel,
   recommendLevel, readProgress, writeProgress, markResult, enterLevel,
-  levelNoText,
+  levelNoText, CHAPTERS, chapterOf, chapterStat,
   PROGRESS_KEY,
   /* 三种胜负条件（score / survive / reach） */
   winSpec, inEscapeZone, escapeCells, escapeGoal, escapedCount, escapedStr,
