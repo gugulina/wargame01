@@ -58,6 +58,12 @@ const SLOT = {
             want: '轮式怠速或起步。连续、**没有节拍**——有节拍就听成履带了' },
   track:  { mode: 'rms',  target: -21.0, maxDur: 1.60, kind: 'loop',
             want: '履带。要比引擎多一层金属板撞击的**节拍**，这是两者唯一的区别' },
+  prop:   { mode: 'rms',  target: -21.0, maxDur: 1.60, kind: 'loop',
+            want: '螺旋桨。60–400 Hz 的桨叶拍频 + 2 kHz 以上的桨尖成分。' +
+                  '现场收音常混进开关门与鸟叫，挑段时看包络有没有孤立尖峰' },
+  ship:   { mode: 'rms',  target: -21.0, maxDur: 1.60, kind: 'loop',
+            want: '舰体。40–120 Hz 推进轰鸣占主导，高频只剩水声嘶嘶。' +
+                  '**不能有金属敲击节拍**——那是履带；只有浪没有低频就是"水在响船没动"' },
 
   /* ── 已有槽位，留着以便整库换素材 ── */
   fire:    { mode: 'peak', target: -3.0, maxDur: 1.00, kind: 'shot', want: '直射枪声' },
@@ -85,6 +91,10 @@ const flag = (name, dflt) => {
 const atSec = flag('at', null);          // 从第几秒开始切
 const pick = argv.includes('--pick');    // 自动挑能量最集中的一段
 const lowDb = parseFloat(flag('low', '0'));   // 低频搁架增益，dB
+/* 低通截止。实录现场常常"亮"得不像机械声（泵机啸叫、反射嘶嘶），
+   那是噪声不是音色，低通砍掉比抬低频更有效——抬低频只是把底下垫厚，
+   尖的那层还在。0 = 不处理。 */
+const lpHz = parseFloat(flag('lp', '0'));
 /* 显式时长。"取前 2 秒"这种要求不能靠槽位上限（那是**最大**值，
    不是**目标**值）——不管上限多大都会一路带到底，把后面第二发也卷进来。 */
 const durSec = flag('dur', null) === null ? null : parseFloat(flag('dur', null));
@@ -98,7 +108,7 @@ for (let i = 0; i < argv.length; i++) {
 
 /* 带值的开关，它的下一个词是参数不是位置参数。
    不做这一步的话 `--at 3.0` 里的 3.0 会被当成槽位名。 */
-const VALUED = new Set(['--at', '--low', '--also', '--dur']);
+const VALUED = new Set(['--at', '--low', '--also', '--dur', '--lp']);
 const rest = argv.filter((a, i) => !a.startsWith('--') && !(i > 0 && VALUED.has(argv[i - 1])));
 
 /* "x.wav@2.05:0.55" → { file:'x.wav', sec:2.05, gain:0.55 }
@@ -216,6 +226,23 @@ function lowShelf(x, f0, gainDb, S = 0.9) {
   }
 }
 
+/* RBJ 二阶低通。实录的"亮"有两种来源，要分开看：
+     泵机啸叫 / 现场反射的嘶嘶   → 是噪声，低通可以砍
+     引擎真正的谐波             → 在 200–800 Hz，砍过头就没声了
+   所以截止点通常选在 1.2–1.5 kHz 之间，别一上来就 800。 */
+function lowPass(x, f0, Q = 0.707) {
+  const w0 = 2 * Math.PI * f0 / SR, cw = Math.cos(w0), sw = Math.sin(w0);
+  const alpha = sw / (2 * Q);
+  const b0 = (1 - cw) / 2, b1 = 1 - cw, b2 = (1 - cw) / 2;
+  const a0 = 1 + alpha, a1 = -2 * cw, a2 = 1 - alpha;
+  let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+  for (let i = 0; i < x.length; i++) {
+    const xi = x[i];
+    const y = (b0 * xi + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2) / a0;
+    x2 = x1; x1 = xi; y2 = y1; y1 = y; x[i] = y;
+  }
+}
+
 function nextTake() {
   let n = 1;
   while (fs.existsSync(path.join(OUTDIR, `${slot}-take${n}.ogg`))) n++;
@@ -239,6 +266,27 @@ function decodeF32(file) {
   fs.unlinkSync(tmp);
   return { x: new Float32Array(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength)), meta };
 }
+
+/* 处理**之后**的指标。原来 --dry 只能看到"切之前整段"的数字，于是
+   "低频要抬几 dB 才够"这种问题永远要真导一次才知道——切窗、EQ、归一化
+   每一样都改频谱，看处理前的数字定不了参。
+
+   把裸流交给 python 的 --f32 分支，不重复解码。失败就返回 null，
+   不因为量不出数就把整个导入拦下来。 */
+function measureProcessed(x) {
+  const tmp = path.join(os.tmpdir(), `sfx-m-${process.pid}-${Math.floor(Math.random() * 1e6)}.f32`);
+  try {
+    fs.writeFileSync(tmp, Buffer.from(x.buffer, x.byteOffset, x.byteLength));
+    const out = execFileSync('python',
+      [path.join(__dirname, 'decode-f32.py'), '--f32', tmp, String(SR)], { encoding: 'utf8' });
+    return JSON.parse(out.trim().split('\n').pop());
+  } catch (e) {
+    return null;
+  } finally {
+    try { fs.unlinkSync(tmp); } catch (_) { /* 临时文件删不掉不算错 */ }
+  }
+}
+
 
 /* 把一条原始流处理成"能用的一段"：定位 → 掐静音 → 截上限 → 收尾淡出。
    抽成函数是因为 --also 要再走一遍同样的路，两处逻辑必须完全一致，
@@ -293,8 +341,14 @@ function prep(raw, atS, doPick, spec, durS = null) {
   const raw = d.x, meta = d.meta;
 
   console.log(`\n源文件  ${path.basename(srcFile)}`);
-  console.log(`  时长 ${meta.dur}s   峰值 ${meta.peak}dB   重心 ${meta.cen}Hz`);
-  console.log(`  低频 ${meta.low} / 中频 ${meta.mid} / 高频 ${meta.high}`);
+  console.log(`  时长 ${meta.dur}s   峰值 ${meta.peak}dB`);
+  /* 两套口径都印，但**判读看能量那行**。
+     幅度口径（|X| 求和）衡量的是"频谱铺多宽"：高频有几百个 bin、每个都很低，
+     加起来能压过几个高 bin，窄带低频因此被低估到失真的地步——
+     同一段飞机录音，高频幅度 0.294、能量 0.011，差 27 倍。
+     历史表格用的是幅度口径，所以两行都留着，别只留一行。 */
+  console.log(`  能量 低 ${meta.lowE} / 中 ${meta.midE} / 高 ${meta.highE}   重心 ${meta.cenE}Hz  ← 判读看这行`);
+  console.log(`  谱宽 低 ${meta.low} / 中 ${meta.mid} / 高 ${meta.high}   重心 ${meta.cen}Hz（幅度口径，只说铺多宽）`);
   console.log(`\n目标槽  ${slot}（${spec.kind === 'loop' ? '循环底噪' : '一次性'}，` +
     `${spec.mode === 'peak' ? '峰值' : 'RMS'} ${spec.target}dB，上限 ${spec.maxDur}s）`);
   console.log(`  要的声音：${spec.want}`);
@@ -343,6 +397,13 @@ function prep(raw, atS, doPick, spec, durS = null) {
     notes.push(`${lowDb > 0 ? '+' : ''}${lowDb}dB 低频搁架 @200Hz`);
   }
 
+  /* 低通放在搁架之后：先决定"底下垫多厚"，再决定"上面留多少"。
+     反过来也能做，但两次都是线性的、顺序无关，所以按读起来顺的顺序写。 */
+  if (lpHz) {
+    lowPass(x, lpHz);
+    notes.push(`低通 ${lpHz}Hz`);
+  }
+
   const before = stats(x);
   const g = Math.pow(10, spec.target / 20) / (spec.mode === 'peak' ? before.peak : before.rms);
   applyGain(x, g);
@@ -357,6 +418,14 @@ function prep(raw, atS, doPick, spec, durS = null) {
   console.log(`\n处理   ${notes.length ? notes.join('；') : '原样（头尾本来就干净）'}`);
   console.log(`  增益 ${(20 * Math.log10(g)).toFixed(1)}dB  →  峰值 ${after.peakDb.toFixed(1)}dB  ` +
     `RMS ${after.rmsDb.toFixed(1)}dB  波峰因数 ${after.crest.toFixed(1)}dB  ${(x.length / SR).toFixed(2)}s`);
+
+  /* 处理之后的频谱。定参只看这一行——上面"源文件"那两行是整段原素材，
+     切窗、EQ、归一化都还没发生。 */
+  const done = measureProcessed(x);
+  if (done) {
+    console.log(`  成品 能量 低 ${done.lowE} / 中 ${done.midE} / 高 ${done.highE}  ` +
+      `重心 ${done.cenE}Hz  ← 定参看这行`);
+  }
 
   /* 波峰因数低于 10 基本就是"压死了"——枪炮声该在 18 以上 */
   if (spec.kind === 'shot' && after.crest < 10) {
