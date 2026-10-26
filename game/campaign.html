@@ -2932,19 +2932,34 @@ const ASSETS = {
   sfx: {
     uiClick: 'sfx/ui-click.ogg',   // 按钮
     select:  'sfx/ui-select.ogg',  // 选中兵牌
-    move:    'sfx/move-synth.ogg', // 移动（合成版：短促的装备磕碰，比通用 UI 音更像行军）
+    move:    'sfx/move-synth.ogg', // **已无代码引用**：机动改走 step/engine/track。
+                                   //   只留着给试听页当三行的对照组，别当它是活槽
     fire:    'sfx/fire-v2.mp3',    // 直射（.22 实弹录音，起振 0.2ms）
-    shell:   'sfx/shell-v2.mp3',   // 炮击（爆炸拟音，低频冲击 + 宽带爆裂）
-    hit:     'sfx/hit-v2.mp3',     // 命中（173ms 短爆裂）
+    shell:   'sfx/shell-take2.ogg',   // 炮击（ZiS-3 实录开头 0.36–2.00s 那发，距炮位 50 m，CC-BY 4.0）
+    hit:     'sfx/hit-v2.mp3',     // **已无代码引用**：命中反馈改成按攻击方口径选枪/炮，
+                                   //   这一条的高频占 0.97（像玻璃碎），不适合当落点层
     kill:    'sfx/kill-v2.mp3',    // 歼灭（多爆点殉爆）
     build:   'sfx/build.ogg',      // 构筑工事 / 布雷 / 架桥
     alarm:   'sfx/alarm-v2.mp3',   // 敌方增援（连续警报）
     event:   'sfx/event-synth.ogg',// 剧情事件（合成版：760Hz 电报点划，情报是报上来的）
     /* 战场底噪：60 秒循环的环境层，独立于一次性音效。
        **必须留在 preload 的跳过名单里**（529 KB，比首屏还重）。 */
-    amb:     'sfx/amb-synth.ogg',
+    amb:     'sfx/amb-take1.ogg',
     win:     'sfx/win.ogg',
-    lose:    'sfx/lose.ogg'
+    lose:    'sfx/lose.ogg',
+
+    /* 按兵种分派用的四个槽（见下面的 SONIC 表）。都是每回合要响的，
+       所以全在 preload 里——等第一次触发才下载会明显迟一拍。
+
+       素材来源分两种，别默认全是合成的：
+         rifle / step / track ← freesound 实录（CC0），走 tools/sfx-import.js 导入，
+                                 原始链接与处理参数见 assets/sfx/CREDITS.md 第十节
+         engine               ← 仍是自制（谱在 tools/sfx-synth.js，`npm run sfx engine`）
+       换素材用 `node tools/sfx-import.js <槽> <文件>`，它会自动改这里的路径。 */
+    rifle:   'sfx/rifle-take1.ogg',   // 步兵攻击：四连点射叠 5 发机枪（65–95ms / 125ms 两种射速）
+    step:    'sfx/step-take1.ogg',    // 步兵机动：混凝土行军实录，切一步
+    engine:  'sfx/engine-synth.ogg',  // 轮式机动：42→58 Hz 起步
+    track:   'sfx/track-take1.ogg'    // 履带机动：T-26 实车录像收音 + 5dB 低搁架
   },
 
   /* 音乐：循环轨，建议 ogg 96kbps 或 mp3 128kbps，单条 1~3 分钟。
@@ -2976,6 +2991,86 @@ const ASSETS = {
   }
 };
 
+/* ═══════════════════ 音效分派：兵种 → 声音组 ═══════════════════
+   规则层只说"谁打了谁、谁挪到了哪"，**响哪一条**是这里的事。
+   这一层的存在，是为了让"摩步营该响引擎"这种知识只写一遍：
+   调用点传兵种代号，不传槽位名。
+
+   m 是机动声、a 是攻击声。三档机动声的分野是**脚下接触面**：
+     step   两条腿          每步一记，触发最密，时长压到 0.38 秒
+     engine 有轮胎          发动机是连续噪声，没有节拍
+     track  有履带板        每秒 42 记金属撞击，节拍就是它和轮式的唯一区别
+
+   38 个兵种逐个写全，不留默认。**漏配不会报错**，只会静音或退回步兵声，
+   而"这支部队怎么没动静"是最难查的一类问题。selftest 有一条断言
+   拿 TYPE 的键逐个比这张表，加兵种忘了改这里会直接红。 */
+const SONIC = {
+  tab: {
+    /* ── 两条腿走、步枪打 ── */
+    inf:  { m: 'step',   a: 'rifle' },
+    gdn:  { m: 'step',   a: 'rifle' },
+    mrb:  { m: 'step',   a: 'rifle' },
+    para: { m: 'step',   a: 'rifle' },
+    eng:  { m: 'step',   a: 'rifle' },
+    engc: { m: 'step',   a: 'rifle' },
+    sup:  { m: 'step',   a: 'rifle' },
+    hqd:  { m: 'step',   a: 'rifle' },
+    hqb:  { m: 'step',   a: 'rifle' },
+    hkg:  { m: 'step',   a: 'rifle' },
+    hkc:  { m: 'step',   a: 'rifle' },
+
+    /* ── 轮式：摩托化 / 牵引炮兵 / 防空 / 侦察 ──
+       牵引炮兵听的是牵引车——炮本身不会自己走，所以是引擎不是炮声。 */
+    mob:  { m: 'engine', a: 'rifle' },   // 坐车进去，下车用步枪打
+    rec:  { m: 'engine', a: 'rifle' },   // 机动 10，是摩托侦察
+    art:  { m: 'engine', a: 'shell' },
+    hr:   { m: 'engine', a: 'shell' },
+    at:   { m: 'engine', a: 'shell' },
+    aac:  { m: 'engine', a: 'shell' },
+    aab:  { m: 'engine', a: 'shell' },
+
+    /* ── 履带：坦克 / 自行火炮 / 装步 / 歼击车 ──
+       装步营下车用步枪打，但它的机动是履带式输送车。 */
+    mech: { m: 'track',  a: 'rifle' },
+    larm: { m: 'track',  a: 'shell' },
+    marm: { m: 'track',  a: 'shell' },
+    harm: { m: 'track',  a: 'shell' },
+    td:   { m: 'track',  a: 'shell' },
+    sha:  { m: 'track',  a: 'shell' },
+    spa:  { m: 'track',  a: 'shell' },
+
+    /* ── 航空：地面声场里没有它自己的音色，先用实弹枪声顶 ──
+       螺旋桨机的机枪与地面步枪同属 7.62 级，比合成步枪更接近。
+       这一层迟早要换成"高空多普勒 + 螺旋桨"，现在没有素材。 */
+    fgt:  { m: 'engine', a: 'fire' },
+    atk:  { m: 'engine', a: 'fire' },
+    bmb:  { m: 'engine', a: 'shell' },
+    trp:  { m: 'engine', a: 'fire' },
+
+    /* ── 水面：舰炮就是炮声，机动是主机 ── */
+    gbt:  { m: 'engine', a: 'shell' },
+    ptb:  { m: 'engine', a: 'shell' },
+    ffg:  { m: 'engine', a: 'shell' },
+    dd:   { m: 'engine', a: 'shell' },
+    ca:   { m: 'engine', a: 'shell' },
+    bb:   { m: 'engine', a: 'shell' },
+    cv:   { m: 'engine', a: 'fire' },
+    ss:   { m: 'engine', a: 'shell' },
+    lst:  { m: 'engine', a: 'shell' }
+  },
+
+  /* 兜底：表里没有就等于一个步兵。宁可听起来像步兵，
+     也不要因为漏配而静音——静音会被当成"音频坏了"去查很久。 */
+  DEF: { m: 'step', a: 'rifle' },
+
+  /* of(type, 'm' | 'a')。只认**兵种代号**，不认槽位名。 */
+  of(type, kind) {
+    const e = this.tab[type];
+    if (!e) return this.DEF[kind];
+    return e[kind] || this.DEF[kind];
+  }
+};
+
 /* 「方面军司令部 · 电话」用的电台符号：没有人物出场，用人脸反而出戏。
    留成内联 SVG 而不是图片文件，少一个 404 的可能，也不吃加载时间。 */
 const SIG_SVG =
@@ -3003,7 +3098,9 @@ const FX = {
   _pool: {},                // 每种音效复用几个实例，避免连续开火时不断 new Audio
   /* 每种音效最多同时叠几个。炮声有 2 秒尾音，只允许一个：
      一回合打三炮时宁可后一炮盖掉前一炮，也不要糊成一团噪音 */
-  _max: { shell: 1, alarm: 1, win: 1, lose: 1, kill: 2, default: 3 },
+  /* 引擎和履带是 1 秒级的持续音，一次能叠 3 个就等于"三台车同时轰"，
+     听感变成一片糊；压到 2。步枪和脚步短，默认 3 够用。 */
+  _max: { shell: 1, alarm: 1, win: 1, lose: 1, kill: 2, engine: 2, track: 2, default: 3 },
   /* 不进 preload 的槽。amb 是 60 秒循环环境层，529 KB——一旦跟着首屏走，
      首屏就从 455 KB 涨到近 1 MB。BGM 那边白捡的按需加载，正好被它吃掉。 */
   _noPreload: { amb: true },
@@ -3320,11 +3417,24 @@ const FX = {
      规则层只报"谁打谁、各掉多少"，怎么响、怎么闪、怎么飘全在这里决定。 */
   hit(o) {
     if (!this.on) return;
-    this.sfx(o.defLoss >= 3 ? 'shell' : 'fire');
+    /* 音色按**发起方兵种**走：步兵是枪、装甲与炮兵是炮。
+       原来是 `defLoss >= 3 ? 'shell' : 'fire'`——按战果分档，
+       结果步枪打掉三点也放炮声。打得多不等于打得响，口径才是。
+       attType 由规则层传进来，它是唯一"知道谁在打"的人；
+       这一层不认识兵种，只认识槽位。 */
+    this.sfx(SONIC.of(o.attType, 'a'));
     this.shake();
     if (o.defLoss > 0 && o.defPos) this.pop('-' + o.defLoss, o.defPos, o.defSide === 'blue' ? 'b' : '');
     if (o.attLoss > 0 && o.attPos) this.pop('-' + o.attLoss, o.attPos, o.attSide === 'blue' ? 'b' : '');
     if (o.kill) { this.sfx('kill'); this.pop('歼灭', o.killPos, 'sys'); }
+  },
+
+  /* ── 机动表现：脚步 / 引擎 / 履带，按兵种分 ──
+     和 hit 同一条原则：调用点传单位，不传槽位名。
+     原来所有兵种共用一个 'move' 音，坦克和步兵走路一个声。 */
+  move(u) {
+    if (!this.on) return;
+    this.sfx(SONIC.of(u && u.type, 'm'));
   }
 };
 
@@ -5377,7 +5487,7 @@ function doMove(u, pos) {
   }
 
   log(u.abbr + ' ' + u.name + ' 机动至 ' + coordName(pos), u.side === 'blue' ? 'b' : 'r');
-  FX.sfx('move');
+  FX.move(u);
   if (u.str <= 0) { removeUnit(u); clearSelection(); refreshFields(); render(); checkEnd(); saveGame(); return true; }
   clearSelection();
   refreshFields();
@@ -5404,7 +5514,7 @@ function doPack(u) {
   u.moved = true; u.fired = true;
   noteAct(u, 'pack');
   log(u.abbr + ' 收炮挂车，本回合用于收炮，下回合可以转移。', u.side === 'blue' ? 'b' : 'r');
-  FX.sfx('move');
+  FX.move(u);
   clearSelection(); refreshFields(); render(); saveGame();
   return true;
 }
@@ -5486,7 +5596,10 @@ function doAttack(att, def) {
   FX.hit({
     defLoss, attLoss,
     defPos: def.pos.slice(), attPos: att.pos.slice(),
-    defSide: def.side, attSide: att.side
+    defSide: def.side, attSide: att.side,
+    /* 谁在打。FX 靠这个选枪声还是炮声——规则层只报兵种代号，
+       不需要知道"坦克该响哪一条"。 */
+    attType: att.type
   });
 
   if (def.str <= 0) { removeUnit(def); }
@@ -8790,7 +8903,7 @@ window.__WAR__ = {
   /* LEVEL 用 getter 而不是值拷贝：切关之后 __WAR__.LEVEL 必须跟着变，
      否则自测与自动化读到的永远是初始那一关，切关的 bug 一条都测不出来 */
   get LEVEL() { return LEVEL; },
-  TERRAIN, TYPE, CRT, TIER_LABEL, ASSETS, FX,
+  TERRAIN, TYPE, CRT, TIER_LABEL, ASSETS, FX, SONIC,
   /* 多关框架 */
   LEVELS, levelById, levelAccess, accessPrereq, prevReadyLevel, nextReadyLevel,
   recommendLevel, readProgress, writeProgress, markResult, enterLevel,

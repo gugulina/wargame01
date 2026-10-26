@@ -335,6 +335,235 @@ function sMove(seed) {
   return { L, R, dur, note: '移动 · 摩擦颗粒，轻' };
 }
 
+/* ── 步兵火力：栓动步枪 + 冲锋枪 ──
+   一个步兵营的齐射不是"一声枪响 ×N"。现场里三支步枪的射击点
+   彼此错开 60–120 ms，中间夹着自动武器的短点射——这个**疏密不均**
+   才是步兵交火；等间隔连响听起来像电子游戏，不像打仗。
+
+   单发核沿用 sFire：那一版为了躲开 145 Hz 的"隔壁摔门"坑，
+   已经把低频 body 压到 0.24、干路占到 35%，参数是踩过坑的。
+   两型枪只在这三处不同：
+     栓动   —— body 更重（.30）、尾更长（55 ms）、音高 158 Hz
+     冲锋枪 —— body 更轻（.16）、尾更短（30 ms）、音高 176 Hz
+   冲锋枪连点 32 ms 一发：低于 28 ms 会听成一长声，高于 40 ms
+   又断成彼此独立的枪，32 ms 正好是"突突"那个区间。 */
+function sRifle(seed) {
+  const dur = 0.78, n = Math.round(dur * SR);
+  const L = new Float32Array(n), R = new Float32Array(n);
+  const rng = makeRng(seed);
+
+  /* 一发。amp = 远近，pan = 偏哪边——
+     六发全居中会听起来像同一个人开的同一条枪。 */
+  function shot(t0, amp, pan, heavy) {
+    const st = Math.round(t0 * SR);
+    if (st >= n) return;
+    const bpL = new Biquad().set('bp', 2300, 0.95);
+    const bpR = new Biquad().set('bp', 2450, 0.95);
+    /* 膛音层：500–1600 Hz 的空气冲击。少了这一层，枪声只剩"嘶"和"咚"，
+       中间是空的——实测重心会飘到 5 kHz，听着像撕纸不像开枪。 */
+    const mdL = new Biquad().set('bp', 650, 0.85);
+    const mdR = new Biquad().set('bp', 710, 0.85);
+    const dryL = new Biquad().set('hp', heavy ? 560 : 700, 0.7);
+    const dryR = new Biquad().set('hp', heavy ? 560 : 700, 0.7);
+    const lpL = new Biquad().set('lp', 8200, 0.7);
+    const lpR = new Biquad().set('lp', 8200, 0.7);
+    const gl = 0.5 - pan * 0.35, gr = 0.5 + pan * 0.35;
+    const bodyF = heavy ? 158 : 176;
+    const bodyAmp = heavy ? 0.20 : 0.11;
+    const bodyTau = heavy ? 0.055 : 0.030;
+    const len = Math.min(Math.round(0.11 * SR), n - st);
+    let phL = 0, phR = 0, phmL = 0, phmR = 0;
+    for (let i = 0; i < len; i++) {
+      const t = i / SR;
+      /* 0.3 ms 起振 + 2.5 ms plateau：这段 hold 是"有份量"的全部来源，
+         删掉它波峰因数会跳到 24 dB，数字很尖、听着很轻。 */
+      const crack = envAHD(t, 0.0003, 0.0025, heavy ? 0.016 : 0.011);
+      const body = envAHD(t, 0.0005, 0.006, bodyTau);
+      const nzL = rng(), nzR = rng();
+      const mid = mdL.p(nzL) * 1.10;
+      let l = lpL.p(bpL.p(nzL) * 0.95 + dryL.p(nzL) * 0.28) * crack + mid * crack;
+      let r = lpR.p(bpR.p(nzR) * 0.95 + dryR.p(nzR) * 0.28) * crack + mdR.p(nzR) * 1.10 * crack;
+      phL += TAU * bodyF / SR;
+      phR += TAU * bodyF * 1.007 / SR;
+      l += Math.sin(phL) * body * bodyAmp;
+      r += Math.sin(phR) * body * bodyAmp;
+      /* 管腔共鸣：200–1500 Hz 那一段不是噪声，是枪管里的驻波。
+         用带通噪声去补它，窄带的能量密度太低，怎么加都填不满
+         （实测加到权重 2.3，中频也只从 0.15 爬到 0.19）。
+         换成两根衰减正弦，能量集中在 520 / 780 Hz，一下就实了。 */
+      phmL += TAU * 520 / SR;
+      phmR += TAU * 520 * 1.009 / SR;
+      const bore = envAHD(t, 0.0004, 0.003, 0.019) * (heavy ? 0.34 : 0.24);
+      l += (Math.sin(phmL) + Math.sin(phmL * 1.5) * 0.45) * bore;
+      r += (Math.sin(phmR) + Math.sin(phmR * 1.5) * 0.45) * bore;
+      /* 先饱和再 pan：反过来的话两侧饱和程度不同，声像会随音量漂 */
+      L[st + i] += sat(l, 1.7) * amp * gl * 2;
+      R[st + i] += sat(r, 1.7) * amp * gr * 2;
+    }
+  }
+
+  /* 时间表：三发栓动，中间夹三连点射。
+     点射必须落在两发栓动之间，否则跟单发糊成一坨，
+     听不出"这里有一挺冲锋枪"。 */
+  shot(0.000, 1.00, -0.35, true);   // 栓动 1
+  shot(0.082, 0.82,  0.22, true);   // 栓动 2
+  shot(0.152, 0.56,  0.46, false);  // 冲锋枪 · 点射
+  shot(0.184, 0.53,  0.32, false);
+  shot(0.216, 0.50,  0.55, false);
+  shot(0.298, 0.68, -0.12, true);   // 栓动 3
+
+  addReverb(L, R, { size: 0.72, wet: 0.16, fb: 0.66 });
+  return { L, R, dur, note: '步兵火力 · 3 发栓动 + 3 连点，疏密错开' };
+}
+
+/* ── 脚步：两步 ──
+   一步得是三样东西叠起来，缺一样就不像人走路：
+     踩实（96→62 Hz 下滑正弦，8 ms 起振）—— 体重
+     摩擦（2.4–4 kHz 带通噪声，22 ms）—— 鞋底与地面
+     磕碰（5 kHz 极短瞬态，只在第一步给）—— 水壶、枪带、装具
+   两步间隔 135 ms（约 1.5 步/秒，负重行军的节奏）。
+   左右脚换中心频率：完全同一声会被听成复制粘贴。
+   这是全场触发最密的音效——一回合能走六七支部队，
+   所以时长压在 0.38 秒，绝不拖尾。 */
+function sStep(seed) {
+  const dur = 0.38, n = Math.round(dur * SR);
+  const L = new Float32Array(n), R = new Float32Array(n);
+  const rng = makeRng(seed);
+
+  function step(t0, amp, pan, f0, fric, clank) {
+    const st = Math.round(t0 * SR);
+    if (st >= n) return;
+    const bpL = new Biquad().set('bp', fric, 1.1);
+    const bpR = new Biquad().set('bp', fric * 1.06, 1.1);
+    /* 中频"土"层：300–800 Hz 才是鞋底真正踩在土/碎石上的声音。
+       只有 92 Hz 的沉闷 + 2.6 kHz 的沙沙，中间是空的，
+       实测重心会飙到 3.8 kHz，听着像在沙纸上蹭鞋。 */
+    const mdL = new Biquad().set('bp', 420, 0.9);
+    const mdR = new Biquad().set('bp', 470, 0.9);
+    const ckL = new Biquad().set('bp', 5200, 1.8);
+    const ckR = new Biquad().set('bp', 5450, 1.8);
+    const gl = 0.5 - pan * 0.4, gr = 0.5 + pan * 0.4;
+    const len = Math.min(Math.round(0.17 * SR), n - st);
+    let ph = 0;
+    for (let i = 0; i < len; i++) {
+      const t = i / SR;
+      /* 起振 2.5 ms 而不是 8 ms：脚落地是一记撞击，不是"渐强"。
+         上一版给到 8 ms，测出来起振 8.3 ms，听着像脚在棉花上。 */
+      const thud = envAHD(t, 0.0025, 0.010, 0.032);
+      /* 落地瞬间频率高一截，脚掌压下去才沉下来——这个下滑是"体重"的来源 */
+      const f = f0 * (1 + 0.5 * Math.exp(-t / 0.02));
+      ph += TAU * f / SR;
+      const nzL = rng(), nzR = rng();
+      const fricE = envAHD(t, 0.005, 0.004, 0.014);
+      const mdE = envAHD(t, 0.003, 0.006, 0.020);
+      let l = Math.sin(ph) * thud * 1.00
+            + bpL.p(nzL) * fricE * 0.18
+            + mdL.p(nzL) * mdE * 0.75;
+      let r = Math.sin(ph * 1.01) * thud * 1.00
+            + bpR.p(nzR) * fricE * 0.18
+            + mdR.p(nzR) * mdE * 0.75;
+      if (clank) {
+        const ce = envAHD(t, 0.002, 0.001, 0.009);
+        l += ckL.p(nzL) * ce * 0.20;
+        r += ckR.p(nzR) * ce * 0.20;
+      }
+      L[st + i] += l * amp * gl * 1.6;
+      R[st + i] += r * amp * gr * 1.6;
+    }
+  }
+
+  step(0.000, 1.00, -0.30,  92, 2600, true);
+  step(0.135, 0.86,  0.28,  84, 3000, false);
+  addReverb(L, R, { size: 0.34, wet: 0.10, fb: 0.55 });
+  return { L, R, dur, note: '脚步 · 两步，踩实 + 摩擦 + 装具磕碰' };
+}
+
+/* ── 车辆引擎：轮式（摩托化 / 牵引炮兵） ──
+   四个成分，少一个就不像发动机：
+     点火基频（42→58 Hz 起步加速，锯齿）
+     半频（21 Hz）—— 柴油机的"闷"全在这一层
+     点火调制（按 4 缸点火频率 28 Hz 起伏，平稳的锯齿听着像风琴）
+     机械噪声（1.2 kHz 带通，随转速爬升）
+   **和履带的分野是节拍**：轮式是连续噪声，履带一下一下地撞。
+   时长 1.05 秒、两端各留 0.1–0.3 秒渐变，是因为它是 RMS 定标，
+   硬起硬停在持续音上会"啪"一下。 */
+function sEngine(seed) {
+  const dur = 1.05, n = Math.round(dur * SR);
+  const L = new Float32Array(n), R = new Float32Array(n);
+  const rng = makeRng(seed);
+  const bpL = new Biquad().set('bp', 1200, 0.85);
+  const bpR = new Biquad().set('bp', 1320, 0.85);
+  const lpL = new Biquad().set('lp', 700, 0.7);
+  const lpR = new Biquad().set('lp', 760, 0.7);
+  let p1 = 0, p2 = 0, p3 = 0;
+  for (let i = 0; i < n; i++) {
+    const t = i / SR;
+    /* 起音 0.05 秒：这是"移动了"的反馈音，不是真的在听发动机冷启动。
+       上一版 ramp 给到 0.11 秒，实测峰值落在 298 ms，
+       前 300 ms 只有 -34 dBFS——玩家点完移动，半秒后才听见动静。 */
+    const e = (1 - Math.exp(-t / 0.03)) * Math.min(1, (dur - t) / 0.28);
+    const f = 42 + 16 * (1 - Math.exp(-t / 0.35));
+    p1 += f / SR; if (p1 >= 1) p1 -= 1;
+    p2 += f * 0.5 / SR; if (p2 >= 1) p2 -= 1;
+    p3 += f * 2 / SR; if (p3 >= 1) p3 -= 1;
+    const saw = (p1 * 2 - 1) * 0.55 + (p2 * 2 - 1) * 0.30 + (p3 * 2 - 1) * 0.10;
+    const fire = 0.55 + 0.45 * Math.sin(TAU * 28 * t);
+    const nzL = rng(), nzR = rng();
+    /* 机械噪声只留 0.05：上一版 0.16 把重心顶到 2.1 kHz，
+       听着像吸尘器而不是柴油机。锯齿才是主体。 */
+    const l = lpL.p(saw * fire) * 0.95 + bpL.p(nzL) * 0.05;
+    const r = lpR.p(saw * fire * 1.01) * 0.95 + bpR.p(nzR) * 0.05;
+    L[i] = sat(l * e, 1.5);
+    R[i] = sat(r * e, 1.5);
+  }
+  addReverb(L, R, { size: 0.9, wet: 0.10, fb: 0.60 });
+  return { L, R, dur, note: '轮式引擎 · 42→58Hz 起步，无金属节拍' };
+}
+
+/* ── 履带：坦克机动 ──
+   履带板一块一块轧过诱导轮，每秒 42 下，每下是一记金属撞击。
+   **这个节拍就是它和轮式的唯一分野**——去掉节拍，剩下的
+   低频轰鸣跟 sEngine 几乎一样。三层：
+     低频轰鸣（36→52 Hz 锯齿）
+     履带板撞击（1.5 kHz 带通瞬态，衰减 12 ms）
+     沙土摩擦（3 kHz 以上，低电平，一直在）
+   撞击的包络不用逐次触发采样，而是拿 t×42 的小数部分做
+   exp(-frac/0.16)：相位过整数就自然放一拍，代码里没有循环。 */
+function sTrack(seed) {
+  const dur = 1.15, n = Math.round(dur * SR);
+  const L = new Float32Array(n), R = new Float32Array(n);
+  const rng = makeRng(seed);
+  const lpL = new Biquad().set('lp', 620, 0.72);
+  const lpR = new Biquad().set('lp', 660, 0.72);
+  const mtL = new Biquad().set('bp', 1500, 1.3);
+  const mtR = new Biquad().set('bp', 1620, 1.3);
+  const frL = new Biquad().set('hp', 3000, 0.7);
+  const frR = new Biquad().set('hp', 3200, 0.7);
+  let p = 0;
+  const rate = 42;
+  for (let i = 0; i < n; i++) {
+    const t = i / SR;
+    /* 同 engine：起音 0.05 秒。上一版 0.09 秒 + 节拍累积，
+       峰值跑到 554 ms——玩家已经走到位了才听见履带。 */
+    const e = (1 - Math.exp(-t / 0.03)) * Math.min(1, (dur - t) / 0.30);
+    const f = 36 + 16 * (1 - Math.exp(-t / 0.40));
+    p += f / SR; if (p >= 1) p -= 1;
+    const rumble = (p * 2 - 1) * 0.8;
+    const ph = t * rate;
+    const frac = ph - Math.floor(ph);
+    const hit = Math.exp(-frac / 0.11);
+    const nzL = rng(), nzR = rng();
+    /* 沙土摩擦只留 0.03：上一版 0.10 把重心推到 5.3 kHz、
+       波峰因数压到 7.7 dB——听感是"一阵风声"，没有履带该有的重量。 */
+    const l = lpL.p(rumble) * 0.88 + mtL.p(nzL) * hit * 0.42 + frL.p(nzL) * 0.03;
+    const r = lpR.p(rumble * 1.01) * 0.88 + mtR.p(nzR) * hit * 0.42 + frR.p(nzR) * 0.03;
+    L[i] = sat(l * e, 1.25);
+    R[i] = sat(r * e, 1.25);
+  }
+  addReverb(L, R, { size: 1.0, wet: 0.12, fb: 0.64 });
+  return { L, R, dur, note: '履带 · 42 次/秒金属节拍 + 低频轰鸣' };
+}
+
 /* ── 战场底噪：唯一真缺的槽 ──
    60 秒无缝循环。四层：
      低频轰鸣（远处持续炮击的空气声，20–90 Hz）
@@ -460,9 +689,21 @@ const SPEC = {
   shell: { fn: sShell, seed: 0x51A3, mode: 'peak', target: -1.0, out: 'shell-synth' },
   fire:  { fn: sFire,  seed: 0x7C21, mode: 'peak', target: -3.0, out: 'fire-synth'  },
   build: { fn: sBuild, seed: 0x2D99, mode: 'rms',  target: -17.0, out: 'build-synth' },
-  event: { fn: sEvent, seed: 0x6E11, mode: 'rms',  target: -18.0, out: 'event-synth' },
+  /* event 原来是 rms −18，结果峰值只到 −12、进游戏还要再乘 vol.sfx 0.65，
+     输出峰值 −15.7——比全库其余音效低 10 dB，等于没有。
+     它是**一次性提示音**，不是环境层，论"喊住玩家"该看峰值：
+     import 那边同名槽的规格一直是 peak −4.0，两边口径对齐。 */
+  event: { fn: sEvent, seed: 0x6E11, mode: 'peak', target: -4.0, out: 'event-synth' },
   alarm: { fn: sAlarm, seed: 0x3A77, mode: 'rms',  target: -15.5, out: 'alarm-synth' },
   move:  { fn: sMove,  seed: 0x1F45, mode: 'rms',  target: -21.0, out: 'move-synth'  },
+  /* 以下四个是"按兵种分派"那一层要用的槽。
+     定标口径按用途分：开枪是瞬态，看峰值；引擎/履带是持续音，看 RMS——
+     RMS 定标会让引擎的实际响度落在枪声之下 10 dB 以上，这正是要的
+     （它是背景动作，不该跟交火抢耳朵）。 */
+  rifle: { fn: sRifle,  seed: 0x8B31, mode: 'peak', target: -2.5, out: 'rifle-synth'  },
+  step:  { fn: sStep,   seed: 0x5C07, mode: 'peak', target: -7.0, out: 'step-synth'   },
+  engine:{ fn: sEngine, seed: 0x2A9D, mode: 'rms',  target: -19.0, out: 'engine-synth' },
+  track: { fn: sTrack,  seed: 0x6F53, mode: 'rms',  target: -19.5, out: 'track-synth'  },
   amb:   { fn: sAmb,   seed: 0x4B73, mode: 'rms',  target: -31.0, out: 'amb-synth'  }
 };
 

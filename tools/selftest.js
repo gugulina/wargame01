@@ -2438,5 +2438,61 @@ console.log('\n[36] 点击路由：一格两层时先开火');
      org0 + ' → ' + api.uid('R7').org);
 }
 
+console.log('\n[37] 音效按兵种分派');
+{
+  const S = api.SONIC, T = api.TYPE, A = api.ASSETS.sfx;
+  ok('前提：SONIC / TYPE / ASSETS.sfx 都导出了', !!S && !!T && !!A);
+
+  /* 表要覆盖全部兵种。漏一个**不会报错**，只会静音或退回步兵声——
+     玩的时候很难归因到"某支部队没配音"，所以在这里一次性卡死。 */
+  const miss = Object.keys(T).filter(k => !S.tab[k]);
+  ok('TYPE 里每个兵种都在分派表里（' + Object.keys(T).length + ' 个）',
+     miss.length === 0, miss.join(','));
+
+  /* 三条主轴：枪 vs 炮、腿 vs 轮 vs 履带。
+     挑的是"改错了一定听得出来"的那些，不是随便凑数。 */
+  ok('步兵攻击 = 步枪（不是炮）', S.of('inf', 'a') === 'rifle', S.of('inf', 'a'));
+  ok('重型坦克攻击 = 炮声', S.of('harm', 'a') === 'shell', S.of('harm', 'a'));
+  ok('旅炮兵攻击 = 炮声', S.of('art', 'a') === 'shell', S.of('art', 'a'));
+  ok('装步营攻击 = 步枪（下车作战）', S.of('mech', 'a') === 'rifle', S.of('mech', 'a'));
+  ok('步兵机动 = 脚步', S.of('inf', 'm') === 'step', S.of('inf', 'm'));
+  ok('重型坦克机动 = 履带', S.of('harm', 'm') === 'track', S.of('harm', 'm'));
+  ok('摩步营机动 = 引擎', S.of('mob', 'm') === 'engine', S.of('mob', 'm'));
+  ok('牵引炮兵机动 = 引擎（炮不会自己走）', S.of('art', 'm') === 'engine', S.of('art', 'm'));
+
+  /* 表里写的名字必须在 ASSETS 里真有。写成 'rifle-synth' 这种文件名
+     （而不是槽位名）不会抛错，只会静默降级成无声。 */
+  const bad = [];
+  for (const k of Object.keys(S.tab)) {
+    for (const kind of ['m', 'a']) {
+      const slot = S.tab[k][kind];
+      if (!A[slot]) bad.push(k + '.' + kind + '→' + slot);
+    }
+  }
+  ok('分派表里每个槽位都能在 ASSETS 里找到', bad.length === 0, bad.slice(0, 4).join(' '));
+
+  /* 真路径：把 sfx 截下来，看 FX 到底选了哪一条。
+     只验 SONIC.of 不够——那只能证明表对了，证明不了 FX 用上了它
+     （上一版 FX.hit 就是自己写死 defLoss>=3 选炮，根本不查表）。 */
+  const got = [];
+  const orig = api.FX.sfx;
+  api.FX.on = true;
+  api.FX.sfx = function (n) { got.push(n); };
+
+  api.FX.move({ type: 'harm' });
+  api.FX.move({ type: 'inf' });
+  api.FX.hit({
+    attType: 'art', defLoss: 1, attLoss: 0,
+    defPos: [0, 0], attPos: [0, 0], defSide: 'red', attSide: 'blue'
+  });
+  api.FX.move(undefined);           // 没有单位时的兜底
+
+  api.FX.sfx = orig;
+  ok('FX.move 走分派：坦克→履带、步兵→脚步',
+     got[0] === 'track' && got[1] === 'step', got.join(','));
+  ok('FX.hit 按发起方兵种选炮声', got[2] === 'shell', got[2]);
+  ok('缺单位时兜底出声，不静音', got[3] === 'step', got[3]);
+}
+
 console.log('\n通过 ' + pass + ' 项，失败 ' + fail + ' 项');
 process.exit(fail ? 1 : 0);
