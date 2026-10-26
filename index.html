@@ -49,8 +49,20 @@
   }
 
   /* ───────── 左栏：封面 ───────── */
+  /* 左栏跟随滚动，但**必须包一层**：
+     sticky 元素的粘性范围是它的包含块。直接把它当 grid item，浏览器
+     （Blink）会把包含块算成整个 .shell，而不是它自己那一格——实测滚到底时
+     它会一路粘到 top:34，压进第 2 行的页脚里。左栏没有背景，两边的字就
+     叠印在一起（视口 700px 高时重叠近 200px，「战役进度」糊在「怎么玩」
+     第 1 条上；视口要 896px 以上才恰好错开，纯属巧合）。
+     包一层 .col-left 并让它撑满整行，包含块就变成这一列，粘到列尾自然停住。
+     .foot-grid / footer 的 z-index 与背景只是兜底，不是主修。 */
+  .col-left { min-width: 0; align-self: stretch; }
   .masthead { position: sticky; top: 34px; }
-  @media (max-width: 900px) { .masthead { position: static; } }
+  @media (max-width: 900px) {
+    .col-left { align-self: auto; }
+    .masthead { position: static; }
+  }
 
   .kicker {
     display: flex; align-items: center; gap: 9px;
@@ -256,11 +268,19 @@
   }
 
   /* ───────── 页脚三个块 ───────── */
+  /* 页脚要**盖住**左栏（原因见 .masthead 那段）。只有 z-index 不够：
+     左栏的字会从方框之间、以及行间距那条 44px 的缝里漏出来。
+     那圈"阴影"不是装饰，是把背景向上铺满缝——用 box-shadow 而不是
+     负 margin + padding，是因为它不挪 border、也不挪内容位置。 */
   .foot-grid {
-    grid-column: 1 / -1; margin-top: 14px;
+    grid-column: 1 / -1; position: relative; z-index: 2;
+    margin-top: 14px; background: var(--bg); box-shadow: 0 -58px 0 var(--bg);
     display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px;
   }
-  @media (max-width: 900px) { .foot-grid { grid-template-columns: 1fr; } }
+  @media (max-width: 900px) {
+    /* 窄屏左栏本来就不跟随，页脚不用替它让位 */
+    .foot-grid { grid-template-columns: 1fr; background: none; box-shadow: none; }
+  }
 
   .box {
     background: var(--paper); border: 1px solid var(--line); border-radius: 11px;
@@ -279,7 +299,10 @@
   .box .dim { color: var(--ink3); font-size: 11.5px; }
 
   footer {
-    grid-column: 1 / -1; margin-top: 6px; padding-top: 16px;
+    grid-column: 1 / -1; position: relative; z-index: 2;
+    margin-top: 6px; padding-top: 16px;
+    /* 同样是为了盖住左栏：填掉它与页脚方框之间那条 44px 的行间距 */
+    box-shadow: 0 -50px 0 var(--bg);
     border-top: 1px solid var(--line);
     font-size: 11px; color: var(--ink3); line-height: 1.9;
     display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap;
@@ -304,6 +327,9 @@
 <body>
 <main class="shell" id="shell">
 
+  <!-- 这一层不能删：sticky 的包含块就是它。删掉之后左栏会在滚到底时压住页脚，
+       而且只在矮视口下才看得出来（原因见上面 .col-left 那段注释）。 -->
+  <div class="col-left">
   <header class="masthead fade">
     <div class="kicker">架空兵棋 · 单机战役</div>
     <h1>苍屿战役</h1>
@@ -333,6 +359,7 @@
       存档只写在本机浏览器里 · 游戏内可导出成文件带走
     </div>
   </header>
+  </div>
 
   <section class="fade" style="animation-delay:.06s">
     <div class="col-head">

@@ -277,10 +277,23 @@ function skip(name, why) {
   const allCleared = {};
   for (const l of readyAll) allCleared[l.id] = 'win';
 
-  const homeEmpty = loadHome().window.__HOME__;
+  const homeDom = loadHome();
+  const homeEmpty = homeDom.window.__HOME__;
   ok('首页拿到了关卡数据', !!(homeEmpty && homeEmpty.levels && homeEmpty.levels.length));
 
   if (homeEmpty) {
+    /* 左栏那个 sticky 必须包在 .col-left 里。直接当 grid item 时，Blink 把
+       粘性范围算成整个 .shell 而不是它自己那一格，滚到底部时左栏会一路粘到
+       top:34、压进页脚，两边的字叠印在一起（「战役进度」糊在「怎么玩」第 1 条
+       上）。这个坏法只在**视口高度不足**时才看得见——普通截图、所有 DOM 断言
+       都照常绿，所以只能守结构：删掉包裹层的人不会收到任何别的提示。
+       包一层、让它撑满整行之后，包含块变成这一列，粘到列尾自然停住。 */
+    const mastEl = homeDom.window.document.querySelector('.masthead');
+    const mastWrap = mastEl && mastEl.parentElement;
+    ok('左栏 sticky 包在 .col-left 里（否则滚到底会压住页脚）',
+       !!(mastWrap && mastWrap.classList.contains('col-left')),
+       mastEl ? '父元素是 ' + (mastWrap.className || mastWrap.tagName) : '找不到 .masthead');
+
     ok('首页关数与引擎一致',
        homeEmpty.levels.length === LV.length,
        '首页 ' + homeEmpty.levels.length + ' / 引擎 ' + LV.length);
