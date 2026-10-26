@@ -345,6 +345,13 @@ const MUTANTS = [
    "  if (s) s.textContent = levelNoText(LEVEL, true) + LEVEL.type + ' · ' + LEVEL.when;",
    '「附属」只说一次', 'brief'],
 
+  /* chapterStat 在 v4.8 是死代码（512 字节、0 次执行），接进结算页之后
+     必须有断言盯着它。删掉那一行渲染，玩家只会看到少了一行统计——
+     不报错、不崩，正是"死代码又长回来"的形状。 */
+  ['结算面板不再报本章进度（chapterStat 又变回死代码）',
+   '  if (cs && cs.total > 0) {',
+   '  if (false && cs.total > 0) {',
+   '结算面板报本章进度', 'brief'],
 
   /* 战报两条通道：bold（作者的 `**重点**` 能加粗）与 esc（存档里的标签只能是文本）。
      两条断言必须各配一条变异——只变异其中一条，另一条永远是"没被证明过的绿"。 */

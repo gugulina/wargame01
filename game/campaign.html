@@ -6252,10 +6252,24 @@ function showOverlay() {
             row('我方剩余战力', now + ' / ' + lost) +
             row('结束回合', state.turn);
   }
-  document.getElementById('mStats').innerHTML = stats;
-
   /* 写战役进度。失败只记 played 不解锁——下一关的开场会因此引用"失守"那句前情 */
   markResult(LEVEL.id, state.result);
+
+  /* 本章进度。**必须在 markResult 之后**：chapterStat 读的是刚写进去的进度，
+     放在前面会少算这一关（显示 0 / 5，实际已经 1 / 5），而且差一不报错。
+     这一行也是 chapterStat 从死代码变成活代码的地方——v4.8 体检发现它
+     在 __WAR__ 里导出了、注释写着"菜单页据此决定要不要自动展开"，
+     但**引擎里一处都没调**（512 字节、0 次执行）：菜单页是独立页面，
+     读的是 data/levels.js 快照，根本用不上引擎函数。
+     与其删掉，不如给它一个真用得上的位置——结算页正是玩家最想知道
+     "这一章还剩几关"的那一刻。数字口径与首页的章头一致（都数 ready 关，
+     含附属），两处说法不同会让人以为其中一处算错了。 */
+  const cs = chapterStat(LEVEL.ch);
+  if (cs && cs.total > 0) {
+    const label = LEVEL.ch === 0 ? '序章' : '本章已达成';
+    stats += row(label, cs.cleared + ' / ' + cs.total + ' 关');
+  }
+  document.getElementById('mStats').innerHTML = stats;
 
   /* 下一关：只有通关后才给。失败时直接藏掉，连提示都不出——
      这一关都还没过，谈下一关是打扰。 */

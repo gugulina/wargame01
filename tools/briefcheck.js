@@ -884,6 +884,44 @@ function skip(name, why) {
     ok('副标题保留了类型与日期', /防御/.test(sub) && /新历/.test(sub), sub);
   }
 
+  console.log('[21] 结算面板报本章进度（chapterStat 的唯一调用点）');
+  {
+    const W = window.__WAR__;
+    /* chapterStat 在 v4.8 体检里被标成死代码：它在 __WAR__ 里导出了、
+       注释写着"菜单页据此决定要不要自动展开"，但**引擎里一处都没调**——
+       菜单页是独立页面、读的是 data/levels.js 快照，根本用不上引擎函数。
+       512 字节、0 次执行，这正是"看起来有人管，其实没人验"的形状。
+       现在它唯一的位置是结算页。断言打在渲染结果（#mStats 的文本）上，
+       不直接调 chapterStat——否则把 showOverlay 里那一行删掉，测试照样绿。
+
+       这一段同时守住一个顺序陷阱：chapterStat 读进度，必须排在
+       markResult 之后。排在前面就少算当前这一关（显示 0 / 5，实际 1 / 5），
+       差一不报错、不崩，只有对着两个界面比才看得出来。 */
+    W.writeProgress({ cleared: {}, played: {}, deck: null, last: null });
+    W.enterLevel('C3B', { noIntro: true, noSave: true });
+    /* 把回合推到最后一回合，让 judgeFinal 走 survive 的达成分支。
+       真打十个回合只为看一行字，代价和收益不成比例。 */
+    W.getState().turn = W.LEVEL.maxTurns;
+    W.judgeFinal();
+
+    const p = W.readProgress();
+    ok('前提：判定把这一关写进了进度', !!p.cleared[W.LEVEL.id], JSON.stringify(p.cleared));
+
+    const statsEl = doc.getElementById('mStats');
+    const chLv = W.LEVELS.filter(l => l.ch === W.LEVEL.ch && l.ready);
+    const exp = chLv.filter(l => p.cleared[l.id]).length;
+    const want = exp + ' / ' + chLv.length + ' 关';
+    ok('结算面板出现', !doc.getElementById('overlay').classList.contains('hidden'));
+    ok('结算面板报本章进度', statsEl.textContent.indexOf('本章已达成') >= 0,
+       statsEl.textContent);
+    /* 分子必须**包含刚打完的这一关**：这正是 chapterStat 排在 markResult
+       之前会漏掉的那一关。期望值从 readProgress() 现算，不写死数字——
+       第 1 章实装关数还会变（还要补 C2B/C4B/C5/C6）。 */
+    ok('本章进度的分子含刚打完的这一关',
+       statsEl.textContent.indexOf(want) >= 0,
+       statsEl.textContent.indexOf(want) >= 0 ? '' : '期望「' + want + '」，实为：' +
+         Array.from(statsEl.querySelectorAll('.stat')).map(d => d.textContent).join(' | '));
+  }
 
   console.log('');
   console.log('通过 ' + pass + ' 项' + (skipped ? ' · 跳过 ' + skipped + ' 项' : '') +
