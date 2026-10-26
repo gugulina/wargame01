@@ -6184,6 +6184,25 @@ function doDepot(u) {
 }
 
 /* ───────────────────────── 点击 ───────────────────────── */
+/* 这一格上"我正选中这支能打谁"。挑法与敌方格一致：先看栈顶，再依次往下。
+   ── 为什么必须单独成一个函数 ──
+   一格可以同时装两层：地表一支我方守备营、空中一架敌机（分层的理由见
+   layerUnitsAt 上面那段）。而 unitAt() 是"地表优先"，于是旧顺序——
+   先判"这格是不是我方单位"——会把它领进「选中 / 轮换 / 点自己取消」分支并
+   return，空中那架永远轮不到。**更糟的是地图已经答应过玩家**：renderBoard
+   给这种格子加了 .atk 描边（格内有 state.targets 里的目标），点下去却只是
+   换了个选中对象。用户报的"防空炮打不了自己人头顶的敌机"就是这条。
+   所以：格里有可打目标 → 先开火；没有才谈选中。
+   ── 顺带说明为什么不碍事 ──
+   选中单位自己就在这格时不会误触：那架敌机与它距离 0，而所有兵种的近界
+   最少是 1（见 minRange），0 格从来不在 state.targets 里。而"点自己的部队
+   让它干活"仍然走得通——打完一发 u.fired 为真、targets 清空，再点这格就是
+   选中了。唯一的代价是"先给守备营下令、又还没开火"这一个瞬间点不出来，
+   先打一发或换一格点即可。 */
+function targetAt(r, c) {
+  if (!state.selected || !state.targets.length) return null;
+  return unitsAt(r, c).find(x => state.targets.includes(x)) || null;
+}
 function onHexClick(r, c) {
   if (!state || state.result) return;
   const u = unitAt(r, c);
@@ -6198,15 +6217,24 @@ function onHexClick(r, c) {
        不再走正常的选择 / 移动流程——不然玩家会一边选目标一边把自己的部队选中，
        状态很容易串。 */
     if (state.cardId) {
-      const c = cardById(state.cardId);
+      /* 变量名不能叫 c：参数里的 c 是点击的列号，以前只调 cardFitsUnit(card, u)
+         没出事，一旦要往下写 unitsAt(r, c) 就会被这张卡遮住列号，
+         查出 0 支单位、静默走回老路（这次真踩了）。 */
+      const card = cardById(state.cardId);
       /* 点空地 = 取消。只给 Esc 一条退路的话，手机上就没法反悔了。 */
       if (!u) { cancelCard(); return; }
-      if (!cardFitsUnit(c, u)) {
-        log('这张「' + (c ? c.name : '卡') + '」要选一个' +
-            (c && c.target === 'enemy' ? '敌方' : '己方') + '单位。', 'sys');
+      /* 同格两层时按卡片的指向挑人：指向敌方就挑那架敌机，指向己方就挑自己人。
+         以前只看 unitAt()（地表优先），于是"我方据点上空压着一架敌机"的时候，
+         「炮火准备」这类指向敌方的卡永远落不下去——地表那支是自己人，
+         cardFitsUnit 当场判否，玩家只看到"这张卡要选一个敌方单位"。
+         和防空炮打不了同格敌机是同一个根，一起修。 */
+      const pick = unitsAt(r, c).find(x => cardFitsUnit(card, x));
+      if (!pick) {
+        log('这张「' + (card ? card.name : '卡') + '」要选一个' +
+            (card && card.target === 'enemy' ? '敌方' : '己方') + '单位。', 'sys');
         return;
       }
-      useCard(state.cardId, u);
+      useCard(state.cardId, pick);
       return;
     }
     /* 工程模式 */
@@ -6238,6 +6266,11 @@ function onHexClick(r, c) {
         doMove(state.selected, [r, c]);
         return;
       }
+      /* 开火优先于选中。**位置就在移动之后**：移动模式下点蓝格是明确的
+         "我要走过去"，而飞机不挡地面通行，同一格既可能是落脚点又是射击目标，
+         那时按玩家点亮的那片蓝格办事。 */
+      const tHere = targetAt(r, c);
+      if (tHere) { doAttack(state.selected, tHere); return; }
       /* 同一格里已经选中了一支时，再点这格：
          · 有堆叠 → 轮到下一支（不然下层永远选不到）
          · 只有一支 → 取消选中
@@ -6254,7 +6287,7 @@ function onHexClick(r, c) {
       select(u); return;
     }
     /* 敌方堆叠格：点格子时按"栈顶优先、其次格内其他"挑一个可打的目标 */
-    const rTgt = unitsAt(r, c).find(x => x.side === 'red' && state.selected && state.targets.includes(x));
+    const rTgt = targetAt(r, c);
     if (rTgt) {
       doAttack(state.selected, rTgt);
       return;
@@ -8403,6 +8436,12 @@ const AIDE = [
        '所以敌机来一次掉一次、越打越虚，只能飞回自己后方缓——这就是「驱散」。<br>' +
        '注意三点：<b>只压敌方</b>、<b>只压飞机</b>；阵地被打光耐久、或者格子被敌军踩住，' +
        '压制立刻停；组织度掉到 <b>40</b> 就不再往下压——高炮负责削弱，不负责把飞机打垮。' },
+  { q: '我的部队头顶上压着敌机，点那一格是打它还是选自己人？',
+    a: '先打。格子里能打的目标排在选中之前——那一格在地图上已经被圈成可攻击目标了，' +
+       '点了就该开火。<br>' +
+       '地表和空中是<b>两层</b>，所以我方守备营在地表、敌机在头顶时可以同时存在。' +
+       '打完之后选中会被清空，再点这一格就回到你自己的部队。<br>' +
+       '打不到的就别指望：够不着的部队点这格只会切换选中，不会白开一枪。' },
   { q: '牵引炮为什么这么难用？',
     a: '这是刻意的。<code>架设 → 射击 → 收炮 → 转移</code> 是一个完整的四回合循环，' +
        '射程就是拿这个节奏换来的。<br>' +

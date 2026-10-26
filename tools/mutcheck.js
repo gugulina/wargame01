@@ -337,6 +337,22 @@ const MUTANTS = [
    '  const aaSup = aaSuppressed(u);\n  if (false) {',
    '面板点名「被防空压制」', 'brief'],
 
+  /* 点击路由：一格两层时该打谁。三条分别对应"开火优先""只打真能打的""卡也认层"。 */
+  ['点格子又退回"先判是不是我方单位"（防空炮打不了同格敌机）',
+   '      if (tHere) { doAttack(state.selected, tHere); return; }',
+   '      if (false) { doAttack(state.selected, tHere); return; }',
+   '点这一格 = 开火'],
+
+  ['一格两层时不看能不能打，格里有敌人就开火',
+   '  if (!state.selected || !state.targets.length) return null;\n  return unitsAt(r, c).find(x => state.targets.includes(x)) || null;',
+   '  if (!state.selected) return null;\n  return unitsAt(r, c).find(x => x.side !== state.selected.side) || null;',
+   '不会瞎开火'],
+
+  ['战术卡又只认 unitAt 算出来的那一支（指向敌方的卡落不到同格飞机上）',
+   '      const pick = unitsAt(r, c).find(x => cardFitsUnit(card, x));',
+   '      const pick = cardFitsUnit(card, u) ? u : null;',
+   '指向敌方的战术卡落在空中那一支上'],
+
 ];
 
 /* 锚点按 LF 写，但 campaign.html 是 CRLF（7356 行全是）。

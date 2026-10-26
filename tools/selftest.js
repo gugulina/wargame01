@@ -2371,5 +2371,72 @@ console.log('\n[35] 防空压制：高炮的「驱散」作用');
   ok('飞机的补给修正不是断绝那档 0.70', Math.abs(deepSup.mod - 0.70) > 1e-9, deepSup.mod);
 }
 
+/* ───────── 三十六、点击路由：一格两层时先开火 ─────────
+   用户报的：防空炮打不到"自己据点头顶上"的敌机——点那格只会选中自己的守备营。
+   根因是 unitAt() 地表优先，而 onHexClick 旧顺序"先判这格是不是我方单位"就 return。
+   这一组必须走真实点击：直接调 doAttack 的话，这个 bug 根本抓不到
+   （和 [14] 里"只测 doMove"是同一个教训）。 */
+console.log('\n[36] 点击路由：一格两层时先开火');
+{
+  /* 场景：西部军区防空营（射程 2、对空）旁边的平原格上，
+     地表停着我方一支守备营、空中压着一架敌战斗机。 */
+  const set46 = () => {
+    api.newGame({ level: 'C3', noSave: true });
+    const st = api.getState();
+    const gun = api.uid('B9');       // 西部军区防空营
+    const gar = api.uid('B2A');      // 地表守备营
+    const air = api.uid('R7');       // 敌战斗机中队
+    const hex = [gun.pos[0] + 1, gun.pos[1]];
+    gar.pos = hex.slice();
+    air.pos = hex.slice();
+    return { st, gun, gar, air, hex };
+  };
+
+  let s = set46();
+  ok('前提：同一格里地表一支、空中一支',
+     api.unitsAt(s.hex[0], s.hex[1]).length === 2,
+     s.hex.join(',') + ' 内 ' + api.unitsAt(s.hex[0], s.hex[1]).length + ' 支');
+  ok('前提：unitAt 取到的是地表那支（bug 的根就在这个"地表优先"）',
+     api.unitAt(s.hex[0], s.hex[1]) === s.gar, api.unitAt(s.hex[0], s.hex[1]).id);
+
+  api.select(s.gun);
+  ok('选中高炮后，同格上空的敌机在可打目标里',
+     api.getState().targets.includes(s.air), api.getState().targets.length + ' 个目标');
+
+  const air0 = s.air.str;
+  api.onHexClick(s.hex[0], s.hex[1]);
+  ok('点这一格 = 开火（高炮用了本回合的行动）', s.gun.fired === true);
+  ok('没有被领进"选中我方单位"分支', api.getState().selected !== s.gar,
+     '选中变成了 ' + (api.getState().selected ? api.getState().selected.id : '空'));
+  ok('敌机确实挨了打', !api.uid('R7') || api.uid('R7').str < air0,
+     air0 + ' → ' + ((api.uid('R7') || {}).str));
+
+  /* 打完这一发之后，同一格就该回到"选中守备营"——开火优先不等于把选中堵死 */
+  api.onHexClick(s.hex[0], s.hex[1]);
+  ok('打完之后再点这格：回到选中守备营',
+     api.getState().selected === s.gar,
+     api.getState().selected && api.getState().selected.id);
+
+  /* 反例：不能谁都开火。普通步兵打不到飞机，点这格就该老老实实选中 */
+  s = set46();
+  api.select(api.uid('B1A'));      // 岚口预备役第 1 营，对空打不着
+  ok('前提：这支步兵打不到飞机', !api.canTarget(api.uid('B1A'), s.air));
+  api.onHexClick(s.hex[0], s.hex[1]);
+  ok('够不着的部队点这格不会瞎开火，只是切换选中',
+     api.getState().selected === s.gar && s.air.str > 0 && s.air.org === 100,
+     api.getState().selected && api.getState().selected.id);
+
+  /* 战术卡：同一个根。"炮火准备"指向敌方，地表那支是自己人，
+     以前 cardFitsUnit 当场判否，卡永远落不到头顶那架飞机上。 */
+  s = set46();
+  s.st.deck = ['barrage'];
+  s.st.cardId = 'barrage';
+  const org0 = s.air.org;
+  api.onHexClick(s.hex[0], s.hex[1]);
+  ok('指向敌方的战术卡落在空中那一支上',
+     api.uid('R7').org === Math.max(5, org0 - 20) && s.st.cardId === null,
+     org0 + ' → ' + api.uid('R7').org);
+}
+
 console.log('\n通过 ' + pass + ' 项，失败 ' + fail + ' 项');
 process.exit(fail ? 1 : 0);
