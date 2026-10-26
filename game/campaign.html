@@ -58,7 +58,7 @@
      <link> 不会——跟 data/levels.js 必须用 <script src> 是同一个原因。
      ?v= 跟着顶栏版本走（tools/check.js 校验），否则改完样式玩家可能还在吃
      GitHub Pages 的十分钟缓存，看到的是一半新一半旧的页面。 -->
-<link rel="stylesheet" href="campaign.css?v=4.9">
+<link rel="stylesheet" href="campaign.css?v=4.10">
 </head>
 <body>
 <div class="app">
@@ -72,7 +72,7 @@
       <span class="pill" id="phasePill">我方阶段</span>
       <!-- 全项目唯一的版本标记：tools/export-levels.js 按这个 span 的原样文本抓版本号，
            开始页撤掉之后它挪到了顶栏，标签必须保持 <span id="verTag"> 这个形状 -->
-      <span id="verTag">v4.9</span>
+      <span id="verTag">v4.10</span>
       <!-- 存档异常：只在真的写失败时出现（隐私模式 / 配额满 / 被清理）。
            默认 display:none，别让它平时占位——一排胶囊里突然多一个红字，
            玩家第一反应是"我是不是哪里点坏了"。 -->
@@ -2944,8 +2944,17 @@ const ASSETS = {
     lose:    'sfx/lose.ogg'
   },
 
-  /* 音乐：循环轨，建议 ogg 96kbps 或 mp3 128kbps，单条 1~3 分钟 */
-  bgm: { menu: null, battle: null, tension: null, result: null },
+  /* 音乐：循环轨，建议 ogg 96kbps 或 mp3 128kbps，单条 1~3 分钟。
+     全部自制（合成器编曲），谱在 game/audio-lab/bgm-tracks.js，
+     改参数后用 `npm run bgm` 重渲染，别手改 ogg。
+     result 拆成 win / lose 两个键：一首曲子没法同时干庆功和悼亡。 */
+  bgm: {
+    menu:    'bgm/menu.ogg',      // 战役地图 / 档案柜，60 秒，D 多利亚
+    battle:  'bgm/battle.ogg',    // 战斗底噪，60 秒，D 小调 96 BPM
+    tension: 'bgm/tension.ogg',   // 我方建制崩溃时压上来，48 秒，低音半音上行
+    win:     'bgm/win.ogg',       // 达成目标，40 秒，D 小调转大调
+    lose:    'bgm/lose.ogg'       // 失败，48 秒，停在属和弦不解决
+  },
 
   /* 剧情：背景图与立绘。立绘走 3:4 竖半身，源图 480×640（成显 132×176）。
      portHQ 是符号位——司令部那通电话不放人脸，缺素材时渲染电台符号。
@@ -3095,6 +3104,21 @@ const FX = {
       const p = a.play();
       if (p && p.catch) p.catch(() => {});
       this._bgmEl = a;
+    } catch (e) {}
+  },
+
+  /* ── 补播：解锁之后把被拦下的那一曲接上 ──
+     浏览器无手势时拒绝 play()，元素停在 paused，而且**解锁不会让它自己恢复**。
+     偏偏这是最常见的一条路径：从菜单页点「进入战役」跳到引擎，引擎是新文档，
+     那个页面的手势不算数——于是整局静音，还不会有任何报错。
+     光有 unlock() 不够，少了这一步等于白做。 */
+  resumeBgm() {
+    if (!this.on || !this._bgmName || !this._bgmEl) return;
+    try {
+      if (this._bgmEl.paused) {
+        const p = this._bgmEl.play();
+        if (p && p.catch) p.catch(() => {});
+      }
     } catch (e) {}
   },
 
@@ -6047,6 +6071,14 @@ function settlePhase() {
   refreshFields();
   updateControl();
   checkEvents();
+
+  /* 态势音乐：有我方建制崩溃就压一层紧张，都站住了回战斗曲。
+     FX.bgm 同名不重播，所以每回合喊一次没有代价；
+     不这么做的话，玩家崩了三个营，音乐还在平稳地敲小军鼓——
+     战报在喊"建制崩溃"，耳朵听到的是"一切正常"，这是最伤沉浸的一种错。 */
+  FX.bgm(state.units.some(u => u.side === 'blue' && u.str > 0 && u.broken)
+    ? 'tension' : 'battle');
+
   render();
 }
 
@@ -6293,7 +6325,7 @@ function showOverlay() {
 
   el.classList.remove('hidden');
   clearSave();                 // 分胜负了，这一局的存档作废，下次进来是新局
-  FX.bgm('result');
+  FX.bgm(state.result === 'fail' ? 'lose' : 'win');
   FX.sfx(state.result === 'fail' ? 'lose' : 'win');
 }
 
@@ -8091,6 +8123,10 @@ function openHQ(tab) {
   renderHQ();
   hqReturnFocus = document.activeElement;
   document.getElementById('hqScreen').classList.remove('hidden');
+  /* 指挥部不是战场，配 menu 曲。
+     ASSETS.bgm.menu 的注释写着「战役地图 / 档案柜」，但在此之前没有任何一行
+     代码播过它——一个永远不响的槽位比没有更坏：换素材的人会以为它接好了。 */
+  FX.bgm('menu');
   /* 焦点要真的进到对话框里，否则 Tab 会从"HQ 按钮的下一个"继续走，
      在视觉上等于跳过了整个面板。第一个可聚焦元素就是页签栏。 */
   const first = document.querySelector('#hqScreen button');
@@ -8107,6 +8143,9 @@ function closeHQ() {
      下次 openHQ 反正会整块重画，清掉没有副作用。 */
   document.getElementById('hqBody').innerHTML = '';
   if (wasOpen) {
+    /* 回战场要把曲子接回来。这里不能写死 'battle'：打完一关再翻存档页，
+       回去该是结算曲——写死的话庆功曲会被无名地掐掉，换成小军鼓。 */
+    FX.bgm(state && state.result ? (state.result === 'fail' ? 'lose' : 'win') : 'battle');
     const back = (hqReturnFocus && hqReturnFocus.focus && hqReturnFocus !== document.body)
       ? hqReturnFocus : document.getElementById('board');
     hqReturnFocus = null;
@@ -8491,8 +8530,9 @@ function boot() {
    必须补一个全局的：浏览器规定没有用户手势就不许出声，少这一步 BGM 永远不响，
    而且没有任何报错——只会让人以为音频文件坏了。 */
 ['pointerdown', 'keydown'].forEach(t => {
-  document.addEventListener(t, () => { try { FX.unlock(); } catch (e) {} },
-    { once: true, capture: true });
+  document.addEventListener(t, () => {
+    try { FX.unlock(); FX.resumeBgm(); } catch (e) {}
+  }, { once: true, capture: true });
 });
 
 /* ───────────────────────── 全局错误兜底 ─────────────────────────

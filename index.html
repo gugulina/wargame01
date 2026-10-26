@@ -97,6 +97,30 @@
     background: var(--card); color: var(--ink2); border-color: var(--line); font-weight: 500;
   }
   .btn-ghost:hover { border-color: #CFC9BC; color: var(--ink); }
+
+  /* 背景音乐开关。做成低调的胶囊而不是按钮，因为它不是"操作"，
+     是"音量"——玩家扫一眼知道开没开就够了。 */
+  .bgm-pill {
+    display: inline-flex; align-items: center; gap: 7px;
+    margin: 2px 0 14px; padding: 5px 13px 5px 11px;
+    border: 1px solid var(--line); border-radius: 20px;
+    background: var(--card); color: var(--ink3);
+    font: inherit; font-size: 12px; cursor: pointer;
+    transition: border-color .15s, color .15s;
+  }
+  .bgm-pill:hover { border-color: #CFC9BC; color: var(--ink2); }
+  .bgm-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--ink3); transition: background .15s;
+  }
+  .bgm-pill[aria-pressed="true"] { color: var(--ink2); }
+  .bgm-pill[aria-pressed="true"] .bgm-dot {
+    background: var(--blue); animation: bgmPulse 2.8s ease-in-out infinite;
+  }
+  @keyframes bgmPulse { 0%, 100% { opacity: 1 } 50% { opacity: .4 } }
+  @media (prefers-reduced-motion: reduce) {
+    .bgm-pill[aria-pressed="true"] .bgm-dot { animation: none; }
+  }
   .btn small {
     display: block; margin-top: 2px; font-size: 11.5px;
     font-weight: 400; opacity: .78; letter-spacing: .2px;
@@ -353,6 +377,10 @@
       </div>
       <div class="cells" id="cells"></div>
     </div>
+
+    <button class="bgm-pill" id="bgmBtn" aria-pressed="false" title="背景音乐开 / 关">
+      <span class="bgm-dot" aria-hidden="true"></span><span id="bgmTxt">背景音乐 关</span>
+    </button>
 
     <div class="meta">
       纯静态网页 · 双击就能玩，不用安装、不联网<br>
@@ -741,6 +769,86 @@
     save: save,
     readJSON: readJSON
   };
+})();
+</script>
+<script>
+/* ══════════ 菜单页背景音乐 ══════════
+   引擎里那套 FX 只服务战场，菜单页是另一份文件，所以这里单独放一个最小播放器。
+
+   三个必须做对的点：
+   1. **浏览器不许无交互出声**，所以第一次 pointerdown/keydown 才起播；
+      但点在开关自己身上时要让开关处理，否则"想开的时候已经开了"。
+   2. 音量跟引擎的 vol.bgm 对齐（0.35）。菜单页没有设置面板，
+      所以给一个开关——玩家关不掉音乐的后果不是"嫌吵"，是直接关网页。
+   3. 关过一次就要记住。只关当次的话，刷新页面、鼠标一动它又响了，
+      玩家的理解不会是"它又自动开了"，而是"这开关是坏的"——然后去关标签页。 */
+(function () {
+  'use strict';
+  var SRC = 'game/assets/bgm/menu.ogg';
+  var VOL = 0.35;
+  /* 键名跟存档那套一个前缀（wargame.*）。引擎将来真做设置面板的话，
+     这一项就是"音乐开关"的那一条，两处一起改。 */
+  var KEY = 'wargame.menu.bgm';
+
+  var btn = document.getElementById('bgmBtn');
+  var txt = document.getElementById('bgmTxt');
+  if (!btn || !txt) return;
+
+  var el = null, on = false;
+  /* 隐私模式下 localStorage 会抛，读不到就当"没选过"（默认自动起播） */
+  var mem = null;
+  try { mem = localStorage.getItem(KEY); } catch (e) {}
+
+  function remember(v) {
+    try { localStorage.setItem(KEY, v ? '1' : '0'); } catch (e) {}
+  }
+
+  function unarm() {
+    window.removeEventListener('pointerdown', arm, true);
+    window.removeEventListener('keydown', arm, true);
+  }
+
+  function sync() {
+    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    txt.textContent = '背景音乐 ' + (on ? '开' : '关');
+  }
+
+  function start() {
+    if (on) return;
+    try {
+      if (!el) { el = new Audio(SRC); el.loop = true; el.volume = VOL; }
+      var p = el.play();
+      if (p && p.catch) p.catch(function () {});
+      on = true;
+    } catch (e) { on = false; }
+    sync();
+  }
+
+  function stop() {
+    if (el) { try { el.pause(); } catch (e) {} }
+    on = false;
+    sync();
+  }
+
+  /* 首次交互起播 —— 但点在开关自己身上时让开关处理，
+     否则"想关掉的时候反而被自动打开"，是很烦的一种 bug */
+  function arm(e) {
+    var t = e && e.target;
+    if (t && t.closest && t.closest('#bgmBtn')) return;
+    unarm();
+    if (mem === '0') return;      // 上次明确关过，别自作主张
+    start();
+  }
+  window.addEventListener('pointerdown', arm, true);
+  window.addEventListener('keydown', arm, true);
+
+  btn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    if (on) { unarm(); stop(); remember(false); }
+    else { start(); remember(true); }
+  });
+
+  sync();
 })();
 </script>
 </body>
