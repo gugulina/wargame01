@@ -58,7 +58,7 @@
      <link> 不会——跟 data/levels.js 必须用 <script src> 是同一个原因。
      ?v= 跟着顶栏版本走（tools/check.js 校验），否则改完样式玩家可能还在吃
      GitHub Pages 的十分钟缓存，看到的是一半新一半旧的页面。 -->
-<link rel="stylesheet" href="campaign.css?v=4.10">
+<link rel="stylesheet" href="campaign.css?v=4.11">
 </head>
 <body>
 <div class="app">
@@ -72,7 +72,7 @@
       <span class="pill" id="phasePill">我方阶段</span>
       <!-- 全项目唯一的版本标记：tools/export-levels.js 按这个 span 的原样文本抓版本号，
            开始页撤掉之后它挪到了顶栏，标签必须保持 <span id="verTag"> 这个形状 -->
-      <span id="verTag">v4.10</span>
+      <span id="verTag">v4.11</span>
       <!-- 存档异常：只在真的写失败时出现（隐私模式 / 配额满 / 被清理）。
            默认 display:none，别让它平时占位——一排胶囊里突然多一个红字，
            玩家第一反应是"我是不是哪里点坏了"。 -->
@@ -2932,14 +2932,17 @@ const ASSETS = {
   sfx: {
     uiClick: 'sfx/ui-click.ogg',   // 按钮
     select:  'sfx/ui-select.ogg',  // 选中兵牌
-    move:    'sfx/ui-move.ogg',    // 移动
+    move:    'sfx/move-synth.ogg', // 移动（合成版：短促的装备磕碰，比通用 UI 音更像行军）
     fire:    'sfx/fire-v2.mp3',    // 直射（.22 实弹录音，起振 0.2ms）
     shell:   'sfx/shell-v2.mp3',   // 炮击（爆炸拟音，低频冲击 + 宽带爆裂）
     hit:     'sfx/hit-v2.mp3',     // 命中（173ms 短爆裂）
     kill:    'sfx/kill-v2.mp3',    // 歼灭（多爆点殉爆）
     build:   'sfx/build.ogg',      // 构筑工事 / 布雷 / 架桥
     alarm:   'sfx/alarm-v2.mp3',   // 敌方增援（连续警报）
-    event:   'sfx/event.ogg',      // 剧情事件
+    event:   'sfx/event-synth.ogg',// 剧情事件（合成版：760Hz 电报点划，情报是报上来的）
+    /* 战场底噪：60 秒循环的环境层，独立于一次性音效。
+       **必须留在 preload 的跳过名单里**（529 KB，比首屏还重）。 */
+    amb:     'sfx/amb-synth.ogg',
     win:     'sfx/win.ogg',
     lose:    'sfx/lose.ogg'
   },
@@ -2994,19 +2997,25 @@ const SIG_SVG =
    ═════════════════════════════════════════════════════════ */
 const FX = {
   on: true,
-  vol: { sfx: 0.65, bgm: 0.35 },
-  stat: { sfx: 0, pop: 0, banner: 0, shake: 0, cutin: 0, bgm: 0 },
+  vol: { sfx: 0.65, bgm: 0.35, amb: 0.60 },
+  stat: { sfx: 0, pop: 0, banner: 0, shake: 0, cutin: 0, bgm: 0, amb: 0 },
 
   _pool: {},                // 每种音效复用几个实例，避免连续开火时不断 new Audio
   /* 每种音效最多同时叠几个。炮声有 2 秒尾音，只允许一个：
      一回合打三炮时宁可后一炮盖掉前一炮，也不要糊成一团噪音 */
   _max: { shell: 1, alarm: 1, win: 1, lose: 1, kill: 2, default: 3 },
+  /* 不进 preload 的槽。amb 是 60 秒循环环境层，529 KB——一旦跟着首屏走，
+     首屏就从 455 KB 涨到近 1 MB。BGM 那边白捡的按需加载，正好被它吃掉。 */
+  _noPreload: { amb: true },
   _bgmEl: null,
   _bgmName: null,
+  _ambEl: null,             // 底噪循环元素
+  _ambWant: false,          // 想要它响吗（真值），被浏览器拦下时靠它补播
+  _ambTimer: 0,
   _csChain: Promise.resolve(),
 
   reset() {
-    this.stat = { sfx: 0, pop: 0, banner: 0, shake: 0, cutin: 0, bgm: 0 };
+    this.stat = { sfx: 0, pop: 0, banner: 0, shake: 0, cutin: 0, bgm: 0, amb: 0 };
   },
 
   /* ── 解锁音频：必须在用户手势的同步调用栈里跑 ──
@@ -3038,6 +3047,7 @@ const FX = {
     for (const name of Object.keys(ASSETS.sfx || {})) {
       const rel = ASSETS.sfx[name];
       if (!rel || (this._pool[name] && this._pool[name].length)) continue;
+      if (this._noPreload[name]) continue;
       try {
         const a = new Audio(ASSETS.base + rel);
         a.preload = 'auto';
@@ -3118,6 +3128,76 @@ const FX = {
       if (this._bgmEl.paused) {
         const p = this._bgmEl.play();
         if (p && p.catch) p.catch(() => {});
+      }
+    } catch (e) {}
+  },
+
+  /* ── 音量渐变：底噪不能硬起硬停 ──
+     一次性音效可以是 0 → 满，它有包络；循环噪声轨从静音直接跳满，
+     听感是"啪一下世界被打开了"。升 1.4 秒、降 0.8 秒（退场要比进场快，
+     否则战斗结束了还在慢慢淡，像没关掉的水龙头）。 */
+  _fade(el, to, ms, done) {
+    if (!el) return;
+    if (this._ambTimer) { clearInterval(this._ambTimer); this._ambTimer = 0; }
+    const from = el.volume;
+    const t0 = Date.now();
+    this._ambTimer = setInterval(() => {
+      const k = Math.min(1, (Date.now() - t0) / ms);
+      try { el.volume = from + (to - from) * k; } catch (e) {}
+      if (k >= 1) {
+        clearInterval(this._ambTimer); this._ambTimer = 0;
+        if (done) done();
+      }
+    }, 40);
+  },
+
+  /* ── 战场底噪：远处的炮声与风，一直在响的那一层 ──
+     幂等：想让它响就 amb(true)，不管现在响不响；重复调没有代价。
+     调用点只有"该响的地方"和"该停的地方"，中间不需要记得状态。 */
+  amb(on) {
+    this._ambWant = !!on;
+    const rel = ASSETS.sfx && ASSETS.sfx.amb;
+    if (!rel || typeof Audio === 'undefined') return;
+    if (!on) {
+      const el = this._ambEl;
+      if (!el) return;
+      /* 元素留着复用，只淡出 + 暂停；下次进场直接 play，不用重新下载 529 KB */
+      this._fade(el, 0.0001, 800, () => { try { el.pause(); } catch (e) {} });
+      return;
+    }
+    if (!this.on) return;
+    this.stat.amb++;
+    if (this._ambEl) {
+      /* 已经建过：可能停在暂停态（被拦过 / 刚淡出），接上就是 */
+      if (this._ambEl.paused) {
+        try {
+          const p = this._ambEl.play();
+          if (p && p.catch) p.catch(() => {});
+        } catch (e) {}
+      }
+      this._fade(this._ambEl, this.vol.amb, 1400);
+      return;
+    }
+    try {
+      const a = new Audio(ASSETS.base + rel);
+      a.loop = true;
+      a.preload = 'auto';
+      a.volume = 0.0001;
+      this._ambEl = a;
+      const p = a.play();
+      if (p && p.catch) p.catch(() => {});
+      this._fade(a, this.vol.amb, 1400);
+    } catch (e) {}
+  },
+
+  /* ── 补播：同 resumeBgm，底噪也是被拦之后不会自己恢复的 ── */
+  resumeAmb() {
+    if (!this.on || !this._ambWant || !this._ambEl) return;
+    try {
+      if (this._ambEl.paused) {
+        const p = this._ambEl.play();
+        if (p && p.catch) p.catch(() => {});
+        this._fade(this._ambEl, this.vol.amb, 1400);
       }
     } catch (e) {}
   },
@@ -5173,6 +5253,7 @@ function newGame(opt) {
   FX.clear();
   FX.preload();
   FX.bgm('battle');
+  FX.amb(true);
   document.getElementById('overlay').classList.add('hidden');
   /* ── 开场战报：时间点 → 前情 → 本关引导 ──
      前情只在这两关都打过时才出。玩家从关卡选择页直接跳到这一关时，
@@ -6325,6 +6406,9 @@ function showOverlay() {
 
   el.classList.remove('hidden');
   clearSave();                 // 分胜负了，这一局的存档作废，下次进来是新局
+  /* 仗打完了，远处的炮声该停。底噪淡出 0.8 秒，和结算曲同时起——
+     两个声音重叠那一下正是"战场退到身后"的听感。 */
+  FX.amb(false);
   FX.bgm(state.result === 'fail' ? 'lose' : 'win');
   FX.sfx(state.result === 'fail' ? 'lose' : 'win');
 }
@@ -7958,6 +8042,7 @@ async function startResume() {
   if (!restoreGame(s)) { newGame({ level: lv.id }); fitView(false); return; }
   FX.preload();
   FX.bgm('battle');
+  FX.amb(true);
   fitView(true);
 }
 
@@ -8127,6 +8212,8 @@ function openHQ(tab) {
      ASSETS.bgm.menu 的注释写着「战役地图 / 档案柜」，但在此之前没有任何一行
      代码播过它——一个永远不响的槽位比没有更坏：换素材的人会以为它接好了。 */
   FX.bgm('menu');
+  /* 指挥部里不该有远处的炮声：menu 曲是干净的，底噪压在上面像隔音没做好 */
+  FX.amb(false);
   /* 焦点要真的进到对话框里，否则 Tab 会从"HQ 按钮的下一个"继续走，
      在视觉上等于跳过了整个面板。第一个可聚焦元素就是页签栏。 */
   const first = document.querySelector('#hqScreen button');
@@ -8146,6 +8233,9 @@ function closeHQ() {
     /* 回战场要把曲子接回来。这里不能写死 'battle'：打完一关再翻存档页，
        回去该是结算曲——写死的话庆功曲会被无名地掐掉，换成小军鼓。 */
     FX.bgm(state && state.result ? (state.result === 'fail' ? 'lose' : 'win') : 'battle');
+    /* 底噪跟着同一条判断：没打完才接回来。分胜负之后还响炮声，
+       等于告诉玩家"仗还在打"，和结算面板自相矛盾。 */
+    if (state && !state.result) FX.amb(true);
     const back = (hqReturnFocus && hqReturnFocus.focus && hqReturnFocus !== document.body)
       ? hqReturnFocus : document.getElementById('board');
     hqReturnFocus = null;
@@ -8531,7 +8621,7 @@ function boot() {
    而且没有任何报错——只会让人以为音频文件坏了。 */
 ['pointerdown', 'keydown'].forEach(t => {
   document.addEventListener(t, () => {
-    try { FX.unlock(); FX.resumeBgm(); } catch (e) {}
+    try { FX.unlock(); FX.resumeBgm(); FX.resumeAmb(); } catch (e) {}
   }, { once: true, capture: true });
 });
 
