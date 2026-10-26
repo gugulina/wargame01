@@ -1956,7 +1956,9 @@ const LEVELS = [
       when: { kind: 'firstBlood' },
       effects: [
         { kind: 'say', beats: [
-          { who: '第 103 步兵师 · 师部', side: 'blue', portrait: 'portDiv103',
+          /* who 不能写「师部」：这一段是师长本人在讲话，下一句副官就喊他"师长"。
+             师部是 hqd 兵牌（一个指挥节点），让一张兵牌开口说话会串味。 */
+          { who: '第 103 步兵师 · 师长', side: 'blue', portrait: 'portDiv103',
             text: '打响了。都听好——要塞在这，我们在，就没有别的退路。' },
           { who: '副官', side: 'blue', portrait: 'portBlue',
             text: '师长，二线还在收拢。要不要把 1-1 营拉出来看看正面？' }
