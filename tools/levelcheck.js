@@ -314,6 +314,54 @@ function skip(name, why) {
        homeEmpty.data.storage.saveVer === api.SAVE_VER,
        JSON.stringify(homeEmpty.data.storage));
 
+    /* 章表也是从引擎导出的副本，但它坏起来比关卡字段更难发现：
+       算错了不崩、不报错，只让首页章头显示"0 关"或"未登记章节"——
+       玩家看到的是"这一章没内容"，而不是"导出脚本用错了字段"。
+       所以章名 / 跨度 / 地点 / 主题逐字比，主附与就绪数**现算**再比。 */
+    const CH = api.CHAPTERS || [];
+    const hCH = homeEmpty.chapters || [];
+    const chBad = [];
+    if (hCH.length !== CH.length) chBad.push('章数：首页 ' + hCH.length + ' / 引擎 ' + CH.length);
+    for (const c of CH) {
+      const h = hCH.find(x => x.no === c.no);
+      if (!h) { chBad.push('第 ' + c.no + ' 章：首页没有'); continue; }
+      for (const f of ['name', 'span', 'where', 'teaser']) {
+        if (String(h[f]) !== String(c[f])) {
+          chBad.push('第 ' + c.no + ' 章.' + f + '：首页 ' + JSON.stringify(h[f]) +
+                     ' / 引擎 ' + JSON.stringify(c[f]));
+        }
+      }
+    }
+    ok('首页章名 / 时间跨度 / 地点 / 主题与引擎一致', chBad.length === 0, chBad.join('；'));
+
+    /* 主附与就绪数不是抄来的、是算出来的。导出时 `filter` 用错字段
+       （比如把 l.ch 写成 l.chapter）这四个数字会一起归零，而章名照样正确——
+       只比章名一条也抓不到。 */
+    const cntBad = [];
+    for (const h of hCH) {
+      const mine = LV.filter(l => l.ch === h.no);
+      const want = {
+        total: mine.length,
+        main: mine.filter(l => !l.sub).length,
+        sub: mine.filter(l => l.sub).length,
+        ready: mine.filter(l => l.ready).length
+      };
+      for (const f of ['total', 'main', 'sub', 'ready']) {
+        if (h[f] !== want[f]) cntBad.push('第 ' + h.no + ' 章.' + f + '：首页 ' + h[f] + ' / 应为 ' + want[f]);
+      }
+    }
+    ok('首页每章的主关 / 附属 / 就绪数是现算的，不是抄的', cntBad.length === 0, cntBad.join('；'));
+
+    /* 每一关的 ch 都要能在章表里查到。查不到时首页不会报错，
+       只会把章头写成「未登记章节」——一条数据漏填 ch，整章换名字。
+       **序章（ch 0）除外**：它不是"一章"，是一部作品的演习；首页给它的
+       章名是写死的「战前演习」，不走章表。把它塞进 CHAPTERS 反而会让
+       第 [10] 节的"每章 5–6 正 + 2–3 附"配比断言把序章算进去。 */
+    const orphan = LV.filter(l => l.ch !== 0 && !CH.some(c => c.no === l.ch))
+      .map(l => l.id + '@ch' + l.ch);
+    ok('每一关的章号都能在章表里查到（否则章头显示「未登记章节」）',
+       orphan.length === 0, orphan.join(','));
+
     /* 零进度下逐关对比解锁结论 */
     try { window.localStorage.removeItem(api.PROGRESS_KEY); } catch (e) {}
     /* 传首页自己的关卡对象进去：两个页面各有各的 LEVELS 数组，
