@@ -1956,7 +1956,7 @@ const LEVELS = [
       when: { kind: 'firstBlood' },
       effects: [
         { kind: 'say', beats: [
-          { who: '第 103 步兵师 · 师部', side: 'blue', portrait: 'portBlue',
+          { who: '第 103 步兵师 · 师部', side: 'blue', portrait: 'portDiv103',
             text: '打响了。都听好——要塞在这，我们在，就没有别的退路。' },
           { who: '副官', side: 'blue', portrait: 'portBlue',
             text: '师长，二线还在收拢。要不要把 1-1 营拉出来看看正面？' }
@@ -2044,7 +2044,7 @@ const LEVELS = [
         }
       ],
       beats: [
-        { who: '第 103 步兵师 · 师长', side: 'blue', portrait: 'portBlue',
+        { who: '第 103 步兵师 · 师长', side: 'blue', portrait: 'portDiv103',
           text: '边防旅的阵地昨天就没了，人退进来了，番号还在。\n现在归我指挥。' },
         { who: '第 1 边防旅 · 旅长', side: 'blue', portrait: 'portBde1',
           text: '我的营打剩下两个连。要塞炮还能用，炮弹还有四十发。\n守多久？' },
@@ -3446,7 +3446,8 @@ const ASSETS = {
   story: {
     bgBriefing: null, bgVictory: null, bgDefeat: null,
     portBlue: null, portRed: null, portHQ: null,
-    portBde1: 'story/port-bde1.webp'    // 第 1 边防旅 · 旅长（第一关）
+    portBde1: 'story/port-bde1.webp',   // 第 1 边防旅 · 旅长（第一关）
+    portDiv103: 'story/port-div103.webp' // 第 103 步兵师 · 师长（第一关）
   }
 };
 

@@ -3,7 +3,7 @@
 这里放游戏用到的图片、音频、字体。
 
 **当前状态**：`sfx/` 已经填好了 12 个音效（来源与授权见 `sfx/CREDITS.md`，
-试听打开 `sfx/preview.html`）；`story/` 有 1 张立绘（`port-bde1.webp`，第 1 边防旅旅长）。
+试听打开 `sfx/preview.html`）；`story/` 有 2 张立绘（`port-bde1.webp` 第 1 边防旅旅长、`port-div103.webp` 第 103 步兵师师长）。
 `ui/`、`unit/`、`fort/`、`bgm/` 还是空的。
 `campaign.html` 里的 `ASSETS` 表已经按下面的结构写好了槽位，
 把文件按名字丢进来、再在 `ASSETS` 里填上文件名就能生效，**不需要改任何游戏逻辑**——
@@ -88,7 +88,7 @@ game/assets/
 `bgm` 四首：`menu battle tension result`（未填）。
 `fort` 五个：`H B P A F`（未填）。
 `unit` 二十一个，键名与 `TYPE` 表严格对齐（自测会校验这一点，未填）。
-`story`：背景三张（未填）、通用立绘三张（未填）、角色立绘 `portBde1` ✅。
+`story`：背景三张（未填）、通用立绘三张（未填）、角色立绘 `portBde1` ✅ / `portDiv103` ✅。
 
 
 ## 加素材的完整流程
