@@ -1006,16 +1006,28 @@ function skip(name, why) {
 
     /* 首屏预算：amb 是 60 秒循环环境层。真正会犯的错不是"忘了关"，
        而是"顺手把它加进了 ASSETS.sfx 就跟着 preload 走了"——那一步不报错，
-       只是首屏从 158 KB 涨到 686 KB，手机进关白等。 */
+       只是首屏从 158 KB 涨到 686 KB，手机进关白等。
+
+       250 → 300 KB 是因为槽位从 17 个涨到 20 个：多了航空机炮（1.87 s）
+       与投弹（3.09 s，哨音 + 爆炸），两条都不是替换而是新增的语义。
+       门槛守的是"进关别白等"，而 preload 发生在**进关之后**（玩家正在
+       翻简报），所以 20 个槽 / 272 KB 与原来的 17 个槽 / 247 KB
+       在体感上没有区别。真要再往上涨，就该做按关预载了。 */
     FX._pool = {};
     FX.preload();
     const pooled = Object.keys(FX._pool);
     ok('preload 没把 amb 拉进首屏', pooled.includes('amb') === false, pooled.join(','));
+    /* 死槽：机动改走 step/engine/track 之后 move / hit 没有代码引用了，
+       只剩试听页当对照组。它们留在 ASSETS 里是对的（试听页要按需加载），
+       但不能跟着进关传输——8.5 KB 白占。 */
+    ok('preload 没把死槽 move / hit 拉进来',
+       !pooled.includes('move') && !pooled.includes('hit'),
+       'move=' + pooled.includes('move') + ' hit=' + pooled.includes('hit'));
     let bytes = 0;
     for (const k of pooled) {
       try { bytes += fs.statSync(path.join(baseDir, W.ASSETS.sfx[k])).size; } catch (e) {}
     }
-    ok('预载音效总量 ≤ 250 KB', bytes <= 250 * 1024, Math.round(bytes / 1024) + ' KB');
+    ok('预载音效总量 ≤ 300 KB', bytes <= 300 * 1024, Math.round(bytes / 1024) + ' KB');
 
     /* 起播：底噪必须是循环轨。少了 loop，60 秒后战场就安静了，
        而且不会有任何报错——玩家只会觉得"后面怎么没声了"。 */

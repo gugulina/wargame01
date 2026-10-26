@@ -2948,19 +2948,25 @@ const ASSETS = {
     win:     'sfx/win.ogg',
     lose:    'sfx/lose.ogg',
 
-    /* 按兵种分派用的六个槽（见下面的 SONIC 表）。都是每回合要响的，
+    /* 按兵种分派用的八个槽（见下面的 SONIC 表）。都是每回合要响的，
        所以全在 preload 里——等第一次触发才下载会明显迟一拍。
 
-       来源：六条的**骨架层**都是 freesound 实录（授权与处理参数见
-       assets/sfx/CREDITS.md 第十节），只有 ship 多叠了一层合成——
-       现场录音里只有浪，推进的低频得自己补，见第十节的「舰船」条。
+       来源：**骨架层全是 freesound 实录**（授权与处理参数见
+       assets/sfx/CREDITS.md 第十节），两处例外：
+         ship  多叠了一层合成——现场录音里只有浪没有推进，低频得自己补；
+         bomb  多叠了一层 shell 当爆炸——源素材只有哨音，没有落地的爆。
        换素材用 `node tools/sfx-import.js <槽> <文件>`，它会自动改这里的路径。 */
     rifle:   'sfx/rifle-take1.ogg',   // 步兵攻击：四连点射叠 5 发机枪（65–95ms / 125ms 两种射速）
     step:    'sfx/step-take1.ogg',    // 步兵机动：混凝土行军实录，切一步
     engine:  'sfx/engine-take1.ogg',  // 轮式机动：消防车引擎实录 + 8dB 低搁架，连续无节拍
     track:   'sfx/track-take1.ogg',   // 履带机动：T-26 实车录像收音 + 5dB 低搁架
     prop:    'sfx/prop-take1.ogg',    // 螺旋桨机动：Spitfire 滑行经过，叶频 131Hz
-    ship:    'sfx/ship-take1.ogg'     // 舰艇机动：浪拍船侧 + 合成 45Hz 推进层
+    ship:    'sfx/ship-take1.ogg',    // 舰艇机动：浪拍船侧 + 合成 45Hz 推进层
+    /* 航空攻击两声：机炮与投弹。
+       airgun 必须过 120Hz 高通——源素材是远距离录的，71% 的能量在 40Hz
+       以下（重心 82Hz），不过滤就是"在笔记本上听不见"。 */
+    airgun:  'sfx/airgun-take1.ogg',  // 战斗机/攻击机攻击：防空炮连射 1.87s，高通 120Hz
+    bomb:    'sfx/bomb-take1.ogg'     // 轰炸机攻击：俯冲哨音 1.55s + shell 叠层 @1.45s
   },
 
   /* 音乐：循环轨，建议 ogg 96kbps 或 mp3 128kbps，单条 1~3 分钟。
@@ -3040,14 +3046,16 @@ const SONIC = {
     sha:  { m: 'track',  a: 'shell' },
     spa:  { m: 'track',  a: 'shell' },
 
-    /* ── 航空：机动走螺旋桨，攻击仍借地面枪炮 ──
-       螺旋桨机的机炮与地面步枪同属 7.62 级，差别在距离感与多普勒，
-       所以攻击侧暂时借 fire。但**机动**侧不能借——拿卡车声去配飞机，
-       一耳朵就听出来"飞机在地上跑"。 */
-    fgt:  { m: 'prop', a: 'fire' },
-    atk:  { m: 'prop', a: 'fire' },
-    bmb:  { m: 'prop', a: 'shell' },    // 轰炸机投的是炸弹，不是机枪
-    trp:  { m: 'prop', a: 'fire' },
+    /* ── 航空：机动走螺旋桨，攻击分机炮与投弹 ──
+       攻击侧不能再借地面枪炮。机炮与步枪最容易被分辨的地方不是口径，
+       是**射速**：161429 那段是连续扫射（约 17 发/秒，一片连成线），
+       fire 是 7.62 单响，一开火就露出"这是地面上在打"。
+       轰炸机另走 bomb——它投的是弹体不是弹丸，声音是"下扫的哨音 → 爆炸"，
+       不是一声炮响。 */
+    fgt:  { m: 'prop', a: 'airgun' },
+    atk:  { m: 'prop', a: 'airgun' },
+    bmb:  { m: 'prop', a: 'bomb' },     // 投弹，不是机枪
+    trp:  { m: 'prop', a: 'fire' },     // 运输机 am 0 / rg 0，永远不会攻击，此值是死数据
 
     /* ── 水面：舰炮就是炮声，机动是主机 ──
        主机的音高比卡车低一个八度，连续、没有节拍；
@@ -3107,9 +3115,13 @@ const FX = {
      螺旋桨与舰体同理——都是长音，而且都是低频厚的，叠多了只会更糊。 */
   _max: { shell: 1, alarm: 1, win: 1, lose: 1, kill: 2, engine: 2, track: 2,
           prop: 2, ship: 2, default: 3 },
-  /* 不进 preload 的槽。amb 是 60 秒循环环境层，529 KB——一旦跟着首屏走，
-     首屏就从 455 KB 涨到近 1 MB。BGM 那边白捡的按需加载，正好被它吃掉。 */
-  _noPreload: { amb: true },
+  /* 不进 preload 的槽。
+     amb 是 60 秒循环环境层，450 KB——一旦跟着首屏走，首屏就从 455 KB
+     涨到近 1 MB。BGM 那边白捡的按需加载，正好被它吃掉。
+     move / hit 是**死槽**：机动改走 step/engine/track 之后没有代码引用它们，
+     只剩试听页当对照组。它们仍在 ASSETS 里供试听页按需加载，
+     但没有理由占进关时的传输——这两条白占 8.5 KB。 */
+  _noPreload: { amb: true, move: true, hit: true },
   _bgmEl: null,
   _bgmName: null,
   _ambEl: null,             // 底噪循环元素

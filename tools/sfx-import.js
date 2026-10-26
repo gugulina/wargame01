@@ -41,7 +41,7 @@ const SR = 44100;
 const ROOT = path.join(__dirname, '..');
 const OUTDIR = path.join(ROOT, 'game/assets/sfx');
 const ENGINE = path.join(ROOT, 'game/campaign.html');
-const BUDGET_KB = 250;   // briefcheck [23] 守的就是这个数
+const BUDGET_KB = 300;   // briefcheck [23] 守的就是这个数
 
 /* ══════════ 槽位规格 ══════════
    mode/target 决定归一化口径，不能互换：
@@ -49,9 +49,14 @@ const BUDGET_KB = 250;   // briefcheck [23] 守的就是这个数
      rms  —— 循环底噪（引擎、履带）。看 RMS，峰值归一会让起振瞬间过冲。
    这正是记忆里那条"两套口径不可互换"的落点。 */
 const SLOT = {
-  /* ── 按兵种分派新增的四个 ── */
+  /* ── 按兵种分派新增的六个 ── */
   rifle:  { mode: 'peak', target: -2.5,  maxDur: 1.20, kind: 'shot',
             want: '单发或短点射。要有膛音（200–1500 Hz 那一段），只有高频嘶声会像气枪' },
+  airgun: { mode: 'peak', target: -2.5,  maxDur: 2.00, kind: 'shot',
+            want: '航空机炮连射，**射速要快**（听感是连续一片，不是"哒哒哒哒"四发）。' +
+                  '关键是节奏不是口径——机炮与地面步枪最容易分辨的地方就是发/秒' },
+  bomb:   { mode: 'peak', target: -3.0,  maxDur: 4.00, kind: 'shot',
+            want: '投弹。要**由远及近的下扫**，末尾接爆炸；只响一枚，不能有第二个起振' },
   step:   { mode: 'peak', target: -3.0,  maxDur: 0.45, kind: 'shot',
             want: '落地踩实，一步或两步。要鞋底/土，不要草地沙沙' },
   engine: { mode: 'rms',  target: -21.0, maxDur: 1.60, kind: 'loop',
@@ -95,6 +100,14 @@ const lowDb = parseFloat(flag('low', '0'));   // 低频搁架增益，dB
    那是噪声不是音色，低通砍掉比抬低频更有效——抬低频只是把底下垫厚，
    尖的那层还在。0 = 不处理。 */
 const lpHz = parseFloat(flag('lp', '0'));
+/* 高通截止。和 --low 是两件事，别用错：
+     --low 是**调量**，抬/压 200 Hz 以下的厚度，砍不掉 20 Hz 的隆隆；
+     --hp  是**砍频段**，12 dB/oct，用来切掉"喇叭放不出来、但会占满 RMS"的次声。
+   远距离录的枪炮最容易这样：空气把 2 kHz 以上的都吸走了，麦克风风噪
+   却把 20–40 Hz 顶得很高。161429 那段 71% 的能量在 40 Hz 以下、
+   重心 82 Hz，直接进游戏就是"笔记本上听不见"。120 Hz 高通之后
+   重心 265 Hz、波峰因数 8.6→14.9，瞬态才浮出来。0 = 不处理。 */
+const hpHz = parseFloat(flag('hp', '0'));
 /* 显式时长。"取前 2 秒"这种要求不能靠槽位上限（那是**最大**值，
    不是**目标**值）——不管上限多大都会一路带到底，把后面第二发也卷进来。 */
 const durSec = flag('dur', null) === null ? null : parseFloat(flag('dur', null));
@@ -108,7 +121,7 @@ for (let i = 0; i < argv.length; i++) {
 
 /* 带值的开关，它的下一个词是参数不是位置参数。
    不做这一步的话 `--at 3.0` 里的 3.0 会被当成槽位名。 */
-const VALUED = new Set(['--at', '--low', '--also', '--dur', '--lp']);
+const VALUED = new Set(['--at', '--low', '--also', '--dur', '--lp', '--hp']);
 const rest = argv.filter((a, i) => !a.startsWith('--') && !(i > 0 && VALUED.has(argv[i - 1])));
 
 /* "x.wav@2.05:0.55" → { file:'x.wav', sec:2.05, gain:0.55 }
@@ -234,6 +247,24 @@ function lowPass(x, f0, Q = 0.707) {
   const w0 = 2 * Math.PI * f0 / SR, cw = Math.cos(w0), sw = Math.sin(w0);
   const alpha = sw / (2 * Q);
   const b0 = (1 - cw) / 2, b1 = 1 - cw, b2 = (1 - cw) / 2;
+  const a0 = 1 + alpha, a1 = -2 * cw, a2 = 1 - alpha;
+  let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+  for (let i = 0; i < x.length; i++) {
+    const xi = x[i];
+    const y = (b0 * xi + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2) / a0;
+    x2 = x1; x1 = xi; y2 = y1; y1 = y; x[i] = y;
+  }
+}
+
+/* 二阶高通（RBJ，12 dB/oct）。
+   只用来**砍掉不该有的次声**，不是用来"调音色"——截止点选高了
+   会把炮的"沉"一起带走。判断依据是波峰因数：砍对了它会明显上升
+   （161429 从 8.6 到 14.9），因为占满 RMS 的次声没了，
+   每一发的瞬态才浮出来。 */
+function highPass(x, f0, Q = 0.707) {
+  const w0 = 2 * Math.PI * f0 / SR, cw = Math.cos(w0), sw = Math.sin(w0);
+  const alpha = sw / (2 * Q);
+  const b0 = (1 + cw) / 2, b1 = -(1 + cw), b2 = (1 + cw) / 2;
   const a0 = 1 + alpha, a1 = -2 * cw, a2 = 1 - alpha;
   let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
   for (let i = 0; i < x.length; i++) {
@@ -389,6 +420,13 @@ function prep(raw, atS, doPick, spec, durS = null) {
     if (f.head || f.tail) notes.push(`接缝补淡变（${[f.head && '头', f.tail && '尾'].filter(Boolean).join('/')}）`);
   }
 
+  /* 高通放在搁架之前：先清掉"不该有的"，再调"该有多少"。
+     两个都是线性时不变、顺序不影响结果，但读起来这个顺序才讲得通。 */
+  if (hpHz) {
+    highPass(x, hpHz);
+    notes.push(`高通 ${hpHz}Hz 12dB/oct`);
+  }
+
   /* 低频搁架：战场录音多半是摄像机/手机麦克风，80–200 Hz 天然薄。
      履带和炮声没有这一段就"轻"，像在敲纸箱。放在归一化之前，
      否则归一化会把这个增益又抵消掉。 */
@@ -467,10 +505,12 @@ function prep(raw, atS, doPick, spec, durS = null) {
   }
   fs.writeFileSync(ENGINE, html);
 
-  /* 预算：briefcheck [23] 守 250 KB，超了会红。
+  /* 预算：briefcheck [23] 守 300 KB，超了会红。
      跳过名单按**槽位名**判，不按文件名判——底噪从 amb-synth.ogg 换成
-     amb-take1.ogg 的那一次，按文件名写的跳过规则当场失效，预算凭空多出 450 KB。 */
-  const NO_PRELOAD = new Set(['amb']);
+     amb-take1.ogg 的那一次，按文件名写的跳过规则当场失效，预算凭空多出 450 KB。
+     这份名单要和引擎里 FX._noPreload 一致：一边改了另一边没改，
+     这里的核算就是假账。move / hit 是死槽，没有代码引用它们。 */
+  const NO_PRELOAD = new Set(['amb', 'move', 'hit']);
   let tot = 0, cnt = 0;
   const seg = html.slice(html.indexOf('sfx: {'), html.indexOf('},', html.indexOf('sfx: {')));
   for (const m of seg.matchAll(/(\w+):\s*'sfx\/([^']+)'/g)) {

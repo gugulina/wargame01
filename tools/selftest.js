@@ -2471,6 +2471,19 @@ console.log('\n[37] 音效按兵种分派');
   const stillEngine = AIRSEA.filter(k => S.tab[k] && S.tab[k].m === 'engine');
   ok('航空与水面没有任何一个还借轮式引擎声', stillEngine.length === 0, stillEngine.join(','));
 
+  /* 航空攻击原来是借地面的 fire / shell。挡住的是"反正都是枪炮"这种复用：
+     机炮与步枪最好分辨的地方是**射速**（机炮连成线、步枪一响一顿），
+     拿去借 fire 一开火就露出"这是地面上在打"。
+     正面验机炮落 airgun、轰炸机落 bomb，反面验四个航空兵一个都没留在
+     地面的 fire / shell 上——只写正面的话，改回去一个照样能过。 */
+  ok('战斗机攻击 = 航空机炮', S.of('fgt', 'a') === 'airgun', S.of('fgt', 'a'));
+  ok('攻击机攻击 = 航空机炮', S.of('atk', 'a') === 'airgun', S.of('atk', 'a'));
+  ok('轰炸机攻击 = 投弹（不是一声炮响）', S.of('bmb', 'a') === 'bomb', S.of('bmb', 'a'));
+  /* trp 的 am 0 / rg 0，永远不会攻击，它的 a 值是死数据，不参与这条断言。 */
+  const AIRATK = ['fgt', 'atk', 'bmb'];
+  const groundGun = AIRATK.filter(k => S.tab[k] && (S.tab[k].a === 'fire' || S.tab[k].a === 'shell'));
+  ok('航空攻击没有一个还借地面枪炮', groundGun.length === 0, groundGun.join(','));
+
   /* 表里写的名字必须在 ASSETS 里真有。写成 'rifle-synth' 这种文件名
      （而不是槽位名）不会抛错，只会静默降级成无声。 */
   const bad = [];
