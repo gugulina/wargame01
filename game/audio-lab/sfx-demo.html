@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>音效 A/B 试听 · 苍屿战役</title>
+<style>
+  :root{
+    --bg:#141312; --panel:#1c1a18; --line:#2e2a26; --txt:#e8e3d8; --dim:#9a9086;
+    --gold:#c8a253; --blue:#5b93c7; --red:#c86a5b; --green:#7fa86a;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);
+       font:14px/1.6 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif;
+       padding:26px 20px 60px;max-width:900px;margin:0 auto}
+  h1{font-size:19px;letter-spacing:.06em;margin:0 0 4px;color:var(--gold)}
+  .sub{color:var(--dim);font-size:12.5px;margin-bottom:18px;line-height:1.85}
+  .sub b{color:var(--txt);font-weight:600}
+  .warn{border:1px solid #3a3229;background:#1e1a15;border-radius:6px;padding:11px 14px;
+        font-size:12.5px;color:#c9bda9;line-height:1.8;margin-bottom:20px}
+  .warn b{color:var(--gold)}
+  .warn code{background:#2a241d;padding:1px 5px;border-radius:3px;color:#d8c9ab;font-size:11.5px}
+
+  table{width:100%;border-collapse:collapse;font-size:12.5px;margin-bottom:22px}
+  th{text-align:left;font-weight:600;font-size:10.5px;letter-spacing:.09em;color:var(--dim);
+     padding:0 8px 7px;border-bottom:1px solid var(--line);text-transform:uppercase}
+  td{padding:8px;border-bottom:1px solid #221f1b;vertical-align:middle}
+  tr:hover td{background:#191715}
+  .slot{font-family:ui-monospace,Consolas,monospace;color:var(--gold);font-size:12px}
+  .warnmax{color:var(--red)}
+  .ok{color:var(--green)}
+
+  /* A/B 按钮：左旧右新，靠色相区分，不靠位置 */
+  button{font:inherit;font-size:12px;padding:5px 13px;border-radius:4px;cursor:pointer;
+         transition:.13s;white-space:nowrap;border:1px solid #453b2f;background:#241f19;color:#b8a98f}
+  button:hover{background:#302921;border-color:var(--gold);color:var(--gold)}
+  button.old:hover{border-color:var(--blue);color:var(--blue)}
+  button.new:hover{border-color:var(--green);color:var(--green)}
+  button.playing{background:var(--gold);color:#17140f;border-color:var(--gold);font-weight:600}
+  button:disabled{opacity:.32;cursor:default;border-style:dashed}
+  button:disabled:hover{background:#241f19;border-color:#453b2f;color:#b8a98f}
+  .pair{display:flex;gap:6px}
+
+  .note{font-size:11px;color:#8a8076;line-height:1.55;margin-top:2px}
+  .tag{display:inline-block;font-size:9.5px;letter-spacing:.06em;padding:1px 5px;border-radius:3px;
+       margin-right:5px;vertical-align:1px}
+  .tag.syn{background:#243024;color:var(--green)}
+  .tag.src{background:#1e2630;color:var(--blue)}
+  .tag.none{background:#2c2422;color:#a8867e}
+
+  h2{font-size:13px;letter-spacing:.08em;color:var(--gold);margin:26px 0 10px;
+     padding-bottom:6px;border-bottom:1px solid var(--line)}
+  .ambbox{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:14px 16px;
+          margin-bottom:14px}
+  .ambbox .row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .ambbox .big{font-size:15px;color:var(--txt);margin-right:auto;font-weight:600}
+  .meters{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px}
+  .cell{background:#191715;border:1px solid #262220;border-radius:4px;padding:7px 10px}
+  .cell .k{font-size:10px;color:var(--dim);letter-spacing:.07em}
+  .cell .v{font-size:13px;color:var(--gold);font-variant-numeric:tabular-nums}
+
+  .foot{font-size:11.5px;color:var(--dim);line-height:1.85;border-top:1px solid var(--line);
+        padding-top:14px;margin-top:10px}
+  .foot b{color:var(--txt)}
+  .foot code{background:#221f1b;padding:1px 5px;border-radius:3px;color:#c9bda9}
+</style>
+</head>
+<body>
+
+<h1>音效 A/B 对照</h1>
+<div class="sub">
+  左列是<b>现在游戏里在用的素材</b>（实弹录音 / 影视拟音 / CC0 库），右列是<b>刚合成的版本</b>。<br>
+  两边同一行就是同一个槽位，点一下挨着听，差别最明显。
+</div>
+
+<div class="warn">
+  <b>先说清楚哪些不该换。</b>
+  <code>fire</code> 这一行你会明显听出来：现有素材是 <b>.22 实弹录音，起振 0.2 ms</b>，
+  合成版是 0.3 ms——这 0.1 ms 就是"真枪"和"音效"的分界，代码补不上。
+  <b>能用合成赢的只有一种情况：现有素材的方向就不对</b>（比如 <code>event</code> 现在是个通用提示音，
+  而你的设定里那份情报是电报来的）。
+</div>
+
+<h2>逐个槽位</h2>
+<table id="tbl">
+  <thead>
+    <tr>
+      <th style="width:74px">槽位</th>
+      <th style="width:96px">现有素材</th>
+      <th style="width:96px">合成版</th>
+      <th style="width:118px">时长 / 上限</th>
+      <th>说明</th>
+    </tr>
+  </thead>
+  <tbody id="rows"></tbody>
+</table>
+
+<h2>唯一真缺的那个槽</h2>
+<div class="ambbox">
+  <div class="row">
+    <div class="big">战场底噪 <span style="font-size:11.5px;color:var(--dim);font-weight:400">· 60 秒无缝循环</span></div>
+    <button class="new" id="ambBtn">播放 / 停止</button>
+  </div>
+  <div class="note" style="margin-top:6px">
+    现在一次攻击响一声，中间全静音——安静得不像有人在外面打仗。这一层是<b>持续环境</b>，
+    不是事件，所以素材站买不到对得上的：它得跟你关卡的地形、双方火力、时间带匹配。
+  </div>
+  <div class="meters">
+    <div class="cell"><div class="k">层 1</div><div class="v">远处轰鸣</div></div>
+    <div class="cell"><div class="k">层 2</div><div class="v">风</div></div>
+    <div class="cell"><div class="k">层 3</div><div class="v">炮点 ×14</div></div>
+    <div class="cell"><div class="k">层 4</div><div class="v">远枪 ×5</div></div>
+  </div>
+</div>
+
+<div class="foot">
+  <b>怎么听才有效。</b>
+  同一个槽位连着点三下，先旧的再三下新的，比来回切更准——来回切的时候，第二声总是显得"更好"，
+  因为耳朵在找变化。<br>
+  <b>底噪要开着 BGM 听。</b>它单独听是一团噪音，判断不了；跟 <code>battle.ogg</code> 一起放才知道有没有打架——
+  两者都在 20–90 Hz 有能量，这是我按 <code>vol.sfx 0.65 / vol.bgm 0.35</code> 换算后定到 −31 dBFS RMS 的原因。<br>
+  <b>文件在哪。</b><code>game/assets/sfx/*-synth.ogg</code>，现有素材一个字节没动。听定了我再改 <code>ASSETS</code>。
+</div>
+
+<script>
+/* 时长上限来自 game/assets/待补素材.md —— 上一版翻车就是选长了，
+   一回合三枪叠起来变成噪音墙。这一列是硬约束，不是建议。 */
+const ROWS = [
+  { id:'shell', old:'shell-v2.mp3',  syn:'shell-synth.ogg', dur:'2.43s', max:3.0,
+    note:'低频冲击 + 爆裂。合成版把低频下滑做成 62→26 Hz，这比单纯加低频更像"炮"；但混响尾不如影视拟音自然' },
+  { id:'fire',  old:'fire-v2.mp3',   syn:'fire-synth.ogg',  dur:'0.63s', max:0.8,
+    note:'起振 0.2ms（实弹）vs 0.3ms（合成）。一回合可能响 3–5 次，这一项我建议<b>保留原素材</b>' },
+  { id:'build', old:'build.ogg',     syn:'build-synth.ogg', dur:'0.94s', max:1.2,
+    note:'现有是 Kenney 通用打击音，听不出在干什么。合成版按"三锹土 + 一记夯"排，有砾石摩擦的 900–1600 Hz' },
+  { id:'event', old:'event.ogg',     syn:'event-synth.ogg', dur:'0.29s', max:0.6,
+    note:'现有是通用提示音。合成版是电报点划（760 Hz 方波 + 带通），对得上"情报是电报来的"这个设定' },
+  { id:'alarm', old:'alarm-v2.mp3',  syn:'alarm-synth.ogg', dur:'1.83s', max:2.5,
+    note:'现有是影视式电子警报。合成版按手摇转轮做——升调上不去、回落会拖，机械惯性才是二战味' },
+  { id:'move',  old:'ui-move.ogg',   syn:'move-synth.ogg',  dur:'0.12s', max:0.2,
+    note:'现有是闷响，实际是摩擦。合成版用 46 Hz 颗粒调制模拟履带板一节一节轧过去，很轻' }
+];
+
+const host = document.getElementById('rows');
+const cache = {};
+
+function el(tag, cls, html) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (html != null) e.innerHTML = html;
+  return e;
+}
+
+function playBtn(label, cls, file, disabled, tip) {
+  const b = el('button', cls, label);
+  b.title = tip || '';
+  if (disabled) { b.disabled = true; return b; }
+  b.addEventListener('click', () => {
+    /* 单通道播放：同一时刻只响一个，否则 A/B 会糊在一起 */
+    if (cache.cur) {
+      cache.cur.a.pause();
+      cache.cur.btn.classList.remove('playing');
+      if (cache.cur.btn === b) { cache.cur = null; return; }
+    }
+    const a = new Audio('../assets/sfx/' + file);
+    a.onended = () => { b.classList.remove('playing'); if (cache.cur && cache.cur.btn === b) cache.cur = null; };
+    a.play().catch(() => {});
+    b.classList.add('playing');
+    cache.cur = { a, btn: b };
+  });
+  return b;
+}
+
+for (const r of ROWS) {
+  const tr = el('tr');
+  tr.appendChild(el('td', 'slot', r.id));
+
+  const tOld = el('td');
+  tOld.appendChild(playBtn('现有', 'old', r.old, false, r.old));
+  tr.appendChild(tOld);
+
+  const tNew = el('td');
+  tNew.appendChild(playBtn('合成', 'new', r.syn, false, r.syn));
+  tr.appendChild(tNew);
+
+  /* 上限：合成版的设计时长一定在限内，标出来让"没超"这件事可见 */
+  const over = parseFloat(r.dur) > r.max;
+  tr.appendChild(el('td', over ? 'warnmax' : '',
+    r.dur + '<span style="color:var(--dim)"> / ' + r.max.toFixed(2) + 's</span>'));
+
+  tr.appendChild(el('td', '', r.note));
+  host.appendChild(tr);
+}
+
+/* 底噪单独一块：现有没有对应文件，右列恒为虚线按钮 */
+(function () {
+  const btn = document.getElementById('ambBtn');
+  let a = null;
+  btn.addEventListener('click', () => {
+    if (a) { a.pause(); a = null; btn.textContent = '播放 / 停止'; btn.classList.remove('playing'); return; }
+    a = new Audio('../assets/sfx/amb-synth.ogg');
+    a.loop = true;
+    a.play().catch(() => {});
+    btn.textContent = '正在循环 · 点击停止';
+    btn.classList.add('playing');
+  });
+})();
+</script>
+</body>
+</html>

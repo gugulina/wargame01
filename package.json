@@ -8,6 +8,7 @@
     "mut": "node tools/mutcheck.js",
     "cov": "node tools/cov.js",
     "bgm": "node tools/bgm-render.js",
+    "sfx": "node tools/sfx-synth.js",
     "hooks": "node tools/install-hooks.js"
   },
   "devDependencies": {
