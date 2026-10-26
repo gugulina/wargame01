@@ -337,6 +337,14 @@ const MUTANTS = [
    '  const aaSup = aaSuppressed(u);\n  if (false) {',
    '面板点名「被防空压制」', 'brief'],
 
+  /* 附属关顶栏把「附属」说两遍。这条盯的是"类型字段与关号文案各自都说了一遍是支线"，
+     退回旧写法（noText + LEVEL.type）就该有一条断言变红——否则这个重复会再次
+     无声地长回来：它不报错、不影响判定，只是读起来别扭。 */
+  ['顶栏又把「附属」说两遍（类型字段不剥前缀）',
+   "  if (s) s.textContent = levelNoText(LEVEL, true) + levelTypeText(LEVEL) + ' · ' + LEVEL.when;",
+   "  if (s) s.textContent = levelNoText(LEVEL, true) + LEVEL.type + ' · ' + LEVEL.when;",
+   '「附属」只说一次', 'brief'],
+
   /* 点击路由：一格两层时该打谁。三条分别对应"开火优先""只打真能打的""卡也认层"。 */
   ['点格子又退回"先判是不是我方单位"（防空炮打不了同格敌机）',
    '      if (tHere) { doAttack(state.selected, tHere); return; }',

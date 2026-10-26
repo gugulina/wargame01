@@ -6107,13 +6107,26 @@ function levelNoText(lv, full) {
   return ch ? ('第 ' + ch.no + ' 章 · ' + core) : core;
 }
 
+/* 类型文案。附属关的 `type` 写成「附属 · 防御」，而 `levelNoText` 里**也**有一段
+   「附属 · 」——两处都是同一个事实（这一关是支线）的两种说法，直接相连就是
+   「第 3 关 · 附属 · 附属 · 防御」。这个重复从 v4.7 就在顶栏上，8 章之后前面
+   又多了「第 1 章 ·」，读起来更刺眼，v4.8 体检时才发现。
+
+   改法选在拼接点而不是改数据：`type` 在菜单页是**独立的一枚标签**（「附属 · 防御」
+   单看是通顺的），把它砍成「防御」会让标签失去"这是支线"的信息；而关号文案那边
+   也说了一遍，真正多余的只是"连着说两遍"。所以由这里剥前缀——
+   是不是附属归 `levelNoText` 管，`type` 只回答"这是什么仗"。 */
+function levelTypeText(lv) {
+  return String((lv && lv.type) || '').replace(/^附属\s*·\s*/, '');
+}
+
 function syncLevelHeader() {
   const n = document.getElementById('lvName');
   const s = document.getElementById('lvSub');
   if (n) n.textContent = LEVEL.name;
   /* 顶栏这一行是玩家唯一"随时看得到"的定位信息：章 + 关 + 类型 + 时间。
      之前只有"第 3 关 · 防御 · 日期"，8 章之后就不能只说关号了。 */
-  if (s) s.textContent = levelNoText(LEVEL, true) + LEVEL.type + ' · ' + LEVEL.when;
+  if (s) s.textContent = levelNoText(LEVEL, true) + levelTypeText(LEVEL) + ' · ' + LEVEL.when;
   if (document && document.title) document.title = LEVEL.name + ' · 苍屿战役';
 }
 

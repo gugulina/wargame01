@@ -835,6 +835,28 @@ function skip(name, why) {
     W.render();
   }
 
+  console.log('[17] 顶栏副标题：章 · 关 · 类型');
+  {
+    const W = window.__WAR__;
+    /* 进附属关要它的正关先通关。这里直接写进度而不是真打十二个回合：
+       这一段验的是顶栏那一行字，跟"怎么拿到进度"无关。 */
+    try {
+      window.localStorage.setItem(W.PROGRESS_KEY, JSON.stringify({ cleared: { C3: 'win' } }));
+    } catch (e) {}
+    /* **不 await**：noIntro 之下 enterLevel 全程同步跑完（中途没有 await 点），
+       await 只会把断言推到下一个宏任务，读起来更难追。 */
+    W.enterLevel('C3B', { noIntro: true, noSave: true });
+    ok('副标题断言的前提：进的是附属关', W.LEVEL.id === 'C3B', W.LEVEL.id);
+
+    const sub = doc.getElementById('lvSub').textContent;
+    ok('副标题先报章号', /^第 1 章 · /.test(sub), sub);
+    /* 附属关的 type 本身就是「附属 · 防御」，关号文案里也有一段「附属 · 」。
+       两段直接拼起来会说两遍——从 v4.7 起顶栏一直是「第 3 关 · 附属 · 附属 · 防御」，
+       一直没有断言盯着它，所以一直没人发现。 */
+    ok('「附属」只说一次', (sub.match(/附属/g) || []).length === 1, sub);
+    ok('副标题保留了类型与日期', /防御/.test(sub) && /新历/.test(sub), sub);
+  }
+
   console.log('');
   console.log('通过 ' + pass + ' 项' + (skipped ? ' · 跳过 ' + skipped + ' 项' : '') +
               '，失败 ' + fail + ' 项');
