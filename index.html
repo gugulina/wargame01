@@ -331,6 +331,11 @@
     font-size: 11px; color: var(--ink3); line-height: 1.9;
     display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap;
   }
+  .foot-mid a {
+    color: var(--ink3); text-decoration: none;
+    border-bottom: 1px solid var(--line);
+  }
+  .foot-mid a:hover { color: var(--ink2); border-bottom-color: var(--ink3); }
 
   /* 数据文件没加载上 / 浏览器禁了本地脚本时的兜底。
      没有这块的话页面就是一片空白，玩家只会以为文件坏了 */
@@ -438,6 +443,11 @@
 
   <footer>
     <span>全部国家、地名、部队番号均为虚构，不映射任何现实国家或地区。两军编制按「我方 / 敌方」两套体系编写，不绑定任何真实军队。</span>
+    <!-- 素材来源不只放在仓库文档里。有四段音效是 CC-BY，署名是分发时的
+         义务；玩家只能点到这里，所以入口必须在菜单页上。 -->
+    <span class="foot-mid">
+      <a href="game/campaign.html?hq=credits" title="音效素材的作者与授权">素材来源与授权</a>
+    </span>
     <span id="verTag"></span>
   </footer>
 

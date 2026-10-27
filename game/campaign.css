@@ -472,7 +472,7 @@
 
   /* ───────── 地图内操作气泡 ───────── */
   .uops {
-    position: fixed; z-index: 42;
+    position: fixed; z-index: 150;
     min-width: 128px; max-width: 196px; padding: 5px;
     background: #FFFDF8; border: 1px solid #D3CCBC; border-radius: 6px;
     box-shadow: 0 12px 30px rgba(43,42,38,.24);
@@ -693,6 +693,37 @@
   .aide-a code {
     background: #F0EBDD; padding: 0 4px; border-radius: 2px;
     font-size: 10.5px; color: #7A6A44;
+  }
+  /* 素材来源（指挥部最后一页）。这是合规页：CC-BY 要求分发时署名，
+     所以它得能在游戏里打开，而不是只躺在仓库的 CREDITS.md 里。
+     排版上刻意把"用在哪"放左边、文件名放右边——玩家先看到的是用途，
+     需要核对授权的人才去看文件名。 */
+  .cred-note {
+    font-size: 10.5px; line-height: 1.75; color: var(--ink3);
+    margin: -4px 0 8px;
+  }
+  .cred-list { border-top: 1px solid var(--line); }
+  .cred {
+    padding: 8px 0; border-bottom: 1px dotted var(--line);
+  }
+  .cred-top { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .cred-top b { font-size: 11.5px; color: var(--ink); }
+  .cred-file {
+    font-size: 10px; color: var(--ink3);
+    font-family: ui-monospace, "SF Mono", Consolas, monospace;
+  }
+  .cred-lic {
+    margin-left: auto; font-size: 10px; color: var(--ink3);
+    border: 1px solid var(--line); border-radius: 2px; padding: 0 5px;
+    /* 「CC BY 4.0」中间有空格，不加 nowrap 会在窄容器里断成两行 */
+    white-space: nowrap;
+  }
+  .cred-by { font-size: 10.5px; line-height: 1.7; color: var(--ink2); margin-top: 2px; }
+  .cred-by a { color: var(--blue); text-decoration: none; border-bottom: 1px solid #BFD1E6; }
+  .cred-by a:hover { border-bottom-color: var(--blue); }
+  /* 窄屏：许可证徽标不再靠右，免得把文件名挤成两行 */
+  @media (max-width: 560px) {
+    .cred-lic { margin-left: 0; }
   }
   /* 窄屏的气泡改两列网格：竖排 7 个按钮要占掉 1/4 屏高，把地图压没了。
      两列之后大约 4 行，高度砍一半。 */
@@ -1016,9 +1047,18 @@
     .cs-text { font-size: 13.5px; line-height: 1.7; }
 
     /* 触摸目标放大 */
-    .btns button { min-height: 40px; font-size: 14px; }
+    .btns button { min-height: 44px; font-size: 15px; }
     .block-h { font-size: 12px; }
     #unitBox button, .side button { min-height: 36px; }
+
+    /* 操作栏在地图正下方：卡片式白底 + 轻微阴影，跟地图和图例都拉开距离 */
+    .btns {
+      background: #fff;
+      border-radius: 10px;
+      padding: 10px 12px;
+      margin: 4px 0 8px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.06);
+    }
 
     .modal { width: calc(100vw - 40px); max-width: 380px; padding: 18px 20px; }
   }

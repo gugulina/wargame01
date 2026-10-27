@@ -1004,15 +1004,16 @@ function skip(name, why) {
     W.judgeFinal();
     ok('结算后底噪已停', FX._ambWant === false, 'want=' + FX._ambWant);
 
-    /* 首屏预算：amb 是 60 秒循环环境层。真正会犯的错不是"忘了关"，
-       而是"顺手把它加进了 ASSETS.sfx 就跟着 preload 走了"——那一步不报错，
-       只是首屏从 158 KB 涨到 686 KB，手机进关白等。
+    /* ── 首屏预算：从"一刀切"改成"按关" ──
+       以前是无条件把 ASSETS.sfx 全部键拉一遍。真正会犯的错不是"忘了关 amb"，
+       而是"顺手把一条新音效加进 ASSETS 就跟着首屏走了"——那一步不报错，
+       只是手机进关白等。
 
-       250 → 300 KB 是因为槽位从 17 个涨到 20 个：多了航空机炮（1.87 s）
-       与投弹（3.09 s，哨音 + 爆炸），两条都不是替换而是新增的语义。
-       门槛守的是"进关别白等"，而 preload 发生在**进关之后**（玩家正在
-       翻简报），所以 20 个槽 / 272 KB 与原来的 17 个槽 / 247 KB
-       在体感上没有区别。真要再往上涨，就该做按关预载了。 */
+       现在 preload 收 scope（sfxForLevel），所以断言也得分两半：
+       ① 与关卡无关的坏法（amb、死槽混进来）照旧守；
+       ② 与关卡有关的坏法（第 1 关跟着下海空四槽）走真实进关路径验。
+       注意**不能手搓 FX.preload(scope) 来测**：那样测的是参数，
+       而接线（newGame / startResume 到底传没传）永远测不到。 */
     FX._pool = {};
     FX.preload();
     const pooled = Object.keys(FX._pool);
@@ -1023,17 +1024,109 @@ function skip(name, why) {
     ok('preload 没把死槽 move / hit 拉进来',
        !pooled.includes('move') && !pooled.includes('hit'),
        'move=' + pooled.includes('move') + ' hit=' + pooled.includes('hit'));
-    let bytes = 0;
-    for (const k of pooled) {
-      try { bytes += fs.statSync(path.join(baseDir, W.ASSETS.sfx[k])).size; } catch (e) {}
-    }
-    ok('预载音效总量 ≤ 300 KB', bytes <= 300 * 1024, Math.round(bytes / 1024) + ' KB');
+
+    const poolBytes = (list) => {
+      let b = 0;
+      for (const k of list) {
+        try { b += fs.statSync(path.join(baseDir, W.ASSETS.sfx[k])).size; } catch (e) {}
+      }
+      return b;
+    };
+
+    /* 全量口径（不传 scope）留一个上限，防止有人新加槽时忘了考虑体积。
+       这个数只用来兜"加槽加疯了"，不代表任何一关的真实首屏。 */
+    ok('全量预载（无 scope）仍 ≤ 300 KB', poolBytes(pooled) <= 300 * 1024,
+       Math.round(poolBytes(pooled) / 1024) + ' KB');
+
+    /* ── 按关预载：走真实路径 ──
+       C1 是纯步兵加拖炮和一辆坦克：没有航空、没有舰船。
+       以前它跟着下 prop / ship / airgun / bomb 四槽（约 78 KB）。 */
+    FX._pool = {};
+    W.writeProgress({ cleared: { C1: 'win', C2: 'win', C3: 'win' }, played: {}, deck: null, last: null });
+    W.enterLevel('C1', { noIntro: true, noSave: true });
+    const c1 = Object.keys(FX._pool);
+    ok('前提：真的进了 C1', W.LEVEL.id === 'C1', W.LEVEL.id);
+    ok('C1 不预载海空四槽（prop / ship / airgun / bomb）',
+       !['prop', 'ship', 'airgun', 'bomb'].some(k => c1.includes(k)), c1.join(','));
+    /* 反向那一半：别把 scope 收得太死，连本关真会用到的也省掉。
+       C1 有牵引炮（engine）、坦克（track）、步兵（step），三条都得在。 */
+    ok('C1 预载了本关要用的机动声（step / engine / track）',
+       ['step', 'engine', 'track'].every(k => c1.includes(k)), c1.join(','));
+    ok('C1 进关传输 ≤ 200 KB', poolBytes(c1) <= 200 * 1024,
+       Math.round(poolBytes(c1) / 1024) + ' KB');
+
+    /* C4 是港口战，有驱逐舰 / 巡洋舰 / 战列舰和三型飞机。
+       如果 scope 写死成"永远最小集"，这一条会红——两个方向都要有人守。 */
+    FX._pool = {};
+    W.writeProgress({ cleared: { C1: 'win', C2: 'win', C3: 'win', C4: 'win' }, played: {}, deck: null, last: null });
+    W.enterLevel('C4', { noIntro: true, noSave: true });
+    const c4 = Object.keys(FX._pool);
+    ok('前提：真的进了 C4', W.LEVEL.id === 'C4', W.LEVEL.id);
+    ok('C4（港口战）预载了海空槽（ship / prop / airgun / bomb）',
+       ['ship', 'prop', 'airgun', 'bomb'].every(k => c4.includes(k)), c4.join(','));
+    /* C4 有 24 种兵种，几乎用满全量集——它就是最重的一关（264 KB）。
+       所以这里的上限按全量算，它不是"给 C4 留余地"，而是守"别为了
+       按关预载把 C4 该有的砍掉"：砍了体积会降，但上面那条会先红。 */
+    ok('C4 进关传输 ≤ 300 KB', poolBytes(c4) <= 300 * 1024,
+       Math.round(poolBytes(c4) / 1024) + ' KB');
 
     /* 起播：底噪必须是循环轨。少了 loop，60 秒后战场就安静了，
        而且不会有任何报错——玩家只会觉得"后面怎么没声了"。 */
     FX.amb(true);
     ok('amb 起来后是循环轨', !!(FX._ambEl && FX._ambEl.loop === true && FX._ambWant === true),
        FX._ambEl ? 'loop=' + FX._ambEl.loop : '没建元素');
+  }
+
+  console.log('[24] 素材来源：CC-BY 的署名要出现在玩家点得到的地方');
+  {
+    const W = window.__WAR__;
+    const doc = window.document;
+    const tabs = Array.from(doc.querySelectorAll('#hqTabs button[data-tab]'))
+      .map(b => b.dataset.tab);
+    ok('指挥部有「素材来源」页签', tabs.includes('credits'), tabs.join(','));
+    ok('页签白名单收 credits', (W.HQ_TABS || []).includes('credits'), (W.HQ_TABS || []).join(','));
+
+    W.openHQ('credits');
+    const body = doc.getElementById('hqBody');
+    const txt = body.textContent || '';
+    ok('素材来源页真的渲染出内容', txt.length > 200, txt.length + ' 字');
+    /* 页签没接进 renderHQ 的话会落到兜底页（副官），而副官也有几百字，
+       只看长度会假绿——所以要认一句这一页特有的话。 */
+    ok('渲染的是素材来源页，不是兜底页', txt.indexOf('这套声音从哪来') >= 0,
+       txt.replace(/\s+/g, ' ').slice(0, 30));
+
+    /* 断言的源头是 CREDITS.md，不是引擎里那张表——否则"两边一起漏"
+       永远发现不了。改素材的人只会更新 CREDITS，那一栏才是底账。
+       取法：表格行里含 CC-BY 的那一格，它左边一格就是作者。 */
+    const baseDir2 = path.join(path.dirname(file), W.ASSETS.base || 'assets/');
+    const md = fs.readFileSync(path.join(baseDir2, 'sfx', 'CREDITS.md'), 'utf8');
+    const ccby = [];
+    for (const line of md.split('\n')) {
+      if (line.charAt(0) !== '|' || !/CC-BY/.test(line)) continue;
+      const cells = line.split('|').map(s => s.trim());
+      const fileM = cells[1] && cells[1].match(/`([^`]+)`/);
+      if (!fileM) continue;
+      const lic = cells.findIndex(c => /^\*{0,2}CC-BY/.test(c));
+      if (lic < 2) continue;
+      ccby.push({ file: fileM[1], by: cells[lic - 1] });
+    }
+    ok('前提：从 CREDITS 读到了 CC-BY 条目', ccby.length >= 4, ccby.length + ' 条');
+
+    /* 只核对仍在役的文件。素材撤掉之后 CREDITS 会留着历史记录，
+       那种情况下不该逼着页面上继续挂着一个人的名字。 */
+    const inUse = new Set(Object.keys(W.ASSETS.sfx || {})
+      .map(k => path.basename(W.ASSETS.sfx[k])));
+    const missing = [];
+    for (const c of ccby) {
+      if (!inUse.has(c.file)) continue;
+      if (txt.indexOf(c.file) < 0) missing.push(c.file + ' 没写文件名');
+      else if (txt.indexOf(c.by) < 0) missing.push(c.file + ' 漏了作者 ' + c.by);
+    }
+    ok('在役的 CC-BY 素材逐一署名（文件 + 作者）', missing.length === 0, missing.join(' / '));
+
+    ok('署名带得回源头（freesound 链接 ≥ 4 条）',
+       body.querySelectorAll('a[href*="freesound.org"]').length >= 4,
+       body.querySelectorAll('a[href*="freesound.org"]').length + ' 条');
   }
 
   console.log('');

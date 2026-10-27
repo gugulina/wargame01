@@ -294,6 +294,14 @@ function skip(name, why) {
        !!(mastWrap && mastWrap.classList.contains('col-left')),
        mastEl ? '父元素是 ' + (mastWrap.className || mastWrap.tagName) : '找不到 .masthead');
 
+    /* 素材来源的入口必须在**菜单页**上。它不只是个功能链接：有四个音效是
+       CC-BY，署名是随作品分发时的义务，而仓库里的 CREDITS.md 玩家点不到。
+       只把这个入口留在引擎的指挥部里等于"进了战场才看得到说明书"，
+       所以菜单页页脚得有一条能直达 ?hq=credits 的路。 */
+    const credLink = homeDom.window.document.querySelector('footer a[href*="hq=credits"]');
+    ok('菜单页页脚有「素材来源」入口', !!credLink,
+       credLink ? credLink.getAttribute('href') : '页脚里找不到 hq=credits 的链接');
+
     ok('首页关数与引擎一致',
        homeEmpty.levels.length === LV.length,
        '首页 ' + homeEmpty.levels.length + ' / 引擎 ' + LV.length);

@@ -58,7 +58,7 @@
      <link> 不会——跟 data/levels.js 必须用 <script src> 是同一个原因。
      ?v= 跟着顶栏版本走（tools/check.js 校验），否则改完样式玩家可能还在吃
      GitHub Pages 的十分钟缓存，看到的是一半新一半旧的页面。 -->
-<link rel="stylesheet" href="campaign.css?v=4.11">
+<link rel="stylesheet" href="campaign.css?v=4.12">
 </head>
 <body>
 <div class="app">
@@ -72,7 +72,7 @@
       <span class="pill" id="phasePill">我方阶段</span>
       <!-- 全项目唯一的版本标记：tools/export-levels.js 按这个 span 的原样文本抓版本号，
            开始页撤掉之后它挪到了顶栏，标签必须保持 <span id="verTag"> 这个形状 -->
-      <span id="verTag">v4.11</span>
+      <span id="verTag">v4.12</span>
       <!-- 存档异常：只在真的写失败时出现（隐私模式 / 配额满 / 被清理）。
            默认 display:none，别让它平时占位——一排胶囊里突然多一个红字，
            玩家第一反应是"我是不是哪里点坏了"。 -->
@@ -96,6 +96,12 @@
       </div>
     </div>
     <div class="zhint" id="zhint">点格子自动放大 · 双指缩放 · 单指拖动</div>
+    <!-- 操作栏：紧贴在地图下方，手机上不用滚过整张图例和侧栏才能点到 -->
+    <div class="btns">
+      <button id="btnEnd">结束我方阶段</button>
+      <button id="btnUndo" class="ghost" style="flex:0 0 74px" disabled title="没有可撤销的行动">撤销</button>
+      <button id="btnReset" class="ghost" style="flex:0 0 74px">重开</button>
+    </div>
     <div class="legend">
       <span><i class="k move"></i>可移动<em>（点「移动」后亮）</em></span>
       <span><i class="k pass"></i>仅可穿越</span>
@@ -130,11 +136,6 @@
     <div class="block">
       <div class="block-h">详情</div>
       <div id="unitBox"></div>
-    </div>
-    <div class="btns">
-      <button id="btnEnd">结束我方阶段</button>
-      <button id="btnUndo" class="ghost" style="flex:0 0 74px" disabled title="没有可撤销的行动">撤销</button>
-      <button id="btnReset" class="ghost" style="flex:0 0 74px">重开</button>
     </div>
     <div class="block">
       <div class="block-h">战报</div>
@@ -186,6 +187,7 @@
         <button data-tab="cards">战术卡</button>
         <button data-tab="aide">副官</button>
         <button data-tab="save">存档</button>
+        <button data-tab="credits">素材来源</button>
       </div>
       <button class="hq-x" id="hqClose" title="关闭">×</button>
     </div>
@@ -3083,6 +3085,33 @@ const SONIC = {
   }
 };
 
+/* 预载的固定部分：与"这一关有哪些兵种"无关的槽。
+   步兵两条（step / rifle）也放进来——任何一关都可能有步兵：空投生成的
+   伞兵连、事件触发的增援，它们的类型不保证出现在初始编制里。
+   这两条合计不到 14 KB，不值得为省它赌一次"第一次攻击没声"。 */
+const SFX_ALWAYS = ['uiClick', 'select', 'fire', 'shell', 'kill', 'build',
+                    'alarm', 'event', 'win', 'lose', 'step', 'rifle'];
+
+/* 这一关会用到哪些声音槽 = 固定部分 + 编制里出现的兵种所对应的机动/攻击声。
+
+   以前是无条件把 ASSETS.sfx 全部键拉一遍：玩家进第 1 关（纯步兵加几门拖炮）
+   也会跟着下舰体、螺旋桨、机炮、投弹那 78 KB。多这 78 KB 不会让进关卡，
+   但它是一笔**只涨不跌**的账——每加一个槽，首屏就重一点，而所有关卡都得付。
+
+   漏配的代价是"第一次响那个槽时要现下"（FX.sfx 会自己建 Audio），
+   不是静音，所以按关收窄是安全的；但常用槽别漏在外面，见 SFX_ALWAYS。
+   增援与空投的单位也源自 LEVEL.units，所以按初始编制算已经覆盖。 */
+function sfxForLevel(lv) {
+  const keep = new Set(SFX_ALWAYS);
+  for (const u of (lv && lv.units) || []) {
+    const s = SONIC.tab[u.type];
+    if (!s) continue;
+    keep.add(s.m);
+    keep.add(s.a);
+  }
+  return keep;
+}
+
 /* 「方面军司令部 · 电话」用的电台符号：没有人物出场，用人脸反而出戏。
    留成内联 SVG 而不是图片文件，少一个 404 的可能，也不吃加载时间。 */
 const SIG_SVG =
@@ -3156,13 +3185,16 @@ const FX = {
   },
 
   /* ── 预加载：进游戏时把音效全拉进内存，别等第一次开火才去下载 ── */
-  preload() {
+  preload(keep) {
     if (typeof Audio === 'undefined') return 0;
     let n = 0;
     for (const name of Object.keys(ASSETS.sfx || {})) {
       const rel = ASSETS.sfx[name];
       if (!rel || (this._pool[name] && this._pool[name].length)) continue;
       if (this._noPreload[name]) continue;
+      /* keep = 这一关用得上的槽（见 sfxForLevel）。不传等于全量，
+         留给试听页和自检；正式进关一律传，别再回到"21 个槽全拉"。 */
+      if (keep && !keep.has(name)) continue;
       try {
         const a = new Audio(ASSETS.base + rel);
         a.preload = 'auto';
@@ -5379,7 +5411,7 @@ function newGame(opt) {
   refreshFields();
   updateControl(true);
   FX.clear();
-  FX.preload();
+  FX.preload(sfxForLevel(LEVEL));
   FX.bgm('battle');
   FX.amb(true);
   document.getElementById('overlay').classList.add('hidden');
@@ -7470,11 +7502,6 @@ function syncUnitOps() {
     box.querySelectorAll('button[data-op]').forEach(b => {
       b.addEventListener('click', () => runOp(b.dataset.op));
     });
-    /* 窄屏上这个小胶囊也钉到底部，和展开态同一个槽。
-       让它浮在兵牌旁边这条路在手机上走不通：屏幕就那么宽，可达圈把兵牌围满，
-       胶囊要么压住一圈蓝格，要么被挤到屏幕另一头——实测离兵牌 200px，
-       玩家看不出它跟谁是同一个单位。 */
-    if (window.innerWidth <= 640) { dockBottom(box); return; }
     placeUops(box, u);
     return;
   }
@@ -7509,12 +7536,6 @@ function syncUnitOps() {
     b.addEventListener('click', () => runOp(b.dataset.op));
   });
 
-  /* 窄屏没有"旁边的空地"，气泡再贴边也会盖住单位本身。
-     直接改成底部横条，像手机上的操作栏，比浮在半空好点。 */
-  if (window.innerWidth <= 640) {
-    dockBottom(box);
-    return;
-  }
   box.style.bottom = '';
   box.style.transform = '';
   placeUops(box, u);
@@ -8171,7 +8192,7 @@ async function startResume() {
   FX.unlock();
   FX.clear();
   if (!restoreGame(s)) { newGame({ level: lv.id }); fitView(false); return; }
-  FX.preload();
+  FX.preload(sfxForLevel(LEVEL));
   FX.bgm('battle');
   FX.amb(true);
   fitView(true);
@@ -8327,7 +8348,10 @@ let hqTab = 'dex';
 /* HQ 四个页签。菜单页可以带 `?hq=<id>` 直接跳到某一页（「战时手册」走 dex），
    所以这里要有一份权威清单：表外的值一律回落存档页，不要打开一个空面板。
    新增页签时必须同步这里，否则菜单页跳过来会被当成非法值。 */
-const HQ_TABS = ['dex', 'cards', 'aide', 'save'];
+/* 页签顺序：常用的在前，素材来源垫底——它是**合规页**，不是功能页。
+   但垫底不等于可以省：CC-BY 的署名是分发时的义务，玩家点不到就等于没署。
+   加页签必须同时改三处：这里、HTML 的 #hqTabs、renderHQ 的分支。 */
+const HQ_TABS = ['dex', 'cards', 'aide', 'save', 'credits'];
 
 /* 打开 HQ 前的焦点位置。关闭时还给它——
    dialog 的基本礼貌：焦点从哪来回哪去，不能把键盘用户丢在 <body> 上
@@ -8382,7 +8406,10 @@ function renderHQ() {
 
   if (hqTab === 'dex') { box.innerHTML = hqDex(); }
   else if (hqTab === 'cards') { box.innerHTML = hqCards(); }
+  else if (hqTab === 'credits') { box.innerHTML = hqCredits(); }
   else if (hqTab === 'save') { box.innerHTML = hqSave(); }
+  /* 兜底是副官而不是素材来源：未知页签回落到"最常用的一页"，
+     别因为加了一页就把兜底换成最冷的一页。 */
   else { box.innerHTML = hqAide(); }
 
   /* 战术卡的「携带 / 卸下」绑定。
@@ -8494,6 +8521,123 @@ function hqCards() {
       '这一局已经开始，牌组不能再改。<b>用卡请回到地图</b>，点右侧「战术卡」栏里的一张，' +
       '再点地图上的目标单位。</div>';
   }
+  return h;
+}
+
+/* ── 素材来源 ──────────────────────────────────────────────────────
+   这一页是**义务**，不是装饰。
+
+   四个音效是 freesound 上 CC-BY 的实录，而它们已经随页面公开可下载。
+   CC-BY 要求署名发生在"分发"那一刻；在此之前名字只写在仓库的
+   CREDITS.md 里，那是玩家点不到的文件——等于没署。
+   删这一页之前先想清楚：那四个文件还发不发布。
+
+   全项目唯一允许直接写文件名的界面文案就是这里：署名的指向必须精确，
+   写成"某段炮声"没法对应到人。其余页面仍然不许出现文件名。
+
+   加外部素材时：ASSETS 加一行 → CREDITS.md 记一条 → **这里加一行**。
+   briefcheck [24] 会核对 CREDITS.md 里每个 CC-BY 文件都在下面出现过。 */
+const CREDITS = [
+  {
+    name: '必须署名 · CC BY',
+    note: '四个实录来自 freesound。授权要求保留作者与出处链接，' +
+          '随作品分发时必须可见——所以它们排在最上面。',
+    rows: [
+      { use: '炮击', file: 'shell-take2.ogg', what: 'ZiS-3 加农炮 75 周年礼炮，取开头那一发',
+        by: 'Walking.With.Microphones', lic: 'CC BY 4.0',
+        url: 'https://freesound.org/people/Walking.With.Microphones/sounds/556134/' },
+      { use: '机炮（战斗机 / 攻击机）', file: 'airgun-take1.ogg', what: '防空炮连射，取第二段',
+        by: 'ryanconway', lic: 'CC BY 4.0',
+        url: 'https://freesound.org/people/ryanconway/sounds/161429/' },
+      { use: '螺旋桨机动', file: 'prop-take1.ogg', what: 'Spitfire 滑行经过',
+        by: 'Fight2FlyPhoto', lic: 'CC BY 3.0',
+        url: 'https://freesound.org/people/Fight2FlyPhoto/sounds/142897/' },
+      { use: '舰艇机动', file: 'ship-take1.ogg', what: '浪拍船侧，叠一层自制的低频推进',
+        by: 'Kayyy', lic: 'CC BY 3.0',
+        url: 'https://freesound.org/people/Kayyy/sounds/61012/' }
+    ]
+  },
+  {
+    name: '公有领域 · CC0',
+    note: '可以商用、可以改，不要求署名。写出来是为了留底。',
+    rows: [
+      { use: '直射开火', file: 'fire-v2.mp3', what: '.22 Magnum 实弹录音',
+        by: 'kurt（OpenGameArt）', lic: 'CC0 1.0',
+        url: 'https://opengameart.org/content/gunshots' },
+      { use: '步兵攻击', file: 'rifle-take1.ogg', what: '狙击步枪四连发 + 轻机枪叠层',
+        by: 'SuperPhat', lic: 'CC0',
+        url: 'https://freesound.org/people/SuperPhat/sounds/514228/' },
+      { use: '步兵机动', file: 'step-take1.ogg', what: '混凝土路面行军，切一步',
+        by: 'stib', lic: 'CC0',
+        url: 'https://freesound.org/people/stib/sounds/240732/' },
+      { use: '轮式机动', file: 'engine-take1.ogg', what: '消防车引擎',
+        by: 'monosfera', lic: 'CC0',
+        url: 'https://freesound.org/people/monosfera/sounds/569837/' },
+      { use: '履带机动', file: 'track-take1.ogg', what: 'T-26 实车行进',
+        by: 'greatmganga', lic: 'CC0',
+        url: 'https://freesound.org/people/greatmganga/sounds/329800/' },
+      { use: '轰炸机投弹', file: 'bomb-take1.ogg', what: '俯冲哨音，落地那声叠炮击',
+        by: 'morganpurkis', lic: 'CC0',
+        url: 'https://freesound.org/people/morganpurkis/sounds/398255/' },
+      { use: '战场底噪', file: 'amb-take1.ogg', what: '四发远处炮火，垫在自制的环境层上',
+        by: 'raphavpires', lic: 'CC0',
+        url: 'https://freesound.org/people/raphavpires/sounds/867030/' },
+      { use: '按钮 / 选中 / 构筑 / 胜负', file: 'ui-click.ogg 等 6 个', what: '界面与工事音，来自 Kenney 的四个音效包',
+        by: 'Kenney', lic: 'CC0 1.0',
+        url: 'https://kenney.nl/' }
+    ]
+  },
+  {
+    name: 'Mixkit 免费许可 · 无需署名',
+    note: '可随作品发布，但<b>不能单独抽出来当素材包再分发</b>——' +
+          '所以这几个文件别打包成音效集外传。',
+    rows: [
+      { use: '歼灭', file: 'kill-v2.mp3', what: '多爆点殉爆（影视拟音，不是实录）',
+        by: 'Mixkit（Envato）', lic: 'Mixkit Free', url: 'https://mixkit.co/free-sound-effects/' },
+      { use: '敌方增援', file: 'alarm-v2.mp3', what: '连续警报',
+        by: 'Mixkit（Envato）', lic: 'Mixkit Free', url: 'https://mixkit.co/free-sound-effects/' }
+    ]
+  },
+  {
+    name: '本作自制',
+    note: '合成器写的，谱和渲染脚本都在仓库里，改参数重跑就行。',
+    rows: [
+      { use: '剧情事件', file: 'event-synth.ogg', what: '760 Hz 电报点划：这份情报是报上来的，' +
+        '不是"叮"一声', by: '本作合成', lic: '随本作' },
+      { use: '背景音乐 · 5 首', file: 'menu / battle / tension / win / lose',
+        what: '菜单、战斗、紧张、胜、负各一首，全部用合成器编曲',
+        by: '本作合成', lic: '随本作' },
+      { use: '叠层', file: 'hull-synth.ogg 等', what: '舰体低频、底噪骨架、炸弹的爆炸层',
+        by: '本作合成', lic: '随本作' }
+    ]
+  }
+];
+
+function hqCredits() {
+  let h = '<div class="aide-intro"><span class="aide-av">源</span>' +
+    '<p><b>这套声音从哪来。</b>除了自己合成的，其余都是免费可商用的公开素材。' +
+    '上面第一组要求署名，那是授权的条件，不是客气话。</p></div>';
+
+  for (const g of CREDITS) {
+    h += '<div class="hq-group"><div class="hq-gh">' + g.name + '</div>';
+    if (g.note) h += '<div class="cred-note">' + g.note + '</div>';
+    h += '<div class="cred-list">';
+    for (const r of g.rows) {
+      h += '<div class="cred">' +
+        '<div class="cred-top"><b>' + r.use + '</b>' +
+        '<span class="cred-file">' + r.file + '</span>' +
+        '<span class="cred-lic">' + r.lic + '</span></div>' +
+        '<div class="cred-by">' +
+          (r.url ? '<a href="' + r.url + '" target="_blank" rel="noopener">' + r.by + '</a>' : r.by) +
+          ' · ' + r.what + '</div>' +
+        '</div>';
+    }
+    h += '</div></div>';
+  }
+
+  h += '<div style="font-size:10.5px;color:var(--ink3);line-height:1.8;margin-top:4px">' +
+    '逐条的处理参数（截取区间、滤波、电平归一）与换素材的实测对比，' +
+    '记在仓库的 <b>game/assets/sfx/CREDITS.md</b>。</div>';
   return h;
 }
 
@@ -8922,6 +9066,8 @@ window.__WAR__ = {
      否则自测与自动化读到的永远是初始那一关，切关的 bug 一条都测不出来 */
   get LEVEL() { return LEVEL; },
   TERRAIN, TYPE, CRT, TIER_LABEL, ASSETS, FX, SONIC,
+  /* 按关预载：自检要能算"这一关会拉多少"，不然只能靠截图看 */
+  sfxForLevel, SFX_ALWAYS,
   /* 多关框架 */
   LEVELS, levelById, levelAccess, accessPrereq, prevReadyLevel, nextReadyLevel,
   recommendLevel, readProgress, writeProgress, markResult, enterLevel,

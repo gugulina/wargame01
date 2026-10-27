@@ -292,8 +292,8 @@ const MUTANTS = [
    '加粗真的渲染成 <b>', 'brief'],
 
   ['HQ 页签清单少了 dex（菜单页的「战时手册」静默落到存档页）',
-   "const HQ_TABS = ['dex', 'cards', 'aide', 'save'];",
-   "const HQ_TABS = ['cards', 'aide', 'save'];",
+   "const HQ_TABS = ['dex', 'cards', 'aide', 'save', 'credits'];",
+   "const HQ_TABS = ['cards', 'aide', 'save', 'credits'];",
    'HQ_TABS 与页签按钮一一对应', 'brief'],
 
   ['文案里塞回超出二战水平的装备（战斗机挂空空导弹）',
@@ -380,6 +380,34 @@ const MUTANTS = [
    '      const pick = unitsAt(r, c).find(x => cardFitsUnit(card, x));',
    '      const pick = cardFitsUnit(card, u) ? u : null;',
    '指向敌方的战术卡落在空中那一支上'],
+
+  /* ── 素材来源页（CC-BY 的署名义务）──
+     这一页不是装饰：四个 CC-BY 音效随页面公开分发，名字写不上就是违约。
+     两条变异分别盯"名字有没有出现在页面上"和"这一页到底渲染没渲染"——
+     后者是容易假绿的地方：页签没接进 renderHQ 会落到副官兜底，
+     而副官也有几百字，只查长度查不出来。 */
+  ['素材来源页漏掉作者名（CC-BY 的署名只剩文件名）',
+   "by: 'Walking.With.Microphones', lic: 'CC BY 4.0',",
+   "by: '佚名', lic: 'CC BY 4.0',",
+   '在役的 CC-BY 素材逐一署名', 'brief'],
+
+  ['renderHQ 漏掉 credits 分支（页签点开是副官）',
+   "  else if (hqTab === 'credits') { box.innerHTML = hqCredits(); }\n",
+   '',
+   '渲染的是素材来源页', 'brief'],
+
+  /* ── 按关预载 ──
+     两个方向各一条：退回全量（陆战白下海空 78 KB）、或把 scope 收死
+     （港口战少了舰体与投弹）。只守一个方向的断言，另一半会悄悄坏掉。 */
+  ['预载退回全量（第 1 关又跟着下海空四槽）',
+   '  FX.clear();\n  FX.preload(sfxForLevel(LEVEL));',
+   '  FX.clear();\n  FX.preload();',
+   'C1 不预载海空四槽', 'brief'],
+
+  ['按关预载不看编制（scope 写死成固定集）',
+   '  const keep = new Set(SFX_ALWAYS);\n  for (const u of (lv && lv.units) || []) {',
+   '  const keep = new Set(SFX_ALWAYS);\n  for (const u of []) {',
+   'C4（港口战）预载了海空槽', 'brief'],
 
 ];
 
