@@ -19,3 +19,8 @@ node_modules/
 
 # 音效挑选时的临时工作区（原始下载 + 分析产物）
 game/_cand/
+
+# 试听页的内嵌版：1 MB base64，由骨架 sfx-demo.html 生成
+# （npm run sfx:embed）。入库的代价是每改一次音效就整体重写一遍，
+# diff 里看不出任何东西。
+game/audio-lab/*.embed.html
