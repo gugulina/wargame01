@@ -1,7 +1,8 @@
 # Android 打包说明
 
-**当前包**：`苍屿战役-v6.apk`（versionCode 6 / versionName 4.12）· 7.4 MB
-**上一版**：v5（versionCode 5）· 26 MB —— 体积差的不是优化，是 v5 把开发 leftovers 打进了包
+**当前包**：`苍屿战役-v7.apk`（versionCode 7 / versionName 4.13）· 7.4 MB
+**上一版**：v6（versionCode 6 / versionName 4.12）· 7.4 MB —— v7 只跟了版本，体积没动
+**再上一版**：v5（versionCode 5）· 26 MB —— 体积差的不是优化，是 v5 把开发 leftovers 打进了包
 **构建**：Capacitor 8.5.3 + Gradle 8.14.3 + JDK 21 + Android SDK 36
 
 > 这份文档原先叫"测试报告"，里面有一批数对不上（写 Capacitor 7 实际是 8.5.3、写最低 API 21
@@ -97,7 +98,7 @@ node tools/build-www.js --check   # 只校验（已挂进 npm test）
 
 在真实浏览器里跑生成出来的 `www/`（静态服务 + headless Edge），不是"看代码觉得没问题"：
 
-- 菜单页：章节、关卡列表、开始战役按钮、版本 v4.12 全部正常渲染
+- 菜单页：章节、关卡列表、开始战役按钮、版本号全部正常渲染
 - `game/campaign.html?lv=C1` 进关：简报 → 跳过 → 棋盘 109 个元素 / 23 个兵牌，
   地图、兵牌番号、右侧战术卡与战报栏齐全，无破图
 - **资源零 404**（服务端访问日志逐条核过）：进关时按关预载拉了 14 个音效 +
@@ -111,7 +112,7 @@ node tools/build-www.js --check   # 只校验（已挂进 npm test）
 ## 五、未验证
 
 - **真机 / 模拟器安装与启动**：本机 SDK 没装 emulator 组件，也没有连接设备。
-  包能构建、能打出来，但"在 Android 上点开图标能玩"目前只有上一版 v5 的说法，v6 没实测
+  包能构建、能打出来，但"在 Android 上点开图标能玩"目前只有 v5 那一次的说法，v6 / v7 都没实测
 - **WebView 内的音频自动播放**：浏览器里靠首次 `pointerdown`/`keydown` 解锁；
   Android WebView 的 `MediaPlaybackRequiresUserGesture` 默认值与浏览器不同，需真机确认
 - **切后台 / 锁屏**：BGM 与底噪在 `onPause` 之后是否恢复

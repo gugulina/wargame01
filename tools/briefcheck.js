@@ -1129,6 +1129,94 @@ function skip(name, why) {
        body.querySelectorAll('a[href*="freesound.org"]').length + ' 条');
   }
 
+  console.log('[25] 敌情检视与堆叠目标选择（真 DOM）');
+  {
+    /* 两条玩家反馈的界面上半段：
+       "看不到敌人具体信息" → 点敌格之后 #unitBox 得真的换成敌军编制；
+       "堆叠格想打指定那支" → 多目标时 #pickBox 得弹出来、点第二支要打第二支。
+       状态层的断言在 selftest [38]，这里守的是"渲染端有没有接上"——
+       少了这一层，引擎里全绿而玩家屏幕上什么都没变。 */
+    const W = window.__WAR__;
+    const doc = window.document;
+    /* 上一节 [24] 打开过指挥部（?hq=credits）就没关，而 Esc 的第一层是
+       "关 HQ"。不清场的话这里按 Esc 只会关掉那个面板，选择器一动不动——
+       看起来像"Esc 不生效"，实际是被上层顶替。 */
+    W.closeHQ();
+    W.writeProgress({ cleared: { C1: 'win', C2: 'win' }, played: {}, deck: null, last: null });
+    W.enterLevel('C3', { noIntro: true, noSave: true });
+    ok('前提：真的进了岚口', W.LEVEL.id === 'C3', W.LEVEL.id);
+
+    const setup = () => {
+      W.newGame({ level: 'C3', noSave: true });
+      const st = W.getState();
+      const me = W.uid('B1A');
+      const foes = st.units.filter(u => u.side === 'red' && W.domainOf(u) === 'ground');
+      const hex = W.neighbors(me.pos[0], me.pos[1])
+        .filter(p => W.unitsAt(p[0], p[1]).length === 0)[0];
+      foes[0].pos = hex.slice();
+      foes[1].pos = hex.slice();
+      let far = null, bd = -1;
+      for (let r = 0; r < W.LEVEL.rows; r++) {
+        for (let c = 0; c < W.LEVEL.cols; c++) {
+          const d = W.hexDist(me.pos, [r, c]);
+          if (d > bd && W.unitsAt(r, c).length === 0) { bd = d; far = [r, c]; }
+        }
+      }
+      return { st, me, hex, far, f0: foes[0], f1: foes[1] };
+    };
+
+    const box = doc.getElementById('unitBox');
+    const opsBox = doc.getElementById('unitOps');
+    const pickBox = doc.getElementById('pickBox');
+
+    /* ── 一、点敌军 = 检视 ── */
+    let s = setup();
+    s.f0.pos = s.far.slice();
+    W.select(s.me);
+    W.onHexClick(s.far[0], s.far[1]);
+    const boxTxt = box.textContent || '';
+    ok('点射程外的敌军，右侧面板换成那支敌军', boxTxt.indexOf(s.f0.name) >= 0,
+       boxTxt.replace(/\s+/g, ' ').slice(0, 40));
+    ok('面板写明「检视中（只读）」', boxTxt.indexOf('检视中') >= 0,
+       boxTxt.replace(/\s+/g, ' ').slice(0, 40));
+    /* 只验名字会假绿：以前这里显示的是地形名，恰好也可能撞字。
+       编制三项是"敌军详情"这件事本身，缺一项这功能就等于没做。 */
+    ok('敌方编制信息真的渲染出来了（战力 / 组织度 / 射程）',
+       boxTxt.indexOf('战力') >= 0 && boxTxt.indexOf('组织度') >= 0 && boxTxt.indexOf('射程') >= 0);
+    ok('检视期间我方单位的行动入口还在（选中没被抢走）',
+       !opsBox.classList.contains('hidden'));
+
+    /* ── 二、多目标：先选后打 ── */
+    s = setup();
+    W.select(s.me);
+    W.onHexClick(s.hex[0], s.hex[1]);
+    ok('多目标时选择器出现', !pickBox.classList.contains('hidden'));
+    const btns = pickBox.querySelectorAll('button[data-t]');
+    ok('选择器列出两支目标 + 一个取消', btns.length === 3, btns.length + ' 个按钮');
+    ok('选择器里写的是兵牌简称（玩家认字的那一行）',
+       (pickBox.textContent || '').indexOf(s.f0.abbr) >= 0,
+       (pickBox.textContent || '').replace(/\s+/g, ' ').slice(0, 40));
+    ok('行动气泡让位，不跟选择器叠在一起', opsBox.classList.contains('hidden'));
+
+    const str0 = s.f0.str, str1 = s.f1.str;
+    btns[1].click();
+    ok('点第二支：打的是它，第一支原样',
+       s.f0.str === str0 && (!W.getState().units.includes(s.f1) || s.f1.str < str1),
+       s.f0.id + ' ' + str0 + '→' + s.f0.str + '，' + s.f1.id + ' ' + str1 + '→' + s.f1.str);
+    ok('打完选择器自己收起', pickBox.classList.contains('hidden'));
+
+    /* ── 三、Esc 收起选择器，选中保留 ── */
+    s = setup();
+    W.select(s.me);
+    W.onHexClick(s.hex[0], s.hex[1]);
+    ok('前提：选择器又打开了', !pickBox.classList.contains('hidden'));
+    window.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape' }));
+    ok('Esc 只收选择器，不连带取消选中',
+       pickBox.classList.contains('hidden') && W.getState().selected === s.me,
+       'pick=' + (W.getState().pick ? '有' : '无') +
+       ' selected=' + (W.getState().selected ? W.getState().selected.id : '空'));
+  }
+
   console.log('');
   console.log('通过 ' + pass + ' 项' + (skipped ? ' · 跳过 ' + skipped + ' 项' : '') +
               '，失败 ' + fail + ' 项');

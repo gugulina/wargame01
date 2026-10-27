@@ -58,7 +58,7 @@
      <link> 不会——跟 data/levels.js 必须用 <script src> 是同一个原因。
      ?v= 跟着顶栏版本走（tools/check.js 校验），否则改完样式玩家可能还在吃
      GitHub Pages 的十分钟缓存，看到的是一半新一半旧的页面。 -->
-<link rel="stylesheet" href="campaign.css?v=4.12">
+<link rel="stylesheet" href="campaign.css?v=4.13">
 </head>
 <body>
 <div class="app">
@@ -72,7 +72,7 @@
       <span class="pill" id="phasePill">我方阶段</span>
       <!-- 全项目唯一的版本标记：tools/export-levels.js 按这个 span 的原样文本抓版本号，
            开始页撤掉之后它挪到了顶栏，标签必须保持 <span id="verTag"> 这个形状 -->
-      <span id="verTag">v4.12</span>
+      <span id="verTag">v4.13</span>
       <!-- 存档异常：只在真的写失败时出现（隐私模式 / 配额满 / 被清理）。
            默认 display:none，别让它平时占位——一排胶囊里突然多一个红字，
            玩家第一反应是"我是不是哪里点坏了"。 -->
@@ -157,6 +157,10 @@
      点开才铺整组按钮；一开始点地图就自动收起。
      为什么要分两段见 syncUnitOps 上面的注释——整组铺开会压住邻格。 -->
 <div id="unitOps" class="uops hidden"></div>
+
+<!-- 目标选择器：一格里的可打目标不止一支时（地表堆叠 / 地面 + 空中）弹出来。
+     单目标不经过这里——那一步仍然点一下就打。 -->
+<div id="pickBox" class="uops hidden"></div>
 
 <div class="overlay hidden" id="overlay">
   <div class="modal">
@@ -5190,6 +5194,8 @@ function restoreGame(s) {
     forts: s.forts || [],
     log: s.log || [],
     selected: null,
+    inspect: null,
+    pick: null,
     reachable: emptyReach(),
     targets: [],
     mode: null,
@@ -5387,6 +5393,10 @@ function newGame(opt) {
     })),
     log: [],
     selected: null,
+    /* 只读检视（点敌军看编制）与目标选择器。都不进存档、不参与判定：
+       它们描述的是"玩家现在在看什么"，重开/读档后没有任何意义。 */
+    inspect: null,
+    pick: null,
     reachable: emptyReach(),
     targets: [],
     mode: null,
@@ -5449,6 +5459,10 @@ function select(u) {
   if (!u) return;
   FX.sfx('select');
   state.selected = u;
+  /* 选中自己人就退出检视。少了这一条，点回自己的部队之后右侧面板还挂着
+     刚才那支敌军的编制，看着像"选中没生效"。 */
+  state.inspect = null;
+  state.pick = null;
   state.mode = null;
   uopsOpen = false;
   const my = u.side === 'blue' && state.phase === 'blue';
@@ -5460,6 +5474,8 @@ function select(u) {
 }
 function selectTerrain(r, c) {
   state.selected = null;
+  state.inspect = null;
+  state.pick = null;
   state.reachable = emptyReach();
   state.targets = [];
   state.mode = null;
@@ -5470,6 +5486,8 @@ function selectTerrain(r, c) {
 }
 function clearSelection() {
   state.selected = null;
+  state.inspect = null;
+  state.pick = null;
   state.reachable = emptyReach();
   state.targets = [];
   state.mode = null;
@@ -5480,10 +5498,57 @@ function clearSelection() {
    免得三处各写一遍 render + renderUnitBox，漏一处就出现"面板还留着上一个单位"。 */
 function deselect() {
   if (!state) return;
-  if (!state.selected && !state.terrainSel) return;
+  if (!state.selected && !state.terrainSel && !state.inspect) return;
   clearSelection();
   render();
   renderUnitBox();
+}
+
+/* ── 检视敌军 ──────────────────────────────────────────────
+   蓝方阶段点敌方单位以前落到 selectTerrain：右侧面板讲的是地形，
+   兵力 / 编制 / 射程 / 弹药一个字都没有，只能从兵牌上那个数字猜。
+   更难受的是 selectTerrain 会把 state.selected 清掉——玩家选着自己部队，
+   顺手点一下远处敌人想看看它是什么，自己的选中反而丢了。
+
+   inspect 是**独立于选中的一层**：只影响右侧面板和格子高亮，
+   不碰 selected / reachable / targets。看完点回自己的部队，一切照旧。
+   它不进存档、不参与任何判定，所以不受 undo 快照影响（doUndo 走
+   clearSelection 会把这个引用一起清掉，对象被换掉也不会悬空）。 */
+function inspectUnit(u) {
+  if (!u || !state) return;
+  state.inspect = u;
+  state.terrainSel = null;
+  uopsOpen = false;
+  FX.sfx('select');
+  render();
+}
+function clearInspect() { if (state) state.inspect = null; }
+
+/* ── 目标选择器 ────────────────────────────────────────────
+   一格两支敌军时（地表堆叠 2 支，或地面 + 空中各一支），targetAt 只返回
+   按堆叠顺序的第一支，想打后面那支没有任何入口——反馈原话是
+   "希望能选择堆叠格子中的具体单位攻击"。
+
+   只在**多目标**时弹出来：单目标仍然一步开火。给每一次射击加一次确认，
+   为了一个少数情况牺牲九成情况的爽利，不划算。 */
+function openPick(r, c) {
+  if (!state || !state.selected) return;
+  const list = targetsAt(r, c);
+  if (!list.length) return;
+  if (list.length === 1) { doAttack(state.selected, list[0]); return; }
+  state.pick = { r: r, c: c };
+  uopsOpen = false;
+  render();
+}
+/* "上一次把焦点交给选择器"的那个格子。只在 pick 刚打开时抢一次焦点，
+   否则每次 render 都把焦点从别处拽回来（收起来再展开会很突然）。 */
+let pickFocusKey = null;
+
+function closePick() {
+  if (state) state.pick = null;
+  pickFocusKey = null;
+  const box = document.getElementById('pickBox');
+  if (box) { box.classList.add('hidden'); box.innerHTML = ''; }
 }
 
 /* ───────────────────────── 行动 ───────────────────────── */
@@ -6038,10 +6103,13 @@ function doDepot(u) {
    让它干活"仍然走得通——打完一发 u.fired 为真、targets 清空，再点这格就是
    选中了。唯一的代价是"先给守备营下令、又还没开火"这一个瞬间点不出来，
    先打一发或换一格点即可。 */
-function targetAt(r, c) {
-  if (!state.selected || !state.targets.length) return null;
-  return unitsAt(r, c).find(x => state.targets.includes(x)) || null;
+function targetsAt(r, c) {
+  if (!state.selected || !state.targets.length) return [];
+  return unitsAt(r, c).filter(x => state.targets.includes(x));
 }
+/* 只要一支时走这里。**别在多目标的地方用它**——它按堆叠顺序取第一个，
+   同格两支敌军时"想打后面那支"没有任何入口（见 openPick）。 */
+function targetAt(r, c) { return targetsAt(r, c)[0] || null; }
 function onHexClick(r, c) {
   if (!state || state.result) return;
   const u = unitAt(r, c);
@@ -6050,6 +6118,9 @@ function onHexClick(r, c) {
      而这三格往往就是接下来要点的。收起之后不再触发重画，
      本次点击照常走下面的分支，只是顺手把浮层关掉。 */
   uopsOpen = false;
+  /* 目标选择器是上一次点击留下的浮层。这一次点在别处就该收起——
+     放在所有分支之前，是因为下面每一条都会 return，没有一个统一的收口。 */
+  if (state.pick) closePick();
 
   if (state.phase === 'blue') {
     /* 战术卡等待选目标：优先级最高。选中一张卡之后，下一次点格子就是"用在这"，
@@ -6107,9 +6178,12 @@ function onHexClick(r, c) {
       }
       /* 开火优先于选中。**位置就在移动之后**：移动模式下点蓝格是明确的
          "我要走过去"，而飞机不挡地面通行，同一格既可能是落脚点又是射击目标，
-         那时按玩家点亮的那片蓝格办事。 */
-      const tHere = targetAt(r, c);
-      if (tHere) { doAttack(state.selected, tHere); return; }
+         那时按玩家点亮的那片蓝格办事。
+         格内两支以上可打目标（地表堆叠、或地表 + 空中）时先弹选择器：
+         直接打第一支等于替玩家做了"打谁"的决定，而且没有第二次机会。 */
+      const tHere = targetsAt(r, c);
+      if (tHere.length > 1) { openPick(r, c); return; }
+      if (tHere.length === 1) { doAttack(state.selected, tHere[0]); return; }
       /* 同一格里已经选中了一支时，再点这格：
          · 有堆叠 → 轮到下一支（不然下层永远选不到）
          · 只有一支 → 取消选中
@@ -6125,19 +6199,28 @@ function onHexClick(r, c) {
       }
       select(u); return;
     }
-    /* 敌方堆叠格：点格子时按"栈顶优先、其次格内其他"挑一个可打的目标 */
-    const rTgt = targetAt(r, c);
-    if (rTgt) {
-      doAttack(state.selected, rTgt);
-      return;
-    }
+    /* 敌方格：能不能打 → 打谁 → 打不了就看
+       ① 可打目标两支以上 → 弹选择器，玩家点谁打谁
+       ② 一支 → 一步开火（大多数情况，不给每次射击加一次确认）
+       ③ 一支都没有 → **检视**，不再落到 selectTerrain。
+          落到地形面板是这条反馈的另一半：玩家点敌人想看的是它，不是脚下那块地；
+          而且 selectTerrain 会 state.selected = null，选着自己部队点一下远处敌人，
+          选中反而丢了。 */
+    const rTgts = targetsAt(r, c);
+    if (rTgts.length > 1) { openPick(r, c); return; }
+    if (rTgts.length === 1) { doAttack(state.selected, rTgts[0]); return; }
     if (state.mode === 'move' && state.selected &&
         state.reachable.stop && state.reachable.stop[kk(r, c)] !== undefined) {
       doMove(state.selected, [r, c]);   // 同上：移动只从菜单进，这里必须已在移动模式
       return;
     }
     if (!u) { selectTerrain(r, c); return; }
-    selectTerrain(r, c);
+    /* 同格多支敌军时再点一次换下一支，和"点自己人轮换选中"是同一套手感。
+       先换完再谈"这一格"——不然第二支永远没有出口。 */
+    const foes = unitsAt(r, c).filter(x => x.side === u.side);
+    const fi = state.inspect ? foes.indexOf(state.inspect) : -1;
+    if (fi >= 0 && foes.length > 1) { inspectUnit(foes[(fi + 1) % foes.length]); return; }
+    inspectUnit(u);
     return;
   }
   /* 敌方阶段：只看不给动。点同一支也取消——
@@ -6844,6 +6927,7 @@ function render() {
   renderCardBar();
   /* 气泡要等 renderBoard 把 DOM 换完才能定位，所以放在最后 */
   syncUnitOps();
+  syncPick();
   kbSyncAria();
 }
 
@@ -7036,6 +7120,8 @@ function renderBoard() {
       const tu = here.length ? here[here.length - 1] : null;
       if (here.some(x => state.targets.includes(x))) cls += ' atk';
       if (state.selected && state.selected.pos[0] === r && state.selected.pos[1] === c) cls += ' cur';
+      /* 检视图与选中共用同一种高亮：它回答的是同一个问题——"我现在在看这一格" */
+      if (state.inspect && state.inspect.pos[0] === r && state.inspect.pos[1] === c) cls += ' cur';
       if (state.terrainSel && state.terrainSel[0] === r && state.terrainSel[1] === c) cls += ' cur';
       /* 键盘光标。和 .cur（选中单位那一格）是两回事：
          .cur 是"我选了谁"，kbcur 是"我的光标停在哪"。两者经常不同格
@@ -7381,10 +7467,11 @@ function uopsCover(x, y, w, h, rects) {
   return n;
 }
 
-function placeUops(box, u) {
-  const hexEl = document.querySelector('.hex[data-r="' + u.pos[0] + '"][data-c="' + u.pos[1] + '"]');
-  if (!hexEl) return;
-  const r0 = hexEl.getBoundingClientRect();
+/* 把浮层放到 r0 这一格周围。`extraObs` 是"这一块也别压"的额外矩形——
+   目标选择器要把**目标格本身**算进去：压住靶子的浮层等于没有。
+   抽出来是因为两个浮层（行动气泡 / 目标选择）用的是同一套避让算法，
+   各写一遍的话改一处不同步，就会出现"一个躲格子、一个不躲"。 */
+function placeBoxAt(box, r0, extraObs) {
   const w = box.offsetWidth, hh = box.offsetHeight;
   /* 边界不能用 window，要用棋盘容器——棋盘右侧紧挨着侧栏，
      只按 window 判断的话气泡会"合法地"浮到侧栏上面，把侧栏内容盖掉。
@@ -7407,7 +7494,7 @@ function placeUops(box, u) {
      为什么不只试八个方向：六角格是犬牙交错的，正右方压两格，往右下 30px
      就可能一格不压——八个方向扫不到这种缝。289 个候选 × 十几个障碍，
      一次不到 1ms，比玩家多点一次便宜多了。 */
-  const obs = uopsObstacles();
+  const obs = uopsObstacles().concat(extraObs || []);
   /* 半径 160，比上一版的 260 收了整整一圈：障碍从"一整圈蓝格"缩成"几支兵牌"之后，
      气泡只需要侧移一格就能找到空位，没必要再往远处飘。
      步长仍取 20：六角格是犬牙交错的，正右方压一格，往右下 20px 就可能刚好避开，
@@ -7436,12 +7523,28 @@ function placeUops(box, u) {
   box.style.left = Math.round(best.x) + 'px';
   box.style.top = Math.round(best.y) + 'px';
 }
+function placeUops(box, u) {
+  const hexEl = document.querySelector('.hex[data-r="' + u.pos[0] + '"][data-c="' + u.pos[1] + '"]');
+  if (!hexEl) return;
+  placeBoxAt(box, hexEl.getBoundingClientRect());
+}
+/* 目标选择器贴在被点的那一格上。目标格自己进障碍表，
+   于是它总是从靶子旁边浮出来，而不是盖住靶子。 */
+function placePick(box, r, c) {
+  const hexEl = document.querySelector('.hex[data-r="' + r + '"][data-c="' + c + '"]');
+  if (!hexEl) return;
+  const r0 = hexEl.getBoundingClientRect();
+  placeBoxAt(box, r0, [r0]);
+}
 
 /* 只重算位置、不重建 DOM。拖动地图 / 按缩放键 / 窄屏自动居中之后都要调一次：
    气泡是 position:fixed，棋盘却是靠 transform 平移缩放的——
    不重算的话它会停在原地，看起来像"跳到别的格子上去了"。
    不重建 DOM 是因为拖动时每帧都会走到这里，重绑一遍事件太贵。 */
 function repositionUops() {
+  /* 选择器先算：pick 打开时行动气泡是隐藏的（见 syncUnitOps），
+     下面那行 early return 会把它一起跳过——拖动地图后选择器就停在原地了。 */
+  repositionPick();
   const box = document.getElementById('unitOps');
   if (!box || box.classList.contains('hidden')) return;
   const u = state && state.selected;
@@ -7454,6 +7557,17 @@ function repositionUops() {
   box.style.bottom = '';
   box.style.maxWidth = '';
   placeUops(box, u);
+}
+function repositionPick() {
+  const box = document.getElementById('pickBox');
+  if (!box || box.classList.contains('hidden')) return;
+  const p = state && state.pick;
+  if (!p) return;
+  if (window.innerWidth <= 640) { dockBottom(box); return; }
+  box.style.bottom = '';
+  box.style.maxWidth = '';
+  box.style.transform = '';
+  placePick(box, p.r, p.c);
 }
 
 /* 窄屏的落位：钉在棋盘下沿、水平居中，展开态与小胶囊共用这一个槽。
@@ -7473,7 +7587,10 @@ function syncUnitOps() {
   if (!box) return;
   const u = state && state.selected;
   const ops = unitOps(u);
-  if (!ops.length) {
+  /* 目标选择器开着时把行动气泡收起来。两个浮层都贴在兵牌附近、
+     都按 placeUops 那套避让算位置，但它们的障碍表里没有对方——
+     同时出现会叠在一起，而且这时候玩家要办的事只有一件：选打谁。 */
+  if (!ops.length || (state && state.pick)) {
     box.classList.add('hidden');
     box.classList.remove('mini');
     box.innerHTML = '';
@@ -7546,6 +7663,63 @@ function syncUnitOps() {
   placeUops(box, u);
 }
 
+/* 目标选择器。和 syncUnitOps 一样每次 render 重建——它依赖 state.targets，
+   而后者会被开火 / 撤销 / 切换选中随时清掉，自己留一份缓存迟早对不上。 */
+function syncPick() {
+  const box = document.getElementById('pickBox');
+  if (!box) return;
+  const p = state && state.pick;
+  if (!p) { box.classList.add('hidden'); box.innerHTML = ''; return; }
+  const list = targetsAt(p.r, p.c);
+  /* 目标没了就自己收起（开火之后 targets 清空，撤销同理）。
+     这里**不能调 render()**——render 正在调它，会无限递归。 */
+  if (!list.length) {
+    state.pick = null;
+    box.classList.add('hidden');
+    box.innerHTML = '';
+    return;
+  }
+  let h = '<div class="uops-h">选择目标 · ' + list.length + ' 支</div>';
+  list.forEach((t, i) => {
+    /* 主行用兵牌上的简称（玩家认的是那个字），全名片进 title。
+       第二行给兵种与战力——"打哪支"的判断依据基本就是这两样加组织度。 */
+    const tn = TYPE[t.type] ? TYPE[t.type].name : '';
+    h += '<button data-t="' + i + '" title="' + esc(t.name) + '">' +
+         '<b>' + esc(t.abbr) + '</b>' +
+         '<i>' + esc(tn) + ' · ' + Math.max(0, t.str) + '</i></button>';
+  });
+  h += '<button class="uops-x" data-t="-1">取消（Esc）</button>';
+  box.innerHTML = h;
+  box.classList.remove('hidden');
+  box.querySelectorAll('button[data-t]').forEach(b => {
+    b.addEventListener('click', () => {
+      const i = Number(b.dataset.t);
+      FX.sfx('uiClick');
+      if (i < 0) { closePick(); render(); return; }
+      const t = list[i];
+      closePick();
+      /* doAttack 内部会 render；万一目标已经不存在（理论上进不来），
+         也要重画一次把浮层收干净。 */
+      if (t) doAttack(state.selected, t);
+      else render();
+    });
+  });
+  /* 窄屏和行动气泡用同一个底部槽：目标格经常就在手指底下，
+     浮层贴着它等于让玩家自己挡住它。 */
+  if (window.innerWidth <= 640) dockBottom(box);
+  else placePick(box, p.r, p.c);
+  /* 键盘玩家：方向键 + 回车执行这一格之后，焦点得能落到选项上，
+     否则"能选目标"只对手指有效。只在棋盘正拿着焦点时接管——
+     焦点在 HQ / 输入框里就绝不抢。 */
+  const key = p.r + ',' + p.c;
+  const boardEl = document.getElementById('board');
+  if (pickFocusKey !== key && boardEl && document.activeElement === boardEl) {
+    pickFocusKey = key;
+    const b0 = box.querySelector('button[data-t]');
+    if (b0 && b0.focus) { try { b0.focus({ preventScroll: true }); } catch (e) { b0.focus(); } }
+  }
+}
+
 function runOp(act) {
   const u = state && state.selected;
   if (!u) return;
@@ -7603,7 +7777,16 @@ if (typeof window !== 'undefined') {
 
 function renderUnitBox() {
   const box = document.getElementById('unitBox');
-  const u = state.selected;
+  /* 检视对象可能已经不在场上了：这一枪刚把它打掉、撤销回滚换掉了
+     state.units、或者增援重排了编制。留着一个悬空引用，面板会继续
+     显示一支不存在的部队（战力、组织度都是它死前的样子）。
+     用 indexOf 走一次数组，几十支的规模，代价可以忽略。 */
+  if (state.inspect && state.units.indexOf(state.inspect) < 0) state.inspect = null;
+  /* 检视优先于选中：玩家刚点的是那支敌军，面板就该回答"它是什么"。
+     选中关系没变——地图上的可达格、开火描边、行动气泡都还在原处。
+     面板和地图讲的是两件事，不必互相让路。 */
+  const inspecting = !!state.inspect;
+  const u = state.inspect || state.selected;
   if (!u) {
     if (state.terrainSel) {
       const [r, c] = state.terrainSel;
@@ -7663,7 +7846,11 @@ function renderUnitBox() {
        '<span class="tag ' + (u.side === 'blue' ? 'b' : 'r') + '">' +
        (u.side === 'blue' ? '我方' : '敌方') + '</span></div>';
   h += '<div class="ub-meta">' + ty.name + ' · ' + ty.role + ' · ' + coordName(u.pos) + ' ' + t.name + '</div>';
-  h += '<div class="ub-esc">再点一次该兵牌 / Esc / 右键 = 取消选中</div>';
+  /* 检视和选中长得一样，只有这一行能区分。不写清楚的话，玩家会以为
+     "点敌人 = 选中敌人"，接着按 Esc 期待一件事、看到的是另一件事。 */
+  h += '<div class="ub-esc">' + (inspecting
+    ? '检视中（只读）· 再点该兵牌换下一支 / Esc 返回'
+    : '再点一次该兵牌 / Esc / 右键 = 取消选中') + '</div>';
 
   const hbNow = homeBonus(u);
   const fullStr = (LEVEL.units.find(x => x.id === u.id) || {}).str || u.str;
@@ -8752,13 +8939,24 @@ window.addEventListener('keydown', e => {
     if (dir) { e.preventDefault(); kbMove(dir[0], dir[1]); return; }
     if (e.key === 'Enter') { e.preventDefault(); kbEnter(); return; }
   }
-  /* Esc 的优先级：先收最上层的东西。HQ 面板 > 待命中的战术卡 > 说明 > 展开的作业气泡 > 选中。
+  /* Esc 的优先级：先收最上层的东西。
+     HQ 面板 > 待命中的战术卡 > 说明 > 目标选择器 > 展开的作业气泡 > 模式 > 检视 > 选中。
      顺序反了会出现"按 Esc 关掉了下面的面板，上面那层还盖着"。 */
   const hqEl = document.getElementById('hqScreen');
   if (e.key === 'Escape' && hqEl && !hqEl.classList.contains('hidden')) { closeHQ(); return; }
   if (e.key === 'Escape' && state && state.cardId) { cancelCard(); return; }
   const tipsOpen = tipsEl && !tipsEl.classList.contains('hidden');
   if (e.key === 'Escape' && tipsOpen) { closeTips(); return; }
+  /* 目标选择器在气泡之上：它是刚弹出来、还没做决定的那一层。
+     收起它要把焦点还给棋盘——syncPick 会把焦点交给第一个选项，
+     不还回去的话，键盘玩家按完 Esc 方向键就不动了。 */
+  if (e.key === 'Escape' && state && state.pick) {
+    closePick();
+    render();
+    const bEl = document.getElementById('board');
+    if (bEl && bEl.focus) { try { bEl.focus({ preventScroll: true }); } catch (err) { bEl.focus(); } }
+    return;
+  }
   /* 展开态的气泡先收成 mini，再按一次才取消选中——
      一次 Esc 把浮层和选择全清掉太狠，玩家往往只是想挪开那块面板。 */
   if (e.key === 'Escape' && uopsOpen) { uopsOpen = false; render(); return; }
@@ -8766,6 +8964,9 @@ window.addEventListener('keydown', e => {
      少了这一步，玩家想"退出移动、换个动作"就变成"整支都不选了"。
      顺序必须在 uopsOpen 之后：展开态按 Esc 的语义是"收面板"，不是"退移动"。 */
   if (e.key === 'Escape' && state && state.mode) { state.mode = null; render(); return; }
+  /* 检视叠在选中上面：先退回自己的部队，再按一次才取消选中。
+     合并成一步的话，"看一眼敌人再接着下令"就变成"重新选一遍"。 */
+  if (e.key === 'Escape' && state && state.inspect) { clearInspect(); render(); return; }
   /* 选中态也吃 Esc。手机上尤其需要：点错了单位，没有"右键"可用，
      只能去点一块走不到的地面（这条是用户反馈的原话）。 */
   if (e.key === 'Escape') { deselect(); return; }
@@ -9147,6 +9348,10 @@ window.__WAR__ = {
   /* 点击层：只测 doMove 会漏掉"界面上根本点不出来"这类 bug，
      所以把 onHexClick / select 一起暴露，让自测走真实操作路径 */
   onHexClick, select,
+  /* 敌情检视与目标选择：两条玩家反馈的入口。
+     targetsAt 单独导出是为了守住"返回的是**全部**可打目标"——
+     退回 find() 时，多目标那条断言必须红。 */
+  targetsAt, inspectUnit, clearInspect, openPick, closePick,
   pushUndo, doUndo, clearUndo, depotPreview, supplyField, supplySources,
   get undoDepth() { return undoStack.length; },
   /* 视图控制（窄屏缩放/平移），供自动化测试读取状态。

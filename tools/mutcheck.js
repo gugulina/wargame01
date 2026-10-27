@@ -367,13 +367,16 @@ const MUTANTS = [
 
   /* 点击路由：一格两层时该打谁。三条分别对应"开火优先""只打真能打的""卡也认层"。 */
   ['点格子又退回"先判是不是我方单位"（防空炮打不了同格敌机）',
-   '      if (tHere) { doAttack(state.selected, tHere); return; }',
-   '      if (false) { doAttack(state.selected, tHere); return; }',
+   '      if (tHere.length === 1) { doAttack(state.selected, tHere[0]); return; }',
+   '      if (false) { doAttack(state.selected, tHere[0]); return; }',
    '点这一格 = 开火'],
 
+  /* 守卫必须一起改。只把 filter 换成"按阵营挑"，留着
+     `if (!state.targets.length) return []` 的话，够不着的部队根本走不到
+     这行，变异报"没红"——那是变异假，不是断言假。 */
   ['一格两层时不看能不能打，格里有敌人就开火',
-   '  if (!state.selected || !state.targets.length) return null;\n  return unitsAt(r, c).find(x => state.targets.includes(x)) || null;',
-   '  if (!state.selected) return null;\n  return unitsAt(r, c).find(x => x.side !== state.selected.side) || null;',
+   'function targetsAt(r, c) {\n  if (!state.selected || !state.targets.length) return [];\n  return unitsAt(r, c).filter(x => state.targets.includes(x));',
+   'function targetsAt(r, c) {\n  if (!state.selected) return [];\n  return unitsAt(r, c).filter(x => x.side !== state.selected.side);',
    '不会瞎开火'],
 
   ['战术卡又只认 unitAt 算出来的那一支（指向敌方的卡落不到同格飞机上）',
@@ -408,6 +411,30 @@ const MUTANTS = [
    '  const keep = new Set(SFX_ALWAYS);\n  for (const u of (lv && lv.units) || []) {',
    '  const keep = new Set(SFX_ALWAYS);\n  for (const u of []) {',
    'C4（港口战）预载了海空槽', 'brief'],
+
+  /* ── 敌情检视 / 堆叠目标挑选 ──
+     两条玩家反馈的防线。第一条最容易假绿：把 filter 换成 find，
+     单目标用例全都照常通过（那些用例本来就只有一个目标），
+     只有"同格两支"的那条会塌——所以它必须存在。 */
+  ['targetsAt 退回只挑一支（堆叠格只能打栈顶）',
+   '  return unitsAt(r, c).filter(x => state.targets.includes(x));',
+   '  const one = unitsAt(r, c).find(x => state.targets.includes(x));\n  return one ? [one] : [];',
+   'targetsAt 返回全部两支'],
+
+  ['点敌军退回翻地形（看不到敌方编制）',
+   '    inspectUnit(u);\n    return;',
+   '    selectTerrain(r, c);\n    return;',
+   '点射程外的敌军 = 检视它'],
+
+  ['切换自己部队时不清检视（面板还挂着上一个敌人）',
+   '  state.inspect = null;\n  state.pick = null;\n  state.mode = null;',
+   '  state.pick = null;\n  state.mode = null;',
+   '切换到自己另一支部队时退出检视'],
+
+  ['检视顺手把选中也清了（看一眼敌人就丢了操作对象）',
+   '  state.inspect = u;\n  state.terrainSel = null;',
+   '  state.inspect = u;\n  state.selected = null;\n  state.terrainSel = null;',
+   '检视不会把当前选中清掉'],
 
 ];
 

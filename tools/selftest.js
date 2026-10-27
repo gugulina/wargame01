@@ -2518,5 +2518,105 @@ console.log('\n[37] 音效按兵种分派');
   ok('缺单位时兜底出声，不静音', got[3] === 'step', got[3]);
 }
 
+console.log('\n[38] 敌情检视与堆叠目标挑选');
+{
+  /* 用 C3 的真实编制，但把敌军挪到摆好的位置：这里要看的是
+     "点下去之后状态怎么走"，不是关卡本身好不好打。
+     两项玩家反馈——"看不到敌人具体信息"和"堆叠格想打指定那支"——
+     在界面上是两条，在代码里是同一个入口（点击路由）的两个分支。 */
+  const setup = () => {
+    api.newGame({ level: 'C3', noSave: true });
+    const st = api.getState();
+    const me = api.uid('B1A');
+    const foes = st.units.filter(u => u.side === 'red' && api.domainOf(u) === 'ground');
+    /* 挑一个空的相邻格：不能把红方塞进我方堆叠里，否则 unitsAt 的顺序
+       和"两支敌军"这个前提都不成立。 */
+    const hex = api.neighbors(me.pos[0], me.pos[1])
+      .filter(p => api.unitsAt(p[0], p[1]).length === 0)[0];
+    foes[0].pos = hex.slice();
+    foes[1].pos = hex.slice();
+    /* 最远的一个空格：拿来做"打不到"的对照组，不能靠硬编码坐标——
+       换一关地图尺寸就变了。 */
+    let far = null, bd = -1;
+    for (let r = 0; r < api.LEVEL.rows; r++) {
+      for (let c = 0; c < api.LEVEL.cols; c++) {
+        const d = api.hexDist(me.pos, [r, c]);
+        if (d > bd && api.unitsAt(r, c).length === 0) { bd = d; far = [r, c]; }
+      }
+    }
+    return { st, me, hex, far, f0: foes[0], f1: foes[1] };
+  };
+
+  /* ── 一、点敌军 = 检视 ── */
+  let s = setup();
+  ok('前提：步兵打得到地面目标', api.canTarget(s.me, s.f0));
+  ok('前提：最远那格在射程外', api.hexDist(s.me.pos, s.far) > 2,
+     api.hexDist(s.me.pos, s.far) + ' 格');
+  s.f0.pos = s.far.slice();      // 挪到打不到的地方
+  api.select(s.me);
+  ok('前提：留在我方相邻的 f1 仍可打', api.getState().targets.includes(s.f1));
+  api.onHexClick(s.far[0], s.far[1]);
+  ok('点射程外的敌军 = 检视它，而不是翻地形',
+     api.getState().inspect === s.f0,
+     'inspect=' + (api.getState().inspect ? api.getState().inspect.id : '空'));
+  ok('检视不会把当前选中清掉',
+     api.getState().selected === s.me,
+     '选中 = ' + (api.getState().selected ? api.getState().selected.id : '空'));
+  ok('检视不占用行动：既没动也没开火', s.me.moved === false && s.me.fired === false);
+  /* 面板讲的是敌人，地图讲的仍是我的射界——两者互不顶替 */
+  ok('检视期间地图上的可打目标没被清掉', api.getState().targets.includes(s.f1));
+
+  const other = s.st.units.find(u => u.side === 'blue' && u !== s.me);
+  api.select(other);
+  ok('切换到自己另一支部队时退出检视', api.getState().inspect === null,
+     'inspect=' + (api.getState().inspect ? api.getState().inspect.id : '空'));
+
+  /* ── 二、多目标格：先选后打 ── */
+  s = setup();
+  api.select(s.me);
+  ok('前提：同格两支敌军都在可打目标里',
+     api.getState().targets.includes(s.f0) && api.getState().targets.includes(s.f1));
+  ok('targetsAt 返回全部两支，不是只挑一支',
+     api.targetsAt(s.hex[0], s.hex[1]).length === 2,
+     '返回 ' + api.targetsAt(s.hex[0], s.hex[1]).length + ' 支');
+
+  api.onHexClick(s.hex[0], s.hex[1]);
+  ok('多目标时点格子先弹选择器，不擅自决定打谁',
+     !!api.getState().pick && s.me.fired === false,
+     'pick=' + JSON.stringify(api.getState().pick) + ' fired=' + s.me.fired);
+  ok('选择器没有把选中弄丢', api.getState().selected === s.me);
+
+  const list = api.targetsAt(s.hex[0], s.hex[1]);
+  ok('选择器里的顺序就是格内堆叠顺序', list[0] === s.f0 && list[1] === s.f1,
+     list.map(x => x.id).join(','));
+  const str0 = s.f0.str, str1 = s.f1.str;
+  api.doAttack(s.me, list[1]);
+  ok('挑第二支打：只有它受损，第一支原样',
+     s.f0.str === str0 && (!s.st.units.includes(s.f1) || s.f1.str < str1),
+     s.f0.id + ' ' + str0 + '→' + s.f0.str + '，' + s.f1.id + ' ' + str1 + '→' + s.f1.str);
+
+  /* ── 三、单目标仍然一步开火 ── */
+  s = setup();
+  s.f1.pos = s.far.slice();
+  api.select(s.me);
+  api.onHexClick(s.hex[0], s.hex[1]);
+  ok('单目标格仍然一步开火（没给每次射击加一次确认）',
+     s.me.fired === true && api.getState().pick === null,
+     'fired=' + s.me.fired + ' pick=' + JSON.stringify(api.getState().pick));
+
+  /* ── 四、同格两支敌军时轮换检视 ── */
+  s = setup();
+  s.f0.pos = s.far.slice();
+  s.f1.pos = s.far.slice();
+  api.select(s.me);
+  api.onHexClick(s.far[0], s.far[1]);
+  const first = api.getState().inspect;
+  api.onHexClick(s.far[0], s.far[1]);
+  const second = api.getState().inspect;
+  ok('同格两支敌军：再点一次换下一支',
+     !!first && !!second && first !== second,
+     (first && first.id) + ' → ' + (second && second.id));
+}
+
 console.log('\n通过 ' + pass + ' 项，失败 ' + fail + ' 项');
 process.exit(fail ? 1 : 0);
