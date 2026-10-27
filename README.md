@@ -714,7 +714,7 @@ docs/
   08-表现层接入.md       UI / 图片 / 音乐 / 剧情演出的接入口与素材规范
 game/
   campaign.html         引擎 + 关卡数据（唯一可玩页面）
-  assets/               素材目录：sfx/ 已填 12 个音效（含 CREDITS.md 与 preview.html），其余待做
+  assets/               素材目录：sfx/ 已填 21 个槽 / 35 个文件（含 CREDITS.md），其余待做
   audio-lab/            音效挑选对比页（index.html），15 条候选可逐个听
 data/
   L3-airport.json       战术级关卡数据导出
@@ -1047,10 +1047,11 @@ story: {
   **立绘交稿规格：480×640（精确 3:4），成显 132×176**，WebP 透明底、单张 < 80 KB，
   顶部留 8% 安全边距。比例不对会被 `cover` 对称裁切、先切头部。
   `portHQ` 是符号位（司令部电话），不填会自动画电台符号，**这个槽可以不画**
-- **背景音乐**：4 个槽位（menu / battle / tension / result）还没选曲。音效已经接完了，
-  12 个全部就位 —— 来源与授权见 `game/assets/sfx/CREDITS.md`，试听打开 `game/assets/sfx/preview.html`
-- **音效还差"战场底噪"**：现在一次攻击只响一声，缺远处的持续炮声与零星枪声做背景。
-  首次点击即解锁音频的通道已经打通，**这一项现在只差素材**
+- **背景音乐**：5 首全部自制（menu / battle / tension / win / lose），谱在
+  `game/audio-lab/bgm-tracks.js`，`npm run bgm` 一条命令重渲染
+- **音效**：21 个槽 / 35 个文件全部就位，含战场底噪。来源与授权见
+  `game/assets/sfx/CREDITS.md`，游戏内也能看（菜单页页脚「素材来源与授权」），
+  试听打开 `game/audio-lab/sfx-demo.html`
 - **第 1、2 关（北岭哨所 / 青溪渡口）**：时间轴上已经占好位（`ready:false`），
   解锁链、前情衔接、切关都已跑通，**只差每关的地图与编制数据**。
   第 2 关还需要两个新机制：撤出地图的结算、敌方舟桥。

@@ -2,8 +2,8 @@
 
 这里放游戏用到的图片、音频、字体。
 
-**当前状态**：`sfx/` 已经填好了 12 个音效（来源与授权见 `sfx/CREDITS.md`，
-试听打开 `sfx/preview.html`）；`story/` 有 2 张立绘（`port-bde1.webp` 第 1 边防旅旅长、`port-div103.webp` 第 103 步兵师师长）。
+**当前状态**：`sfx/` 已经填好了 21 个槽、35 个文件（来源与授权见 `sfx/CREDITS.md`，
+游戏内「素材来源」页签也有一份；试听打开 `game/audio-lab/sfx-demo.html`）；`story/` 有 2 张立绘（`port-bde1.webp` 第 1 边防旅旅长、`port-div103.webp` 第 103 步兵师师长）。
 `ui/`、`unit/`、`fort/`、`bgm/` 还是空的。
 `campaign.html` 里的 `ASSETS` 表已经按下面的结构写好了槽位，
 把文件按名字丢进来、再在 `ASSETS` 里填上文件名就能生效，**不需要改任何游戏逻辑**——
@@ -17,7 +17,7 @@ game/assets/
   ui/       六角格贴图、要点徽标、按钮图标
   unit/     兵种图标（按 TYPE 的 key 命名）
   fort/     工事图标（H/B/P/A/F）
-  sfx/      短音效（12 个已就位）+ CREDITS.md + preview.html
+  sfx/      短音效（21 个槽已就位）+ CREDITS.md
   bgm/      循环音乐
   story/    剧情背景图与立绘
 ```
@@ -52,7 +52,7 @@ game/assets/
 | 要点徽标 | `ui/` | 32×32 | PNG 透明底 | < 6 KB | |
 | 兵种图标 | `unit/` | 64×64 | WebP/PNG 透明底 | < 10 KB | 21 个兵种 |
 | 工事图标 | `fort/` | 28×28 | PNG 透明底 | < 4 KB | 5 个 |
-| 短音效 | `sfx/` | — | mp3 单声道 64 kbps | < 60 KB | 12 个槽位 |
+| 短音效 | `sfx/` | — | mp3 单声道 64 kbps | < 60 KB | 21 个槽位 |
 | 音乐 | `bgm/` | — | ogg 96 kbps 或 mp3 128 kbps | < 3 MB | 4 首，1~3 分钟 |
 | 立绘 | `story/` | **480×640（3:4）**，成显 132×176 | WebP 透明底 | < 80 KB | 竖构图，半身 |
 | 剧情背景 | `story/` | 1600×900 | WebP | < 250 KB | 16:9 |
