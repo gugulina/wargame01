@@ -483,7 +483,7 @@ async function playOne(idx) {
   /* 区间文案跟着 pace 走。上一版这里写死"45–60%"，于是一份 85% 的爽局报表
      会同时出现「达成率 85%（目标区间 45–60%）」和「判定：达标」——
      读者根本不知道该信哪个。区间和判定必须是同一套标准。 */
-  const rangeText = (L.pace === '爽局') ? '（爽局区间 75–95%）'
+  const rangeText = (L.pace === '爽局') ? '（爽局区间 65–90%）'
     : (String(L.type || '').includes('教学') || L.no === 0) ? '（教学关：目标就是能过）'
     : '（目标区间 45–60%）';
   console.log('达成率      ' + achieve.toFixed(1) + '%   ' + rangeText);
@@ -559,17 +559,19 @@ async function playOne(idx) {
      第 4 关波尔瓦萨港是**爽局**：七条军舰在港内持续火力支援，
      目标就是让玩家赢得痛快。用 45–60% 去卡它，只会把它越调越硬，
      最后变成"守着不动挨 20 回合"——那不是这一关要卖的东西。
-     所以爽局单独一个区间：75–95%。低于 75 是"爽不起来"，
-     高于 95 是"连脚本都输不了"，两边都值得看一眼。 */
+     所以爽局单独一个区间。v4.12 从 75–95% 调成 **65–90%**：那个 75% 复现
+     不出来（40 局 70.0 / 120 局固定种子 71.7 / 改动前引擎 67.5），而脚本本来
+     就比真人弱一档，70% 已经意味着真人更高。再往上推数值会把这一关推向
+     "守着不动挨 20 回合"，跟设计意图相反。 */
   const pace = L.pace || '';
   if (isTutorial) {
     console.log('判定：教学关，不以达成率为指标（目标就是能过）');
     if (achieve < 90) console.log('⚠ 教学关达成率 ' + achieve.toFixed(1) + '% 偏低——引导关不该卡人');
   } else if (pace === '爽局') {
-    if (achieve > 95) console.log('判定：爽局，但几乎没有失败可能（' + achieve.toFixed(1) + '%）——可以收一点');
-    else if (achieve >= 75) console.log('判定：达标（爽局区间 75–95%）');
-    else if (achieve >= 60) console.log('判定：爽局还不够爽（目标 75–95%）——玩家该赢得更干脆');
-    else console.log('判定：太难，爽局不该打成这样（目标 75–95%）');
+    if (achieve > 90) console.log('判定：爽局，但几乎没有失败可能（' + achieve.toFixed(1) + '%）——可以收一点');
+    else if (achieve >= 65) console.log('判定：达标（爽局区间 65–90%）');
+    else if (achieve >= 55) console.log('判定：爽局还不够爽（目标 65–90%）——玩家该赢得更干脆');
+    else console.log('判定：太难，爽局不该打成这样（目标 65–90%）');
   } else if (achieve > 70) console.log('判定：偏简单，红方需要加强');
   else if (achieve > 60) console.log('判定：略简单（目标区间 45–60%）');
   else if (achieve >= 45) console.log('判定：达标（目标区间 45–60%）');
