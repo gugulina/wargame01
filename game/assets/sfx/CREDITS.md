@@ -41,7 +41,7 @@
 
 | 本地文件 | 原始文件 | 时长 | 用途 |
 |---|---|---|---|
-| `shell-v2.mp3` | `sfx/1696` | 2.43s | 炮击。低频冲击占 40%，同时只允许响一个 |
+| ~~`shell-v2.mp3`~~ | `sfx/1696` | 2.43s | ~~炮击~~ **已被 `shell-take2` 取代，文件已删**（2026-10-27） |
 | `hit-v2.mp3` | `sfx/1674` | 0.21s | 命中。极短，连续命中不糊 |
 | `kill-v2.mp3` | `sfx/1693` | 1.65s | 歼灭。多爆点，像弹药殉爆 |
 | `alarm-v2.mp3` | `sfx/1679` | 1.83s | 敌方增援。连续嚎叫式警报，辨识度高 |
@@ -111,17 +111,20 @@ v1 用的是小森平の効果音工場（`taira-komori.net`）的「兵器·爆
 ```
 game/assets/sfx/
   ui-click.ogg  ui-select.ogg  ui-move.ogg  build.ogg  event.ogg  win.ogg  lose.ogg   ← Kenney
-  fire-v2.mp3  shell-v2.mp3  hit-v2.mp3  kill-v2.mp3  alarm-v2.mp3                     ← 实弹 / 影视拟音
+  fire-v2.mp3  hit-v2.mp3  kill-v2.mp3  alarm-v2.mp3                                  ← 实弹 / 影视拟音
   rifle-take1.ogg  shell-take2.ogg  track-take1.ogg  step-take1.ogg                    ← freesound 实录
   engine-take1.ogg  prop-take1.ogg  ship-take1.ogg  amb-take1.ogg                      ← freesound 实录
   airgun-take1.ogg  bomb-take1.ogg                                                    ← freesound 实录
                                                                                        （bomb 叠了 shell 当爆炸）
-  hull-synth.ogg                   ← 自制，只作 ship 的推进叠层，游戏不单独引用
-  *-synth.ogg                      ← 自制（含上一版四支、move、event、alarm 等对照素材）
-  prev/           v1 的五个原文件，只作对比，游戏不引用
-  ../audio-lab/sfx-demo.html   21 个槽位逐个试听（内嵌音频）
+  *-synth.ogg                      ← 自制，只剩试听页的 A/B 对照组（游戏里一个都不引用）
+  ../audio-lab/sfx-demo.html   21 个槽位逐个试听（内嵌版按需生成）
   CREDITS.md      本文件
 ```
+
+**2026-10-27 清掉 712 KB 真死素材**：`amb-synth.ogg`（528 KB）、`shell-v2.mp3`、
+`shell-synth.ogg`、`hull-synth.ogg`、以及 `prev/` 那五个 v1 原文件。
+判据是"既不在 `ASSETS` 里、也不在试听页的对照行里"——两边都不用的才删，
+`*-synth.ogg` 那些留着是因为试听页还要拿它做 A/B。
 
 **为什么 `-take1` 与 `-v2` 两套后缀并存**：`-v2` 是上一版手工换素材留下的，
 `-take<N>` 是导入工具自动编的（按槽位各自递增，永不覆盖同名）。
