@@ -14,6 +14,11 @@ desktop.ini
 # 依赖
 node_modules/
 
+# Android 构建产物
+android/
+www/
+*.apk
+
 # 项目管理数据（私人笔记，不公开）
 .workbuddy/
 

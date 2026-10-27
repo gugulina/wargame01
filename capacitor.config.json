@@ -1,0 +1,13 @@
+{
+  "appId": "com.cangyu.wargame",
+  "appName": "苍屿战役",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": false,
+    "captureInput": true,
+    "webContentsDebuggingEnabled": false
+  }
+}

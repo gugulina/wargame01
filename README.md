@@ -700,6 +700,22 @@ git push -u origin main
 - `.gitignore` 已排除临时截图与调试脚本
 - 文档是 `.md`，GitHub 会直接渲染；Pages 上点开也会自动转成网页
 
+### 打包成 Android APK
+
+线上 Pages 不需要构建，**安卓包需要**——它要一份只含发布物的 `www/`：
+
+```bash
+npm run www            # tools/build-www.js：引用驱动生成，39 个文件 3.88 MB
+npx cap copy android   # 拷进 android/app/src/main/assets/public
+cd android && ./gradlew assembleDebug
+```
+
+`npm test` 里带了 `build-www.js --check`：改了引擎却忘了重建、`www` 里混进
+`_cand` 毛料、拷到一半被打断、安卓 `versionName` 与 `#verTag` 对不上，都会红。
+细节与已知限制见 [`Android-打包说明.md`](Android-打包说明.md)。
+
+> 上一版 26 MB、装的是 v4.11 的旧引擎，就是因为这份发布物以前靠手 cp 且没人校验。
+
 ## 目录
 
 ```
@@ -741,10 +757,11 @@ tools/
 ## 工具
 
 ```bash
-npm test                                           # 一键跑完全套回归（selftest + check + levelcheck + briefcheck + export-levels --check + orgcheck）
+npm test                                           # 一键跑完全套回归（selftest + check + levelcheck + briefcheck + export-levels --check + orgcheck + www --check）
 
 # 单独跑某一项：
 node tools/selftest.js                             # 机制回归（503 项断言，改规则后必跑）
+node tools/build-www.js                            # 生成安卓打包用的 www/（白名单+指纹）；--check 只校验
 node tools/mutcheck.js                             # 变异自检：确认断言在被改坏时**真会红**（防假绿）
 node tools/check.js game/campaign.html             # 校验战役级（含部署重叠 / 指挥链）
 node tools/levelcheck.js                           # 多关框架回归（切关 / 解锁 / 进度 / 地图重置）
