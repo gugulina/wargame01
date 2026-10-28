@@ -1,7 +1,7 @@
 # Android 打包说明
 
-**当前包**：`苍屿战役-v8.apk`（versionCode 8 / versionName 4.14）· 7.4 MB
-**上一版**：v7（versionCode 7 / versionName 4.13）· 7.4 MB —— v8 只多了 0.07 MB 的 web 资源
+**当前包**：`苍屿战役-v8.apk`（versionCode 8 / versionName 4.14）· 7,736,355 字节 ≈ 7.4 MiB
+**上一版**：v7（versionCode 7 / versionName 4.13）· 7,722,590 字节 —— v8 只多了约 14 KB
 **再上一版**：v6（versionCode 6 / versionName 4.12）· 7.4 MB
 **更早**：v5（versionCode 5）· 26 MB —— 体积差的不是优化，是 v5 把开发 leftovers 打进了包
 **构建**：Capacitor 8.5.3 + Gradle 8.14.3 + JDK 21 + Android SDK 36
