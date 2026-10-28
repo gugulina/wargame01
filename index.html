@@ -322,6 +322,34 @@
   .box .links { display: flex; flex-wrap: wrap; gap: 6px 14px; }
   .box .dim { color: var(--ink3); font-size: 11.5px; }
 
+  /* ───────── 版本公告 ─────────
+     跨整行（grid-column: 1 / -1），因为条目是整句中文，挤在 396px 的左栏里
+     一行只能放二十来个字。z-index 与 .foot-grid 同级：它同样要盖住左栏。 */
+  #notesSec {
+    grid-column: 1 / -1; position: relative; z-index: 2;
+    margin-top: 6px; padding-top: 14px;
+    box-shadow: 0 -50px 0 var(--bg);
+  }
+  .notes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+  @media (max-width: 900px) { .notes { grid-template-columns: 1fr; } }
+  .n-card {
+    background: var(--paper); border: 1px solid var(--line); border-radius: 11px;
+    padding: 14px 16px 12px;
+  }
+  .n-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px; }
+  .n-ver { font-size: 12px; font-weight: 700; color: var(--ink); letter-spacing: .6px; }
+  .n-tag {
+    font-size: 9.5px; color: #7A6A46; background: #F1EAD8;
+    border: 1px solid #E4D9BE; border-radius: 999px; padding: 1px 8px 2px;
+  }
+  .n-date { margin-left: auto; font-size: 10px; color: var(--ink3); letter-spacing: .5px; }
+  .n-title { font-size: 12px; font-weight: 600; color: var(--ink2); margin-bottom: 7px; }
+  .n-card ul { margin: 0; padding-left: 16px; }
+  .n-card li { font-size: 11.5px; line-height: 1.8; color: var(--ink2); margin-bottom: 3px; }
+  .n-card li::marker { color: #C9BFA6; }
+  .n-more { font-size: 11.5px; color: var(--ink3); padding: 10px 2px 0; }
+  .n-more a { color: var(--ink2); text-decoration: none; border-bottom: 1px dotted #CFC9BC; }
+
   footer {
     grid-column: 1 / -1; position: relative; z-index: 2;
     margin-top: 6px; padding-top: 16px;
@@ -404,6 +432,21 @@
     </div>
   </section>
 
+  <!-- 版本公告：首页只显示最近两版，全量在 HQ 的「版本公告」页签。
+       两边读同一份 data/notes.js——各写一份的话，迟早出现"首页说改了 A、
+       手册说改了 B"，玩家不知道该信哪个。 -->
+  <section class="fade" id="notesSec" style="animation-delay:.12s">
+    <div class="col-head">
+      <h2>版本公告</h2>
+      <span class="hint" id="notesHint">
+        <a href="game/campaign.html?hq=notes">全部版本</a>
+      </span>
+    </div>
+    <div id="notes" class="notes">
+      <div style="padding:14px 0;color:var(--ink3);font-size:12.5px">正在读取版本公告…</div>
+    </div>
+  </section>
+
   <div class="foot-grid">
     <div class="box">
       <h3>怎么玩</h3>
@@ -457,6 +500,9 @@
      这里不能换成 fetch('data/levels.json')：双击打开时是 file:// 协议，
      fetch 会被同源策略拦掉，而 <script src> 放行。 -->
 <script src="data/levels.js"></script>
+<!-- 版本公告数据。和 levels.js 一样只能走 <script src>（file:// 下 fetch 被拦），
+     而且两者要分开：levels.js 是导出的快照，重新导出会整篇重写。 -->
+<script src="data/notes.js"></script>
 <script>
 (function () {
   'use strict';
@@ -469,6 +515,35 @@
   const barText = document.getElementById('barText');
   const levelsBox = document.getElementById('levels');
   const colHint = document.getElementById('colHint');
+
+  /* ── 版本公告 ─────────────────────────────
+     放在关卡数据那段校验**之前**：那一关读不到 levels.js 会 return，
+     而公告面板跟关卡数据没半点关系，不该被连坐白屏。
+     首页只放最近 N 条 —— 全量在游戏内 HQ 的「版本公告」页签里。 */
+  const NOTES_SHOW = 2;
+  (function renderNotes() {
+    const box = document.getElementById('notes');
+    if (!box) return;
+    const N = (window.CANGYU_NOTES && window.CANGYU_NOTES.notes) || [];
+    if (!N.length) {
+      box.innerHTML = '<div class="n-more">读不到版本公告（data/notes.js）。' +
+        '本地可以在项目根目录确认这个文件还在。</div>';
+      return;
+    }
+    const items = N.slice(0, NOTES_SHOW);
+    box.innerHTML = items.map(n =>
+      '<div class="n-card">' +
+        '<div class="n-head"><span class="n-ver">' + (n.ver || '未编号') + '</span>' +
+        '<span class="n-tag">' + n.tag + '</span>' +
+        '<span class="n-date">' + n.date + '</span></div>' +
+        '<div class="n-title">' + n.title + '</div>' +
+        '<ul>' + (n.items || []).map(x => '<li>' + x + '</li>').join('') + '</ul>' +
+      '</div>').join('') +
+      (N.length > items.length
+        ? '<div class="n-more">还有 ' + (N.length - items.length) + ' 条历史版本 —— ' +
+          '<a href="game/campaign.html?hq=notes">在游戏里看全部</a></div>'
+        : '');
+  })();
 
   /* 关卡数据没加载上：不白屏，说清楚怎么办 */
   if (!D || !Array.isArray(D.levels) || !D.levels.length) {
