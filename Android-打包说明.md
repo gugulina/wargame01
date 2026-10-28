@@ -1,9 +1,11 @@
 # Android 打包说明
 
-**当前包**：`苍屿战役-v8.apk`（versionCode 8 / versionName 4.14）· 7,736,355 字节 ≈ 7.4 MiB
-**上一版**：v7（versionCode 7 / versionName 4.13）· 7,722,590 字节 —— v8 只多了约 14 KB
-**再上一版**：v6（versionCode 6 / versionName 4.12）· 7.4 MB
-**更早**：v5（versionCode 5）· 26 MB —— 体积差的不是优化，是 v5 把开发 leftovers 打进了包
+**当前包**：`苍屿战役-v9.apk`（versionCode 9 / versionName 4.15）· 7,743,671 字节 ≈ 7.4 MiB
+**上一版**：v8（versionCode 8 / versionName 4.14）· 7,736,355 字节 —— v9 只多了约 7 KB
+（v9 多出来的是新建的 `data/notes.js`（12,456 字节，压进去约 3 KB）与菜单页公告面板）
+**再上一版**：v7（versionCode 7 / versionName 4.13）· 7,722,590 字节
+**更早**：v6（versionCode 6 / versionName 4.12）· 7.4 MB；v5（versionCode 5）· 26 MB
+—— 体积差的不是优化，是 v5 把开发 leftovers 打进了包
 **构建**：Capacitor 8.5.3 + Gradle 8.14.3 + JDK 21 + Android SDK 36
 
 > 这份文档原先叫"测试报告"，里面有一批数对不上（写 Capacitor 7 实际是 8.5.3、写最低 API 21
@@ -12,7 +14,7 @@
 
 ---
 
-## 一、包体：22.5 MB → 3.88 MB
+## 一、包体：22.5 MB → 4.00 MB
 
 v5 的 `assets/public` 有 22.5 MB，其中只有 3.85 MB 该在：
 
@@ -21,7 +23,7 @@ v5 的 `assets/public` 有 22.5 MB，其中只有 3.85 MB 该在：
 | `game/_cand/` 候选毛料 | 16.61 MB | 0 | 82 个 wav/mp3，只给 `sfx-import` 当输入 |
 | `game/audio-lab/` | 1.37 MB | 0 | 声音实验室，开发用试听页（含 1 MB 内嵌 base64） |
 | 已删除的死素材 | 0.71 MB | 0 | 就是 `7eaaaef` 删的那五个，`www` 是删之前拷的 |
-| 引擎 / 样式 / 关卡数据 / 在役素材 | 3.85 MB | 3.88 MB | 39 个文件 |
+| 引擎 / 样式 / 关卡数据 / 在役素材 | 3.85 MB | 4.00 MB | 40 个文件（v9 起含 `data/notes.js`） |
 
 APK 整体 26 MB → **7.4 MB**。剩下的主要是 `classes.dex`（约 8 MB，Capacitor + AndroidX，
 debug 未 minify）和 web 资源。
@@ -34,7 +36,7 @@ debug 未 minify）和 web 资源。
 
 ```bash
 npm test                      # 七步 + www 发布物校验（www 不存在时跳过）
-npm run www                   # 生成 www/：39 个文件，3.88 MB
+npm run www                   # 生成 www/：40 个文件，4.00 MB
 npx cap copy android          # 拷进 android/app/src/main/assets/public
 cd android && ./gradlew assembleDebug
 ```

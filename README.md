@@ -706,7 +706,7 @@ git push -u origin main
 线上 Pages 不需要构建，**安卓包需要**——它要一份只含发布物的 `www/`：
 
 ```bash
-npm run www            # tools/build-www.js：引用驱动生成，39 个文件 3.88 MB
+npm run www            # tools/build-www.js：引用驱动生成，40 个文件 4.00 MB
 npx cap copy android   # 拷进 android/app/src/main/assets/public
 cd android && ./gradlew assembleDebug
 ```
