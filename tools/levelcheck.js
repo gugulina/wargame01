@@ -440,8 +440,16 @@ function skip(name, why) {
       }
       ok('跳过附属关的中间态下，首页与引擎结论一致（' + subLv.id + ' 未通关）',
          cmp3.length === 0, cmp3.join('；'));
+      /* 要断言的是**紧跟在附属关后面的那一关正篇**，不是"最后一关"。
+         最后一关能不能进取决于整条链（后面几关的进度都还是空的），
+         跟"附属关有没有卡人"没有因果关系。这条断言以前能过，
+         是因为第一个附属关之后全是占位关，链被 `continue` 掉了；
+         2026-10 实装 C2B 之后它立刻变红——**红得对，是断言写错了对象。** */
+      const nextMain = readyAll.find(l => !l.sub && LV.indexOf(l) > subIdx);
       ok('该状态下主线继续往下开（附属关没有把主线卡住）',
-         api.levelAccess(readyAll[readyAll.length - 1].id).ok);
+         !!nextMain && api.levelAccess(nextMain.id).ok,
+         nextMain ? nextMain.id + '：' + api.levelAccess(nextMain.id).why
+                  : '附属关后面没有正篇关');
       try { window.localStorage.removeItem(api.PROGRESS_KEY); } catch (e) {}
     }
     try { window.localStorage.removeItem(api.PROGRESS_KEY); } catch (e) {}
@@ -523,6 +531,108 @@ function skip(name, why) {
   } else {
     skip('第 2 章第一关的跨章前置', '第 2 章还没有可玩关卡');
   }
+
+  /* ═════════ 战斗规则：击退落点 / 行动额度 / 特殊单位 / 战力系数 ═════════
+     这一段守的是"玩家能直接感觉到、但系统不会报错"的几件事：
+       · 击退把两个兵牌摞进同一格（看起来像站位 bug，实际是判据写松了）
+       · 走完还能再挖一道堑壕（白送一个动作）
+       · 组织度和补给到底有多重要（改系数就要顺带改手册和体感）
+     共同点：坏了以后游戏照常能打完，只是"手感不对"，没有人会收到异常。 */
+  console.log('[11] 战斗规则（击退落点 / 行动额度 / 特殊单位 / 战力系数）');
+
+  /* ── 11a 击退落点必须是空地 ──
+     老写法是 `!stackFull(push)`，而一格能站两支（STACK_MAX = 2），
+     于是"正后方站着一支友军"完全拦不住——被击退的部队直接叠上去，
+     画面上两个兵牌重合。判据必须是"地表一格都没有"。 */
+  api.newGame({ level: 'C5', noSave: true });
+  {
+    const S = api.getState();
+    const mk = (id, side, r, c, type) => api.makeUnit(
+      { id, side, abbr: id, name: id, type: type || 'inf', str: 6, mov: 6, rng: 1, r, c }, false);
+    /* 桥南 (5,7)。红方中坦从 (4,7) 打过来，正后方是 (6,7)。
+       先只堵正后方：应当改成从别的空档退，而不是叠到 (6,7) 上。 */
+    S.units = [
+      mk('ATK', 'red', 4, 7, 'marm'),
+      mk('DEF', 'blue', 5, 7),
+      mk('FRI', 'red', 6, 7)
+    ];
+    const c1 = api.retreatCell([4, 7], [5, 7]);
+    ok('正后方有友军时，不会退到那一格上（改成找空档）',
+       !c1 || !(c1[0] === 6 && c1[1] === 7), c1 ? c1.join(',') : 'null');
+
+    /* 再把 (5,7) 周围所有"离进攻方更远"的候选格都塞上同阵营部队。
+       候选集合由 retreatCells 给，**不在这里手抄一遍六角邻居**——
+       手抄的那份一改地形朝向就会和实现对不上，而断言照样绿。 */
+    const cand = api.retreatCells([4, 7], [5, 7]);
+    ok('击退候选至少给出正后方', cand.some(p => p[0] === 6 && p[1] === 7), JSON.stringify(cand));
+    cand.forEach((p, i) => S.units.push(mk('R' + i, 'red', p[0], p[1])));
+    const c2 = api.retreatCell([4, 7], [5, 7]);
+    ok('四面被堵死时没有落点（由 doAttack 改为掉组织度）', c2 === null,
+       c2 ? c2.join(',') : 'null');
+  }
+
+  /* ── 11b 一回合只有一个动作：移动过的部队不能再施工 ──
+     老写法只判 `u.fired`，于是"走两格再挖一道壕"打得出来。
+     同时要守住反方向（施工后不能再移动）——那条本来就成立，
+     但两条一起测才知道是"互斥"而不是"单向漏"。 */
+  api.newGame({ level: 'C5', noSave: true });
+  {
+    const S = api.getState();
+    const eng = S.units.find(u => u.side === 'blue' && (u.type === 'engc' || u.type === 'eng'));
+    ok('C5 里有工兵连可以验施工', !!eng);
+    if (eng) {
+      const forts0 = S.forts.length;
+      eng.moved = true; eng.fired = false;
+      const rMoved = api.doFort(eng, eng.pos, 'H');
+      ok('移动过的部队本回合不能再施工',
+         rMoved === false && S.forts.length === forts0,
+         '返回 ' + rMoved + '，工事 ' + forts0 + '→' + S.forts.length);
+
+      /* 重新拍一次基线：上一段如果漏了会真造出一道堑壕，
+         沿用同一个 forts0 会让这条断言因为"别人造成的差异"而红——
+         红得对，但红在错的地方，读日志的人会以为是开火那条坏了。 */
+      const forts1 = S.forts.length;
+      eng.moved = false; eng.fired = true;
+      const rFired = api.doFort(eng, eng.pos, 'H');
+      ok('开过火的部队本回合也不能再施工',
+         rFired === false && S.forts.length === forts1,
+         '返回 ' + rFired + '，工事 ' + forts1 + '→' + S.forts.length);
+    }
+  }
+
+  /* ── 11c 特殊单位：死战不退 / 自带组织度恢复 ──
+     这两条特性的效果全落在别的函数上（isBroken / terrainDefFor / settlePhase），
+     所以断言要打在那几个函数上，而不是去读 traits 数组有没有写对。 */
+  {
+    const base = { abbr: 'X', name: 'X', type: 'inf', str: 6, mov: 6, rng: 1, r: 0, c: 0 };
+    const plain = api.makeUnit(Object.assign({}, base, { id: 'P1' }), false);
+    const hold = api.makeUnit(Object.assign({}, base, { id: 'P2', traits: ['steadfast'] }), false);
+    const cadet = api.makeUnit(Object.assign({}, base, { id: 'P3', traits: ['cadet'] }), false);
+    plain.org = 10; hold.org = 10; cadet.org = 10;
+    ok('普通部队组织度 10 判为崩溃', api.isBroken(plain) === true);
+    ok('死战不退的部队组织度 10 也不崩溃', api.isBroken(hold) === false);
+    ok('死战不退多给 15% 阵地防御',
+       Math.abs((api.terrainDefFor(hold) - api.terrainDefFor(plain)) - 0.15) < 1e-9,
+       (api.terrainDefFor(hold) - api.terrainDefFor(plain)).toFixed(3));
+    ok('学员主官只给自回复、不给防御', Math.abs(api.terrainDefFor(cadet) - api.terrainDefFor(plain)) < 1e-9);
+    ok('两支部队的自回复都挂上了',
+       api.traitSum(hold, 'orgTick') === 8 && api.traitSum(cadet, 'orgTick') === 6,
+       api.traitSum(hold, 'orgTick') + ' / ' + api.traitSum(cadet, 'orgTick'));
+  }
+
+  /* ── 11d 组织度与补给的战力系数 ──
+     这两个数是"加强组织度和补给对战斗力的影响"这条需求的落点，
+     同时也是最容易悄悄退回去的地方：把 1.30 改回 1.0 不会有任何报错。 */
+  ok('组织度 100 → 战力 ×1.00', Math.abs(api.orgFactor(100) - 1) < 1e-9);
+  ok('组织度 50 只剩四成出头（比线性的一半更狠）',
+     api.orgFactor(50) < 0.45 && api.orgFactor(50) > 0.35, api.orgFactor(50).toFixed(3));
+  ok('组织度衰减是曲线的：25 那一段比 50 掉得更快',
+     api.orgFactor(25) / api.orgFactor(50) < 0.5,
+     api.orgFactor(25).toFixed(3) + ' / ' + api.orgFactor(50).toFixed(3));
+  ok('补给三档 1.00 / 0.82 / 0.58',
+     api.SUPPLY_MOD['充足'] === 1 && api.SUPPLY_MOD['紧张'] === 0.82 && api.SUPPLY_MOD['断绝'] === 0.58,
+     JSON.stringify(api.SUPPLY_MOD));
+  ok('击退无路可退时扣的组织度是个正数常量', api.PUSH_BLOCK_ORG > 0, String(api.PUSH_BLOCK_ORG));
 
   console.log('');
   console.log('通过 ' + pass + ' 项' + (skipped ? ' · 跳过 ' + skipped + ' 项' : '') +

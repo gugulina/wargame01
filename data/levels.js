@@ -5,8 +5,8 @@
    为什么是 .js 而不是 .json：项目要能双击直接打开，
    file:// 下 fetch 会被同源策略拦掉，<script src> 不会。 */
 window.CANGYU = {
-  "ver": "v4.13",
-  "srcSig": "360825:48nfu",
+  "ver": "v4.14",
+  "srcSig": "405262:1xks3xd",
   "storage": {
     "save": "wargame.lankou.save",
     "saveVer": 3,
@@ -22,7 +22,7 @@ window.CANGYU = {
       "total": 9,
       "main": 6,
       "sub": 3,
-      "ready": 5
+      "ready": 9
     },
     {
       "no": 2,
@@ -154,7 +154,7 @@ window.CANGYU = {
       },
       "red": {
         "cards": 21,
-        "str": 134
+        "str": 139
       }
     },
     {
@@ -181,7 +181,7 @@ window.CANGYU = {
       },
       "red": {
         "cards": 12,
-        "str": 75
+        "str": 87
       }
     },
     {
@@ -194,18 +194,21 @@ window.CANGYU = {
       "when": "新历 1207 年 11 月 25 日",
       "where": "青溪 · 上游浅滩",
       "teaser": "渡口还在敌人手里。工兵连夜架一座浮桥，赶在天亮前把第一批辎重送过江。",
-      "ready": false,
+      "ready": true,
       "open": false,
-      "prevId": null,
+      "prevId": "C2",
       "noText": "第 2 关 · 附属 · ",
       "win": "reach",
+      "turns": 10,
+      "cols": 14,
+      "rows": 10,
       "blue": {
-        "cards": 0,
-        "str": 0
+        "cards": 9,
+        "str": 46
       },
       "red": {
-        "cards": 0,
-        "str": 0
+        "cards": 8,
+        "str": 40
       }
     },
     {
@@ -232,7 +235,7 @@ window.CANGYU = {
       },
       "red": {
         "cards": 25,
-        "str": 172
+        "str": 191
       }
     },
     {
@@ -255,11 +258,11 @@ window.CANGYU = {
       "rows": 10,
       "blue": {
         "cards": 15,
-        "str": 79
+        "str": 80
       },
       "red": {
         "cards": 17,
-        "str": 103
+        "str": 119
       }
     },
     {
@@ -299,18 +302,21 @@ window.CANGYU = {
       "when": "新历 1208 年 4 月 18 日",
       "where": "南部海岸 · 波尔瓦萨港 · 西码头",
       "teaser": "要塞昨晚丢了。舰队还有最后一班出港时间，码头上是三万人的行李和两个师的残部。",
-      "ready": false,
+      "ready": true,
       "open": false,
-      "prevId": null,
+      "prevId": "C4",
       "noText": "第 4 关 · 附属 · ",
       "win": "reach",
+      "turns": 12,
+      "cols": 22,
+      "rows": 16,
       "blue": {
-        "cards": 0,
-        "str": 0
+        "cards": 17,
+        "str": 87
       },
       "red": {
-        "cards": 0,
-        "str": 0
+        "cards": 11,
+        "str": 75
       }
     },
     {
@@ -323,18 +329,21 @@ window.CANGYU = {
       "when": "新历 1208 年 6 月 3 日",
       "where": "中部 · 南岭公路 17 号桥",
       "teaser": "后撤的主力要从这条公路上过，四个师，两天两夜。你手上是一个被打残的旅和一座桥。",
-      "ready": false,
+      "ready": true,
       "open": false,
-      "prevId": null,
+      "prevId": "C4",
       "noText": "第 5 关 · ",
       "win": "survive",
+      "turns": 12,
+      "cols": 16,
+      "rows": 12,
       "blue": {
-        "cards": 0,
-        "str": 0
+        "cards": 10,
+        "str": 50
       },
       "red": {
-        "cards": 0,
-        "str": 0
+        "cards": 11,
+        "str": 56
       }
     },
     {
@@ -347,18 +356,21 @@ window.CANGYU = {
       "when": "新历 1208 年 8 月 15 日",
       "where": "首都圈 · 岚京北郊防线",
       "teaser": "退到不能再退。城外最后一道防线后面就是首都，防线上只有刚补满的新兵。",
-      "ready": false,
+      "ready": true,
       "open": false,
-      "prevId": null,
+      "prevId": "C5",
       "noText": "第 6 关 · ",
       "win": "survive",
+      "turns": 14,
+      "cols": 18,
+      "rows": 12,
       "blue": {
-        "cards": 0,
-        "str": 0
+        "cards": 16,
+        "str": 83
       },
       "red": {
-        "cards": 0,
-        "str": 0
+        "cards": 14,
+        "str": 97
       }
     },
     {

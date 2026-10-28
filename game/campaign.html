@@ -58,7 +58,7 @@
      <link> 不会——跟 data/levels.js 必须用 <script src> 是同一个原因。
      ?v= 跟着顶栏版本走（tools/check.js 校验），否则改完样式玩家可能还在吃
      GitHub Pages 的十分钟缓存，看到的是一半新一半旧的页面。 -->
-<link rel="stylesheet" href="campaign.css?v=4.13">
+<link rel="stylesheet" href="campaign.css?v=4.14">
 </head>
 <body>
 <div class="app">
@@ -72,7 +72,7 @@
       <span class="pill" id="phasePill">我方阶段</span>
       <!-- 全项目唯一的版本标记：tools/export-levels.js 按这个 span 的原样文本抓版本号，
            开始页撤掉之后它挪到了顶栏，标签必须保持 <span id="verTag"> 这个形状 -->
-      <span id="verTag">v4.13</span>
+      <span id="verTag">v4.14</span>
       <!-- 存档异常：只在真的写失败时出现（隐私模式 / 配额满 / 被清理）。
            默认 display:none，别让它平时占位——一排胶囊里突然多一个红字，
            玩家第一反应是"我是不是哪里点坏了"。 -->
@@ -226,7 +226,7 @@
 
     <h3>补给</h3>
     <ul>
-      <li>基地半径 3 格内补给<b>充足</b>（×1.00），再外 3 格<b>紧张</b>（×0.88），更远<b>断绝</b>（×0.70）。</li>
+      <li>基地半径 3 格内补给<b>充足</b>（×1.00），再外 3 格<b>紧张</b>（×0.82），更远<b>断绝</b>（×0.58）。</li>
       <li>辎重队自带半径 4 的移动补给，<b>还能原地建补给点</b>——建成后永久有效，半径 4。</li>
       <li>补给线会被<b>敌军相邻格切断</b>。跨河之后南岸的基地够不着，这就是补给点真正的用武之地：把它建在桥头。</li>
       <li>弹药：炮兵静止且有补给时每回合 <b>+1</b> 发。断粮的炮兵打光就哑了。</li>
@@ -767,7 +767,7 @@ const LEVELS = [
     { t: 3, k: '火炮',   s: '兵牌旁「行动」→「展开放列」，下回合才能开火' },
     { t: 4, k: '工事',   s: '兵牌旁「行动」→ 选工事种类 → 点格施工，只保护守在里面的兵' },
     { t: 5, k: '占领',   s: '走上要点，站住；有人守，要点才归你' },
-    { t: 6, k: '组织度', s: '兵牌下那条细线掉一半，力气只剩六成' }
+    { t: 6, k: '组织度', s: '兵牌下那条细线掉一半，力气只剩四成' }
   ],
   maxTurns: 7,
   cols: 12,
@@ -813,7 +813,7 @@ const LEVELS = [
         cls: 'b' }] },
     { id: 't1_org', desc: '科目 6 · 组织度', when: { kind: 'turn', turn: 6 },
       effects: [{ kind: 'log',
-        text: '【教官】兵牌底下那条细线是组织度。掉到一半，这支兵只能打出六成力气——人还在，力气没了。打残的部队拉到群部旁边能慢慢缓过来。',
+        text: '【教官】兵牌底下那条细线是组织度。掉到一半，这支兵只能打出四成力气——人还在，力气没了。打残的部队拉到群部旁边能慢慢缓过来。',
         cls: 'b' }] },
     /* 第七回合是"复习"，不是新科目：新手引导的收尾不该再加新东西，
        给人一个回合把刚才六件事自己串一遍，比塞第七个概念有用。 */
@@ -1101,11 +1101,11 @@ const LEVELS = [
        这是主攻方向的加强，不是漏写兵牌——tools/orgcheck.js 会把这种"同型不同量"
        单独列成提示，每加一关都能确认它到底是设计还是笔误。 */
     { id:'R1H', side:'red',  abbr:'14H',  name:'敌第 14 步兵师师部',        type:'hqd', str:2, mov:8, rng:0, r:3, c:2,  corps:'R1', wave:1 },
-    { id:'R1A', side:'red',  abbr:'14-1', name:'敌第 14 步兵师第 14 团第 1 营', type:'mob', str:9, mov:8, rng:1, r:2, c:3,  corps:'R1', wave:1 },
-    { id:'R1B', side:'red',  abbr:'14-2', name:'敌第 14 步兵师第 14 团第 2 营', type:'mob', str:9, mov:8, rng:1, r:3, c:3,  corps:'R1', wave:1 },
-    { id:'R1C', side:'red',  abbr:'14-3', name:'敌第 14 步兵师第 14 团第 3 营', type:'inf', str:8, mov:6, rng:1, r:4, c:3,  corps:'R1', wave:1 },
-    { id:'R1D', side:'red',  abbr:'14-4', name:'敌第 14 步兵师第 15 团第 1 营', type:'inf', str:8, mov:6, rng:1, r:5, c:2,  corps:'R1', wave:1 },
-    { id:'R1G', side:'red',  abbr:'14-5', name:'敌第 14 步兵师第 15 团第 2 营', type:'inf', str:8, mov:6, rng:1, r:6, c:3,  corps:'R1', wave:1 },
+    { id:'R1A', side:'red',  abbr:'14-1', name:'敌第 14 步兵师第 14 团第 1 营', type:'mob', str:10, mov:8, rng:1, r:2, c:3,  corps:'R1', wave:1 },
+    { id:'R1B', side:'red',  abbr:'14-2', name:'敌第 14 步兵师第 14 团第 2 营', type:'mob', str:10, mov:8, rng:1, r:3, c:3,  corps:'R1', wave:1 },
+    { id:'R1C', side:'red',  abbr:'14-3', name:'敌第 14 步兵师第 14 团第 3 营', type:'inf', str:9, mov:6, rng:1, r:4, c:3,  corps:'R1', wave:1 },
+    { id:'R1D', side:'red',  abbr:'14-4', name:'敌第 14 步兵师第 15 团第 1 营', type:'inf', str:9, mov:6, rng:1, r:5, c:2,  corps:'R1', wave:1 },
+    { id:'R1G', side:'red',  abbr:'14-5', name:'敌第 14 步兵师第 15 团第 2 营', type:'inf', str:9, mov:6, rng:1, r:6, c:3,  corps:'R1', wave:1 },
     { id:'R1F', side:'red',  abbr:'14炮', name:'敌第 14 步兵师炮兵营',      type:'art', str:5, mov:6, rng:5, r:1, c:2,  corps:'R1', wave:1, packed:1 },
     { id:'R1T', side:'red',  abbr:'14反', name:'敌第 14 步兵师反坦克连',    type:'at',  str:3, mov:5, rng:1, r:4, c:2,  corps:'R1', wave:1 },
     { id:'R1E', side:'red',  abbr:'14工', name:'敌第 14 步兵师工兵连',      type:'engc',str:2, mov:6, rng:1, r:6, c:2,  corps:'R1', wave:1 },
@@ -1391,35 +1391,222 @@ const LEVELS = [
        第一版把南路摆在（9,2）一带，结果钳口还没合拢人已经贴脸了，
        自战 60 局撤出 0 支——那不是"难"，是结构上出不去。 */
     { id:'R1H', side:'red', abbr:'2H',   name:'敌装甲第 2 师先遣群群部',   type:'hkg', str:2, mov:8, rng:0, r:0, c:6, corps:'R1', wave:1 },
-    { id:'R1A', side:'red', abbr:'2-1',  name:'敌先遣群第 1 营（摩步）',    type:'mob', str:9, mov:8, rng:1, r:0, c:7, corps:'R1', wave:1 },
-    { id:'R1B', side:'red', abbr:'2-2',  name:'敌先遣群第 2 营（摩步）',    type:'mob', str:9, mov:8, rng:1, r:1, c:7, corps:'R1', wave:1 },
-    { id:'R1T', side:'red', abbr:'2反',  name:'敌先遣群反坦克连',          type:'at',  str:3, mov:5, rng:1, r:1, c:9, corps:'R1', wave:1 },
+    { id:'R1A', side:'red', abbr:'2-1',  name:'敌先遣群第 1 营（摩步）',    type:'mob', str:11, mov:8, rng:1, r:0, c:7, corps:'R1', wave:1 },
+    { id:'R1B', side:'red', abbr:'2-2',  name:'敌先遣群第 2 营（摩步）',    type:'mob', str:11, mov:8, rng:1, r:1, c:7, corps:'R1', wave:1 },
+    { id:'R1T', side:'red', abbr:'2反',  name:'敌先遣群反坦克连',          type:'at',  str:4, mov:5, rng:1, r:1, c:9, corps:'R1', wave:1 },
     /* 敌方 · 南路钳子 · 敌摩步第 9 旅先遣支队（沿江岸北上）
        为什么叫"先遣支队"而不是"第 9 旅"：这一关只投入了两个摩步营 + 支队部，
        20 战力。同一支第 9 旅在第 3 关附属（机场）里是满编 38 战力、六个兵牌。
        同样一个番号，一处写"旅"、一处只摆两个营，编制表就对不上了。
        改成先遣支队，既是真实存在的编组形式，也让两个关卡各说各的、互不矛盾。 */
     { id:'R2H', side:'red', abbr:'9H',   name:'敌摩步第 9 旅先遣支队指挥所',   type:'hqb', str:2, mov:8, rng:0, r:9, c:6, corps:'R2', wave:1 },
-    { id:'R2A', side:'red', abbr:'9-1',  name:'敌第 9 旅先遣支队第 1 营',      type:'mob', str:9, mov:8, rng:1, r:9, c:7, corps:'R2', wave:1 },
-    { id:'R2B', side:'red', abbr:'9-2',  name:'敌第 9 旅先遣支队第 2 营',      type:'mob', str:9, mov:8, rng:1, r:8, c:7, corps:'R2', wave:1 },
+    { id:'R2A', side:'red', abbr:'9-1',  name:'敌第 9 旅先遣支队第 1 营',      type:'mob', str:10, mov:8, rng:1, r:9, c:7, corps:'R2', wave:1 },
+    { id:'R2B', side:'red', abbr:'9-2',  name:'敌第 9 旅先遣支队第 2 营',      type:'mob', str:11, mov:8, rng:1, r:8, c:7, corps:'R2', wave:1 },
     /* 敌方 · 内层封锁线 · 敌第 5 要塞守备群（已经摆在阵地上，不会主动后撤） */
     { id:'R3H', side:'red', abbr:'5H',   name:'敌第 5 要塞守备群群部',      type:'hkg', str:2, mov:8, rng:0, r:3, c:10, corps:'R3', wave:1 },
-    { id:'R3A', side:'red', abbr:'5-1',  name:'守备群第 1 营（步兵）',      type:'inf', str:8, mov:6, rng:1, r:2, c:7,  corps:'R3', wave:1 },
-    { id:'R3B', side:'red', abbr:'5-2',  name:'守备群第 2 营（步兵）',      type:'inf', str:8, mov:6, rng:1, r:5, c:9,  corps:'R3', wave:1 },
-    { id:'R3C', side:'red', abbr:'5-3',  name:'守备群第 3 营（摩步）',      type:'mob', str:9, mov:8, rng:1, r:4, c:13, corps:'R3', wave:1 },
-    { id:'R3F', side:'red', abbr:'5炮',  name:'守备群炮兵营',              type:'art', str:5, mov:6, rng:5, r:3, c:11, corps:'R3', wave:1 },
+    { id:'R3A', side:'red', abbr:'5-1',  name:'守备群第 1 营（步兵）',      type:'inf', str:9, mov:6, rng:1, r:2, c:7,  corps:'R3', wave:1 },
+    { id:'R3B', side:'red', abbr:'5-2',  name:'守备群第 2 营（步兵）',      type:'inf', str:9, mov:6, rng:1, r:5, c:9,  corps:'R3', wave:1 },
+    { id:'R3C', side:'red', abbr:'5-3',  name:'守备群第 3 营（摩步）',      type:'mob', str:10, mov:8, rng:1, r:4, c:13, corps:'R3', wave:1 },
+    { id:'R3F', side:'red', abbr:'5炮',  name:'守备群炮兵营',              type:'art', str:6, mov:6, rng:5, r:3, c:11, corps:'R3', wave:1 },
   ]
 },
 {
-  /* ── 附属 · 青溪夜渡（占位）──
-     主关 C2 是"天亮了，撕开封锁线过江"。这一关是它的前一晚：浮桥还没架通，
-     工兵连在敌火下作业，第一批辎重能不能送过去决定 C2 开局有几个炮兵基数。
-     **附属关不卡主线**，所以它的结论只影响氛围与后续补给修正，不写进 cleared 门槛。 */
+  /* ── 附属 · 青溪夜渡 ──
+     主关 C2 是"天亮了，撕开封锁线过江"；这一关是它的前一晚（附图关）。
+     附属关不卡主线：输赢只影响本关自己的评价，不写进 cleared 门槛。
+
+     四条设计取舍：
+     ① **目标是"送过去 3 支"，不是歼灭**。夜袭做歼灭战会变成拖回合，
+        和"赶在天亮前"的叙事正好相反。10 回合、3 支，两个数字都按
+        "走得动但走不快"定。
+     ② **河只有一处渡口**（第 4 行、第 6–7 列）。敌方守备队在东岸不会
+        主动过河——河是他们的屏障，也是玩家的计时器。这让"从哪过"
+        变成一个不用教的问题。
+     ③ 工兵连是保险而不是门槛：渡口被压制时可以架桥绕行（战术卡）。
+        **不设硬门槛**——AI 不会架桥，玩家也不该被逼着学。
+     ④ 事件挂在"必然成立"的局面条件上：第 2 回合探照灯、第 6 回合天亮
+        （本关 10 回合，一定走到）、第一批过河。不挂"某营打了三仗"
+        那种会被射程和 AI 接近距离意外挡掉的条件。
+     ⑤ **平衡**：自战 100 局 53%。东岸那门迫击炮排（射程 5、我方够不着）
+        是这一关的主要杀伤源，从 4 降到 3 之后从 42.5% 进到 53%。
+        它一响就是无反击的固定损耗，别再往上加。 */
   id: 'C2B', ch: 1, no: 2, sub: true, name: '青溪夜渡', type: '附属 · 特种',
   when: '新历 1207 年 11 月 25 日', where: '青溪 · 上游浅滩',
   teaser: '渡口还在敌人手里。工兵连夜架一座浮桥，赶在天亮前把第一批辎重送过江。',
-  ready: false,
-  win: { kind: 'reach' }
+  ready: true,
+  win: { kind: 'reach', count: 3, zone: { r0: 3, r1: 9, c0: 10, c1: 12 } },
+  /* 前情写"回头看"：这一关在菜单里排在 C2 之后（附图），叙事上是前一晚。
+     直接写"上一关怎样"会时间倒流，所以用补记的口吻。 */
+  prev: {
+    win:  '青溪渡口突围成功。回头看，真正决定成败的是两天前那个夜里——浮桥架通的那一刻。',
+    fail: '青溪渡口突围失败。两天前那一夜辎重没能送过江，天亮时能用的炮火比预计少了一半。'
+  },
+  intro: [
+    '深夜 · 小雨，河面看不清对岸。第 107 步兵师与第 201 坦克旅的辎重停在河西，等着过河。',
+    '渡口只有一处。东岸是敌青溪守备队一个营，工事朝西，探照灯每三分钟扫一次河面。',
+    '任务：10 回合内至少 3 支兵牌抵达东岸的渡口村一带（地图东南角绿色撤离区）。',
+    '天黑是唯一的掩护：敌军炮兵没有观测，前几回合打不准；第 6 回合天一亮，他们的观察哨就能看见整条河。',
+    '辎重队最脆，别让它走在最前面。轻坦营可以打头阵——东岸守备队没有反坦克武器。',
+    '工兵连的用处是保险：渡口被炮火压制、想换一处过河时，架桥只能靠它。'
+  ],
+  maxTurns: 10,
+  cols: 14,
+  rows: 10,
+  blueSources: [[8, 2]],
+  redSource: [2, 10],
+  map: [
+    '..ff..~~..ff..',
+    '..ff..~~..ff..',
+    '......~~...hh.',
+    '......~~...hh.',
+    '..hh..==......',
+    '..hh..~~..tt..',
+    '......~~..tt..',
+    '.ff...~~......',
+    '.ff...~~..ff..',
+    '......~~..ff..'
+  ],
+  objectives: [
+    /* reach 关的要点不是"分数"，是给红方 AI 找目标用的（AI 靠 objectives
+       决定往哪走）。语义上也对：守备队当然要守渡口和滩头。 */
+    { id: 'ford',    name: '青溪渡口', vp: 10, core: true, kind: 'ford', cells: [[4,6],[4,7]] },
+    { id: 'beach',   name: '东岸滩头', vp: 10, core: false, kind: 'ford', cells: [[3,8],[4,8],[5,8]] },
+    { id: 'village', name: '渡口村',   vp: 10, core: false, kind: 'town', cells: [[5,10],[5,11],[6,10],[6,11]] }
+  ],
+  events: [
+    {
+      id: 'night_start', desc: '夜渡开始',
+      when: { kind: 'firstBlood' },
+      effects: [
+        { kind: 'say', beats: [
+          { who: '第 107 步兵师 · 师部', side: 'blue', portrait: 'portBlue',
+            text: '按计划，先头过河，辎重跟第二趟。\n不要恋战——天亮之前必须把东西送过去。' },
+          { who: '第 201 坦克旅 · 旅长', side: 'blue', portrait: 'portBlue',
+            text: '我的轻坦打头。夜里的车灯全关，靠河对岸的探照灯找路。' }
+        ] }
+      ]
+    },
+    {
+      id: 'searchlight', desc: '探照灯扫过河面',
+      when: { kind: 'turn', turn: 2 },
+      effects: [
+        { kind: 'log', text: '敌军探照灯扫过河面，渡口的水痕被照得发白。好在他们还没把炮口转过来。', cls: 'hi' }
+      ]
+    },
+    {
+      id: 'ford_taken', desc: '夺下渡口',
+      when: { kind: 'control', obj: 'ford', side: 'blue' },
+      effects: [
+        { kind: 'log', text: '渡口两侧的工事被清掉，卡车可以一辆接一辆下水了。', cls: 'b' },
+        { kind: 'org', side: 'red', delta: -5 },
+        { kind: 'mod', side: 'blue', atk: 0.05, turns: 2, label: '渡口在手 · 我方攻击 +5%' }
+      ]
+    },
+    {
+      id: 'first_across', desc: '第一批过河',
+      when: { kind: 'escaped', count: 1 },
+      effects: [
+        { kind: 'log', text: '第一批车辆已经爬上东岸。对岸的守备队开始往后缩。', cls: 'b' },
+        { kind: 'org', side: 'blue', delta: 5 }
+      ]
+    },
+    {
+      id: 'dawn', desc: '天快亮了',
+      when: { kind: 'turn', turn: 6 },
+      effects: [
+        { kind: 'log', text: '东边泛白。敌军的观察哨架上河堤，接下来的每一趟都在炮口下面。', cls: 'r' },
+        { kind: 'banner', text: '天亮了 · 敌军炮兵获得观测', cls: 'r', ms: 2400 },
+        { kind: 'org', side: 'blue', delta: -4 }
+      ]
+    }
+  ],
+  story: {
+    briefing: {
+      pages: [
+        {
+          order: '作战命令 · 第 6 号附',
+          kicker: '战役态势',
+          title: '一夜之间，一条河',
+          paras: [
+            { t: '主力明天动身。可明天能不能打，取决于今夜有多少弹药过了河。' },
+            { t: '渡口只有一处。东岸守着一个营，工事朝西，探照灯每三分钟扫一次。', hl: true },
+            { t: '你手上没有重装备：两个步兵营、一个轻坦营、一门自行火炮，外加工兵连和辎重队。' }
+          ],
+          nums: [
+            { k: '兵牌', v: '8' },
+            { k: '回合', v: '9' },
+            { k: '要送过去', v: '3 支' }
+          ]
+        },
+        {
+          order: '夜渡要图 · 附页',
+          kicker: '地形',
+          title: '河是屏障，也是计时器',
+          paras: [
+            { t: '全图只有一处浅滩渡口。绕不过去——这一关教的不是"找路"，是"什么时候走"。' },
+            { t: '河东是渡口村，房屋密集（防御 0.85）；河西是林地与丘陵，正好藏住出发时的队形。', hl: true },
+            { t: '第 6 回合天亮。在那之前敌军炮兵看不见河面，过了那一刻，每一趟都是赌运气。' }
+          ],
+          nums: [
+            { k: '渡口', v: '1 处' },
+            { k: '天亮', v: '第 6 回合', hot: true },
+            { k: '撤离区', v: '东南角' }
+          ]
+        },
+        {
+          order: '任务简报',
+          kicker: '你的任务',
+          title: '送过去三支',
+          paras: [
+            { t: '10 回合内至少 3 支兵牌抵达东南角的撤离区，即为达成；全部兵牌被歼立即判负。' },
+            { t: '<b>辎重队最脆</b>——它只有 2 点战力，挨一次炮击就可能报销。让它跟在轻坦后面。' },
+            { t: '东岸守备队没有反坦克武器，轻坦营可以硬顶；但他们的迫击炮打得准，别在渡口堆成一团。', hl: true }
+          ],
+          nums: [
+            { k: '目标', v: '3 支过河' },
+            { k: '限时', v: '10 回合' },
+            { k: '辎重战力', v: '2' }
+          ]
+        }
+      ],
+      beats: [
+        { who: '第 107 步兵师 · 师部', side: 'blue', portrait: 'portHQ',
+          text: '今夜不谈战果，只谈辎重。\n天亮之前，河这边的东西要少一半，河那边要堆起来。' },
+        { who: '工兵连 · 连长', side: 'blue', portrait: 'portBlue',
+          text: '渡口的路基被水泡软了，重车走一趟就陷一次。\n先铺石，再走车——给我半小时。' },
+        { who: '敌青溪守备队 · 哨兵', side: 'red', portrait: 'portRed',
+          text: '河面上有声音。\n叫醒排长——别开探照灯，先听。' }
+      ]
+    }
+  },
+  units: [
+    /* ── 我方 · 第 107 步兵师（番号、兵种与 C2 完全一致；本关在前，所以是满编） ── */
+    { id:'B1H', side:'blue', abbr:'107H',  name:'第 107 步兵师师部',              type:'hqd',  str:2, mov:8, rng:0, r:7, c:1, corps:'B1', wave:1 },
+    { id:'B1A', side:'blue', abbr:'321-1', name:'第 107 步兵师第 321 团第 1 营',  type:'inf',  str:8, mov:6, rng:1, r:5, c:2, corps:'B1', wave:1 },
+    { id:'B1B', side:'blue', abbr:'321-2', name:'第 107 步兵师第 321 团第 2 营',  type:'inf',  str:8, mov:6, rng:1, r:6, c:2, corps:'B1', wave:1 },
+    { id:'B1C', side:'blue', abbr:'322-1', name:'第 107 步兵师第 322 团第 1 营',  type:'inf',  str:8, mov:6, rng:1, r:7, c:3, corps:'B1', wave:1 },
+    { id:'B1E', side:'blue', abbr:'107工', name:'第 107 步兵师工兵连',            type:'engc', str:2, mov:6, rng:1, r:6, c:3, corps:'B1', wave:1 },
+    /* ── 我方 · 第 201 坦克旅（轻坦打头阵，辎重排在后面；旅部留在河西岸指挥） ── */
+    { id:'B2H', side:'blue', abbr:'201H',  name:'第 201 坦克旅旅部',              type:'hqb',  str:2, mov:8, rng:0, r:9, c:2, corps:'B2', wave:1 },
+    { id:'B2A', side:'blue', abbr:'201-1', name:'第 201 坦克旅第 1 营（轻坦）',    type:'larm', str:10, mov:12, rng:1, r:8, c:4, corps:'B2', wave:1 },
+    { id:'B2F', side:'blue', abbr:'201自', name:'第 201 坦克旅自行火炮连',        type:'sha',  str:4, mov:8,  rng:3, r:7, c:4, corps:'B2', wave:1 },
+    { id:'B2S', side:'blue', abbr:'201辎', name:'第 201 坦克旅辎重队',            type:'sup',  str:2, mov:8,  rng:0, r:8, c:3, corps:'B2', wave:1 },
+
+    /* ── 敌方 · 青溪渡口守备队（工事朝西，不会过河） ── */
+    { id:'R1H', side:'red', abbr:'青守H', name:'敌青溪渡口守备队队部',            type:'hqb',  str:2, mov:8, rng:0, r:2, c:10, corps:'R1', wave:1 },
+    { id:'R1A', side:'red', abbr:'青1',   name:'敌青溪渡口守备队第 1 营',          type:'gdn',  str:7, mov:5, rng:1, r:3, c:9,  corps:'R1', wave:1 },
+    { id:'R1B', side:'red', abbr:'青2',   name:'敌青溪渡口守备队第 2 营',          type:'gdn',  str:7, mov:5, rng:1, r:4, c:10, corps:'R1', wave:1 },
+    { id:'R1C', side:'red', abbr:'青3',   name:'敌青溪渡口守备队第 3 营',          type:'inf',  str:8, mov:6, rng:1, r:5, c:10, corps:'R1', wave:1 },
+    { id:'R1F', side:'red', abbr:'青炮',  name:'敌青溪渡口守备队迫击炮排',        type:'art',  str:2, mov:6, rng:5, r:2, c:11, corps:'R1', wave:1, packed:1 },
+    { id:'R1R', side:'red', abbr:'青巡',  name:'敌青溪渡口巡逻队',                type:'rec',  str:2, mov:10, rng:1, r:6, c:11, corps:'R1', wave:1 },
+
+    /* ── 敌方 · 天亮后赶到的先遣连（第 6 回合，与"天亮"同一拍） ── */
+    { id:'R2A', side:'red', abbr:'21先',  name:'敌第 21 步兵师先遣连',            type:'inf',  str:8, mov:6, rng:1, r:0, c:11, corps:'R1', wave:2 },
+    { id:'R2F', side:'red', abbr:'21炮',  name:'敌第 21 步兵师先遣炮兵排',        type:'art',  str:4, mov:6, rng:5, r:0, c:12, corps:'R1', wave:2, packed:1 }
+  ],
+  waves: [
+    { wave: 2, turn: 6, text: '敌军第 21 步兵师的一个先遣连摸黑赶到东岸，还带上来一门炮。' }
+  ]
 },
 {
   id: 'C3', ch: 1, no: 3, name: '岚口要地争夺战', type: '防御',
@@ -1643,11 +1830,11 @@ const LEVELS = [
     { id:'B9',  side:'blue', abbr:'防',   name:'西部军区防空营',            type:'aab', str:4,  mov:6,  rng:2, r:12, c:14, corps:'DS', wave:1 },
     /* 敌方 · 第一波 · 敌摩步第 3 旅 */
     { id:'R3H', side:'red',  abbr:'3H',   name:'敌摩步第 3 旅旅部',       type:'hqb', str:2,  mov:8,  rng:0, r:1,  c:3,  corps:'R3', wave:1 },
-    { id:'R3A', side:'red',  abbr:'3-1',  name:'敌摩步第 3 旅第 1 营',     type:'mob', str:9,  mov:8,  rng:1, r:2,  c:2,  corps:'R3', wave:1 },
-    { id:'R3B', side:'red',  abbr:'3-2',  name:'敌摩步第 3 旅第 2 营',     type:'mob', str:9,  mov:8,  rng:1, r:2,  c:3,  corps:'R3', wave:1 },
-    { id:'R3C', side:'red',  abbr:'3-3',  name:'敌摩步第 3 旅第 3 营',     type:'mob', str:9,  mov:8,  rng:1, r:2,  c:4,  corps:'R3', wave:1 },
-    { id:'R3F', side:'red',  abbr:'3炮',  name:'敌摩步第 3 旅炮兵营',      type:'art', str:5,  mov:6,  rng:5, r:0,  c:3,  corps:'R3', wave:1, packed:1 },
-    { id:'R3T', side:'red',  abbr:'3反',  name:'敌摩步第 3 旅反坦克连',    type:'at',  str:3,  mov:5,  rng:1, r:1,  c:4,  corps:'R3', wave:1 },
+    { id:'R3A', side:'red',  abbr:'3-1',  name:'敌摩步第 3 旅第 1 营',     type:'mob', str:10,  mov:8,  rng:1, r:2,  c:2,  corps:'R3', wave:1 },
+    { id:'R3B', side:'red',  abbr:'3-2',  name:'敌摩步第 3 旅第 2 营',     type:'mob', str:10,  mov:8,  rng:1, r:2,  c:3,  corps:'R3', wave:1 },
+    { id:'R3C', side:'red',  abbr:'3-3',  name:'敌摩步第 3 旅第 3 营',     type:'mob', str:10,  mov:8,  rng:1, r:2,  c:4,  corps:'R3', wave:1 },
+    { id:'R3F', side:'red',  abbr:'3炮',  name:'敌摩步第 3 旅炮兵营',      type:'art', str:6,  mov:6,  rng:5, r:0,  c:3,  corps:'R3', wave:1, packed:1 },
+    { id:'R3T', side:'red',  abbr:'3反',  name:'敌摩步第 3 旅反坦克连',    type:'at',  str:4,  mov:5,  rng:1, r:1,  c:4,  corps:'R3', wave:1 },
     /* 摩步旅编制里本来就有工兵连，而且强渡江河必然配属舟桥分队。
        之前红方一个能架桥的工兵都没有——engc 编制上只能挖堑壕、排雷，
        于是红方只能硬挤两处渡口，跟"敌人是进攻方"这件事自相矛盾。 */
@@ -1659,27 +1846,27 @@ const LEVELS = [
     { id:'R7',  side:'red',  abbr:'战',   name:'敌战斗机中队',            type:'fgt', str:8,  mov:12, rng:1, r:1,  c:9,  corps:'RA', wave:1 },
     /* 敌方 · 第二波 · 敌装甲第 4 旅（第 4 回合） */
     { id:'R4H', side:'red',  abbr:'4H',   name:'敌装甲第 4 旅旅部',       type:'hqb', str:2,  mov:8,  rng:0, r:0,  c:12, corps:'R4', wave:2 },
-    { id:'R4A', side:'red',  abbr:'4-1',  name:'敌装甲第 4 旅第 1 营（坦克）', type:'marm', str:12, mov:10, rng:1, r:1, c:12, corps:'R4', wave:2 },
-    { id:'R4B', side:'red',  abbr:'4-2',  name:'敌装甲第 4 旅第 2 营（坦克）', type:'marm', str:12, mov:10, rng:1, r:0, c:13, corps:'R4', wave:2 },
-    { id:'R4C', side:'red',  abbr:'4-3',  name:'敌装甲第 4 旅第 3 营（装步）', type:'mech',str:9, mov:8, rng:1, r:1, c:13, corps:'R4', wave:2 },
-    { id:'R4F', side:'red',  abbr:'4炮',  name:'敌装甲第 4 旅自行火炮连', type:'sha', str:4,  mov:8,  rng:3, r:0,  c:14, corps:'R4', wave:2 },
+    { id:'R4A', side:'red',  abbr:'4-1',  name:'敌装甲第 4 旅第 1 营（坦克）', type:'marm', str:13, mov:10, rng:1, r:1, c:12, corps:'R4', wave:2 },
+    { id:'R4B', side:'red',  abbr:'4-2',  name:'敌装甲第 4 旅第 2 营（坦克）', type:'marm', str:13, mov:10, rng:1, r:0, c:13, corps:'R4', wave:2 },
+    { id:'R4C', side:'red',  abbr:'4-3',  name:'敌装甲第 4 旅第 3 营（装步）', type:'mech',str:10, mov:8, rng:1, r:1, c:13, corps:'R4', wave:2 },
+    { id:'R4F', side:'red',  abbr:'4炮',  name:'敌装甲第 4 旅自行火炮连', type:'sha', str:5,  mov:8,  rng:3, r:0,  c:14, corps:'R4', wave:2 },
     /* 本关敌方是先遣部队，编制上限只到旅属野炮。师/军重炮（hr）的 9 格射程
        留给后续攻坚关——渡口争夺战里出现重炮，射程会直接压穿整条防线。 */
     /* 敌方 · 第三波 · 敌第 6 战斗群（第 7 回合） */
     { id:'R6H', side:'red',  abbr:'6H',   name:'敌第 6 战斗群群部',       type:'hkg', str:2,  mov:8,  rng:0, r:0,  c:16, corps:'R6', wave:3 },
-    { id:'R6A', side:'red',  abbr:'6-1',  name:'战斗群第 1 营（坦克）', type:'marm', str:11, mov:10, rng:1, r:1,  c:16, corps:'R6', wave:3 },
-    { id:'R6B', side:'red',  abbr:'6-2',  name:'战斗群第 2 营（坦克）', type:'marm', str:11, mov:10, rng:1, r:2,  c:16, corps:'R6', wave:3 },
-    { id:'R6C', side:'red',  abbr:'6-3',  name:'战斗群第 3 营（装步）', type:'mech',str:9,  mov:8,  rng:1, r:1,  c:17, corps:'R6', wave:3 },
-    { id:'R6D', side:'red',  abbr:'6-4',  name:'战斗群第 4 营（装步）', type:'mech',str:9,  mov:8,  rng:1, r:2,  c:18, corps:'R6', wave:3 },
-    { id:'R6F', side:'red',  abbr:'6炮',  name:'战斗群炮兵营',          type:'art', str:5,  mov:6,  rng:5, r:0,  c:17, corps:'R6', wave:3, packed:1 },
-    { id:'R6S', side:'red',  abbr:'6自',  name:'战斗群自行火炮连',      type:'sha', str:4,  mov:8,  rng:3, r:0,  c:18, corps:'R6', wave:3 },
-    { id:'R6E', side:'red',  abbr:'6工',  name:'战斗群工兵连',          type:'engc',str:2,  mov:6,  rng:1, r:1,  c:18, corps:'R6', wave:3 },
-    { id:'R6G', side:'red',  abbr:'6防',  name:'战斗群防空连',          type:'aac', str:2,  mov:6,  rng:2, r:2,  c:17, corps:'R6', wave:3 },
+    { id:'R6A', side:'red',  abbr:'6-1',  name:'战斗群第 1 营（坦克）', type:'marm', str:12, mov:10, rng:1, r:1,  c:16, corps:'R6', wave:3 },
+    { id:'R6B', side:'red',  abbr:'6-2',  name:'战斗群第 2 营（坦克）', type:'marm', str:12, mov:10, rng:1, r:2,  c:16, corps:'R6', wave:3 },
+    { id:'R6C', side:'red',  abbr:'6-3',  name:'战斗群第 3 营（装步）', type:'mech',str:10,  mov:8,  rng:1, r:1,  c:17, corps:'R6', wave:3 },
+    { id:'R6D', side:'red',  abbr:'6-4',  name:'战斗群第 4 营（装步）', type:'mech',str:10,  mov:8,  rng:1, r:2,  c:18, corps:'R6', wave:3 },
+    { id:'R6F', side:'red',  abbr:'6炮',  name:'战斗群炮兵营',          type:'art', str:6,  mov:6,  rng:5, r:0,  c:17, corps:'R6', wave:3, packed:1 },
+    { id:'R6S', side:'red',  abbr:'6自',  name:'战斗群自行火炮连',      type:'sha', str:5,  mov:8,  rng:3, r:0,  c:18, corps:'R6', wave:3 },
+    { id:'R6E', side:'red',  abbr:'6工',  name:'战斗群工兵连',          type:'engc',str:3,  mov:6,  rng:1, r:1,  c:18, corps:'R6', wave:3 },
+    { id:'R6G', side:'red',  abbr:'6防',  name:'战斗群防空连',          type:'aac', str:3,  mov:6,  rng:2, r:2,  c:17, corps:'R6', wave:3 },
     /* 事件预备队 · wave:0 不会自动投入，只由事件触发 */
     { id:'B8A', side:'blue', abbr:'3军-1', name:'第 3 坦克军先遣支队坦克营', type:'marm', str:12, mov:10, rng:1, r:13, c:9,  corps:'B8', wave:0, group:'BLUE_RESERVE' },
     { id:'B8B', side:'blue', abbr:'3军-2', name:'第 3 坦克军先遣支队摩步营', type:'mob', str:9,  mov:8,  rng:1, r:13, c:10, corps:'B8', wave:0, group:'BLUE_RESERVE' },
-    { id:'R8A', side:'red',  abbr:'8-1',   name:'敌第 8 摩步旅第 1 营',       type:'mob', str:9,  mov:8,  rng:1, r:0,  c:7,  corps:'R8', wave:0, group:'RED_RESERVE' },
-    { id:'R8B', side:'red',  abbr:'8-2',   name:'敌第 8 摩步旅第 2 营',       type:'mob', str:9,  mov:8,  rng:1, r:0,  c:8,  corps:'R8', wave:0, group:'RED_RESERVE' }
+    { id:'R8A', side:'red',  abbr:'8-1',   name:'敌第 8 摩步旅第 1 营',       type:'mob', str:10,  mov:8,  rng:1, r:0,  c:7,  corps:'R8', wave:0, group:'RED_RESERVE' },
+    { id:'R8B', side:'red',  abbr:'8-2',   name:'敌第 8 摩步旅第 2 营',       type:'mob', str:10,  mov:8,  rng:1, r:0,  c:8,  corps:'R8', wave:0, group:'RED_RESERVE' }
   ]
 },
 {
@@ -1918,7 +2105,7 @@ const LEVELS = [
   units: [
     /* 我方 · 机场守备部队 */
     { id:'D1H', side:'blue', abbr:'场H',   name:'岚口机场场站司令部',        type:'hqb', str:2, mov:8, rng:0, r:4, c:10, corps:'D1', wave:1 },
-    { id:'D1A', side:'blue', abbr:'守1',   name:'机场守备营第 1 营',          type:'gdn', str:8, mov:5, rng:1, r:6, c:10, corps:'D1', wave:1 },
+    { id:'D1A', side:'blue', abbr:'守1',   name:'机场守备营第 1 营',          type:'gdn', str:9, mov:5, rng:1, r:6, c:10, corps:'D1', wave:1 },
     { id:'D1B', side:'blue', abbr:'守2',   name:'机场守备营第 2 营',          type:'gdn', str:8, mov:5, rng:1, r:7, c:10, corps:'D1', wave:1 },
     { id:'D1C', side:'blue', abbr:'守3',   name:'机场守备营第 3 营',          type:'gdn', str:8, mov:5, rng:1, r:8, c:10, corps:'D1', wave:1 },
     { id:'D1E', side:'blue', abbr:'场工',  name:'机场工程连',                type:'engc',str:2, mov:6, rng:1, r:5, c:10, corps:'D1', wave:1 },
@@ -1937,26 +2124,26 @@ const LEVELS = [
 
     /* 敌方 · 第一波 · 敌摩步第 9 旅（自西面正攻） */
     { id:'R1H', side:'red', abbr:'9H',   name:'敌摩步第 9 旅旅部',          type:'hqb', str:2, mov:8, rng:0, r:2, c:1,  corps:'R1', wave:1 },
-    { id:'R1A', side:'red', abbr:'9-1',  name:'敌摩步第 9 旅第 1 营',        type:'mob', str:9, mov:8, rng:1, r:3, c:1,  corps:'R1', wave:1 },
-    { id:'R1B', side:'red', abbr:'9-2',  name:'敌摩步第 9 旅第 2 营',        type:'mob', str:9, mov:8, rng:1, r:4, c:1,  corps:'R1', wave:1 },
-    { id:'R1C', side:'red', abbr:'9-3',  name:'敌摩步第 9 旅第 3 营',        type:'inf', str:8, mov:6, rng:1, r:5, c:1,  corps:'R1', wave:1 },
-        { id:'R1F', side:'red', abbr:'9炮',  name:'敌摩步第 9 旅炮兵营',        type:'art', str:5, mov:6, rng:5, r:1, c:1,  corps:'R1', wave:1, packed:1 },
-    { id:'R1T', side:'red', abbr:'9反',  name:'敌摩步第 9 旅反坦克连',      type:'at',  str:3, mov:5, rng:1, r:3, c:2,  corps:'R1', wave:1 },
-    { id:'R1E', side:'red', abbr:'9工',  name:'敌摩步第 9 旅工兵连',        type:'engc',str:2, mov:6, rng:1, r:7, c:1,  corps:'R1', wave:1 },
+    { id:'R1A', side:'red', abbr:'9-1',  name:'敌摩步第 9 旅第 1 营',        type:'mob', str:11, mov:8, rng:1, r:3, c:1,  corps:'R1', wave:1 },
+    { id:'R1B', side:'red', abbr:'9-2',  name:'敌摩步第 9 旅第 2 营',        type:'mob', str:11, mov:8, rng:1, r:4, c:1,  corps:'R1', wave:1 },
+    { id:'R1C', side:'red', abbr:'9-3',  name:'敌摩步第 9 旅第 3 营',        type:'inf', str:9, mov:6, rng:1, r:5, c:1,  corps:'R1', wave:1 },
+        { id:'R1F', side:'red', abbr:'9炮',  name:'敌摩步第 9 旅炮兵营',        type:'art', str:6, mov:6, rng:5, r:1, c:1,  corps:'R1', wave:1, packed:1 },
+    { id:'R1T', side:'red', abbr:'9反',  name:'敌摩步第 9 旅反坦克连',      type:'at',  str:4, mov:5, rng:1, r:3, c:2,  corps:'R1', wave:1 },
+    { id:'R1E', side:'red', abbr:'9工',  name:'敌摩步第 9 旅工兵连',        type:'engc',str:3, mov:6, rng:1, r:7, c:1,  corps:'R1', wave:1 },
 
     /* 敌方 · 第二波 · 敌装甲第 12 团战斗群（第 4 回合，自西北） */
     { id:'R2H', side:'red', abbr:'12H',  name:'敌装甲第 12 团战斗群群部',    type:'hkg', str:2, mov:8, rng:0, r:0, c:4,  corps:'R2', wave:2 },
-    { id:'R2A', side:'red', abbr:'12-1', name:'敌战斗群第 1 营（中坦）',      type:'marm',str:12,mov:10,rng:1, r:0, c:5,  corps:'R2', wave:2 },
-    { id:'R2B', side:'red', abbr:'12-2', name:'敌战斗群第 2 营（轻坦）',      type:'larm',str:10,mov:12,rng:1, r:1, c:4,  corps:'R2', wave:2 },
-    { id:'R2C', side:'red', abbr:'12-3', name:'敌战斗群第 3 营（装步）',      type:'mech',str:9, mov:8, rng:1, r:1, c:5,  corps:'R2', wave:2 },
-        { id:'R2G', side:'red', abbr:'12防', name:'敌战斗群防空连',              type:'aac', str:2, mov:6, rng:2, r:2, c:4,  corps:'R2', wave:2 },
+    { id:'R2A', side:'red', abbr:'12-1', name:'敌战斗群第 1 营（中坦）',      type:'marm',str:13,mov:10,rng:1, r:0, c:5,  corps:'R2', wave:2 },
+    { id:'R2B', side:'red', abbr:'12-2', name:'敌战斗群第 2 营（轻坦）',      type:'larm',str:11,mov:12,rng:1, r:1, c:4,  corps:'R2', wave:2 },
+    { id:'R2C', side:'red', abbr:'12-3', name:'敌战斗群第 3 营（装步）',      type:'mech',str:10, mov:8, rng:1, r:1, c:5,  corps:'R2', wave:2 },
+        { id:'R2G', side:'red', abbr:'12防', name:'敌战斗群防空连',              type:'aac', str:3, mov:6, rng:2, r:2, c:4,  corps:'R2', wave:2 },
 
     /* 敌方 · 第三波 · 敌第 21 步兵师（第 7 回合，自西南） */
     { id:'R3H', side:'red', abbr:'21H',  name:'敌第 21 步兵师先遣支队指挥所',          type:'hqd', str:2, mov:8, rng:0, r:9, c:1,  corps:'R3', wave:3 },
-    { id:'R3A', side:'red', abbr:'21-1', name:'敌第 21 步兵师先遣支队第 1 营',        type:'inf', str:8, mov:6, rng:1, r:9, c:2,  corps:'R3', wave:3 },
-        { id:'R3B', side:'red', abbr:'21-2', name:'敌第 21 步兵师先遣支队第 2 营',        type:'mob', str:9, mov:8, rng:1, r:8, c:1,  corps:'R3', wave:3 },
-    { id:'R3C', side:'red', abbr:'21-3', name:'敌第 21 步兵师先遣支队第 3 营',        type:'inf', str:8, mov:6, rng:1, r:8, c:2,  corps:'R3', wave:3 },
-        { id:'R3T', side:'red', abbr:'21反', name:'敌第 21 步兵师先遣支队反坦克连',      type:'at',  str:3, mov:5, rng:1, r:8, c:3,  corps:'R3', wave:3 }
+    { id:'R3A', side:'red', abbr:'21-1', name:'敌第 21 步兵师先遣支队第 1 营',        type:'inf', str:9, mov:6, rng:1, r:9, c:2,  corps:'R3', wave:3 },
+        { id:'R3B', side:'red', abbr:'21-2', name:'敌第 21 步兵师先遣支队第 2 营',        type:'mob', str:10, mov:8, rng:1, r:8, c:1,  corps:'R3', wave:3 },
+    { id:'R3C', side:'red', abbr:'21-3', name:'敌第 21 步兵师先遣支队第 3 营',        type:'inf', str:9, mov:6, rng:1, r:8, c:2,  corps:'R3', wave:3 },
+        { id:'R3T', side:'red', abbr:'21反', name:'敌第 21 步兵师先遣支队反坦克连',      type:'at',  str:4, mov:5, rng:1, r:8, c:3,  corps:'R3', wave:3 }
   ],
   waves: [
     { wave: 2, turn: 4, text: '敌军第二波（敌装甲第 12 团战斗群）自西北方向压到机场西缘。' },
@@ -2290,7 +2477,7 @@ const LEVELS = [
     { id:'B3F', side:'blue', abbr:'204自', name:'第 204 装甲旅自行火炮连',      type:'sha', str:4, mov:8, rng:3, r:5, c:14, corps:'B3', wave:1 },
 
     /* ── 我方 · 海军步兵旅（港口守备精锐） ────────────── */
-    { id:'B4H', side:'blue', abbr:'海步H', name:'海军步兵旅旅部',              type:'hqb', str:2, mov:8, rng:0, r:10, c:15, corps:'B4', wave:1 },
+    { id:'B4H', side:'blue', abbr:'海步H', name:'海军步兵旅旅部',              type:'hqb', str:2, mov:8, rng:0, r:9,  c:15, corps:'B4', wave:1 },
     { id:'B4A', side:'blue', abbr:'海步1', name:'海军步兵第 1 营',              type:'mrb', str:10, mov:6, rng:1, r:10, c:16, corps:'B4', wave:1 },
     { id:'B4B', side:'blue', abbr:'海步2', name:'海军步兵第 2 营',              type:'mrb', str:10, mov:6, rng:1, r:11, c:16, corps:'B4', wave:1 },
     { id:'B4C', side:'blue', abbr:'海步3', name:'海军步兵第 3 营',              type:'mrb', str:10, mov:6, rng:1, r:11, c:15, corps:'B4', wave:1 },
@@ -2308,7 +2495,7 @@ const LEVELS = [
     /* 分舰队司令部放在码头上，不在船上——舰队司令是岸上的，船归他指挥。
        hqd 给半径 3，正好把七个泊位全罩住；不给这面旗，七条船全是"脱指"，
        组织度恢复慢一半，等于让舰队白白弱一档。 */
-    { id:'B6H', side:'blue', abbr:'分舰队', name:'波尔瓦萨海军基地分舰队司令部', type:'hqd', str:2, mov:8, rng:0, r:12, c:17, corps:'B6', wave:1 },
+    { id:'B6H', side:'blue', abbr:'分舰队', name:'波尔瓦萨海军基地分舰队司令部', type:'hqd', str:2, mov:8, rng:0, r:10, c:17, corps:'B6', wave:1 },
     { id:'B6A', side:'blue', abbr:'驱·坚忍', name:'驱逐舰「坚忍」',            type:'dd', str:9,  mov:10, rng:8,  r:11, c:18, corps:'B6', wave:1 },
     { id:'B6B', side:'blue', abbr:'驱·疾风', name:'驱逐舰「疾风」',            type:'dd', str:9,  mov:10, rng:8,  r:11, c:19, corps:'B6', wave:1 },
     { id:'B6C', side:'blue', abbr:'驱·远山', name:'驱逐舰「远山」',            type:'dd', str:9,  mov:10, rng:8,  r:11, c:20, corps:'B6', wave:1 },
@@ -2423,30 +2610,724 @@ const LEVELS = [
 /* ─────────── 第 1 章 · 艰难时刻（续） ─────────── */
 {
   /* 附属 · 港口撤离。主关 C4 是"守住港"，这一关是守不住之后的"把人带走"。
-     两关共用 C4 的地图（做的时候用同一张，改西码头为登船区），
-     所以它是附属关里最省工的一个。 */
+     两关共用 C4 的地图（同一张图，东南角码头改为登船区），
+     所以它是附属关里最省工的一个——地形不用重画，要重画的是**方向**：
+     C4 是敌人从北面往南压、你迎上去；这一关是敌人从北面往南压、你往南跑。
+
+     三条取舍：
+     ① **目标数 10 支**（共 17 支）。撤离关的重点是"带得走多少"，不是"打得赢"。
+        这道门槛卡在自战结果的双峰之间（9 支 / 10 支），所以这一关的难度
+        全压在城里那两个堵路的摩步营上——它们挪一格，达成率就从 30% 跳到 100%。
+     ② **两条船还在**（驱逐舰「坚忍」、巡洋舰「波尔瓦萨」）。C4 里七条船，
+        打完一仗剩两条——这不是削弱，是让"舰队还在"这件事有实感：
+        它们的炮火是撤离路线上唯一的重火力。
+     ③ **敌机只有一支攻击机中队**，且第 7 回合才到。C4 教过防空伞，
+        这一关只考"你还记不记得把高炮摆在码头"。 */
   id: 'C4B', ch: 1, no: 4, sub: true, name: '港口撤离', type: '附属 · 撤离',
   when: '新历 1208 年 4 月 18 日', where: '南部海岸 · 波尔瓦萨港 · 西码头',
   teaser: '要塞昨晚丢了。舰队还有最后一班出港时间，码头上是三万人的行李和两个师的残部。',
-  ready: false,
-  win: { kind: 'reach' }
+  ready: true,
+  win: { kind: 'reach', count: 10, zone: { r0: 12, r1: 13, c0: 14, c1: 17 } },
+  prev: {
+    win:  '波尔瓦萨港守住了二十天。撤编命令下来的时候，码头上的弹药还堆着没打完。',
+    fail: '波尔瓦萨港没守住。要塞昨夜失守，城区只剩东南一角，码头还在我们手里。'
+  },
+  intro: [
+    '凌晨 · 有雾。要塞昨夜失守，城区只剩东南一角，码头还在我们手里。',
+    '第 102 步兵师打光了第 304 团第 2 营与第 305 团第 2 营；第 201 近卫步兵旅只剩第 1 营；' +
+    '第 204 装甲旅的中坦只剩一个营，侦察营还跟着。',
+    '海军步兵旅第 3 营昨晚在要塞里打光，码头由第 1、第 2 营接着守。',
+    '舰队只剩两条船：驱逐舰「坚忍」与巡洋舰「波尔瓦萨」。其余的在港内被炸沉，或者已经先出港了。',
+    '任务：12 回合内至少 10 支兵牌抵达码头登船区（地图东南角）。全部兵牌被歼立即判负。',
+    '高炮营必须留在码头附近——敌机第 7 回合到，它们的首要目标是船。'
+  ],
+  maxTurns: 12,
+  cols: 22,
+  rows: 16,
+  blueSources: [[11, 14], [13, 15]],
+  redSource: [1, 8],
+  /* 工事只剩 C4 的一部分：要塞的碉堡堑壕跟着要塞一起丢了，
+     码头边那两座防空阵地还在——它们是撤离时唯一能撑伞的东西。 */
+  forts: [
+    { r: 12, c: 16, side: 'blue', kind: 'F' },
+    { r: 11, c: 17, side: 'blue', kind: 'F' },
+    { r: 11, c: 14, side: 'blue', kind: 'H' },
+    { r: 12, c: 15, side: 'blue', kind: 'B' }
+  ],
+  map: [
+    '........#.............',
+    '..ff..hh#.............',
+    '..ff..hh#.............',
+    '....ffhh#.............',
+    '....ff..#..tttt.......',
+    '..ff....#.ttttt.......',
+    '..ff..hh#.ttttt.......',
+    '......hh#.ttttt.......',
+    '......hh#.ttttt.......',
+    '......hh##ttttthhhssss',
+    '..ff..hh..ttttthhhssss',
+    '..ff.......tttthhhssss',
+    '......hh...tttpppppsss',
+    '..ff..hh......ppppssdd',
+    '..ff..hh.......sssdddd',
+    '..............dddddddd'
+  ],
+  objectives: [
+    { id: 'dock', name: '西码头',     vp: 15, core: true,  kind: 'ford',
+      cells: [[12,14],[12,15],[12,16],[12,17],[13,14],[13,15],[13,16],[13,17]] },
+    { id: 'fort', name: '港口要塞',   vp: 20, core: true,  kind: 'city', cells: [[9,16],[10,15],[10,16]] },
+    { id: 'city', name: '波尔瓦萨市', vp: 15, core: false, kind: 'city', rule: 'contest',
+      cells: [[6,11],[6,12],[6,13],[7,11],[7,12],[8,12],[8,13]] }
+  ],
+  events: [
+    {
+      id: 'evac_start', desc: '撤离开始',
+      when: { kind: 'firstBlood' },
+      effects: [
+        { kind: 'say', beats: [
+          { who: '港口特遣军司令部 · 无线电', side: 'blue', portrait: 'portHQ',
+            text: '船在码头，最后一班出港时间是天亮后四小时。\n带不走的东西全部炸掉，别留给敌人。' },
+          { who: '海军步兵旅 · 旅长', side: 'blue', portrait: 'portBlue',
+            text: '我的两个营守码头。你们上船，我们最后走。' }
+        ] }
+      ]
+    },
+    {
+      id: 'first_aboard', desc: '第一批登船',
+      when: { kind: 'escaped', count: 1 },
+      effects: [
+        { kind: 'log', text: '第一批人上了船。跳板一收，岸边的人开始往前挤。', cls: 'b' },
+        { kind: 'org', side: 'blue', delta: 4 }
+      ]
+    },
+    {
+      id: 'half_aboard', desc: '一半人上船',
+      when: { kind: 'escaped', count: 3 },
+      effects: [
+        { kind: 'log', text: '三支部队已经上船，甲板上连站的地方都没有了。剩下的人还在路上。', cls: 'b' },
+        { kind: 'mod', side: 'blue', def: 0.05, label: '舰队接应 · 我方防御 +5%' }
+      ]
+    },
+    {
+      id: 'air_here', desc: '敌机抵达',
+      when: { kind: 'unitActed', id: 'R3A', act: 'fire' },
+      effects: [
+        { kind: 'banner', text: '敌机进入港区空域', cls: 'r', ms: 2400 },
+        { kind: 'log', text: '一架攻击机从雾里俯冲下来，第一串炸弹落在码头北侧。高炮开始吼了。', cls: 'r' },
+        { kind: 'org', side: 'blue', delta: -4 },
+        { kind: 'sfx', name: 'alarm' }
+      ]
+    },
+    {
+      id: 'last_boat', desc: '最后一班船',
+      when: { kind: 'turn', turn: 9 },
+      effects: [
+        { kind: 'log', text: '最后一班船拉响了汽笛。还没上船的人，只能往岸上退。', cls: 'hi' },
+        { kind: 'org', side: 'blue', delta: 5 }
+      ]
+    }
+  ],
+  story: {
+    briefing: {
+      pages: [
+        {
+          order: '作战命令 · 第 29 号',
+          kicker: '战役态势',
+          title: '把人带走',
+          paras: [
+            { t: '要塞昨夜失守。城区只剩东南一角，码头还在我们手里——但敌人的先头部队已经进城了。' },
+            { t: '舰队只剩两条船。最后一班出港时间是天亮后四小时，过了这个点，船就得自己走。', hl: true },
+            { t: '码头上还有三万人的行李。军事上能带走的是兵，其余的只能烧掉。' }
+          ],
+          nums: [
+            { k: '兵牌', v: '17' },
+            { k: '要撤出', v: '10 支' },
+            { k: '舰队', v: '2 艘' }
+          ]
+        },
+        {
+          order: '港区要图 · 附页',
+          kicker: '地形',
+          title: '往南跑，别往东跑',
+          paras: [
+            { t: '敌人从北面和西面压进来，唯一的出口是东南角的码头。整条路都在敌人炮口下面。' },
+            { t: '城里是巷战地形（0.85），能拖时间但拖不了太久——红方进城之后，你的炮火支援就没用了。', hl: true },
+            { t: '两座防空阵地还在码头边。高炮营的伞盖半径 4 格，把船罩住，敌机就不敢低空俯冲。' }
+          ],
+          nums: [
+            { k: '撤离区', v: '东南码头' },
+            { k: '限时', v: '12 回合' },
+            { k: '防空阵地', v: '2 座' }
+          ]
+        },
+        {
+          order: '任务简报',
+          kicker: '你的任务',
+          title: '六支，不到六支就是失败',
+          paras: [
+            { t: '12 回合内至少 10 支兵牌进入东南角的登船区，即为达成；全部兵牌被歼立即判负。' },
+            { t: '<b>海军步兵两个营最后走</b>。他们战力高、守得住码头——让他们顶在后面，别让他们先上船。' },
+            { t: '第 7 回合敌机到。在那之前把高炮营摆到码头，之后它只能追着飞机跑。', hl: true }
+          ],
+          nums: [
+            { k: '目标', v: '6 支撤出' },
+            { k: '限时', v: '12 回合' },
+            { k: '敌机', v: '第 7 回合' }
+          ]
+        }
+      ],
+      beats: [
+        { who: '港口特遣军司令部 · 无线电', side: 'blue', portrait: 'portHQ',
+          text: '命令很简单：人上船，东西烧掉。\n二十天的仗，最后剩下的是这些人——把他们带回去。' },
+        { who: '海军步兵第 1 营 · 营长', side: 'blue', portrait: 'portBlue',
+          text: '码头交给我们。你们上船的时候别看后面。\n——等我们都上去了，再看。' },
+        { who: '敌近卫装甲第 2 师 · 前沿无线电', side: 'red', portrait: 'portRed',
+          text: '他们往码头跑。\n别急着追，先把港里的船打掉——船没了，人跑不掉。' }
+      ]
+    }
+  },
+  units: [
+    /* ── 我方 · 第 102 步兵师（两个团各剩一个营） ── */
+    { id:'B1H', side:'blue', abbr:'102H',  name:'第 102 步兵师师部',              type:'hqd', str:2, mov:8, rng:0, r:6,  c:12, corps:'B1', wave:1 },
+    { id:'B1A', side:'blue', abbr:'304-1', name:'第 304 步兵团第 1 营残部',        type:'inf', str:5, mov:6, rng:1, r:5,  c:12, corps:'B1', wave:1 },
+    { id:'B1C', side:'blue', abbr:'305-1', name:'第 305 步兵团第 1 营残部',        type:'inf', str:5, mov:6, rng:1, r:7,  c:12, corps:'B1', wave:1 },
+
+    /* ── 我方 · 第 201 近卫步兵旅（只剩一个营） ── */
+    { id:'B2H', side:'blue', abbr:'201H',  name:'第 201 近卫步兵旅旅部',          type:'hqb', str:2, mov:8, rng:0, r:5,  c:13, corps:'B2', wave:1 },
+    { id:'B2A', side:'blue', abbr:'近1',   name:'近卫第 1 步兵营残部',            type:'inf', str:6, mov:6, rng:1, r:6,  c:13, corps:'B2', wave:1 },
+
+    /* ── 我方 · 第 204 装甲旅（中坦一个营 + 侦察营） ── */
+    { id:'B3H', side:'blue', abbr:'204H',  name:'第 204 装甲旅旅部',              type:'hqb',  str:2, mov:8,  rng:0, r:4, c:12, corps:'B3', wave:1 },
+    { id:'B3A', side:'blue', abbr:'204-1', name:'第 204 装甲旅第 1 营（中坦）残部', type:'marm', str:8, mov:10, rng:1, r:4, c:13, corps:'B3', wave:1 },
+    { id:'B3C', side:'blue', abbr:'204侦', name:'第 204 装甲旅侦察营（轻坦）残部',  type:'larm', str:7, mov:12, rng:1, r:4, c:11, corps:'B3', wave:1 },
+
+    /* ── 我方 · 海军步兵旅（两个营守码头，最后走） ── */
+    { id:'B4H', side:'blue', abbr:'海步H', name:'海军步兵旅旅部',                type:'hqb', str:2, mov:8, rng:0, r:10, c:15, corps:'B4', wave:1 },
+    { id:'B4A', side:'blue', abbr:'海步1', name:'海军步兵第 1 营残部',            type:'mrb', str:8, mov:6, rng:1, r:10, c:16, corps:'B4', wave:1 },
+    { id:'B4B', side:'blue', abbr:'海步2', name:'海军步兵第 2 营残部',            type:'mrb', str:8, mov:6, rng:1, r:9,  c:16, corps:'B4', wave:1 },
+
+    /* ── 我方 · 防空与辎重 ── */
+    { id:'B5H', side:'blue', abbr:'警备区', name:'波尔瓦萨港警备区司令部',          type:'hqb', str:2, mov:8, rng:0, r:8,  c:14, corps:'B5', wave:1 },
+    { id:'B5A', side:'blue', abbr:'港高炮', name:'波尔瓦萨港高炮营',              type:'aab', str:4, mov:6, rng:2, r:8,  c:15, corps:'B5', wave:1 },
+    { id:'B5S', side:'blue', abbr:'港辎',   name:'港口场站辎重队残部',            type:'sup', str:2, mov:8, rng:0, r:7,  c:14, corps:'B5', wave:1 },
+
+    /* ── 我方 · 舰队（只剩两条，司令部随船撤） ── */
+    { id:'B6H', side:'blue', abbr:'分舰队', name:'波尔瓦萨海军基地分舰队司令部',  type:'hqd', str:2, mov:8, rng:0, r:12, c:17, corps:'B6', wave:1 },
+    { id:'B6A', side:'blue', abbr:'驱·坚忍', name:'驱逐舰「坚忍」',              type:'dd', str:9,  mov:10, rng:8,  r:11, c:18, corps:'B6', wave:1 },
+    { id:'B6E', side:'blue', abbr:'巡·波港', name:'巡洋舰「波尔瓦萨」',          type:'ca', str:13, mov:9,  rng:13, r:12, c:19, corps:'B6', wave:1 },
+
+    /* ── 敌方 · 追击的摩步第 47 旅（从北面进城） ── */
+    { id:'R1H', side:'red', abbr:'47H',  name:'敌摩步第 47 旅旅部',            type:'hqb',  str:2, mov:8, rng:0, r:2, c:8,  corps:'R1', wave:1 },
+    { id:'R1A', side:'red', abbr:'47-1', name:'敌摩步第 47 旅第 1 营',          type:'mob',  str:9, mov:8, rng:1, r:9, c:13,  corps:'R1', wave:1 },
+    { id:'R1B', side:'red', abbr:'47-2', name:'敌摩步第 47 旅第 2 营',          type:'mob',  str:9, mov:8, rng:1, r:10, c:13,  corps:'R1', wave:1 },
+    { id:'R1C', side:'red', abbr:'47-3', name:'敌摩步第 47 旅第 3 营',          type:'inf',  str:8, mov:6, rng:1, r:3, c:10, corps:'R1', wave:1 },
+
+    /* ── 敌方 · 装甲第 8 师先遣战斗群（第 5 回合，自西北） ── */
+    { id:'R2H', side:'red', abbr:'8H',   name:'敌装甲第 8 师先遣战斗群群部',    type:'hkg',  str:2, mov:8,  rng:0, r:1, c:5, corps:'R2', wave:2 },
+    { id:'R2A', side:'red', abbr:'8-1',  name:'敌战斗群第 1 营（中坦）',        type:'marm', str:12, mov:10, rng:1, r:1, c:6, corps:'R2', wave:2 },
+    { id:'R2B', side:'red', abbr:'8-2',  name:'敌战斗群第 2 营（轻坦）',        type:'larm', str:10, mov:12, rng:1, r:2, c:6, corps:'R2', wave:2 },
+    { id:'R2C', side:'red', abbr:'8-3',  name:'敌战斗群第 3 营（装步）',        type:'mech', str:9,  mov:8,  rng:1, r:1, c:7, corps:'R2', wave:2 },
+    { id:'R2F', side:'red', abbr:'8炮',  name:'敌战斗群自行火炮连',            type:'sha',  str:4,  mov:8,  rng:3, r:0, c:6, corps:'R2', wave:2 },
+
+    /* ── 敌方 · 航空第 3 联队攻击机中队（第 7 回合，自东北空域） ── */
+    { id:'R3H', side:'red', abbr:'空3H',  name:'敌航空第 3 联队联队部', dm:'air', type:'hkg', str:2, mov:8, rng:0, r:2, c:18, corps:'R3', wave:3 },
+    { id:'R3A', side:'red', abbr:'空3-攻', name:'敌航空第 3 联队攻击机中队',    type:'atk', str:8, mov:10, rng:1, r:3, c:17, corps:'R3', wave:3 }
+  ],
+  waves: [
+    { wave: 2, turn: 4, text: '敌军装甲第 8 师先遣战斗群自西北压上来，进城的速度比预想的快。' },
+    { wave: 3, turn: 6, text: '敌机出现在港区空域——它们不炸城，直接朝泊位俯冲。' }
+  ]
 },
 {
-  /* 南岭阻击：从南部海岸往首都圈退的最后一段公路。输赢不看歼敌，
-     看"主力走过去的时候，敌人还在几公里外"。 */
+  /* 南岭阻击：从南部海岸往首都圈退的最后一段公路。
+     输赢不看歼敌，看"主力走过去的时候，敌人还在几公里外"。
+
+     这一关的机制核心是**一座桥**：全图只有第 4 行一处渡口，河把战场劈成两半。
+     红方要过桥才能碰到你，你只要守住桥南那四格，四个师就能从你背后走过去。
+
+     三条取舍：
+     ① **keep 是"桥南阵地"而不是"桥本身"**。桥面在河上，双方都能踩，
+        写成 keep 会让"敌人踏上桥面"直接判负——那不是玩家能控制的事。
+        桥南四格是我方起点，守住它 = 桥没被过。
+     ② **12 回合**。四个师两天两夜过完桥，回合数就是"两天两夜"。
+     ③ 蓝方没有防空：这一关不给敌机。给了也没有手段，只会变成单方面挨打。 */
   id: 'C5', ch: 1, no: 5, name: '南岭阻击', type: '迟滞',
   when: '新历 1208 年 6 月 3 日', where: '中部 · 南岭公路 17 号桥',
   teaser: '后撤的主力要从这条公路上过，四个师，两天两夜。你手上是一个被打残的旅和一座桥。',
-  ready: false,
-  win: { kind: 'survive' }
+  ready: true,
+  win: { kind: 'survive', keep: ['bridgehead'] },
+  prev: {
+    win:  '波尔瓦萨港撤出来的人在南岭整补了三天。能编成建制的只有一个旅，外加两个连。',
+    fail: '从波尔瓦萨撤出来的人比预计少。南岭上能拉出来的只有一个旅的架子，还有两个连。'
+  },
+  intro: [
+    '清晨 · 晴。后撤的主力四个师要从 17 号桥过，两天两夜，队列已经排到山后。',
+    '你手上是第 201 近卫步兵旅的残部：两个营、一个炮兵营、一个自行火炮连；' +
+    '外加第 102 步兵师的反坦克连与工兵连，第 204 装甲旅侦察营的几辆轻坦。',
+    '第 201 近卫步兵旅第 3 营在波尔瓦萨打光了，炮兵营只剩一半的炮。',
+    '任务：守住桥南四格阵地到第 12 回合结束。全部兵牌被歼立即判负。',
+    '桥面在河上，谁都能踩——**别把步兵摆在桥面上**，那里的防御是零。把阵地放在桥南的公路口与两侧高地。',
+    '反坦克连只有三辆炮车，摆在桥头正面；敌军的装甲会沿公路直冲，这是唯一能挡住它的东西。',
+    '第 3 回合第 21 空降军会空投一个伞兵中队到东侧林地。他们死战不退——建制不会散，垮了也能自己站起来。把这段部队放在最吃紧的位置。'
+  ],
+  maxTurns: 12,
+  cols: 16,
+  rows: 12,
+  blueSources: [[9, 7]],
+  redSource: [1, 5],
+  forts: [
+    /* 桥南四格**全是道路**（地形防御 0），四个格都要有碉堡，少一个就等于
+       留了一个筛子。原来另两座摆在 (7,6)/(7,9)——那是要点外的高地与林地，
+       自战统计「工事利用率 · 要点内 31.7%」当场指出来：工事没用在刀刃上。
+       碉堡 0.28 且装甲进攻额外 -0.15，正好对着沿公路冲上来的中坦。 */
+    { r: 5, c: 7, side: 'blue', kind: 'B' },
+    { r: 5, c: 8, side: 'blue', kind: 'B' },
+    { r: 5, c: 6, side: 'blue', kind: 'H' },
+    { r: 5, c: 9, side: 'blue', kind: 'H' }
+  ],
+  /* 桥南那一行（row5）改出两格高地 c6 / c9，其余不动。
+    原来桥南四格**全是道路**（地形防御 0），而 C6 的防线六格全在高地（0.50）
+    ——两个关同一个 survive+keep 判定，达成率差 57 个点，差的就是这一项。
+    改完这四格是一条横在桥口的正面防线：中间两格公路口配碉堡，
+    两翼高地配堑壕，正好对上简报里"公路口与两侧高地"那句话。 */
+  map: [
+    '................',
+    '..ff......hh....',
+    '..ff......hh....',
+    '.......##.......',
+    '~~~~~~~==~~~~~~~',
+    '......h##h......',
+    '...hh..##..ff...',
+    '...hh..##..ff...',
+    '.......##.......',
+    '..ff...##...hh..',
+    '..ff...##...hh..',
+    '................'
+  ],
+  objectives: [
+    /* 桥南四格是一条横在桥口的正面：c7/c8 是公路口（碉堡），c6/c9 是两翼高地（堑壕）。
+       四格都被我方控制才算 keep 成立；contest 判据是格内双方战力和的比较。 */
+    { id: 'bridgehead', name: '桥南阵地', vp: 20, core: true, kind: 'road', rule: 'contest',
+      cells: [[5,6],[5,7],[5,8],[5,9]] },
+    { id: 'north',      name: '桥北桥头', vp: 10, core: false, kind: 'road', cells: [[3,7],[3,8]] },
+    { id: 'crossroads', name: '17 号公路口', vp: 10, core: false, kind: 'road', cells: [[8,7],[8,8]] }
+  ],
+  events: [
+    {
+      id: 'column_start', desc: '第一支纵队上桥',
+      when: { kind: 'firstBlood' },
+      effects: [
+        { kind: 'say', beats: [
+          { who: '第 201 近卫步兵旅 · 旅长', side: 'blue', portrait: 'portBlue',
+            text: '纵队已经上桥了。我们要做的只有一件事：让他们的车一直往前开，不要停。' },
+          { who: '第 102 步兵师反坦克连 · 连长', side: 'blue', portrait: 'portBlue',
+            text: '三辆炮车，摆在桥头正面。\n敌人第一辆坦克上桥的时候，就是我们的活儿。' }
+        ] }
+      ]
+    },
+    {
+      id: 'column_pass', desc: '纵队通过',
+      when: { kind: 'turn', turn: 3 },
+      effects: [
+        { kind: 'log', text: '第一支纵队的车灯连成一条线，从桥南一直排到山后。工兵在桥面两侧补铺木板。', cls: 'b' },
+        { kind: 'org', side: 'blue', delta: 4 }
+      ]
+    },
+    {
+      id: 'airborne_in', desc: '伞兵中队空投抵达',
+      /* 与 column_pass 同一回合（第 3 回合）：一句是通报纵队在过桥，
+         一句是通报援军落地。两件事同回合发生，顺序按叙事排，先纵队后伞兵。 */
+      when: { kind: 'turn', turn: 3 },
+      effects: [
+        { kind: 'log', text: '第 21 空降军的一个伞兵中队在东侧林地上空投，收伞集合后赶来接防。', cls: 'b' },
+        { kind: 'spawn', group: 'PARA3' },
+        { kind: 'banner', text: '伞兵中队抵达 · 死战不退', cls: 'b' },
+        { kind: 'sfx', name: 'build' }
+      ]
+    },
+    {
+      id: 'bridge_lost', desc: '桥南阵地失守',
+      when: { kind: 'control', obj: 'bridgehead', side: 'red' },
+      effects: [
+        { kind: 'log', text: '敌人踏上桥南了。纵队的车开始掉头——再顶不回去，这条路就断了。', cls: 'r' },
+        { kind: 'org', side: 'blue', delta: -5 }
+      ]
+    },
+    {
+      id: 'third_wave_up', desc: '敌军第二梯队投入',
+      /* 与 waves 里第 4 回合的进场同一回合：文案是"到了"的通报，不是预告。 */
+      when: { kind: 'turn', turn: 4 },
+      effects: [
+        { kind: 'log', text: '敌军第二梯队自西面沿河插上来；装甲团的装步营同时从桥北发起冲击，想把桥头包住。', cls: 'hi' }
+      ]
+    },
+    {
+      id: 'last_column', desc: '最后一个师',
+      when: { kind: 'turn', turn: 10 },
+      effects: [
+        { kind: 'log', text: '最后一个师上桥了。无线电里说：再给我们两个小时。', cls: 'b' },
+        { kind: 'org', side: 'blue', delta: 6 },
+        { kind: 'mod', side: 'blue', def: 0.05, label: '纵队通过 · 我方防御 +5%' }
+      ]
+    }
+  ],
+  story: {
+    briefing: {
+      pages: [
+        {
+          order: '作战命令 · 第 33 号',
+          kicker: '战役态势',
+          title: '一座桥，四个师',
+          paras: [
+            { t: '西部方面军主力在向南撤。四个师要走 17 号桥，两天两夜。' },
+            { t: '桥只有一处。你守不住它，四个师就得在河边散开——那等于没有这四个师。', hl: true },
+            { t: '你手上的兵力是一个旅的残部，加上两个连和几辆轻坦。没有第二道桥；援军只有一个伞兵中队，第 3 回合才落地。' }
+          ],
+          nums: [
+            { k: '兵牌', v: '9' },
+            { k: '援军', v: '伞兵 1 支' },
+            { k: '回合', v: '12' },
+            { k: '桥', v: '1 座' }
+          ]
+        },
+        {
+          order: '南岭要图 · 附页',
+          kicker: '地形',
+          title: '桥面是最差的位置',
+          paras: [
+            { t: '河横贯全图，只有 17 号桥能过。桥面防御为零——站上去就是靶子。' },
+            { t: '桥南公路口两侧是高地（0.50），反坦克连摆在那里，可以斜着打桥面。', hl: true },
+            { t: '桥北是敌人的集结地。他们过桥要排成一列，那是你唯一能以一敌三的时刻。' }
+          ],
+          nums: [
+            { k: '桥面防御', v: '0' },
+            { k: '高地防御', v: '0.50' },
+            { k: '桥宽', v: '2 格' }
+          ]
+        },
+        {
+          order: '任务简报',
+          kicker: '你的任务',
+          title: '撑到最后一个师过去',
+          paras: [
+            { t: '第 12 回合结束、桥南四格仍在我方手中，即为达成；全部兵牌被歼立即判负。' },
+            { t: '桥南阵地是 keep 条件——<b>敌人只要占住那四格，这一仗就判负</b>，不用等回合结束。' },
+            { t: '第 10 回合最后一个师上桥，那时敌军会最后一次猛攻。把预备队留到那时候。', hl: true }
+          ],
+          nums: [
+            { k: '目标', v: '守满 12 回合' },
+            { k: '桥南', v: '不能丢' },
+            { k: '纵队', v: '4 个师' }
+          ]
+        }
+      ],
+      beats: [
+        { who: '第 201 近卫步兵旅 · 旅长', side: 'blue', portrait: 'portHQ',
+          text: '我的人不到两千。桥那边有四个师要走。\n算术很简单：我们多守一个回合，就多一个团能回家。' },
+        { who: '工兵连 · 连长', side: 'blue', portrait: 'portBlue',
+          text: '桥面木板被履带压裂了三处，我在补。\n别让坦克在桥上停——一停，后面全堵。' },
+        { who: '敌装甲第 8 师 · 前沿无线电', side: 'red', portrait: 'portRed',
+          text: '桥还在，他们在桥上走。\n把桥头拿下，那条路就是我们的了。' }
+      ]
+    }
+  },
+  units: [
+    /* ── 平衡记录（自战 100 局 59%，区间 45–60）──
+       这一关从 0% 调到 59%，靠的不是加兵，是四件"我方被自己废掉"的事：
+       ① 炮兵营带 packed:1 → 自战 AI 从不让它放列，整局 0 次开火（守方炮兵
+          在预设阵地上本来就不该是行军状态）。
+       ② 桥南四格全是道路（防御 0）→ 改成一条横排正面：中间两格公路口配碉堡、
+          两翼高地配堑壕。对照组 C6 的防线六格全在 0.50 高地上，同一个
+          survive+keep 判定，两边达成率差 57 个点。
+       ③ 旅部摆在 keep 格里（str 2，白送 contested 判据），撤到后方高地。
+       ④ 红方 11 个单位对我方 9 个——每回合多两次攻击，比总战力更致命。
+          砍掉沿公路冲最前面的装步营后，15% → 55%。
+       **这关是刀刃**：第 4 个守备格能不能站住，±1 点战力会跳 20 个点。
+       改任何数值都要跑 100 局，40 局的数字会骗人（43% 与 61% 只差 1 点战力）。 */
+    /* ── 我方 · 第 201 近卫步兵旅残部（番号、兵种与 C4 一致，第 3 营已打光） ── */
+    /* 旅部原摆在 (6,8) 桥南路口上：那是道路（地形防御 0），又是 keep 格，
+       str 2 既守不住格、又给 contested 判据白送分，自战里第一轮就被敌方
+       炮兵隔空点掉。旅部的价值是指挥不是肉盾——撤到后方高地 (9,10)，
+       那四格交给三个步兵营。 */
+    { id:'B2H', side:'blue', abbr:'201H',  name:'第 201 近卫步兵旅旅部',        type:'hqb', str:2, mov:8, rng:0, r:9, c:10, corps:'B2', wave:1 },
+    { id:'B2A', side:'blue', abbr:'近1',   name:'近卫第 1 步兵营残部',          type:'inf', str:8, mov:6, rng:1, r:5, c:7, corps:'B2', wave:1 },
+    { id:'B2B', side:'blue', abbr:'近2',   name:'近卫第 2 步兵营残部',          type:'inf', str:8, mov:6, rng:1, r:5, c:8, corps:'B2', wave:1 },
+    /* 第 102 步兵师最后一个能打的营，配属 201 旅当预备队 */
+    { id:'B2C', side:'blue', abbr:'304-1', name:'第 304 步兵团第 1 营残部',      type:'inf', str:6, mov:6, rng:1, r:5, c:6, corps:'B2', wave:1 },
+    /* 守方炮兵**不带 packed**：预设阵地上本来就该是展开的。
+       原来照抄了红方行军炮兵写 packed:1，自战 AI 从不给它放列，
+       整局 0 次开火——5 点战力的炮兵营 12 回合一个炮子没打
+       （自战 0% 的真凶，比布阵问题大得多）。 */
+    { id:'B2F', side:'blue', abbr:'201炮', name:'第 201 近卫旅炮兵营残部',      type:'art', str:5, mov:6, rng:4, r:9, c:8, corps:'B2', wave:1 },
+    { id:'B2S', side:'blue', abbr:'201自', name:'第 201 近卫旅自行火炮连',      type:'sha', str:4, mov:8, rng:3, r:8, c:9, corps:'B2', wave:1 },
+    /* ── 我方 · 配属分队 ── */
+    { id:'B1T', side:'blue', abbr:'102反', name:'第 102 步兵师反坦克连',        type:'at',   str:3, mov:5, rng:1, r:5, c:9, corps:'B2', wave:1 },
+    { id:'B1E', side:'blue', abbr:'102工', name:'第 102 步兵师工兵连',          type:'engc', str:2, mov:6, rng:1, r:9, c:7, corps:'B2', wave:1 },
+    { id:'B3C', side:'blue', abbr:'204侦', name:'第 204 装甲旅侦察营（轻坦）残部', type:'larm', str:6, mov:12, rng:1, r:8, c:10, corps:'B2', wave:1 },
+
+    /* ── 援军 · 第 21 空降军伞兵中队（第 3 回合空投，特殊单位）──
+       这支部队不是"再加一个营"，是给这一关加一个**变量**：
+       死战不退（永不进入崩溃态）+ 阵地防御 +15% + 每回合自恢复 8 点组织度。
+       它解决的不是"兵力不够"，而是"第四次冲击时防线中间那段没人顶"——
+       崩掉的营会自己站起来，它不会。
+       wave: 0 = 不随开局部署，由 events 里的 airborne_in 在第 3 回合拉进场；
+       group 是这个入口的钥匙，别删。空投点在东侧林地，它得自己走上桥南。 */
+    { id:'B4P', side:'blue', abbr:'伞中', name:'第 21 空降军伞兵中队', type:'para', str:6, mov:6, rng:1,
+      r:7, c:11, corps:'B4', wave:0, group:'PARA3', traits:['steadfast'] },
+
+    /* ── 敌方 · 装甲第 8 师（沿公路直冲桥头） ── */
+    { id:'R1H', side:'red', abbr:'8H',   name:'敌装甲第 8 师师部',              type:'hqd',  str:2, mov:8,  rng:0, r:1, c:4, corps:'R1', wave:1 },
+    { id:'R1A', side:'red', abbr:'8-1',  name:'敌第 8 装甲团第 1 营（中坦）',    type:'marm', str:9,  mov:10, rng:1, r:2, c:5, corps:'R1', wave:1 },
+    { id:'R1B', side:'red', abbr:'8-2',  name:'敌第 8 装甲团第 2 营（轻坦）',    type:'larm', str:7,  mov:10, rng:1, r:2, c:6, corps:'R1', wave:1 },
+    { id:'R1F', side:'red', abbr:'8炮',  name:'敌装甲第 8 师炮兵营',            type:'art',  str:4,  mov:6,  rng:5, r:1, c:6, corps:'R1', wave:1, packed:1 },
+    /* 装甲团的第 3 营（装步）。它是"增加强度"这一条的主要落点：
+       伞兵中队落地之后蓝方防线硬了一档，红方必须多一个能跟着坦克
+       抢桥头的单位，否则第 3 回合以后就没有压力了。 */
+    { id:'R1C', side:'red', abbr:'8-3',  name:'敌第 8 装甲团第 3 营（装步）',    type:'mech', str:7,  mov:8,  rng:1, r:2, c:7, corps:'R1', wave:2 },
+
+    /* ── 敌方 · 摩步第 47 旅残部（第 4 回合，自西面沿河包抄） ── */
+    { id:'R2H', side:'red', abbr:'47H',  name:'敌摩步第 47 旅先遣支队部',        type:'hqb', str:2, mov:8, rng:0, r:0, c:1, corps:'R2', wave:2 },
+    { id:'R2A', side:'red', abbr:'47-3', name:'敌摩步第 47 旅第 3 营',          type:'inf', str:7, mov:6, rng:1, r:0, c:2, corps:'R2', wave:2 },
+    { id:'R2B', side:'red', abbr:'47-4', name:'敌摩步第 47 旅第 4 营',          type:'mob', str:7, mov:8, rng:1, r:1, c:1, corps:'R2', wave:2 },
+    { id:'R2T', side:'red', abbr:'47反', name:'敌摩步第 47 旅反坦克连',        type:'at',  str:3, mov:5, rng:1, r:1, c:2, corps:'R2', wave:2 },
+
+    /* ── 敌方 · 第 63 步兵师先遣支队（第 11 回合，自东北，最后一推） ── */
+    { id:'R3H', side:'red', abbr:'63先', name:'敌第 63 步兵师先遣支队指挥所',    type:'hkg', str:2, mov:8, rng:0, r:0, c:12, corps:'R3', wave:3 },
+    { id:'R3A', side:'red', abbr:'189-1', name:'敌第 189 步兵团第 1 营',        type:'inf', str:6, mov:6, rng:1, r:0, c:13, corps:'R3', wave:3 }
+  ],
+  waves: [
+    { wave: 2, turn: 4, text: '敌军摩步第 47 旅的残部沿河西插，想绕到桥南侧后；第 8 装甲团的装步营也从桥北压了上来。' },
+    { wave: 3, turn: 11, text: '敌军第 63 步兵师的一个先遣支队自东北方向压上来，桥头被两面夹住。' }
+  ]
 },
 {
-  /* 第 1 章的收尾。到这里"撤退"结束，后面是守首都。 */
+  /* 第 1 章的收尾。到这里"撤退"结束，后面是守首都。
+     这一关要和 C7（岚京北郊）接上：C6 是"退到城郊，用新兵顶住第一波"，
+     C7 是"城外最后几个村子"。所以 C6 不能打赢，只能撑住——
+     打赢了就没有第 2 章了。
+
+     三条取舍：
+     ① **兵是新兵**：第 301 预备役师全部 inf 7（比正规军低一档），
+        但有三座工事和城郊地形撑腰。这一关教的是"用阵地换兵力"。
+     ② **两个师部 + 一个旅部**：三套指挥链互不统属，这是"溃退下来的部队
+        临时编组"的真实状态，也让玩家必须自己分配指挥半径。
+     ③ 敌机第 10 回合到，轰炸机专挑炮位。给我方两座防空阵地，不给高炮营
+        ——高炮还在波尔瓦萨。这一关的防空只能靠阵地，靠不住就只能挨炸。 */
   id: 'C6', ch: 1, no: 6, name: '岚京外围', type: '防御',
   when: '新历 1208 年 8 月 15 日', where: '首都圈 · 岚京北郊防线',
   teaser: '退到不能再退。城外最后一道防线后面就是首都，防线上只有刚补满的新兵。',
-  ready: false,
-  win: { kind: 'survive' }
+  ready: true,
+  win: { kind: 'survive', keep: ['line'] },
+  prev: {
+    win:  '南岭守住了，四个师按时过桥。可这四天里能补上的只有一个预备役师——新兵，刚学会开枪。',
+    fail: '南岭没守住，纵队在桥南散了。撤到岚京的部队比计划少一半，防线只能用新兵填。'
+  },
+  intro: [
+    '八月 · 晴热。首都圈北郊，最后一道防线。防线后面十二公里就是岚京。',
+    '第 301 预备役步兵师刚编成：三个团各补了一个营，全是新兵，训练不到六周。',
+    '第 102 步兵师剩下的两个营、第 204 装甲旅的一个中坦营和几辆轻坦，是防线上唯一打过仗的部队。',
+    '第 102 步兵师第 305 团第 1 营在南岭打光了，第 204 装甲旅第 2 营没有撤出来。',
+    '首都把陆军大学和炮兵指挥学院的学员编成一个军校生旅送了上来——他们能在阵地上自己恢复建制，是新兵营垮下去之后唯一还站得住的人。',
+    '任务：坚守防线 14 回合，北郊防线必须始终在我方手中。全部兵牌被歼立即判负。',
+    '防线是三段高地加两个公路口。高地有堑壕（+0.15 / 累计 +0.30），公路口只有碉堡——**别把新兵摆在公路上**。',
+    '两座防空阵地在城郊，敌机第 10 回合到。轰炸机专挑炮位，把炮兵摆在阵地半径以内。'
+  ],
+  maxTurns: 14,
+  cols: 18,
+  rows: 12,
+  blueSources: [[9, 6], [8, 11]],
+  redSource: [1, 8],
+  forts: [
+    { r: 6, c: 4,  side: 'blue', kind: 'H' },
+    { r: 6, c: 13, side: 'blue', kind: 'H' },
+    { r: 7, c: 8,  side: 'blue', kind: 'B' },
+    { r: 7, c: 9,  side: 'blue', kind: 'B' },
+    { r: 9, c: 10, side: 'blue', kind: 'F' },
+    { r: 9, c: 12, side: 'blue', kind: 'F' }
+  ],
+  map: [
+    '..................',
+    '...ff......hh.....',
+    '...ff......hh.....',
+    '........##........',
+    '..tt....##....tt..',
+    '..tt....##....tt..',
+    '.hhhh...##...hhhh.',
+    '........##........',
+    '..ff....##....ff..',
+    '...tttttttttttt...',
+    '...tttttttttttt...',
+    '..................'
+  ],
+  objectives: [
+    { id: 'line',   name: '北郊防线',   vp: 20, core: true, rule: 'contest',
+      cells: [[6,2],[6,3],[6,4],[6,13],[6,14],[6,15]] },
+    { id: 'cross',  name: '公路交叉口', vp: 10, core: false, kind: 'road', cells: [[7,8],[7,9],[8,8],[8,9]] },
+    { id: 'suburb', name: '城郊市镇',   vp: 10, core: false, kind: 'town', cells: [[9,9],[9,10],[10,10],[10,11]] }
+  ],
+  events: [
+    {
+      id: 'stand_here', desc: '防线接敌',
+      when: { kind: 'firstBlood' },
+      effects: [
+        { kind: 'say', beats: [
+          { who: '第 301 预备役步兵师 · 师长', side: 'blue', portrait: 'portBlue',
+            text: '我的人训练不到六周。他们知道怎么开枪，知道怎么挖工事。\n别的，请你们教。' },
+          { who: '第 102 步兵师 · 师部', side: 'blue', portrait: 'portHQ',
+            text: '防线后面是岚京。再往后没有第二道防线了。\n今天不撤。' }
+        ] }
+      ]
+    },
+    {
+      id: 'first_wave', desc: '第一波攻势',
+      when: { kind: 'turn', turn: 4 },
+      effects: [
+        { kind: 'log', text: '敌军第一波攻势全线压上，高地上的新兵打光了第一个弹药基数。', cls: 'hi' },
+        { kind: 'org', side: 'blue', delta: -3 }
+      ]
+    },
+    {
+      id: 'line_breached', desc: '防线被突破',
+      when: { kind: 'control', obj: 'line', side: 'red' },
+      effects: [
+        { kind: 'log', text: '敌军踩上高地了。防线上出现一个口子——不堵住，后面就是城。', cls: 'r' },
+        { kind: 'org', side: 'blue', delta: -5 }
+      ]
+    },
+    {
+      id: 'bombers_here', desc: '敌机抵达',
+      when: { kind: 'unitActed', id: 'R3A', act: 'fire' },
+      effects: [
+        { kind: 'banner', text: '敌轰炸机进入城郊空域', cls: 'r', ms: 2400 },
+        { kind: 'log', text: '轰炸机从云底下来，第一串炸弹落在炮兵阵地附近。防空阵地开始还击。', cls: 'r' },
+        { kind: 'sfx', name: 'alarm' },
+        { kind: 'org', side: 'blue', delta: -4 }
+      ]
+    },
+    {
+      id: 'last_hours', desc: '最后四个小时',
+      when: { kind: 'turn', turn: 11 },
+      effects: [
+        { kind: 'log', text: '无线电：城里的守备部队已经上城墙了。再撑四个回合，援军就能出城接防。', cls: 'b' },
+        { kind: 'org', side: 'blue', delta: 6 }
+      ]
+    }
+  ],
+  story: {
+    briefing: {
+      pages: [
+        {
+          order: '作战命令 · 第 41 号',
+          kicker: '战役态势',
+          title: '新兵守最后一道线',
+          paras: [
+            { t: '从波尔瓦萨到南岭，一路退到这里。防线后面十二公里就是岚京。' },
+            { t: '能填上防线的只有一个预备役步兵师：三个团各一个营，训练不到六周。', hl: true },
+            { t: '防线上打过仗的只有第 102 步兵师残部与第 204 装甲旅的一个中坦营。' }
+          ],
+          nums: [
+            { k: '兵牌', v: '14' },
+            { k: '回合', v: '14' },
+            { k: '新兵训练', v: '6 周' }
+          ]
+        },
+        {
+          order: '防线要图 · 附页',
+          kicker: '地形',
+          title: '用阵地换兵力',
+          paras: [
+            { t: '防线是三段高地加两个公路口。高地 0.50，堑壕再叠 0.15——新兵站上去也就顶得住一波。' },
+            { t: '公路口只有碉堡。装甲会沿公路冲，把反坦克连摆在那里，别指望新兵用步枪拦坦克。', hl: true },
+            { t: '城郊有两座防空阵地。轰炸机专挑炮位，炮兵放在阵地半径以内，打完还能撤。' }
+          ],
+          nums: [
+            { k: '高地防御', v: '0.50' },
+            { k: '堑壕加成', v: '+0.15' },
+            { k: '防空阵地', v: '2 座' }
+          ]
+        },
+        {
+          order: '任务简报',
+          kicker: '你的任务',
+          title: '十四个回合',
+          paras: [
+            { t: '第 14 回合结束、北郊防线仍在我方手中，即为达成；全部兵牌被歼立即判负。' },
+            { t: '敌军分三波：第 63 步兵师（开局）、近卫装甲第 2 师（第 6 回合）、航空第 3 联队（第 10 回合）。' },
+            { t: '新兵会崩。组织度掉到 25 以下就打不出主动攻击了——<b>把预备役当消耗品用，别当主力</b>，' +
+                 '顶不住就换下来，组织度回到 40 才能再上。', hl: true }
+          ],
+          nums: [
+            { k: '回合', v: '14' },
+            { k: '敌军波次', v: '3' },
+            { k: '防线', v: '不能丢' }
+          ]
+        }
+      ],
+      beats: [
+        { who: '第 301 预备役步兵师 · 师长', side: 'blue', portrait: 'portBlue',
+          text: '我的兵会挖工事，会开枪，也会跑。\n请把最硬的那一段阵地交给打过仗的人。' },
+        { who: '第 102 步兵师 · 师部', side: 'blue', portrait: 'portHQ',
+          text: '防线后面是岚京。岚京后面是什么，我不想知道。\n今天不撤——这次真的不撤了。' },
+        { who: '敌第 63 步兵师 · 前沿无线电', side: 'red', portrait: 'portRed',
+          text: '对面是新兵。从波尔瓦萨一路退下来的，能打的没剩几个。\n一次冲锋就该垮。' }
+      ]
+    }
+  },
+  units: [
+    /* ── 我方 · 第 301 预备役步兵师（新兵，守高地） ── */
+    { id:'E1H', side:'blue', abbr:'301H',  name:'新编第 301 预备役步兵师师部',      type:'hqd',  str:2, mov:8, rng:0, r:7,  c:7,  corps:'E1', wave:1 },
+    { id:'E1A', side:'blue', abbr:'901-1', name:'第 901 团第 1 营',                type:'inf',  str:7, mov:6, rng:1, r:6,  c:2,  corps:'E1', wave:1 },
+    { id:'E1B', side:'blue', abbr:'901-2', name:'第 901 团第 2 营',                type:'inf',  str:7, mov:6, rng:1, r:6,  c:3,  corps:'E1', wave:1 },
+    { id:'E1C', side:'blue', abbr:'902-1', name:'第 902 团第 1 营',                type:'inf',  str:7, mov:6, rng:1, r:6,  c:14, corps:'E1', wave:1 },
+    { id:'E1D', side:'blue', abbr:'902-2', name:'第 902 团第 2 营',                type:'inf',  str:7, mov:6, rng:1, r:6,  c:15, corps:'E1', wave:1 },
+    { id:'E1G', side:'blue', abbr:'901-3', name:'第 901 团第 3 营',                type:'inf',  str:7, mov:6, rng:1, r:7,  c:4,  corps:'E1', wave:1 },
+    { id:'E1E', side:'blue', abbr:'903-1', name:'第 903 团第 1 营',                type:'inf',  str:7, mov:6, rng:1, r:7,  c:11, corps:'E1', wave:1 },
+    { id:'E1F', side:'blue', abbr:'301炮', name:'新编第 301 预备役步兵师炮兵营',    type:'art',  str:4, mov:6, rng:5, r:8,  c:7,  corps:'E1', wave:1, packed:1 },
+
+    /* ── 我方 · 第 102 步兵师残部（防线中段的硬骨头） ── */
+    { id:'E2H', side:'blue', abbr:'102H',  name:'第 102 步兵师师部',              type:'hqd', str:2, mov:8, rng:0, r:8, c:10, corps:'E2', wave:1 },
+    { id:'E2A', side:'blue', abbr:'304-1', name:'第 304 步兵团第 1 营残部',        type:'inf', str:5, mov:6, rng:1, r:7, c:9,  corps:'E2', wave:1 },
+    { id:'E2T', side:'blue', abbr:'102反', name:'第 102 步兵师反坦克连',          type:'at',  str:3, mov:5, rng:1, r:8, c:12, corps:'E2', wave:1 },
+    { id:'E2E', side:'blue', abbr:'102工', name:'第 102 步兵师工兵连',            type:'engc',str:2, mov:6, rng:1, r:8, c:8,  corps:'E2', wave:1 },
+
+    /* ── 我方 · 首都军校生旅（特殊单位：自带组织度恢复） ──
+       首都陆军大学与首都炮兵指挥学院各抽了一批学员编成的旅。
+       打法上和普通步兵营一样，但它有 `cadet` 特性：**每回合自行恢复 6 点组织度**，
+       不吃"必须整回合原地不动才能休整"那条限制（补给断绝时照样不给）。
+       放在防线中段当"堵口子的人"——新兵营垮了要退下去缓，它不用。 */
+    { id:'E4A', side:'blue', abbr:'军校',  name:'首都军校生旅',                  type:'inf',  str:8, mov:6, rng:1, r:7,  c:6,  corps:'E4', wave:1, traits:['cadet'] },
+
+    /* ── 我方 · 第 204 装甲旅残部（唯一的反击力量） ── */
+    { id:'E3H', side:'blue', abbr:'204H',  name:'第 204 装甲旅旅部',              type:'hqb',  str:2, mov:8,  rng:0, r:9,  c:11, corps:'E3', wave:1 },
+    { id:'E3A', side:'blue', abbr:'204-1', name:'第 204 装甲旅第 1 营（中坦）残部', type:'marm', str:7, mov:10, rng:1, r:9,  c:9,  corps:'E3', wave:1 },
+    { id:'E3C', side:'blue', abbr:'204侦', name:'第 204 装甲旅侦察营（轻坦）残部',  type:'larm', str:6, mov:12, rng:1, r:8,  c:14, corps:'E3', wave:1 },
+
+    /* ── 敌方 · 第一波 · 第 63 步兵师 ── */
+    { id:'R1H', side:'red', abbr:'63H',  name:'敌第 63 步兵师师部',              type:'hqd', str:2, mov:8, rng:0, r:1, c:8,  corps:'R1', wave:1 },
+    { id:'R1A', side:'red', abbr:'63-1', name:'敌第 187 步兵团第 1 营',          type:'inf', str:8, mov:6, rng:1, r:2, c:6,  corps:'R1', wave:1 },
+    { id:'R1B', side:'red', abbr:'63-2', name:'敌第 187 步兵团第 2 营',          type:'inf', str:8, mov:6, rng:1, r:2, c:7,  corps:'R1', wave:1 },
+    { id:'R1C', side:'red', abbr:'63-3', name:'敌第 188 步兵团第 1 营',          type:'inf', str:8, mov:6, rng:1, r:2, c:9,  corps:'R1', wave:1 },
+    { id:'R1D', side:'red', abbr:'63-4', name:'敌第 188 步兵团第 2 营（摩步）',    type:'mob', str:8, mov:8, rng:1, r:2, c:10, corps:'R1', wave:1 },
+    { id:'R1F', side:'red', abbr:'63炮', name:'敌第 63 步兵师炮兵营',            type:'art', str:5, mov:6, rng:5, r:1, c:7,  corps:'R1', wave:1, packed:1 },
+    { id:'R1G', side:'red', abbr:'63-5', name:'敌第 188 步兵团第 3 营',          type:'inf', str:6, mov:6, rng:1, r:3, c:11, corps:'R1', wave:1 },
+
+    /* ── 敌方 · 第二波 · 近卫装甲第 2 师（第 6 回合，沿公路冲） ── */
+    { id:'R2H', side:'red', abbr:'2H',   name:'敌近卫装甲第 2 师师部',            type:'hqd',  str:2, mov:8,  rng:0, r:0, c:4, corps:'R2', wave:2 },
+    { id:'R2A', side:'red', abbr:'2-1',  name:'敌近卫装甲第 5 团第 1 营（中坦）',  type:'marm', str:12, mov:10, rng:1, r:0, c:5, corps:'R2', wave:2 },
+    { id:'R2B', side:'red', abbr:'2-2',  name:'敌近卫装甲第 5 团第 2 营（中坦）',  type:'marm', str:11, mov:10, rng:1, r:0, c:6, corps:'R2', wave:2 },
+    { id:'R2C', side:'red', abbr:'2-4',  name:'敌近卫装甲第 6 团第 2 营（装步）',  type:'mech', str:10,  mov:8,  rng:1, r:1, c:4, corps:'R2', wave:2 },
+    /* 近卫装甲第 6 团第 1 营（中坦）——"敌人适当加强"的落点。
+       军校生旅把防线中段堵上之后，第二波只靠两个中坦营推不动交叉口。 */
+    { id:'R2F', side:'red', abbr:'2炮',  name:'敌近卫装甲第 2 师自行火炮营',      type:'spa',  str:5,  mov:8,  rng:4, r:0, c:3, corps:'R2', wave:2 },
+
+    /* ── 敌方 · 第三波 · 航空第 3 联队轰炸机中队（第 10 回合） ── */
+    { id:'R3H', side:'red', abbr:'空3H', name:'敌航空第 3 联队联队部', dm:'air', type:'hkg', str:2, mov:8, rng:0, r:1, c:16, corps:'R3', wave:3 },
+    { id:'R3A', side:'red', abbr:'空3-轰', name:'敌航空第 3 联队轰炸机中队',      type:'bmb', str:10, mov:8, rng:1, r:2, c:16, corps:'R3', wave:3 }
+  ],
+  waves: [
+    { wave: 2, turn: 6, text: '敌军近卫装甲第 2 师沿公路压上来，矛头对着交叉口。' },
+    { wave: 3, turn: 10, text: '敌军轰炸机进入城郊空域，专挑炮兵阵地。' }
+  ]
 },
 
 /* ─────────── 第 2 章 · 兵临城下 ─────────── */
@@ -3651,6 +4532,9 @@ const ARM_VS = {
 };
 /* 能靠冲击力把守军顶出一格的型号。轻坦没有那个吨位 */
 function canPushBack(u) { return u && (u.type === 'marm' || u.type === 'harm'); }
+/* 退无可退时改为掉的组织度。不写进 doAttack 里的字面量：
+   值和"击退"这条规则的强度是一体的，调一次要能一眼找到。 */
+const PUSH_BLOCK_ORG = 8;
 /* 坦克的地形手感。open = 平原/道路加成，town = 城镇惩罚 */
 const ARMOR_PROFILE = {
   larm: { open: 0.10, town: 0.10 },
@@ -3833,6 +4717,9 @@ function orgRallyLine() {
    维护标记，`isBroken` 立刻就是对的；u.broken 只负责"滞回"和"只播一次台词"。 */
 function isBroken(u) {
   if (!u || u.str <= 0) return false;
+  /* 死战不退：这类部队的建制方式决定了它不会散——不是"组织度高"，
+     是根本不吃崩溃判定。所以放在最前面，连 broken 标记都不看。 */
+  if (traitList(u).some(k => TRAITS[k].noBreak)) return false;
   return u.broken ? (u.org <= orgRallyLine()) : (u.org <= orgBreakLine());
 }
 /* 脱离接触：2 格内没有敌军。崩溃的部队要退下来、缓一口气才能重新成军，
@@ -3914,6 +4801,15 @@ function supplySources(side) {
   return out;
 }
 
+/* 补给三档对战斗力的乘数。**只准有这一份**。
+   充足/紧张/断绝这三个数散在 supplyField 的 BFS、supplyOf 的六条 return、
+   舰船的码头距离、航空兵的固定档里——各写一遍的结果就是改一处漏五处，
+   症状是"面板写着断绝、结算却按充足算"，而且不会报错。
+   原来 1.00 / 0.88 / 0.70，拉陡到 1.00 / 0.82 / 0.58：
+   补给线被切断应该是"这支部队废掉将近一半"，而不是"打八折"。
+   舰船、航空、陆上 BFS、核心要点自持全部走这张表。 */
+const SUPPLY_MOD = { '充足': 1.00, '紧张': 0.82, '断绝': 0.58 };
+
 /* 补给场。
    每个源带自己的半径 r：r 格内「充足」，r+3 格内「紧张」，再远就断绝。
    以前的写法里 r 字段根本没被读取——所有源一律扩散 12 格，再按距离分档。
@@ -3927,7 +4823,7 @@ function supplyField(side) {
   const pool = [];
   for (const s of srcs) {
     const key = kk(s.pos[0], s.pos[1]);
-    if (!out[key] || out[key].d > 0) out[key] = { d: 0, label: '充足', mod: 1.00 };
+    if (!out[key] || out[key].d > 0) out[key] = { d: 0, label: '充足', mod: SUPPLY_MOD['充足'] };
     pool.push([0, s.pos[0], s.pos[1], s.r]);
   }
   while (pool.length) {
@@ -3941,7 +4837,7 @@ function supplyField(side) {
       if (nd > rad + 3) continue;
       const key = kk(n[0], n[1]);
       const label = nd <= rad ? '充足' : '紧张';
-      const mod = nd <= rad ? 1.00 : 0.88;
+      const mod = nd <= rad ? SUPPLY_MOD['充足'] : SUPPLY_MOD['紧张'];
       const prev = out[key];
       /* 同一格可能被多个源覆盖：档位高的赢，同档取更近的 */
       if (prev && (prev.mod > mod || (prev.mod === mod && prev.d <= nd))) continue;
@@ -3973,7 +4869,7 @@ function supplyOf(u, fields) {
   const f = (fields || state.fields)[u.side] || {};
   const e = f[kk(u.pos[0], u.pos[1])];
   /* 辎重自持 */
-  if (u.type === 'sup') return { label: '充足', mod: 1.0, dist: 0 };
+  if (u.type === 'sup') return { label: '充足', mod: SUPPLY_MOD['充足'], dist: 0 };
 
   /* 航空兵不从地面补给场取补给。它不是"飞过去就能捡到粮"的兵种——
      基地在战场外，能飞多久看机内油弹（ammo）。以前这里没有这一支，
@@ -3985,7 +4881,7 @@ function supplyOf(u, fields) {
      这里给的是「紧张」而不是「充足」：飞机不吃断粮那 10 点组织度，
      但出了基地就是远离补给，战力仍打八八折——原来那 −30% 里有一半是
      这条规则该收的账，只是收错了地方（详见 docs/12）。 */
-  if (isAir(u)) return { label: '紧张', mod: 0.88, dist: 0 };
+  if (isAir(u)) return { label: '紧张', mod: SUPPLY_MOD['紧张'], dist: 0 };
 
   /* 水面格 cost 是 99，补给场 BFS 根本进不去——舰船一出生就判"断绝"，
      全员 −30%。这不是刻意做的规则，是补给场只认地面机动漏下来的坑：
@@ -4000,13 +4896,13 @@ function supplyOf(u, fields) {
       const d = hexDist(cell, u.pos);
       if (best === null || d < best) best = d;
     }
-    if (best !== null && best <= 3) return { label: '充足', mod: 1.00, dist: best };
-    if (best !== null && best <= 6) return { label: '紧张', mod: 0.88, dist: best };
-    return { label: '断绝', mod: 0.70, dist: best };
+    if (best !== null && best <= 3) return { label: '充足', mod: SUPPLY_MOD['充足'], dist: best };
+    if (best !== null && best <= 6) return { label: '紧张', mod: SUPPLY_MOD['紧张'], dist: best };
+    return { label: '断绝', mod: SUPPLY_MOD['断绝'], dist: best };
   }
 
   let res;
-  if (!e) res = { label: '断绝', mod: 0.70, dist: null };
+  if (!e) res = { label: '断绝', mod: SUPPLY_MOD['断绝'], dist: null };
   else res = { label: e.label, mod: e.mod, dist: e.d };
 
   /* 核心要点自持：只要要点还在我方手里，被围也能靠城内储备维持紧张补给 */
@@ -4015,7 +4911,7 @@ function supplyOf(u, fields) {
       if (!o.core) continue;
       if (objectiveControl(o) !== u.side) continue;
       if (o.cells.some(c => c[0] === u.pos[0] && c[1] === u.pos[1])) {
-        return { label: '紧张', mod: 0.88, dist: res.dist, self: true };
+        return { label: '紧张', mod: SUPPLY_MOD['紧张'], dist: res.dist, self: true };
       }
     }
   }
@@ -4053,6 +4949,49 @@ function homeBonus(u) {
   return 0;
 }
 
+/* ═════════════════════════ 单位特性 ═════════════════════════
+   写在关卡数据的 units 里（`traits: ['steadfast']`），makeUnit 的 `...u`
+   会原样带进单位对象，存档也是整对象 JSON，不需要额外迁移。
+
+   设计纪律：一条特性必须**能用一句话说清、且在战报或面板上看得见**。
+   加一条软加成（比如"战力 +5%"）玩家永远不会注意到，最后就是数据里
+   多一个没人读的字段。所以这里只留三种效果，各自都落在具体函数上：
+     def      额外地形防御（terrainDefFor）
+     orgTick  每回合自回复组织度（回合结算，不要求原地休整）
+     noBreak  永不进入崩溃态（isBroken）
+
+   **自回复仍然受补给限制**：补给断绝的部队不恢复组织度。这条和
+   "断绝每回合 −10"、"崩溃收拢要有补给"是同一条逻辑，破了它整个
+   补给体系就只剩下一个战力乘数了。 */
+const TRAITS = {
+  steadfast: {
+    name: '死战不退',
+    def: 0.15,
+    orgTick: 8,
+    noBreak: true,
+    note: '建制永不崩溃（被压制也照常进攻）；阵地防御额外 +15%；每回合自行恢复 8 点组织度（补给断绝时无效）。'
+  },
+  cadet: {
+    name: '学员主官',
+    orgTick: 6,
+    note: '排以上主官由院校教官与高年级学员担任，每回合自行恢复 6 点组织度（补给断绝时无效）。'
+  }
+};
+function traitList(u) {
+  return (u && Array.isArray(u.traits)) ? u.traits.filter(k => TRAITS[k]) : [];
+}
+function hasTrait(u, key) { return traitList(u).indexOf(key) >= 0; }
+function traitSum(u, field) {
+  let n = 0;
+  for (const k of traitList(u)) n += TRAITS[k][field] || 0;
+  return n;
+}
+/* 特性摘要，给单位面板与图鉴用。没有特性就返回空串，
+   调用方据此决定要不要加那一行，别在界面上留一个空标题。 */
+function traitNote(u) {
+  return traitList(u).map(k => TRAITS[k].name).join(' · ');
+}
+
 /* 补给点的"如果建在这里"预览：临时插一个源，重算一次补给场再撤回。
    玩家以前点完按钮什么都没变，就是因为既没有棋盘标记、也没有这层数字。
    现在面板直接告诉他：这一建能让几支部队从"紧张/断绝"回到"充足"。 */
@@ -4088,9 +5027,23 @@ function modDef(u) {
   return (state.mods || []).reduce((s, ef) => s + (ef.def && modMatch(ef, u) ? ef.def : 0), 0);
 }
 
+/* 组织度 → 战力乘数。
+   原来是线性的 `org/100`：组织度 50 就是"打五折"，听起来合理，实际用起来
+   却像没这回事——一支被打散建制的营和一支齐装满员的营，账面上只差两三个点，
+   玩家的体感是"组织度那个数字一直在动，但打起来没什么区别"。
+   改成 1.30 次幂（100→1.00、75→0.69、50→0.41、25→0.16）：满编不动，
+   越往下越陡。**崩溃线 25 附近从 0.25 压到 0.16**，这才对得上
+   "建制崩溃的部队组织不起进攻"那条规则——它不只是不能主动打，是真打不动了。
+   曲线偏缓的一侧在 70–100 之间（少 3 个点），所以"休息一下就恢复"的节奏没变，
+   变的是"带着残编硬顶"的代价。 */
+const ORG_CURVE = 1.30;
+function orgFactor(org) {
+  const o = Math.max(0, Math.min(100, Number(org) || 0));
+  return Math.pow(o / 100, ORG_CURVE);
+}
 function effStr(u, fields) {
   const s = supplyOf(u, fields);
-  return (u.str + homeBonus(u)) * (u.org / 100) * s.mod;
+  return (u.str + homeBonus(u)) * orgFactor(u.org) * s.mod;
 }
 /* 地形防御加成。空中单位飞在开阔天上，林地与城市的掩护跟它无关——
    不把这条掐掉的话，一架飞机蹲在城里能拿到 +85%，那才是真正的"地形无敌"。 */
@@ -4099,6 +5052,7 @@ function terrainDefFor(u) {
   if (u.fortify) d += u.fortify;
   if (isArty(u)) d *= 0.5;                  // 炮兵阵地暴露，地形收益减半
   if (homeBonus(u)) d += 0.20;              // 为了祖国
+  d += traitSum(u, 'def');                  // 特殊单位：死战不退这类阵地底子
   d += fortDef(u);                          // 工兵构筑的野战工事
   return d;
 }
@@ -4485,6 +5439,14 @@ function noteAct(u, kind) {
   if (!u.act) u.act = {};
   u.act[kind] = (u.act[kind] || 0) + 1;
 }
+
+/* 本回合的行动额度用掉了没有。
+   移动、开火、施工、布雷、排雷、架桥、建补给点**都算一次行动**，一回合只有一次。
+   以前这条规则是散的：施工看 `fired`、移动看 `moved`、布雷与架桥干脆只靠
+   界面上那个 `!u.fired` 判断，而函数自己一道闸都没有——于是"走两格再挖一道壕"
+   在界面上点得出来，真打进去也成立，等于白送一个动作。
+   现在统一走这里：**界面上不显示、函数里也拒绝**，两处一起判。 */
+function actedThisTurn(u) { return !!(u && (u.moved || u.fired)); }
 
 function freeCellNear(r0, c0) {
   if (inBounds(r0, c0) && terrainAt(r0, c0).cost < 99 && !unitAt(r0, c0)) return [r0, c0];
@@ -5701,13 +6663,20 @@ function doAttack(att, def) {
   if (!pv.counter) msg += ' · 对方无法反击';
   log(msg, att.side === 'blue' ? 'b' : 'r');
 
-  /* 击退：比值 3:1 以上、目标可退，且进攻方要有那个吨位（轻坦不行） */
+  /* 击退：比值 3:1 以上、目标可退，且进攻方要有那个吨位（轻坦不行）。
+     落点必须是**地表空地**。原来只判 `!stackFull`，而 STACK_MAX = 2 ——
+     一格本来就能站两支同阵营部队，于是被击退的部队会直接叠到自己友军身上，
+     两个兵牌重合在一格，玩家的第一反应是"站位出 bug 了"。
+     现在改成"沿击退方向逐格找第一个空地"，一个都找不到就不击退，
+     换成掉组织度：比"退进去叠着"合理，也比"什么都没发生"更像真打了一仗。 */
   if (pv.ratio >= 3 && canCapture(att) && canPushBack(att) && def.str > 0) {
-    const push = retreatDir(att.pos, def.pos);
-    if (push && inBounds(push[0], push[1]) && !stackFull(push[0], push[1]) &&
-        terrainAt(push[0], push[1]).cost < 99) {
+    const push = retreatCell(att.pos, def.pos);
+    if (push) {
       def.pos = push;
       log('  ' + def.abbr + ' 被击退至 ' + coordName(push), 'sys');
+    } else {
+      def.org = Math.max(0, def.org - PUSH_BLOCK_ORG);
+      log('  ' + def.abbr + ' 退路被堵死，挤作一团（组织度 −' + PUSH_BLOCK_ORG + '）。', 'sys');
     }
   }
 
@@ -5736,14 +6705,33 @@ function doAttack(att, def) {
   saveGame();
 }
 
-function retreatDir(from, to) {
+/* 击退落点。候选格按优先级排：先**正后方**（进攻方与目标的连线再延长一格），
+   再是邻居里比原位离进攻方更远的那些。
+   原来的写法只返回第一个"在界内"的候选，站不站得下交给调用方用 `!stackFull` 判——
+   而 stackFull 的门槛是 2，于是"正后方站着一支友军"完全不拦，直接被退上去叠住。
+   判断收进这里之后，只有**地表一格都没有**才算可退，退不了就返回 null。 */
+function retreatCells(from, to) {
   const dr = Math.sign(to[0] - from[0]);
   const dc = Math.sign(to[1] - from[1]);
-  const cand = [[to[0] + dr, to[1] + dc]];
+  const out = [];
+  const put = p => {
+    if (!out.some(q => q[0] === p[0] && q[1] === p[1])) out.push(p);
+  };
+  if (dr || dc) put([to[0] + dr, to[1] + dc]);
   for (const n of neighbors(to[0], to[1])) {
-    if (hexDist(n, from) > hexDist(to, from)) cand.push(n);
+    if (hexDist(n, from) > hexDist(to, from)) put(n);
   }
-  for (const p of cand) if (inBounds(p[0], p[1])) return p;
+  return out;
+}
+function retreatCell(from, to) {
+  for (const p of retreatCells(from, to)) {
+    if (!inBounds(p[0], p[1])) continue;
+    if (terrainAt(p[0], p[1]).cost >= 99) continue;
+    /* 只看地表层：被击退的一定是地面部队（canPushBack 只放中坦/重坦），
+       而同格上空的飞机不占它要退进去的那一格。 */
+    if (layerUnitsAt(p[0], p[1], 'surface').length) continue;
+    return p;
+  }
   return null;
 }
 
@@ -5939,8 +6927,13 @@ function fortKindsFor(u, pos) {
 
 function doFort(u, pos, kind) {
   kind = kind && FORT[kind] ? kind : 'H';
-  if (u.fired) {
-    log(u.abbr + ' 本回合已行动，来不及构筑工事。', 'sys');
+  /* 一回合只有一次行动。原来这里只判 `u.fired`（开过火），于是
+     **移动之后还能接着施工**：走两格再挖一道堑壕，等于白送一个额外的动作。
+     反过来施工结束会把 moved/fired 一起置真，所以"先施工再移动"本来就被挡住了——
+     单向的门看起来能用，实际只在一边漏。
+     判定用 moved || fired：两个标记都只看本回合，回合开始时统一清空。 */
+  if (actedThisTurn(u)) {
+    log(u.abbr + ' 本回合已经行动过，来不及构筑工事。', 'sys');
     clearSelection(); render();
     return false;
   }
@@ -5970,6 +6963,7 @@ function doFort(u, pos, kind) {
 }
 
 function doMine(u, pos) {
+  if (actedThisTurn(u)) { log(u.abbr + ' 本回合已经行动过，来不及布雷。', 'sys'); return false; }
   pushUndo();
   state.mines.push({ r: pos[0], c: pos[1], side: u.side });
   u.moved = true; u.fired = true;
@@ -5981,6 +6975,7 @@ function doMine(u, pos) {
   saveGame();
 }
 function doClearMine(u, pos) {
+  if (actedThisTurn(u)) { log(u.abbr + ' 本回合已经行动过，来不及排雷。', 'sys'); return false; }
   pushUndo();
   state.mines = state.mines.filter(m => !(m.r === pos[0] && m.c === pos[1]));
   u.moved = true; u.fired = true;
@@ -5991,6 +6986,7 @@ function doClearMine(u, pos) {
   saveGame();
 }
 function doBridge(u, pos) {
+  if (actedThisTurn(u)) { log(u.abbr + ' 本回合已经行动过，来不及架桥。', 'sys'); return false; }
   pushUndo();
   const row = LEVEL.map[pos[0]];
   LEVEL.map[pos[0]] = row.substring(0, pos[1]) + '=' + row.substring(pos[1] + 1);
@@ -6074,6 +7070,7 @@ function doDrop(u) {
 }
 
 function doDepot(u) {
+  if (actedThisTurn(u)) { log(u.abbr + ' 本回合已经行动过，来不及建立补给点。', 'sys'); return false; }
   pushUndo();
   const dup = state.depots.some(d => d.side === u.side && d.r === u.pos[0] && d.c === u.pos[1]);
   if (!dup) state.depots.push({ side: u.side, r: u.pos[0], c: u.pos[1] });
@@ -6331,6 +7328,14 @@ function settlePhase() {
       const aura = hqBonus(u);
       const base = aura > 0 ? 15 + aura : (u.side === 'blue' ? 7 : 12);
       u.org = Math.min(100, u.org + base);
+    }
+
+    /* 特殊单位的自带恢复：**不要求原地休整**，这是它们存在的意义
+       （伞兵落地就得打、军校生被推上去就得顶住，哪有"歇一回合"的余裕）。
+       但补给断绝时照样不给——否则"围死它"这条战术对这两支部队就失效了。 */
+    const tick = traitSum(u, 'orgTick');
+    if (tick && s.label !== '断绝') {
+      u.org = Math.min(100, u.org + tick);
     }
 
     /* 弹药补充。炮兵每回合 +1（弹药车就在阵地后面）。
@@ -7379,7 +8384,7 @@ function unitOps(u) {
      玩家只看到三个点不动的按钮，也查不出所以然（静默返回空最容易漏）。
      相邻格要不要算上工事种类，取决于兵种本身：eng 五类全能，engc 只有 H，
      所以这里把本格与相邻格一起过一遍。 */
-  if (!u.fired) {
+  if (!actedThisTurn(u)) {
     const kinds = [];
     for (const p of [u.pos].concat(neighbors(u.pos[0], u.pos[1]))) {
       for (const k of fortKindsFor(u, p)) if (!kinds.includes(k)) kinds.push(k);
@@ -7395,7 +8400,7 @@ function unitOps(u) {
   if (u.type === 'eng' || u.type === 'engc') {
     const near = neighbors(u.pos[0], u.pos[1]);
     const isEng = u.type === 'eng';
-    if (!u.fired) {
+    if (!actedThisTurn(u)) {
       if (isEng) {
         const canMine = near.some(n => !unitAt(n[0], n[1]) && terrainAt(n[0], n[1]).cost < 99);
         ops.push({ act: 'mine', label: '布雷', hint: '', dis: !canMine, on: state.mode === 'mine' });
@@ -7899,6 +8904,25 @@ function renderUnitBox() {
   if (fself) h += '<div class="kv"><span>工事</span><b class="ok">' + FORT[fself.kind].name +
                    ' ' + FORT[fself.kind].code + ' +' + Math.round(fself.def * 100) + '%' +
                    (fself.maxHp ? ' · 耐久 ' + fself.hp + '/' + fself.maxHp : '') + '</b></div>';
+
+  /* 特殊单位特性放在「兵牌能力」之上：它是这支部队的身份，不是兵种说明的
+     一部分——同一个兵种名（步兵营）到了这一关也可能带特性。
+     没有特性就不出这一块，别在面板上留一个空标题。 */
+  const tn = traitList(u);
+  if (tn.length) {
+    h += '<div class="grp"><div class="grp-h">特殊单位</div>';
+    for (const k of tn) {
+      const t = TRAITS[k];
+      const vals = [];
+      if (t.orgTick) vals.push('组织度 +' + t.orgTick + '/回合');
+      if (t.def) vals.push('防御 +' + Math.round(t.def * 100) + '%');
+      if (t.noBreak) vals.push('永不崩溃');
+      h += '<div class="kv"><span>' + bold(t.name) + '</span><b class="ok">' +
+           vals.join(' · ') + '</b></div>';
+      h += '<div class="abil">' + bold(t.note) + '</div>';
+    }
+    h += '</div>';
+  }
 
   h += '<div class="grp"><div class="grp-h">兵牌能力</div>' +
        ty.abil.map(a => '<div class="abil">' + bold(a) + '</div>').join('') + '</div>';
@@ -8484,7 +9508,7 @@ const AIDE = [
   { q: '防空阵地除了挡飞机，还有什么用？',
     a: '它会把飞机<b>赶走</b>，这是它最要紧的作用——不是打下来。<br>' +
        '半径 2 格内的敌军飞机<b>每回合组织度 −12</b>，而且这一回合<b>不能原地休整</b>' +
-       '（正常情况下停着不动能回 12 点）。组织度乘进有效战力：掉到 60，它这一趟就只能打出六成力气。<br>' +
+       '（正常情况下停着不动能回 12 点）。组织度乘进有效战力，而且是越往下越陡：掉到 60 只剩五成，掉到 40 只剩三成半。<br>' +
        '所以敌机来一次掉一次、越打越虚，只能飞回自己后方缓——这就是「驱散」。<br>' +
        '注意三点：<b>只压敌方</b>、<b>只压飞机</b>；阵地被打光耐久、或者格子被敌军踩住，' +
        '压制立刻停；组织度掉到 <b>40</b> 就不再往下压——高炮负责削弱，不负责把飞机打垮。' },
@@ -8506,7 +9530,7 @@ const AIDE = [
        '工兵近战很弱，作业时必须有步兵掩护。' },
   { q: '组织度是什么？为什么我人还在，却打不动了？',
     a: '<b>有效战力 = 战力 × (组织度 / 100)。</b><br>' +
-       '被打会掉组织度，掉到 60 就等于只剩六成力气。它每回合靠指挥部、补给缓慢恢复，' +
+       '被打会掉组织度，掉到 60 就等于只剩五成力气，掉到 40 只剩三成半。它每回合靠指挥部、补给缓慢恢复，' +
        '所以<b>连续挨打的部队会越来越软</b>。<br>' +
        '<b>跌破 25% 就是建制崩溃</b>：兵牌上会出现红边和「崩」字，这支部队<b>不能主动攻击</b>' +
        '（被咬住时的反击还在）。退到 2 格内无敌军、且补给没断的位置，每回合恢复 10 点，' +
@@ -8526,7 +9550,7 @@ const AIDE = [
        '它是用来<b>顶住</b>的，离开步兵和工事就是活靶。<br>' +
        '记住一件事：反坦克炮打轻坦最容易、打重坦最难，所以别拿重坦去撞反坦克阵地。' },
   { q: '补给怎么算？为什么会突然断粮？',
-    a: '基地半径 3 格内充足（×1.00），再外 3 格紧张（×0.88），更远断绝（×0.70）。<br>' +
+    a: '基地半径 3 格内充足（×1.00），再外 3 格紧张（×0.82），更远断绝（×0.58）。<br>' +
        '补给线会被<b>敌军相邻格切断</b>——跨河之后南岸的基地够不着，这就是辎重队' +
        '「建立补给点」的用武之地：把它建在桥头。' },
   { q: '打错了能撤回吗？',
@@ -9337,6 +10361,10 @@ window.__WAR__ = {
   hqSaveNote,
   /* 堆叠 / 撤销 / 补给场：新增机制的测试入口 */
   unitsAt, stackFull, stackOf, STACK_MAX, STACK_COVER,
+  /* 击退落点 / 一回合一个动作 / 战力系数 / 特殊单位特性。
+     这几条都是"坏了也不报错、只是手感不对"的规则，只能靠断言守。 */
+  retreatCell, retreatCells, PUSH_BLOCK_ORG, actedThisTurn,
+  orgFactor, ORG_CURVE, SUPPLY_MOD, TRAITS, traitList, traitSum, hasTrait,
   /* 领域（陆 / 空 / 绿水 / 蓝水）：一件机制的四张脸——走哪格、和谁挤、
      谁能打它、界面怎么画。测试直接驱动 domainOf / moveCost / canHitAir，
      否则"加一种兵种忘了改 moveCost"这类事只能等玩出来。 */
