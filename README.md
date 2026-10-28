@@ -708,7 +708,7 @@ git push -u origin main
 ```bash
 npm run www            # tools/build-www.js：引用驱动生成，40 个文件 4.00 MB
 npx cap copy android   # 拷进 android/app/src/main/assets/public
-cd android && ./gradlew assembleDebug
+cd android && ./gradlew clean assembleDebug   # 发版加 clean，体积才可比
 ```
 
 `npm test` 里带了 `build-www.js --check`：改了引擎却忘了重建、`www` 里混进

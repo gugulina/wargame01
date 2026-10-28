@@ -1,8 +1,9 @@
 # Android 打包说明
 
-**当前包**：`苍屿战役-v9.apk`（versionCode 9 / versionName 4.15）· 7,743,671 字节 ≈ 7.4 MiB
-**上一版**：v8（versionCode 8 / versionName 4.14）· 7,736,355 字节 —— v9 只多了约 7 KB
-（v9 多出来的是新建的 `data/notes.js`（12,456 字节，压进去约 3 KB）与菜单页公告面板）
+**当前包**：`苍屿战役-v9.apk`（versionCode 9 / versionName 4.15）· 7,743,691 字节 ≈ 7.4 MiB
+**上一版**：v8（versionCode 8 / versionName 4.14）· 7,736,355 字节 —— v9 净增 7,336 字节
+（新增的是 `data/notes.js`（12,456 字节）与菜单页公告面板；这是 `clean assembleDebug` 的数字，
+增量构建量出来会大 42 KB，原因见 §二 的那条注）
 **再上一版**：v7（versionCode 7 / versionName 4.13）· 7,722,590 字节
 **更早**：v6（versionCode 6 / versionName 4.12）· 7.4 MB；v5（versionCode 5）· 26 MB
 —— 体积差的不是优化，是 v5 把开发 leftovers 打进了包
@@ -38,8 +39,14 @@ debug 未 minify）和 web 资源。
 npm test                      # 七步 + www 发布物校验（www 不存在时跳过）
 npm run www                   # 生成 www/：40 个文件，4.00 MB
 npx cap copy android          # 拷进 android/app/src/main/assets/public
-cd android && ./gradlew assembleDebug
+cd android && ./gradlew clean assembleDebug   # 发版加 clean
 ```
+
+> **发版要 `clean`**：v9 出包时先跑了一次增量 `assembleDebug`，得到 7,786,391 字节；
+> 紧接着 `clean assembleDebug` 只有 7,743,671 字节（同一份 `www`，最终包带后一次 README 微调，
+> 7,743,691）。两个包的**文件清单（42 项）与内容逐字节相同**
+> （`unzip` 解出来跟 `www/` 做 `diff -rq`，实质差异 0），差的 42 KB 是增量打包重新压缩时的
+> 压缩比/对齐差异。所以：**体积只有在 clean 构建之间才可比**，验收看内容不看体积。
 
 产物：`android/app/build/outputs/apk/debug/app-debug.apk`
 
