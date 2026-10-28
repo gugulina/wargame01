@@ -32,7 +32,16 @@ vc.on('jsdomError', e => {
 const file = process.argv[2] && !process.argv[2].startsWith('-')
   ? path.resolve(process.argv[2])
   : path.join(__dirname, '..', 'game', 'campaign.html');
-const html = fs.readFileSync(file, 'utf8');
+const html0 = fs.readFileSync(file, 'utf8');
+
+/* 引擎的版本公告数据来自 data/notes.js（一个 <script src>）。jsdom 只解析 DOM、
+   不替你去取外部脚本，所以不内联的话 window.CANGYU_NOTES 永远是 undefined，
+   HQ 的公告页签会走进"读不到数据"的兜底分支——而那个分支**不报错**
+   （它本来就要能处理缺文件），于是断言只会静默地变空。
+   变异过的引擎如果没有这个标签，replace 就什么也不做，那时断言该红就红。 */
+const NOTES_TAG = '<script src="../data/notes.js"></script>';
+const html = html0.replace(NOTES_TAG,
+  '<script>' + fs.readFileSync(path.join(__dirname, '..', 'data', 'notes.js'), 'utf8') + '</script>');
 
 const dom = new JSDOM(html, {
   runScripts: 'dangerously',
@@ -1263,6 +1272,130 @@ function skip(name, why) {
         ok('没有特性的兵牌不出「特殊单位」空标题', t2.indexOf('特殊单位') < 0, plain.id);
       }
     }
+  }
+
+  {
+    /* 手册三页（特殊机制 / 版本公告 / 图鉴的类别与介绍）＋ 菜单页公告面板。
+       结构断言在 selftest [39]（能直接读数据），这里只守"渲染出来长什么样"：
+       标题、顺序、文案里有没有把字段名漏给玩家。
+       为什么非要在真 DOM 里做：selftest 用的是 stub DOM，
+       innerHTML 写进去读不回来——那几条断言全绿而屏幕上什么都没有，是常态。 */
+    const W = window.__WAR__;
+    const doc = window.document;
+    W.closeHQ();
+    const body = doc.getElementById('hqBody');
+    /* 用点页签而不是直接 openHQ：加一页要同时改三处（白名单、HTML 的按钮、
+       renderHQ 的分支），直接调 openHQ 只验证了第三处。
+       这里点的是玩家真的会点的那个按钮。 */
+    W.openHQ('dex');
+    const tabOf = t => doc.querySelector('#hqTabs button[data-tab="' + t + '"]');
+    ok('页签栏里有「特殊机制」与「版本公告」两个按钮',
+       !!tabOf('mech') && !!tabOf('notes'));
+    tabOf('mech').click();
+    ok('点「特殊机制」真的切过去了（白名单也放行了）',
+       tabOf('mech').classList.contains('on') && !tabOf('dex').classList.contains('on'));
+    const mechs = body.querySelectorAll('.mech');
+    const mechTotal = (W.MECH || []).reduce((s, g) => s + g.items.length, 0);
+    ok('特殊机制页渲染出全部条目', mechs.length === mechTotal,
+       mechs.length + ' / ' + mechTotal);
+    ok('每条机制都有三个小标题（什么时候触发 / 触发之后 / 怎么用）',
+       mechs.length > 0 && Array.from(mechs).every(el => el.querySelectorAll('.mech-b').length === 3));
+    const mechTxt = (body.textContent || '').replace(/\s+/g, ' ');
+    ok('机制页把三段的名字写出来了（不是三个空格子）',
+       mechTxt.indexOf('什么时候触发') >= 0 && mechTxt.indexOf('触发之后') >= 0 &&
+       mechTxt.indexOf('怎么用') >= 0);
+    /* 文案口径：字段名不能漏到玩家面前。这几个是最容易手滑写进去的
+       （`dm`/`atk`/`rng` 在引擎注释里到处都是，复制一段注释过来就中招）。 */
+    const badTerms = ['atk', 'dm:', 'rng', 'orgTick', '未实现', '未登场', '`'];
+    const foundBad = badTerms.filter(t => mechTxt.indexOf(t) >= 0);
+    ok('机制页文案里没有代码层表述', foundBad.length === 0, '命中：' + foundBad.join(' / '));
+
+    W.openHQ('dex');
+    const dexCards = body.querySelectorAll('.dex');
+    const cats = body.querySelectorAll('.dex .dex-cat');
+    ok('图鉴每张卡片都带类别徽章', dexCards.length > 0 && cats.length === dexCards.length,
+       cats.length + ' / ' + dexCards.length);
+    const intros = body.querySelectorAll('.dex .dex-intro');
+    ok('图鉴每张卡片都有兵种介绍', intros.length === dexCards.length,
+       intros.length + ' / ' + dexCards.length);
+    /* 类别是"辨识类型"的落点，写错了等于没做：抽查三个最容易被弄混的——
+       步兵营归步兵、中坦营归装甲、摩步营归机械化。 */
+    const catOf = name => {
+      const card = Array.from(dexCards).find(c => {
+        const b = c.querySelector('.dex-h b');
+        return b && b.textContent.trim() === name;
+      });
+      return card ? card.querySelector('.dex-cat').textContent.trim() : '(缺卡)';
+    };
+    ok('步兵营归在「步兵单位」', catOf('步兵营') === '步兵单位', catOf('步兵营'));
+    ok('中型坦克营归在「装甲单位」', catOf('中型坦克营') === '装甲单位', catOf('中型坦克营'));
+    ok('摩步营归在「机械化单位」', catOf('摩步营') === '机械化单位', catOf('摩步营'));
+    const dexTxt = (body.textContent || '').replace(/\s+/g, ' ');
+    const dexBad = badTerms.filter(t => dexTxt.indexOf(t) >= 0);
+    ok('图鉴文案里没有代码层表述', dexBad.length === 0, '命中：' + dexBad.join(' / '));
+
+    tabOf('notes').click();
+    ok('点「版本公告」也真的切过去了',
+       tabOf('notes').classList.contains('on'));
+    const notes = body.querySelectorAll('.note');
+    const notesData = (window.CANGYU_NOTES && window.CANGYU_NOTES.notes) || [];
+    ok('版本公告页渲染出全部条目', notes.length === notesData.length,
+       notes.length + ' / ' + notesData.length);
+    const firstVer = body.querySelector('.note .note-h b');
+    ok('公告第一条就是当前版本',
+       !!firstVer && !!firstVer.textContent.trim() &&
+       firstVer.textContent.trim().replace(/^v/, '') ===
+         (doc.getElementById('verTag').textContent || '').replace(/^v/, ''),
+       (firstVer && firstVer.textContent.trim()) + ' / ' + doc.getElementById('verTag').textContent);
+    ok('每条公告都有条目列表（不是只剩一个标题）',
+       notes.length > 0 && Array.from(notes).every(el => el.querySelectorAll('li').length > 0));
+    W.closeHQ();
+  }
+
+  {
+    /* 菜单页的「版本公告」面板。index.html 从来没有被测过——它是玩家的入口，
+       却一直是"打开看一眼"的验证方式。这里用第二个 jsdom 实例真跑一遍。
+       两个 <script src> 在 jsdom 里不会自动加载（它不发 http 请求），
+       所以先把它们替换成内联脚本再构造 DOM：测的是那个渲染 IIFE，
+       不是浏览器怎么取文件——后者由 build-www 的引用清单负责。 */
+    const { JSDOM: JSDOM2 } = require('jsdom');
+    const rootDir = path.join(__dirname, '..');
+    const rd = f => fs.readFileSync(path.join(rootDir, f), 'utf8');
+    let idxHtml = rd('index.html');
+    const inline = (tag, file) => {
+      idxHtml = idxHtml.replace(tag, '<script>' + rd(file) + '</script>');
+    };
+    inline('<script src="data/levels.js"></script>', 'data/levels.js');
+    inline('<script src="data/notes.js"></script>', 'data/notes.js');
+
+    const d2 = new JSDOM2(idxHtml, {
+      runScripts: 'dangerously', pretendToBeVisual: true, virtualConsole: vc,
+      url: 'http://127.0.0.1/index.html'
+    });
+    await wait(300);
+    const doc2 = d2.window.document;
+    const cards = doc2.querySelectorAll('#notes .n-card');
+    ok('菜单页渲染出版本公告面板', cards.length > 0, cards.length + ' 张卡');
+    ok('首页只放最近两版（全量在游戏里）', cards.length === 2, cards.length + ' 张');
+    if (cards.length) {
+      const n0 = cards[0];
+      ok('首页公告卡片有版本号 / 日期 / 条目',
+         !!n0.querySelector('.n-ver') && !!n0.querySelector('.n-date') &&
+         n0.querySelectorAll('li').length > 0,
+         n0.querySelector('.n-ver').textContent);
+      ok('首页公告与游戏内读的是同一份数据（首条版本一致）',
+         n0.querySelector('.n-ver').textContent.trim() ===
+           ((d2.window.CANGYU_NOTES.notes[0].ver) || ''),
+         n0.querySelector('.n-ver').textContent + ' / ' + d2.window.CANGYU_NOTES.notes[0].ver);
+    }
+    const moreLink = doc2.querySelector('#notes .n-more a');
+    ok('首页有「看全部」的入口，且指向 HQ 的公告页签',
+       !!moreLink && /hq=notes/.test(moreLink.getAttribute('href') || ''),
+       moreLink ? moreLink.getAttribute('href') : '无');
+    /* 加公告面板不能把关卡列表挤掉：面板是先渲染的，后续代码一报错就只剩公告。 */
+    ok('加了公告面板之后关卡列表照常渲染',
+       (doc2.getElementById('levels').textContent || '').indexOf('北岭要塞') >= 0,
+       (doc2.getElementById('levels').textContent || '').replace(/\s+/g, ' ').slice(0, 40));
   }
 
   console.log('');

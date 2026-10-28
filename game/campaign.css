@@ -601,11 +601,23 @@
     border: 1px solid #E2DCCD; border-radius: 4px; padding: 10px 12px;
     background: #FFFDF8;
   }
-  .dex-h { display: flex; align-items: baseline; gap: 7px; margin-bottom: 3px; }
+  .dex-h { display: flex; align-items: baseline; gap: 7px; margin-bottom: 2px; }
   .dex-h b { font-size: 12.5px; }
-  .dex-h i {
-    font-style: normal; font-size: 9.5px; color: #A8925F;
-    letter-spacing: 1px; font-weight: 700;
+  /* 类别徽章。原来这里放的是兵种定位（斜体小字），现在定位单独一行、
+     类别做成徽章：**类别是玩家判断"该不该派它上"的第一眼**，
+     定位是第二眼，两者字号语气不该一样。 */
+  .dex-cat {
+    font-size: 9px; color: #7A6A46; background: #F1EAD8;
+    border: 1px solid #E4D9BE; border-radius: 999px;
+    padding: 1px 7px 2px; letter-spacing: .5px; white-space: nowrap;
+  }
+  .dex-role {
+    font-size: 9.5px; color: #A8925F; letter-spacing: 1px; font-weight: 700;
+    margin-bottom: 5px;
+  }
+  .dex-intro {
+    margin: 0 0 7px; font-size: 10.5px; line-height: 1.7; color: var(--ink2);
+    padding-bottom: 7px; border-bottom: 1px dashed #EAE3D2;
   }
   .dex-st {
     display: flex; gap: 10px; font-size: 10px; color: var(--ink3);
@@ -618,6 +630,45 @@
     margin-bottom: 2px;
   }
   .dex li::marker { color: #C9BFA6; }
+
+  /* 特殊机制：一列一条，三段式（条件 / 效果 / 应对）。
+     为什么不用两列：一段两三行，两列会把"什么时候触发"和"触发之后"拆到
+     左右两边，读起来要来回横跳；机制是拿来顺序读的，不是拿来扫的。 */
+  .mech-grid { display: grid; grid-template-columns: 1fr; gap: 9px; }
+  .mech {
+    border: 1px solid #E2DCCD; border-radius: 4px; padding: 11px 13px 9px;
+    background: #FFFDF8;
+  }
+  .mech-h {
+    font-size: 12px; font-weight: 800; color: #3A362E; margin-bottom: 7px;
+    padding-bottom: 6px; border-bottom: 1px solid #F0EADB;
+  }
+  .mech-b { display: flex; gap: 9px; align-items: flex-start; margin-bottom: 6px; }
+  .mech-t {
+    flex: 0 0 68px; font-size: 9.5px; font-weight: 700; letter-spacing: .5px;
+    color: #A8925F; padding-top: 2px;
+  }
+  .mech-b p { margin: 0; font-size: 10.5px; line-height: 1.72; color: var(--ink2); }
+  /* 「怎么用」单独染色：前两段是规则，这一段是决策——玩家真正要记的是它 */
+  .mech-tip .mech-t { color: #7C6A3E; }
+  .mech-tip p { color: #4A4438; }
+
+  /* 版本公告：一条一块，版本号 + 日期一行，条目在下 */
+  .note {
+    border: 1px solid #E2DCCD; border-radius: 4px; padding: 11px 13px 9px;
+    background: #FFFDF8; margin-bottom: 10px;
+  }
+  .note-h { display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px; }
+  .note-h b { font-size: 12px; color: #3A362E; letter-spacing: .5px; }
+  .note-tag {
+    font-size: 9px; color: #7A6A46; background: #F1EAD8;
+    border: 1px solid #E4D9BE; border-radius: 999px; padding: 1px 7px 2px;
+  }
+  .note-date { margin-left: auto; font-size: 9.5px; color: var(--ink3); letter-spacing: .5px; }
+  .note-title { font-size: 11px; font-weight: 700; color: #4A4438; margin-bottom: 5px; }
+  .note ul { margin: 0; padding-left: 13px; }
+  .note li { font-size: 10.5px; line-height: 1.7; color: var(--ink2); margin-bottom: 2px; }
+  .note li::marker { color: #C9BFA6; }
 
   /* 战术卡 */
   .card-bar {

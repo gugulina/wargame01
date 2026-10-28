@@ -1,8 +1,8 @@
 /* 变异自检：确认 selftest 的断言**真的会红**。
    用法：node tools/mutcheck.js [--keep] [--grep=关键字]
 
-   --grep 只跑名字里含关键字的几条。全量现在 46 条、其中 17 条要起 jsdom，
-   跑一遍两分多钟；调某一条断言时没必要等全部。
+   --grep 只跑名字里含关键字的几条。全量现在 72 条、其中 27 条要起 jsdom，
+   跑一遍三分多钟；调某一条断言时没必要等全部。
 
    为什么要这东西：断言写错时最怕的不是红，是**假绿**。
    38b8b3d 给存档 XSS 加的那条断言就是这么废掉的——它检查 msg 里有没有 `<b`，
@@ -27,6 +27,9 @@ const TMP = path.join(ROOT, 'game', '_mut_campaign.html');
    每条盯一个机制，别贪多：一个变异只该打中一两条，打中一片说明断言互相耦合了。
 
    第 5 项省略时跑 selftest；写 'brief' 表示跑 briefcheck（jsdom）。
+   **漏写第 5 项不会报错，只会静默地跑 selftest**——如果那条断言其实在 briefcheck 里，
+   表现就是"期望变红但它没红"，看起来像断言是假防线，其实是脚本跑错了。
+   加条目时先想清楚这条断言在哪个文件里。
    DOM 那一类防线（esc 转义、战报走 textContent）在 vm 沙箱里根本没有 DOM，
    只能在 briefcheck 里验——而"验它会不会红"同样得跑一遍变异，
    否则 v4.6 体检里那条假防线（检查 msg 里有没有 `<b`）的事会重演。 */
@@ -292,8 +295,8 @@ const MUTANTS = [
    '加粗真的渲染成 <b>', 'brief'],
 
   ['HQ 页签清单少了 dex（菜单页的「战时手册」静默落到存档页）',
-   "const HQ_TABS = ['dex', 'cards', 'aide', 'save', 'credits'];",
-   "const HQ_TABS = ['cards', 'aide', 'save', 'credits'];",
+   "const HQ_TABS = ['dex', 'mech', 'cards', 'aide', 'notes', 'save', 'credits'];",
+   "const HQ_TABS = ['mech', 'cards', 'aide', 'notes', 'save', 'credits'];",
    'HQ_TABS 与页签按钮一一对应', 'brief'],
 
   ['文案里塞回超出二战水平的装备（战斗机挂空空导弹）',
@@ -323,8 +326,8 @@ const MUTANTS = [
    '已经低于下限的不再被往下推'],
 
   ['航空兵又被按回地面补给场（敌境一律断绝）',
-   "if (isAir(u)) return { label: '紧张', mod: 0.88, dist: 0 };",
-   'if (false) return { label: 0, mod: 0.88, dist: 0 };',
+   "  if (isAir(u)) return { label: '紧张', mod: SUPPLY_MOD['紧张'], dist: 0 };",
+   "  if (false) return { label: '紧张', mod: SUPPLY_MOD['紧张'], dist: 0 };",
    '飞机在敌境也不判'],
 
   ['压制半径与命中修正不同步（改 3 只改一处）',
@@ -435,6 +438,34 @@ const MUTANTS = [
    '  state.inspect = u;\n  state.terrainSel = null;',
    '  state.inspect = u;\n  state.selected = null;\n  state.terrainSel = null;',
    '检视不会把当前选中清掉'],
+
+  /* ── 手册三页（v4.15）──
+     这几条的共同点：坏了不影响任何一局战斗，玩家只是"手册上少一段"，
+     没有任何异常会提醒你。所以只能靠变异把它们钉住。 */
+  ['renderHQ 漏接「特殊机制」分支（页签能点，内容永远是空的）',
+   "  else if (hqTab === 'mech') { box.innerHTML = hqMech(); }\n",
+   '',
+   '特殊机制页渲染出全部条目', 'brief'],
+
+  ['图鉴不渲染兵种介绍（数据还在，屏幕上看不到）',
+   "      if (info.intro) h += '<p class=\"dex-intro\">' + bold(info.intro) + '</p>';\n",
+   '',
+   '图鉴每张卡片都有兵种介绍', 'brief'],
+
+  ['步兵营的类别写成装甲（辨识类型就废了）',
+   "  inf: { cat: '步兵单位',",
+   "  inf: { cat: '装甲单位',",
+   '步兵营归在「步兵单位」', 'brief'],
+
+  ['图鉴漏写一个兵种的介绍（新兵种忘了登记）',
+   "  rec: { cat: '侦察单位',",
+   "  recX: { cat: '侦察单位',",
+   '每个兵种都有图鉴介绍'],
+
+  ['机制条目丢了「怎么用」那一段（变成说明书）',
+   "           '<div class=\"mech-b mech-tip\"><span class=\"mech-t\">怎么用</span><p>' + bold(m.tip) + '</p></div>' +\n",
+   '',
+   '每条机制都有三个小标题', 'brief'],
 
 ];
 

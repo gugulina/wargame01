@@ -2618,5 +2618,75 @@ console.log('\n[38] 敌情检视与堆叠目标挑选');
      (first && first.id) + ' → ' + (second && second.id));
 }
 
+/* ── [39] 手册数据完整性：兵种介绍 / 特殊机制 / 版本公告 ──
+   这三张表是"给玩家看的文档"，不是战斗数值——所以坏了**不会影响任何一局战斗**，
+   只会让手册上少一段、或者整页空白。恰恰因为这样，没有任何运行时异常会提醒你。
+   结构断言放这里（能直接读数据），文案与渲染断言放 briefcheck（要真 DOM）。 */
+{
+  const fs = require('fs'), path = require('path');
+
+  /* 兵种介绍必须盖住全部兵种。新加一个兵种忘了写介绍，图鉴上会静悄悄少一段，
+     而玩家看到的是"这个兵种没有说明"，不是"你漏写了"。 */
+  const typeKeys = Object.keys(api.TYPE);
+  const infoKeys = Object.keys(api.UNIT_INFO || {});
+  const missInfo = typeKeys.filter(k => !api.UNIT_INFO[k]);
+  ok('每个兵种都有图鉴介绍（' + typeKeys.length + ' 个兵种全覆盖）',
+     missInfo.length === 0, '缺：' + (missInfo.join(',') || '无'));
+  /* 反方向：介绍表里不该有已经不存在的兵种键——那是改名或删兵种时留下的孤儿，
+     它不会报错，只是永远不显示，下次有人照着它加兵种才发现对不上。 */
+  const ghost = infoKeys.filter(k => !api.TYPE[k]);
+  ok('介绍表里没有已不存在的兵种键', ghost.length === 0, '多余：' + (ghost.join(',') || '无'));
+  const thin = infoKeys.filter(k => {
+    const i = api.UNIT_INFO[k];
+    return !i.cat || !i.intro || String(i.intro).length < 20;
+  });
+  ok('每条介绍都有类别、且介绍正文不少于 20 字（不是凑数的两个字）',
+     thin.length === 0, '太薄：' + (thin.join(',') || '无'));
+
+  /* 机制条目：三段缺一不可。少"怎么用"就变成了一份说明书，
+     少"什么时候触发"玩家就无法判断自己这局会不会遇上。 */
+  const mechs = (api.MECH || []).reduce((a, g) => a.concat(g.items || []), []);
+  ok('特殊机制条目已建立', mechs.length >= 15, mechs.length + ' 条');
+  const mechBad = mechs.filter(m => !m.k || !m.when || !m.effect || !m.tip ||
+                                     String(m.when).length < 8 || String(m.effect).length < 8 ||
+                                     String(m.tip).length < 8);
+  ok('每条机制都写全了触发条件 / 触发效果 / 怎么用', mechBad.length === 0,
+     '不全：' + (mechBad.map(m => m.k || '(无名)').join(',') || '无'));
+  /* 点名几条"玩家一定会问"的机制必须还在。整页被误删时上面的条数断言会红，
+     但只删掉其中三条不会——这三条是最容易被合并/误删的。 */
+  const names = mechs.map(m => m.k);
+  const must = ['击退', '补给', '建制崩溃'];
+  const lost = must.filter(n => names.indexOf(n) < 0);
+  ok('击退 / 补给 / 建制崩溃 三条核心机制都在手册里', lost.length === 0,
+     '缺：' + (lost.join(',') || '无'));
+
+  /* 版本公告：数据在 data/notes.js，与菜单页共用。
+     首条必须是当前版本——否则"顶栏 v4.14、公告最新写 v4.13"，
+     玩家分不清自己玩的是哪一版。 */
+  const noteSrc = fs.readFileSync(path.join(__dirname, '..', 'data', 'notes.js'), 'utf8');
+  /* 这个文件是写给浏览器看的（`window.CANGYU_NOTES = ...`），
+     新上下文里没有 window，得先给它一个——否则报的是 "window is not defined"，
+     看起来像"数据文件写坏了"，其实是测试环境缺个壳。 */
+  const box = { window: {} };
+  require('vm').runInNewContext(noteSrc, box);
+  const NN = (box.window.CANGYU_NOTES && box.window.CANGYU_NOTES.notes) || [];
+  ok('版本公告能读到数据', NN.length > 0, NN.length + ' 条');
+  const noteBad = NN.filter(n => !n.date || !n.title || !Array.isArray(n.items) || !n.items.length);
+  ok('每条公告都有日期、标题与至少一条内容', noteBad.length === 0,
+     '不全：' + (noteBad.map(n => n.date || '(无日期)').join(',') || '无'));
+  /* 版本号取顶栏那个 #verTag —— 它是版本的真源（package.json 是副本）。
+     这里不能自己再算一遍，否则"以哪个为准"就有了第二个答案。 */
+  const verTagNow = (fs.readFileSync(file, 'utf8').match(/id="verTag">v?([\d.]+)</) || [])[1];
+  ok('公告首条版本与顶栏版本一致',
+     !!NN[0] && !!verTagNow && String(NN[0].ver).replace(/^v/, '') === verTagNow,
+     (NN[0] && NN[0].ver) + ' / v' + verTagNow);
+  /* 版本号只能递增，不能因为手滑把旧的那条插到最上面。
+     只比"首条等于当前版本"挡不住"最新两条顺序颠倒"——那种情况首条仍然对。 */
+  const dateBad = NN.filter((n, i) => i > 0 && String(NN[i - 1].date) < String(n.date));
+  ok('公告按日期倒序排列', dateBad.length === 0,
+     '顺序不对：' + (dateBad.map(n => n.date).join(',') || '无'));
+}
+
 console.log('\n通过 ' + pass + ' 项，失败 ' + fail + ' 项');
 process.exit(fail ? 1 : 0);
+
