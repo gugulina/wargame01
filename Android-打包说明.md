@@ -1,8 +1,9 @@
 # Android 打包说明
 
-**当前包**：`苍屿战役-v7.apk`（versionCode 7 / versionName 4.13）· 7.4 MB
-**上一版**：v6（versionCode 6 / versionName 4.12）· 7.4 MB —— v7 只跟了版本，体积没动
-**再上一版**：v5（versionCode 5）· 26 MB —— 体积差的不是优化，是 v5 把开发 leftovers 打进了包
+**当前包**：`苍屿战役-v8.apk`（versionCode 8 / versionName 4.14）· 7.4 MB
+**上一版**：v7（versionCode 7 / versionName 4.13）· 7.4 MB —— v8 只多了 0.07 MB 的 web 资源
+**再上一版**：v6（versionCode 6 / versionName 4.12）· 7.4 MB
+**更早**：v5（versionCode 5）· 26 MB —— 体积差的不是优化，是 v5 把开发 leftovers 打进了包
 **构建**：Capacitor 8.5.3 + Gradle 8.14.3 + JDK 21 + Android SDK 36
 
 > 这份文档原先叫"测试报告"，里面有一批数对不上（写 Capacitor 7 实际是 8.5.3、写最低 API 21
@@ -45,6 +46,10 @@ cd android && ./gradlew assembleDebug
 - **JDK 21**：`C:/Program Files/Eclipse Adoptium/jdk-21.0.12.101-hotspot`
   Capacitor 8 要 JDK 21+，JDK 17 会报 `invalid target release: 21`
 - **Android SDK**：`C:/Users/泽宇/AppData/Local/Android/Sdk`（compileSdk / targetSdk 36，minSdk 24）
+  光设 `ANDROID_HOME` 不一定够——Gradle 只认 `android/local.properties` 里的 `sdk.dir`。
+  该文件**不入库**（`cap add android` 也不生成），换机器要手写一行：
+  `sdk.dir=C\:\\Users\\<用户名>\\AppData\\Local\\Android\\Sdk`。缺它会直接停在
+  `SDK location not found`，而那行报错看不出是"少了文件"而不是"没装 SDK"。
 - **Gradle**：8.14.3，`distributionUrl` 走腾讯镜像；Maven 走阿里云（`~/.gradle/init.d/mirrors.gradle`）
 - **中文路径**：项目路径含"军推"，`android/gradle.properties` 里要有 `android.overridePathCheck=true`
 - **版本号**：`android/app/build.gradle` 的 `versionCode` 每发一版手工 +1（Android 靠它认新版本）；
