@@ -1217,6 +1217,54 @@ function skip(name, why) {
        ' selected=' + (W.getState().selected ? W.getState().selected.id : '空'));
   }
 
+  {
+    /* 特殊单位面板：levelcheck [11c] 验的是 isBroken / terrainDefFor / traitSum
+       这些函数，验不到"玩家点开兵牌能不能看见"。特性表写错了、面板拼错的键名
+       漏到屏幕上、或者整块根本没接上，540 项照样全绿。
+       选 C6 而不是 C5：军校生旅是 wave:1，开局就在地图上；
+       C5 的伞兵是 wave:0，要推到第 3 回合才落场，测一条渲染断言不值当。 */
+    const W = window.__WAR__;
+    const doc = window.document;
+    W.closeHQ();
+    W.writeProgress({
+      cleared: { C1: 'win', C2: 'win', C2B: 'win', C3: 'win', C3B: 'win', C4: 'win', C4B: 'win', C5: 'win' },
+      played: {}, deck: null, last: null
+    });
+    W.enterLevel('C6', { noIntro: true, noSave: true });
+    ok('前提：真的进了岚京外围', W.LEVEL.id === 'C6', W.LEVEL.id);
+    W.newGame({ level: 'C6', noSave: true });
+    const st = W.getState();
+    const cadet = st.units.find(u => u.id === 'E4A');
+    ok('前提：军校生旅开局就在场上（wave:1）', !!cadet);
+    if (cadet) {
+      W.select(cadet);
+      const txt = doc.getElementById('unitBox').textContent || '';
+      const flat = txt.replace(/\s+/g, ' ');
+      ok('兵牌面板出现「特殊单位」一组', flat.indexOf('特殊单位') >= 0, flat.slice(0, 60));
+      /* 判文案而不是判数组：面板上出现 `cadet` / `orgTick` 这类字段名，
+         等于把代码层表述露给玩家（文案规矩见 docs/13）。 */
+      ok('写的是「学员主官」而不是特性键名',
+         flat.indexOf('学员主官') >= 0 && flat.indexOf('cadet') < 0 && flat.indexOf('orgTick') < 0,
+         flat.slice(0, 80));
+      ok('面板写明它每回合恢复多少组织度', /组织度 \+6/.test(flat), flat.slice(0, 80));
+      /* 两条都要判：只写 `indexOf(A) < indexOf(B)` 时，A 根本不存在会返回 −1，
+         −1 小于任何下标 → 断言在"整块没渲染"的情况下照样绿。 */
+      ok('特殊单位排在「兵牌能力」之上（身份在兵种说明之前）',
+         flat.indexOf('特殊单位') >= 0 && flat.indexOf('兵牌能力') >= 0 &&
+         flat.indexOf('特殊单位') < flat.indexOf('兵牌能力'));
+
+      /* 反方向：没有特性的兵牌不能顶着一个空标题——空标题比不加还糟，
+         玩家会以为"这支部队本来该有特性，没显示出来"。 */
+      const plain = st.units.find(u => u.side === 'blue' && u !== cadet && !W.traitList(u).length);
+      ok('前提：找得到一支没有特性的我方兵牌', !!plain, plain ? plain.id : '无');
+      if (plain) {
+        W.select(plain);
+        const t2 = (doc.getElementById('unitBox').textContent || '').replace(/\s+/g, ' ');
+        ok('没有特性的兵牌不出「特殊单位」空标题', t2.indexOf('特殊单位') < 0, plain.id);
+      }
+    }
+  }
+
   console.log('');
   console.log('通过 ' + pass + ' 项' + (skipped ? ' · 跳过 ' + skipped + ' 项' : '') +
               '，失败 ' + fail + ' 项');
