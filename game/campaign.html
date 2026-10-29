@@ -58,7 +58,7 @@
      <link> 不会——跟 data/levels.js 必须用 <script src> 是同一个原因。
      ?v= 跟着顶栏版本走（tools/check.js 校验），否则改完样式玩家可能还在吃
      GitHub Pages 的十分钟缓存，看到的是一半新一半旧的页面。 -->
-<link rel="stylesheet" href="campaign.css?v=4.16">
+<link rel="stylesheet" href="campaign.css?v=4.17">
 <!-- 版本公告数据与菜单页共用一份（HQ 的「版本公告」页签读它）。
      放在 <head> 里同步加载：页签是玩家点了才渲染的，但真读不到时那一页要能
      说清"文件缺了"，而不是显示一片空白——异步加载失败是静默的。 -->
@@ -76,7 +76,7 @@
       <span class="pill" id="phasePill">我方阶段</span>
       <!-- 全项目唯一的版本标记：tools/export-levels.js 按这个 span 的原样文本抓版本号，
            开始页撤掉之后它挪到了顶栏，标签必须保持 <span id="verTag"> 这个形状 -->
-      <span id="verTag">v4.16</span>
+      <span id="verTag">v4.17</span>
       <!-- 存档异常：只在真的写失败时出现（隐私模式 / 配额满 / 被清理）。
            默认 display:none，别让它平时占位——一排胶囊里突然多一个红字，
            玩家第一反应是"我是不是哪里点坏了"。 -->
@@ -84,6 +84,7 @@
               title="这一局的进度没能写进本机存储（隐私模式或空间不足）。点这里去导出存档。">存档异常</button>
       <button id="btnMenu" class="hqbtn" title="返回菜单页：换关、看进度、导存档">菜单</button>
       <button id="btnHQ" class="hqbtn" title="指挥部：兵种图鉴 / 战术卡 / 副官 / 存档">HQ</button>
+      <button id="btnSet" class="tipsbtn" title="设置：音乐与音效音量">⚙</button>
       <button id="btnTips" class="tipsbtn" title="操作说明">?</button>
     </div>
     <div id="boardWrap">
@@ -112,6 +113,9 @@
       <span><i class="k atk"></i>可攻击</span>
       <span><i class="k mine"></i>布雷 / 架桥</span>
       <span><i class="k obj"></i>要点</span>
+      <!-- 关键要点：金边 + ★。玩家反馈说"两侧高地作为关键点标注不够清晰"，
+           光改格子上的描边还不够——不解释符号，玩家仍然不知道自己该看什么。 -->
+      <span><i class="k ocore"></i><b>★ 关键要点</b>（丢了可能直接判负）</span>
       <span><i class="k cb"></i>我方控制</span>
       <span><i class="k cr"></i>敌方占领</span>
       <span><i class="k cc"></i>争夺中</span>
@@ -174,6 +178,10 @@
     <div class="m-acts">
       <button id="mNext" class="hidden">进入下一关</button>
       <button id="mBtn">重新开始</button>
+      <!-- 返回首页（玩家反馈 v4.17）：打完这一关想换关、看进度、换战术卡，
+           以前只能先"重新开始"或者摸顶栏那个小「菜单」。
+           结算页是玩家停下来的地方，出口就该在这里。 -->
+      <button id="mHome" class="m-ghost">返回首页</button>
     </div>
     <p class="m-note hidden" id="mNextNote"></p>
   </div>
@@ -265,6 +273,40 @@
     </ul>
 
     <button id="btnTipsClose">知道了</button>
+  </div>
+</div>
+
+<!-- 设置：音乐与音效分开调（玩家反馈 v4.17）。
+     以前 FX 里只有 `vol.sfx = 0.65 / vol.bgm = 0.35` 两个常量，
+     玩家在游戏里既关不掉 BGM，也没法把音效压低听炮声以外的提示音。
+     做成顶栏一个齿轮 + 一个面板：三条滑杆分别控音乐、音效、战场底噪，
+     改完立刻生效（正在放的 BGM 与底噪直接改 volume，不等下一曲）。
+     为什么音乐和底噪要分开：底噪是"战场在响"，音乐是"配乐"，
+     想安静打一局的人往往要留前者、关后者。 -->
+<div class="overlay hidden" id="setScreen" role="dialog" aria-modal="true" aria-label="设置">
+  <div class="set-card">
+    <h2>设置</h2>
+    <p class="set-sub">只影响声音，不改变任何规则。设置存在本机，下一局沿用。</p>
+    <div class="set-row">
+      <label for="volBgm">音乐</label>
+      <input id="volBgm" type="range" min="0" max="100" step="5" aria-describedby="volBgmV">
+      <b id="volBgmV">35%</b>
+    </div>
+    <div class="set-row">
+      <label for="volSfx">音效</label>
+      <input id="volSfx" type="range" min="0" max="100" step="5">
+      <b id="volSfxV">65%</b>
+    </div>
+    <div class="set-row">
+      <label for="volAmb">战场底噪</label>
+      <input id="volAmb" type="range" min="0" max="100" step="5">
+      <b id="volAmbV">60%</b>
+    </div>
+    <div class="set-row set-btns">
+      <button id="volMute">全部静音</button>
+      <button id="volReset">恢复默认</button>
+    </div>
+    <button id="setClose" class="set-ok">知道了</button>
   </div>
 </div>
 
@@ -412,7 +454,8 @@ const TYPE = {
     abil: ['可占领要点', '【为了祖国】在本方控制的城市或机场要点内、或与之相邻时，战力 7 → 10，防御 +0.20',
            '离开要地立即失效——基础战力仅 7，出城就是普通预备役', '构筑工事同步兵营'] },
   mob: { name: '摩步营', role: '伴随步兵', am: 6,
-    abil: ['可占领要点，机动 8，跟得上装甲部队', '平原、道路攻击 +0.10', '城镇进攻不吃装甲惩罚'] },
+    abil: ['可占领要点，机动 8', '**公路是它的捷径**：脱敌行军时公路上每格只算 0.7 点，8 点机动能跑 11 格——中坦同样脱敌也只跑 10 格',
+           '平原、道路攻击 +0.10', '城镇进攻不吃装甲惩罚'] },
   mech: { name: '装步营', role: '装甲伴随', am: 6,
     abil: ['可占领要点，机动 8', '城镇进攻不吃装甲惩罚', '被反坦克连攻击时防御 -0.20'] },
   /* 海军步兵营：港口守备的精锐。不是"海军"，是**在海军基地里服役的步兵**——
@@ -429,7 +472,8 @@ const TYPE = {
      轻坦拿机动换火力与装甲，重坦反过来。没有哪一型是"升级版"，
      用错场合都会赔本，这也是玩家要学的东西。 */
   larm: { name: '轻型坦克营', role: '侦察 · 追击 · 撕缺口', am: 6, st: 10, mv: 12, rg: 1,
-    abil: ['火力与装甲都最弱，但机动 12——全战场最快的地面单位',
+    abil: ['火力与装甲都最弱，但机动 12——越野时全战场最快的地面单位',
+           '**公路不加成也不减速**：12 点机动在公路上跑满 12 格——它是全战场最快的车，不是主战坦克',
            '平原、道路攻击 +0.10（加成最薄）',
            '★ 装甲突击：机动后仍可正常射击',
            '打不过任何一型坦克：对中坦 −0.10，对重坦 −0.15',
@@ -438,6 +482,7 @@ const TYPE = {
            '正确定位：绕后打炮兵、辎重、指挥部，抢要点，不顶正面'] },
   marm: { name: '中型坦克营', role: '突破与追击', am: 6, st: 12, mv: 10, rg: 1,
     abil: ['三型里唯一的"什么都能干"：火力 / 机动 / 装甲均衡',
+           '**公路上跑不过摩步**：10 点机动跑 10 格，而摩步列队能跑 11 格——赶路这件事坦克不占优',
            '平原、道路攻击 +0.15', '城镇进攻 −0.10（巷战不利）',
            '★ 装甲突击：机动后仍可正常射击，不受行进间射击惩罚',
            '比值达 3:1 时可击退守军一格',
@@ -445,6 +490,7 @@ const TYPE = {
            '被反坦克火力打时 +0.80 修正——反坦克炮的主要猎物'] },
   harm: { name: '重型坦克营', role: '正面破障 · 扛线', am: 6, st: 15, mv: 7, rg: 1,
     abil: ['火力 15、装甲最厚，但机动只有 7——它自己走不到该去的地方',
+           '**公路上跑不过摩步**：7 点机动只跑 7 格，摩步列队能跑 11 格——它自己走不到该去的地方',
            '平原、道路攻击 +0.20（三型最高）',
            '城镇进攻 −0.15（街道太窄，重坦最吃亏）',
            '**行进间射击不准**：本回合机动过再射击 −0.10',
@@ -628,6 +674,35 @@ const TYPE = {
     abil: ['半径 2 格内本群部队组织度 +8/回合', '被摧毁时本群组织度 -20', '战力极低'] },
   hkc: { name: '军部', role: '指挥节点', am: 0,
     abil: ['半径 3 格内全军部队组织度 +10/回合', '被摧毁时全军组织度 -25'] }
+};
+
+/* ───────────── 装甲步兵 / 摩托化步兵的机制预留（v4.18 落地） ─────────────
+   玩家反馈（v4.17）：「下一版本为装甲步兵和摩托化步兵预留可用机制」。
+   这一版**不实装效果**，只把形状定下来，免得 v4.18 又要动 TYPE 的结构。
+
+   为什么这两类值得单独做：现在 `mech`（装步）与 `mob`（摩步）的差别只有
+   一句"城镇进攻不吃装甲惩罚"和 0 点机动差（都是 8）。它们在图鉴里是两类，
+   在战场上是同一支枪——这正是 v4.16 之前三型坦克的毛病。
+   下面两条的设计方向已经按"能不能用一句话说清、在战报上看得见"筛过：
+
+     mech 装步 · 跟车突击：与友军坦克**同格或相邻**时，
+       进攻城市/林地不吃"装甲受限"，且防御 +0.10（车体掩护下车步兵）。
+       ——它奖励"坦克与装步一起上"，这是装甲战术的基本动作。
+
+     mob  摩步 · 下车展开：整回合**不移动**时，射程 +0（不变）但防御 +0.15、
+       且被视为"已构筑工事"（可被炮火摧毁）。移动之后这一回合失去该加成。
+       ——它奖励"提前占位、等着打"，与坦克的"一路冲"形成两种节奏。
+
+   三条落地时必须先解决的事（写在这里，因为改代码的人不会去翻设计稿）：
+     ① 两条都要新的可见状态：`u.dug`（下车）与格子级的"跟随标记"。
+        `dug` 必须进 `validateSave` 的可选字段校验，否则坏档能塞进任意值。
+     ② 防御加成不能直接写进 `previewAttack` 的 `defMod` 一处——
+        单位面板显示的修正值也得读同一个来源，两处各算一遍必然对不上。
+     ③ 图鉴与规则书同步（`MECH` 加一组、`docs/04` 加一节），
+        否则手册会变成"说了等于没说"。 */
+const RESERVED_MECH = {
+  mech: { key: 'follow', name: '跟车突击', needs: ['u.dug 二级状态'] },
+  mob:  { key: 'digIn',  name: '下车展开', needs: ['u.dug', '工事等价判定'] }
 };
 
 /* ───────────────────── 兵种介绍（图鉴用） ─────────────────────
@@ -1836,6 +1911,21 @@ const LEVELS = [
         { kind: 'mod', side: 'blue', def: -0.04, label: '指挥中断 · 独立第 1 旅防御 -4%',
           filter: { corps: 'B2' } }
       ]
+    },
+    /* 回合触发：敌第 8 摩步旅预备队投入（v4.17 补的漏）
+       8-1 / 8-2 这两支兵牌从做出来起就是 `wave:0` + `group:'RED_RESERVE'`，
+       而**整个关卡没有任何事件引用 RED_RESERVE**——蓝方的 BLUE_RESERVE 有，
+       红方没有。`wave:0` 不进初始部署（只有 wave===1 才铺），事件又不来捞它们，
+       于是这两支营整关都不存在：编制表上写着"敌第 8 摩步旅"，
+       战场上只来了半个旅的番号、一个营的兵。
+       玩家反馈的"敌方进攻意愿低"，在第三关有一半是这个原因，不是 AI 的脾气。 */
+    {
+      id: 'red_reserve', desc: '敌第 8 摩步旅预备队投入',
+      when: { kind: 'turn', turn: 5 },
+      effects: [
+        { kind: 'log', text: '敌第 8 摩步旅预备队沿公路南下，投入青溪镇方向。', cls: 'r' },
+        { kind: 'spawn', group: 'RED_RESERVE' }
+      ]
     }
   ],
 
@@ -1984,8 +2074,14 @@ const LEVELS = [
     /* 事件预备队 · wave:0 不会自动投入，只由事件触发 */
     { id:'B8A', side:'blue', abbr:'3军-1', name:'第 3 坦克军先遣支队坦克营', type:'marm', str:12, mov:10, rng:1, r:13, c:9,  corps:'B8', wave:0, group:'BLUE_RESERVE' },
     { id:'B8B', side:'blue', abbr:'3军-2', name:'第 3 坦克军先遣支队摩步营', type:'mob', str:9,  mov:8,  rng:1, r:13, c:10, corps:'B8', wave:0, group:'BLUE_RESERVE' },
+    /* 敌第 8 摩步旅（预备队）。一个摩步旅按编制是"旅部 + 三个营"，
+       原来只有两个营、连旅部都没有——编制表上写着"旅"，战场上是个缺编支队，
+       而且这两支营又是 wave:0 没人捞（见上面 red_reserve 事件）。
+       v4.17 一并补齐：旅部 + 三个营，随同一事件投入。 */
+    { id:'R8H', side:'red',  abbr:'8H',    name:'敌第 8 摩步旅旅部',         type:'hqb', str:2,   mov:8,  rng:0, r:0,  c:6,  corps:'R8', wave:0, group:'RED_RESERVE' },
     { id:'R8A', side:'red',  abbr:'8-1',   name:'敌第 8 摩步旅第 1 营',       type:'mob', str:10,  mov:8,  rng:1, r:0,  c:7,  corps:'R8', wave:0, group:'RED_RESERVE' },
-    { id:'R8B', side:'red',  abbr:'8-2',   name:'敌第 8 摩步旅第 2 营',       type:'mob', str:10,  mov:8,  rng:1, r:0,  c:8,  corps:'R8', wave:0, group:'RED_RESERVE' }
+    { id:'R8B', side:'red',  abbr:'8-2',   name:'敌第 8 摩步旅第 2 营',       type:'mob', str:10,  mov:8,  rng:1, r:0,  c:8,  corps:'R8', wave:0, group:'RED_RESERVE' },
+    { id:'R8C', side:'red',  abbr:'8-3',   name:'敌第 8 摩步旅第 3 营',       type:'mob', str:10,  mov:8,  rng:1, r:1,  c:7,  corps:'R8', wave:0, group:'RED_RESERVE' }
   ]
 },
 {
@@ -2631,6 +2727,10 @@ const LEVELS = [
     { id:'R1T', side:'red', abbr:'47反', name:'敌摩步第 47 旅反坦克连',        type:'at',  str:3, mov:5, rng:1, r:3, c:10, corps:'R1', wave:1 },
     { id:'R1D', side:'red', abbr:'47-4', name:'敌摩步第 47 旅第 4 营',          type:'mob', str:9, mov:8, rng:1, r:1, c:10, corps:'R1', wave:1 },
     { id:'R1E', side:'red', abbr:'47工', name:'敌摩步第 47 旅工兵连',          type:'engc',str:2, mov:6, rng:1, r:1, c:9, corps:'R1', wave:1 },
+    /* 旅辎重队（v4.17 反馈）。C4 是二十天的围攻，红方原本一条补给线都没有——
+       前排打残了就永远是残的，玩家看到的"敌人越打越软"其实是这个原因。
+       放在 47 旅后方，够得着 47-1/47-2 与 63 炮兵营，但离蓝方阵地最远。 */
+    { id:'R1S', side:'red', abbr:'47辎', name:'敌摩步第 47 旅辎重队',          type:'sup', str:3, mov:8, rng:0, r:3, c:7, corps:'R1', wave:1 },
     /* 旅属侦察连。摩步旅本来就有这个编制，但 C4 之前一支都没有——那时它只是
        "编制表上缺一格"；现在它决定红方空军能不能炸我方指挥部（见 hqAirSpotOk）。
        放在第一波、位置偏前：它得活着摸到我方师部 2 格内，飞机才有目标可打。
@@ -3345,7 +3445,7 @@ const LEVELS = [
             { t: '防线上打过仗的只有第 102 步兵师残部与第 204 装甲旅的一个中坦营。' }
           ],
           nums: [
-            { k: '兵牌', v: '14' },
+            { k: '兵牌', v: '18' },
             { k: '回合', v: '14' },
             { k: '新兵训练', v: '6 周' }
           ]
@@ -3401,6 +3501,15 @@ const LEVELS = [
     { id:'E1D', side:'blue', abbr:'902-2', name:'第 902 团第 2 营',                type:'inf',  str:7, mov:6, rng:1, r:6,  c:15, corps:'E1', wave:1 },
     { id:'E1G', side:'blue', abbr:'901-3', name:'第 901 团第 3 营',                type:'inf',  str:7, mov:6, rng:1, r:7,  c:4,  corps:'E1', wave:1 },
     { id:'E1E', side:'blue', abbr:'903-1', name:'第 903 团第 1 营',                type:'inf',  str:7, mov:6, rng:1, r:7,  c:11, corps:'E1', wave:1 },
+    /* 第 903 团第 2 营残部（v4.17 平衡补丁）。
+       敌方 AI 学会护炮、辎重铺开补给之后，岚京外围的蓝方达成率从 48% 掉到 33%
+       （100 局、种子 1234），守线的一方少了一支能堵在缺口上的预备队。
+       这一支补进来的**只有 5 点战力**，位置在第 6 行第 11 列——正好在
+       「北郊防线」东段（6,13–15）与中段之间，一回合能补到任一处。
+       别看它小：一个 7 点战力的整编营补进同一格，达成率会直接跳到 72%，
+       再补一个到 82%。这一关的胜负对"缺口上有没有人"是**台阶式**的，
+       不是线性加减，所以补的时候一次只敢加一个残部，加完必须重跑 100 局。 */
+    { id:'E1L', side:'blue', abbr:'903-2', name:'第 903 团第 2 营残部',            type:'inf',  str:5, mov:6, rng:1, r:6,  c:11, corps:'E1', wave:1 },
     { id:'E1F', side:'blue', abbr:'301炮', name:'新编第 301 预备役步兵师炮兵营',    type:'art',  str:4, mov:6, rng:5, r:8,  c:7,  corps:'E1', wave:1, packed:1 },
 
     /* ── 我方 · 第 102 步兵师残部（防线中段的硬骨头） ── */
@@ -3408,6 +3517,13 @@ const LEVELS = [
     { id:'E2A', side:'blue', abbr:'304-1', name:'第 304 步兵团第 1 营残部',        type:'inf', str:5, mov:6, rng:1, r:7, c:9,  corps:'E2', wave:1 },
     { id:'E2T', side:'blue', abbr:'102反', name:'第 102 步兵师反坦克连',          type:'at',  str:3, mov:5, rng:1, r:8, c:12, corps:'E2', wave:1 },
     { id:'E2E', side:'blue', abbr:'102工', name:'第 102 步兵师工兵连',            type:'engc',str:2, mov:6, rng:1, r:8, c:8,  corps:'E2', wave:1 },
+    /* 师属高炮连（v4.17 玩家反馈补的）。
+       反馈原文是"未配置防空部队应对敌人空军单位"——红方这一关有一架轰炸机，
+       而蓝方十支部队里没有一支能打天上的东西，玩家只能看着它每回合砸指挥部。
+       `aac` 的防空半径只有 2 格，所以位置比数量重要：放在 (8,9) 这个路口，
+       正好同时罩住 301 炮兵营（半径 2 的边上）与 102 师师部（1 格），
+       两个最值钱的目标都在伞下。往前推它挡不住轰炸机，往后退伞就空了。 */
+    { id:'E2G', side:'blue', abbr:'102高', name:'第 102 步兵师师属高炮连',        type:'aac', str:3, mov:6, rng:2, r:8, c:9,  corps:'E2', wave:1 },
 
     /* ── 我方 · 首都军校生旅（特殊单位：自带组织度恢复） ──
        首都陆军大学与首都炮兵指挥学院各抽了一批学员编成的旅。
@@ -3423,6 +3539,11 @@ const LEVELS = [
 
     /* ── 敌方 · 第一波 · 第 63 步兵师 ── */
     { id:'R1H', side:'red', abbr:'63H',  name:'敌第 63 步兵师师部',              type:'hqd', str:2, mov:8, rng:0, r:1, c:8,  corps:'R1', wave:1 },
+    /* 师辎重队（v4.17 反馈"适当为敌人增加补给部队"）。
+       它给半径 4 内的红方部队升一级补给，也就是把 R1 这几个营从「紧张」
+       顶到「充足」——同一批兵，组织度恢复更快、战力系数高 0.18。
+       位置刻意放在 63 炮兵营后面 3 格：既要罩住炮兵，又不能在第一天就被摸掉。 */
+    { id:'R1S', side:'red', abbr:'63辎', name:'敌第 63 步兵师辎重队',            type:'sup', str:3, mov:8, rng:0, r:1, c:10, corps:'R1', wave:1 },
     { id:'R1A', side:'red', abbr:'63-1', name:'敌第 187 步兵团第 1 营',          type:'inf', str:8, mov:6, rng:1, r:2, c:6,  corps:'R1', wave:1 },
     { id:'R1B', side:'red', abbr:'63-2', name:'敌第 187 步兵团第 2 营',          type:'inf', str:8, mov:6, rng:1, r:2, c:7,  corps:'R1', wave:1 },
     { id:'R1C', side:'red', abbr:'63-3', name:'敌第 188 步兵团第 1 营',          type:'inf', str:8, mov:6, rng:1, r:2, c:9,  corps:'R1', wave:1 },
@@ -4623,6 +4744,36 @@ function objAt(r, c) {
   }
   return _objAt[kk(r, c)] || null;
 }
+
+/* 把一个要点的格子切成若干"连通簇"。
+   为什么要按簇：第 6 关「北郊防线」是分成两段的高地（第 6 行 2–4 列与 13–15 列），
+   两者算同一个要点，但在地图上是两块分开的地。标签取平均列会落在中间的空地上，
+   玩家只能看到一个飘在没人处的标签（v4.17 反馈第一条就是它）。
+   连通判据用 hexDist === 1：六角格的相邻。
+   注意 cells 里可能有重复坐标（编辑器手写时很容易重复），
+   `seen` 同时兼了去重，否则会打出两个一模一样的标签。 */
+function objClusters(o) {
+  const cells = (o && o.cells) || [];
+  const seen = {};
+  const out = [];
+  for (const c of cells) {
+    if (seen[kk(c[0], c[1])]) continue;
+    const grp = [];
+    const stack = [c];
+    seen[kk(c[0], c[1])] = 1;
+    while (stack.length) {
+      const cur = stack.pop();
+      grp.push(cur);
+      for (const cell of cells) {
+        const key = kk(cell[0], cell[1]);
+        if (seen[key]) continue;
+        if (hexDist(cur, cell) === 1) { seen[key] = 1; stack.push(cell); }
+      }
+    }
+    out.push(grp);
+  }
+  return out;
+}
 function alive(side) { return state.units.filter(u => u.side === side); }
 function uid(id) { return state.units.find(u => u.id === id) || null; }
 const ARTY_TYPES = ['art', 'hr', 'sha', 'spa'];
@@ -5060,6 +5211,30 @@ function supplyOf(u, fields) {
   return res;
 }
 
+/* ───────────────────────── 弹药补给预测 ─────────────────────────
+   玩家反馈（v4.17）：炮兵面板只有一个"4 / 8"，看不出下一回合会不会补。
+   补弹规则写在 endTurn 的循环里（炮兵静止且补给不是断绝 → +1），
+   但那条规则有四个前置，玩家在面板上完全看不到，只能记。
+   这里把**同一条规则**再算一遍，只用于显示——所以两边必须一起改：
+   改 endTurn 的补弹条件时，这里不跟着改，面板就会撒谎。
+   （所以判断写在同一个函数里，endTurn 也调它，见 endTurn 的补弹段。） */
+function ammoTick(u) {
+  if (u.ammo === undefined) return null;
+  const s = supplyOf(u);
+  if (u.ammo >= u.maxAmmo) return { ok: false, label: '已满', why: '满弹' };
+  if (isArty(u)) {
+    if (s.label === '断绝') return { ok: false, label: '不补', why: '补给断绝' };
+    if (u.moved) return { ok: false, label: '不补', why: '本回合已移动' };
+    return { ok: true, label: '+1', why: '静止且补给' + s.label };
+  }
+  if (isNaval(u)) {
+    if (s.label !== '充足') return { ok: false, label: '不补', why: '不在码头补给圈' };
+    if (u.moved) return { ok: false, label: '不补', why: '本回合已移动' };
+    return { ok: true, label: '+1', why: '停泊且补给充足' };
+  }
+  return null;
+}
+
 /* ───────────────────────── 战力 ───────────────────────── */
 function hqRadius(t) { return (t === 'hqd' || t === 'hkc') ? 3 : 2; }
 function hqAura(t) { return (t === 'hqd' || t === 'hkc') ? 10 : 8; }
@@ -5218,6 +5393,40 @@ function minRange(u) {
      地面 —— 老规则，cost >= 99 就是过不去（水域对地面天然是 99）。
    顺序很要紧：先判领域再判地形。以前是先看 `cost >= 99` 直接 Infinity，
    于是河流对航空也成了死路——飞机要绕河飞，那种 bug 一眼看不出来。 */
+/* 轮式部队。公路对它们是捷径，对履带不是（v4.17 玩家反馈：
+   "理论上坦克移动力在公路等适合机动路面应弱于摩托化和卡车"）。
+
+   两条纪律，都是 A/B 打出来的：
+
+   ① 加成给轮式，不给履带记惩罚。
+      履带公路按 1.5～2 点算时，C2 突围关（青溪渡口）的蓝方达成率从 45% 掉到 **0%**——
+      那一关红方的追击主力就是五个摩步营，坦克的减速换不来任何东西，
+      但红方整体推进晚到，C1/C2B/C3 三个防守关的蓝方达成率一起窜到 90%～100%。
+      轮式加成能达到同一个观感（公路上跑不过摩步与卡车），代价小得多。
+
+   ② 加成只在**脱离敌情**时生效（本版核心）。
+      只把 0.7 挂上去（不看敌情）时，C2 依然 0%：红方五个摩步营追得更快，
+      逃逸纵队被逐个咬死；而 C1/C2B/C3 因为蓝方辎重、炮兵、指挥部跑得快，
+      守方反而过强。两边一起提速，等于把十关重新调一遍。
+      现在公路捷径=**行军速度**，单位身边一格有敌人就退回正常消耗：
+        · 追击与突围这种贴脸局，双方都拿不到加成 → 时间表不动
+        · 战役开局的接敌行军、后方调兵 → 摩步与卡车明显比坦克快
+      这也正是现实里的区别：行军队列可以在公路上排队跑，一接触就得展开。
+
+   数值：公路对轮式 0.7 点/格，只在脱敌时生效。
+       摩步 8 点 → 公路 11 格；中坦 10 点 → 10 格；轻坦 12 点 → 12 格；重坦 7 点 → 7 格。
+   越野（平原 2 点）反过来：摩步 4 格 / 中坦 5 格 / 轻坦 6 格。两条路各有各的快：
+   短兵相接看谁越野快，千里行军看谁在公路上排得开。
+
+   试过但没留下的一条：给履带记公路惩罚（1.2 点/格，"坦克纵队开不快"）。
+   那样连轻坦也慢过摩步，观感最完整——但 C3 岚口要地争夺战的蓝方达成率
+   从 47.5% 掉到 32.5%（同一批 40 局、同一个种子）。红方三个装甲旅的接敌行军
+   全靠那几条公路，20% 的减速就够让它晚到一整轮，而"晚到一轮"在这个关卡里
+   等于放掉一个要点。这一条要落地，得先把 C3 的兵力重新配平，不是加一行代码的事。
+   现在的折中：**轻坦是唯一的例外**（12 点机动，公路上仍跑满 12 格），
+   中坦、重坦在公路上都跑不过摩步与卡车。 */
+const WHEEL_TYPES = ['mob', 'mech', 'hqd', 'hqb', 'hkc', 'hkg', 'sup', 'engc', 'art', 'hr', 'at', 'td'];
+
 function moveCost(u, ch) {
   const t = TERRAIN[ch] || TERRAIN['.'];
   const dm = domainOf(u);
@@ -5226,8 +5435,18 @@ function moveCost(u, ch) {
     if (!(NAV[dm].cells || []).includes(ch)) return Infinity;
     return t.nav || 2;
   }
-  return t.cost >= 99 ? Infinity : t.cost;
+  if (t.cost >= 99) return Infinity;
+  /* 公路捷径只对轮式、且只在脱离敌情时成立（判据与理由见上面 WHEEL_TYPES 注释）。
+     `inEnemyZOC(r, c, side)` 的签名是三个参数——传数组会静默返回 false，
+     那样等于把这条规则整个关掉，而且不报错。
+     `u.pos` 必须先判存在：校验器（tools/check.js）拿的是 `{type, dm}` 这种
+     只够判断领域的最小对象，直接取 `u.pos[0]` 会让整条校验链在部署检查那一步崩掉，
+     而崩的位置看着像"检查脚本坏了"，其实是规则函数对入参要求变高了。 */
+  if (ch === '#' && WHEEL_TYPES.includes(u.type) &&
+      !(u.pos && inEnemyZOC(u.pos[0], u.pos[1], u.side))) return 0.7;
+  return t.cost;
 }
+
 
 /* 抵达范围。
    返回 { d, stop }：
@@ -7511,11 +7730,11 @@ function settlePhase() {
        离开码头 3 格补给掉到「紧张」，补弹立刻断，走出 6 格就断绝。
        于是玩家的选择变成"舰队靠港持续支援"还是"舰队出港追歼"，
        而不是"今晚打不打得动"这种算术题。 */
-    if (isArty(u) && !u.moved && s.label !== '断绝') {
-      u.ammo = Math.min(u.maxAmmo, u.ammo + 1);
-    } else if (isNaval(u) && !u.moved && s.label === '充足') {
-      u.ammo = Math.min(u.maxAmmo, u.ammo + 1);
-    }
+    /* 补弹条件收进 ammoTick()，因为单位面板要用**同一套判断**告诉玩家
+       "下回合会不会补"。写两遍的后果很具体：面板说 +1、回合末没补，
+       玩家会以为是自己哪里点错了。 */
+    const at = ammoTick(u);
+    if (at && at.ok) u.ammo = Math.min(u.maxAmmo, u.ammo + 1);
     /* 工事：整回合静止的步兵 / 守备营自动加固 */
     if ((u.type === 'inf' || u.type === 'gdn') && !u.moved && !u.fired && u.fortify < 0.30) {
       u.fortify = Math.min(0.30, u.fortify + 0.15);
@@ -7594,6 +7813,39 @@ function settlePhase() {
    不管哪种，**蓝方全灭一律判负**——这条在 checkEnd 里，先于任何胜利判定，
    否则"还剩 1 支部队没走到撤离区，但敌军全死了"会变成僵局。 */
 function winSpec() { return (LEVEL.win && LEVEL.win.kind) ? LEVEL.win : { kind: 'score' }; }
+
+/* ─────────────────── 超额达成条件（给选关界面用） ───────────────────
+   玩家反馈（v4.17）：选关界面只在**打完之后**显示"超额达成"，
+   打之前完全看不出这一关有没有更严的目标，于是没人会去追。
+   这里返回 { ok, text }，与 judgeFinal / reachResult **同源**：
+     · 计分类：得分 ≥ perfectScore
+     · 坚守类：初始部队一个不损失（wave 1 全在）+ 必守要点还在
+     · 突围类：撤出后剩余+撤走的战力 ≥ 初始的 70%
+   为什么由引擎算、导出给菜单页：菜单页自己复刻一遍判定必然走样，
+   而这个项目已经为"两份实现"付过好几次学费（`accessPrereq` 那次）。
+   传 lv 是为了导出脚本能在不切关的情况下算任意一关；
+   不传就用当前 LEVEL（方便断言与面板直接用）。 */
+function perfectHint(lv) {
+  const L = lv || LEVEL;
+  if (!L || !L.ready) return { ok: false, text: '尚未编成' };
+  const w = (L.win && L.win.kind) ? L.win : { kind: 'score' };
+  if (w.kind === 'reach') {
+    return { ok: true, text: '撤出后保留战力不低于开局的 70%' };
+  }
+  if (w.kind === 'survive') {
+    const ids = (w.keep || []).map(id => {
+      const o = (L.objectives || []).find(x => x.id === id);
+      return o ? o.name : id;
+    });
+    return { ok: true, text: '全员无损失' + (ids.length ? '，且「' + ids.join('」「') + '」不失守' : '') };
+  }
+  const ps = L.perfectScore;
+  const ws = L.winScore;
+  if (typeof ps !== 'number' || typeof ws !== 'number' || ps <= ws) {
+    return { ok: false, text: '本关没有更高的分数线' };
+  }
+  return { ok: true, text: '得分 ' + ps + ' 以上（达成线 ' + ws + '）' };
+}
 
 /* 撤离区：cells 明写，或者 zone 给矩形（含边界） */
 function inEscapeZone(pos) {
@@ -7859,6 +8111,40 @@ function redGoal(u) {
   return best;
 }
 
+/* 关于"进攻意愿低"（v4.17 反馈第 2 条）——试过三种改法，全部 A/B 记录在案：
+
+   ① 把开火门槛从 0.85 / 0.90 降到 0.80：C3 的蓝方达成率 50% → 80%。
+      红方在 0.8 上下硬换血，把自己换没了。观感更凶，实质更弱。
+   ② "没有要抢的要点时向最近敌军推进"：C2 突围关 45% → **0%**。
+      红方离开封锁线去追人，逃生部队被逐个咬死，整关不可通。
+   ③ 护卫部队回身救炮兵（4 格内全员回防）：C3 50% → 97%。
+      主力被自己的炮拽回去，要点没人占。
+
+   三次都指向同一件事：**这十关的平衡建立在"红方按既定目标稳扎稳打"上**，
+   任何"更主动"的改法都会打破它，而且破的方向并不直观。
+   所以这一条改成**不碰目标函数**：只做两件不改变推进路线的事——
+     · 炮兵提前一回合躲（见下面的 mind < 3）
+     · 贴身的护卫打掉威胁（见 guard，只改开火优先级，不改走位）
+   真要"敌人更凶"，正确的手段是加编制（辎重队、预备队），不是改 AI 的脾气。 */
+/* 「我方哪个值钱的东西正被人贴脸」（v4.17）。
+   返回 { mate, foe, d }：最近的那一对。只统计**敌方地面/水面**贴到 3 格内的；
+   飞机不算——防空不是步兵靠过去能解决的问题，让战斗部队追着飞机跑
+   会把整条战线拽散，这一条交给防空单位（它们在上面另有一条分支）。 */
+function aiGuardSituation(u) {
+  const mate = alive(u.side).filter(m => m !== u && (isHQ(m) || isArty(m) || m.type === 'sup'));
+  let worst = null;
+  for (const m of mate) {
+    let nd = 99, near = null;
+    for (const f of alive(other(u.side))) {
+      if (isAir(f)) continue;
+      const d = hexDist(m.pos, f.pos);
+      if (d < nd) { nd = d; near = f; }
+    }
+    if (near && nd <= 3 && (!worst || nd < worst.d)) worst = { mate: m, foe: near, d: nd };
+  }
+  return worst;
+}
+
 async function runAI() {
   const acts = alive('red').slice();
   for (const u of acts) {
@@ -7989,7 +8275,12 @@ async function runAI() {
       const tg = targetsFor(u, state.fields);
       if (tg.length) {
         tg.sort((a, b) => scoreTarget(u, b, state.fields) - scoreTarget(u, a, state.fields));
-        const best = tg[0];
+        let best = tg[0];
+        /* 贴身护卫（v4.17 第 2 条）：有人摸到自己炮兵/指挥部一格内，
+           这一炮先打他。**只改打谁，不改往哪走**——
+           走位一改就把主力从要点上拽回去，C3 试过 50% → 97%。 */
+        const guard = aiGuardSituation(u);
+        if (guard && hexDist(u.pos, guard.mate.pos) <= 1 && tg.indexOf(guard.foe) >= 0) best = guard.foe;
         const pv = previewAttack(u, best, state.fields);
         if (pv.ratio >= 0.85 || isArty(u)) {
           doAttack(u, best);
@@ -8002,10 +8293,15 @@ async function runAI() {
     /* 注：红方没有工兵，也不挖堑壕——进攻方在本关是"时间换空间"的一方，
        一旦让它们就地加固，攻方反而变成钉子户，整体节奏会塌掉。 */
 
-    /* 辎重：跟随主力 */
+    /* 辎重：跟上主力，但别叠在一处（v4.17 第 2 条新增）。
+       补给场半径 2，两辆辎挤在同一格附近等于白扔一个补给场；
+       4 格内已经有 2 支友军，说明这一带有人管了，继续往前挪。 */
     if (u.type === 'sup') {
-      const goal = redGoal(u);
-      if (goal) stepToward(u, goal);
+      const mates = alive(u.side).filter(m => m !== u && hexDist(u.pos, m.pos) <= 4).length;
+      if (mates < 2) {
+        const goal = redGoal(u);
+        if (goal) stepToward(u, goal);
+      }
       await sleep(120);
       continue;
     }
@@ -8056,7 +8352,11 @@ async function runAI() {
           let mind = Infinity;
           for (const f of alive('blue')) mind = Math.min(mind, hexDist(p, f.pos));
           if (mind < 2) s -= isDirectArty(u) ? 25 : 40;   // 直瞄炮可以稍微靠前，重炮绝不贴脸
-          else if (mind <= 3) s += 1.5;
+          /* v4.17：提前一回合起身。原来的分界只有"2 格内"和"3 格内加分"，
+             敌人在 2 格时它才想起要跑，这一回合已经来不及——
+             实测反馈说的"炮兵不躲"其实是"躲得晚半拍"。 */
+          else if (mind < 3) s -= isDirectArty(u) ? 10 : 18;
+          else if (mind <= 4) s += 1.5;
         }
         if (s > bs) { bs = s; best = p; }
       }
@@ -8067,8 +8367,11 @@ async function runAI() {
           const tg = targetsFor(u, state.fields);
           if (tg.length) {
             tg.sort((a, b) => scoreTarget(u, b, state.fields) - scoreTarget(u, a, state.fields));
-            const pv = previewAttack(u, tg[0], state.fields);
-            if (pv.ratio >= 0.9) { doAttack(u, tg[0]); await sleep(220); }
+            let bestT = tg[0];
+            const guard2 = aiGuardSituation(u);
+            if (guard2 && hexDist(u.pos, guard2.mate.pos) <= 1 && tg.indexOf(guard2.foe) >= 0) bestT = guard2.foe;
+            const pv = previewAttack(u, bestT, state.fields);
+            if (pv.ratio >= 0.9) { doAttack(u, bestT); await sleep(220); }
           }
         }
       }
@@ -8310,6 +8613,12 @@ function renderBoard() {
 
       /* 堆叠渲染：一格两支时上下错开、整体缩小，栈顶在上（z-index 高） */
       let inner = '';
+      /* 关键要点：给格子本体套一圈金边。
+         为什么不用 ::before/::after——那两个已经被"要点染色"和
+         "可移动/可攻击/工事描边"占着，任何一方再抢一次都会悄悄盖掉另一方
+         （CSS 层叠不报错，只是少了东西）。这里用一个真实元素，互不干涉。
+         只有 core 才描边：每关的非核心要点有 2–4 个，全描边等于没描。 */
+      if (obj && obj.core) inner += '<i class="ocore" aria-hidden="true"></i>';
       /* 兵牌错位只在**同一层**内做：一格两支地面部队要上下错开才看得见，
          但头顶那架飞机不该被挤到第三个位置上去——它另有"悬空"的视觉处理。
          同理，堆叠角标的数字只数地表部队，飞机不占那个名额。 */
@@ -8368,19 +8677,31 @@ function renderBoard() {
     }
   }
 
-  /* 要点文字标注 */
+  /* 要点文字标注：**按簇打标签，每簇一个**。
+     旧写法把所有格子取"最上一行的平均列"，于是像第 6 关「北郊防线」这种
+     分成两段的高地（第 6 行 2–4 列 与 13–15 列）会算出中间的空地，
+     标签正好落在两段之间——玩家看到的是"一个标签飘在没人的地方"，
+     完全读不出"这两处高地是同一个要点、都要守"。这是 v4.17 玩家反馈的第一条。
+     簇用相邻（hexDist === 1）连通来切：同一段连续的高地是一个簇，
+     隔开的两段各算一个，各打一个标签。 */
+  const keepIds = winSpec().keep || [];
   for (const o of LEVEL.objectives) {
-    const cells = o.cells;
-    let minR = 99;
-    for (const cell of cells) if (cell[0] < minR) minR = cell[0];
-    const rowCells = cells.filter(c => c[0] === minR);
-    const cc = Math.round(rowCells.reduce((s, c) => s + c[1], 0) / rowCells.length);
-    const p = hexToPixel(minR, cc);
-    const cs = ctrlState(o);
-    const tone = 'oLabel' + (o.core ? ' core' : '') +
-      (cs === 'blue' ? ' b' : cs === 'red' ? ' r' : cs === 'contested' ? ' c' : '');
-    html += '<div class="' + tone + '" style="left:' + (p.x + HEX_W / 2) + 'px;top:' +
-            (p.y + 5) + 'px">' + o.name + ' ' + o.vp + '</div>';
+    for (const grp of objClusters(o)) {
+      let minR = 99;
+      for (const cell of grp) if (cell[0] < minR) minR = cell[0];
+      const rowCells = grp.filter(c => c[0] === minR);
+      const cc = Math.round(rowCells.reduce((s, c) => s + c[1], 0) / rowCells.length);
+      const p = hexToPixel(minR, cc);
+      const cs = ctrlState(o);
+      const need = keepIds.indexOf(o.id) >= 0;
+      const tone = 'oLabel' + (o.core ? ' core' : '') + (need ? ' keep' : '') +
+        (cs === 'blue' ? ' b' : cs === 'red' ? ' r' : cs === 'contested' ? ' c' : '');
+      /* 必守要点是"丢了就判负"的那种，必须和普通要点在图上分得开。
+         文字里带 ★ 是因为颜色在很多人的屏幕上靠不住（也照顾色弱）。 */
+      const txt = (o.core ? '★ ' : '') + o.name + ' ' + o.vp + (need ? ' · 必守' : '');
+      html += '<div class="' + tone + '" style="left:' + (p.x + HEX_W / 2) + 'px;top:' +
+              (p.y + 5) + 'px">' + txt + '</div>';
+    }
   }
 
   /* 撤离区标注：贴在最上一行的中点。不标的话玩家只能从格子的淡绿色猜 */
@@ -9056,8 +9377,21 @@ function renderUnitBox() {
     : (isArty(u) ? '最小 ' + minRange(u) + ' / 最大 ' + attackRange(u) : String(attackRange(u)));
   h += '<div class="kv"><span>射程</span><b>' + rngTxt +
        (isDirectArty(u) ? ' <span class="ok">（直瞄）</span>' : '') + '</b></div>';
-  /* 弹药同理：不止炮兵有。飞机有架次、军舰有炮弹，打完了都哑火。 */
-  if (u.ammo !== undefined) h += '<div class="kv"><span>弹药</span><b class="' + (u.ammo > 0 ? 'ok' : 'bad') + '">' + u.ammo + ' / ' + u.maxAmmo + '</b></div>';
+  /* 弹药同理：不止炮兵有。飞机有架次、军舰有炮弹，打完了都哑火。
+     第二段是"下回合补不补"——玩家反馈（v4.17）里最实在的一条：
+     面板只给一个 4 / 8，补弹的四个前置条件全看不见，只能靠记。
+     这里显示的不是估算，是 ammoTick() 与回合末补弹**同一个函数**的结果。 */
+  if (u.ammo !== undefined) {
+    const at = ammoTick(u);
+    h += '<div class="kv"><span>弹药</span><b class="' + (u.ammo > 0 ? 'ok' : 'bad') + '">' +
+         u.ammo + ' / ' + u.maxAmmo +
+         (at ? ' <span class="' + (at.ok ? 'ok' : 'warn') + '" style="font-weight:600;font-size:11px">' +
+            at.label + '</span>' : '') + '</b></div>';
+    if (at && !at.ok && at.why !== '满弹') {
+      h += '<div class="ub-esc" style="color:#8A6A20">本回合末不补弹：' + at.why +
+           '。收炮不动、等补给恢复，下一回合就能补上。</div>';
+    }
+  }
   h += '<div class="kv"><span>地形加成</span><b>' +
        (isAir(u) ? '<span class="warn">不适用（空中单位不吃地形）</span>' : fmtPct(terrainDefFor(u))) +
        '</b></div>';
@@ -9593,11 +9927,124 @@ document.getElementById('mNext').addEventListener('click', () => {
 document.getElementById('btnEnd').addEventListener('click', () => { FX.sfx('uiClick'); endBluePhase(); });
 document.getElementById('btnUndo').addEventListener('click', () => { doUndo(); });
 document.getElementById('mBtn').addEventListener('click', () => { FX.sfx('uiClick'); newGame(); });
+/* 结算页回菜单页。相对路径与 `?lv` 锁关时那句跳转保持一致（../index.html）——
+   两处写法不同的后果是打包之后一个能回、一个 404。 */
+document.getElementById('mHome').addEventListener('click', () => {
+  FX.sfx('uiClick');
+  location.href = '../index.html';
+});
 
 /* 操作说明：按钮开、按钮/遮罩/ESC 关 */
 const tipsEl = document.getElementById('tipsScreen');
 function openTips() { tipsEl.classList.remove('hidden'); FX.sfx('uiClick'); }
 function closeTips() { tipsEl.classList.add('hidden'); }
+
+/* ═════════════════════════ 音量设置 ═════════════════════════
+   玩家反馈（v4.17）：游戏里调不了音量。`FX.vol` 一直是三个常量
+   （sfx 0.65 / bgm 0.35 / amb 0.60），改它只能去改代码。
+   这里补三条滑杆 + 本机持久化。三条而不是两条：底噪是"战场在响"、
+   音乐是"配乐"，想安静打一局的人常常要留前者、关后者。
+
+   存档纪律与其它 localStorage 一致：**读写都包 try**。
+   隐私模式 / file:// 下配额可能直接抛，抛出来不能让整个面板挂掉——
+   音量设置失败只该退化成"这次调有效、下次忘掉"。 */
+const VOL_KEY = 'wargame.vol';
+const VOL_DEF = { bgm: 35, sfx: 65, amb: 60 };
+
+function readVol() {
+  try {
+    const raw = localStorage.getItem(VOL_KEY);
+    if (!raw) return Object.assign({}, VOL_DEF);
+    const o = JSON.parse(raw) || {};
+    /* 每个字段单独兜：只坏了一个不该整份丢掉。越界一律回默认值，
+       而不是夹紧——夹紧会把"我明明拖到 0 了"变成一个说不清的小音量。 */
+    const pick = k => (typeof o[k] === 'number' && o[k] >= 0 && o[k] <= 100) ? o[k] : VOL_DEF[k];
+    return { bgm: pick('bgm'), sfx: pick('sfx'), amb: pick('amb') };
+  } catch (e) { return Object.assign({}, VOL_DEF); }
+}
+
+function applyVol(v) {
+  FX.vol.bgm = v.bgm / 100;
+  FX.vol.sfx = v.sfx / 100;
+  FX.vol.amb = v.amb / 100;
+  /* 正在放的要立刻跟着变。BGM 与底噪都是长音，
+     等下一曲才生效 = 滑杆拖了半天没反应。 */
+  try { if (FX._bgmEl) FX._bgmEl.volume = FX.vol.bgm; } catch (e) {}
+  try { if (FX._ambEl) FX._ambEl.volume = FX.vol.amb; } catch (e) {}
+}
+
+function saveVol(v) {
+  try { localStorage.setItem(VOL_KEY, JSON.stringify(v)); } catch (e) {}
+}
+
+const setEl = document.getElementById('setScreen');
+const volInputs = {
+  bgm: document.getElementById('volBgm'),
+  sfx: document.getElementById('volSfx'),
+  amb: document.getElementById('volAmb')
+};
+const volLabels = {
+  bgm: document.getElementById('volBgmV'),
+  sfx: document.getElementById('volSfxV'),
+  amb: document.getElementById('volAmbV')
+};
+let volCur = readVol();
+
+function syncVolUI() {
+  for (const k in volInputs) {
+    if (!volInputs[k]) continue;
+    volInputs[k].value = volCur[k];
+    volInputs[k].setAttribute('aria-valuetext', volCur[k] + '%');
+    if (volLabels[k]) volLabels[k].textContent = volCur[k] + '%';
+  }
+}
+function commitVol(next) {
+  volCur = next;
+  applyVol(volCur);
+  saveVol(volCur);
+  syncVolUI();
+}
+for (const k in volInputs) {
+  if (!volInputs[k]) continue;
+  volInputs[k].addEventListener('input', () => {
+    const n = Object.assign({}, volCur);
+    n[k] = Number(volInputs[k].value) || 0;
+    commitVol(n);
+    /* 拖音效滑杆要能立刻听见变化，否则玩家不知道自己在调什么。
+       用 uiClick 而不是 engine/track：后两个是一秒级长音，
+       连拖几下会叠成一片糊（见 FX._max 的理由）。 */
+    if (k !== 'bgm') FX.sfx('uiClick');
+  });
+}
+document.getElementById('volMute').addEventListener('click', () => {
+  /* 静音是"把三条拉到 0"，不是另开一个 mute 标记：
+     标记一旦和滑杆并存，就会出现"静音关掉了但滑杆还是 65%"的状态，
+     玩家下次拖一下滑杆，声音从 0 跳到 65%，像是 bug。 */
+  const allZero = volCur.bgm === 0 && volCur.sfx === 0 && volCur.amb === 0;
+  commitVol(allZero ? Object.assign({}, VOL_DEF) : { bgm: 0, sfx: 0, amb: 0 });
+  document.getElementById('volMute').textContent = allZero ? '全部静音' : '取消静音';
+});
+document.getElementById('volReset').addEventListener('click', () => {
+  commitVol(Object.assign({}, VOL_DEF));
+  document.getElementById('volMute').textContent = '全部静音';
+  FX.sfx('uiClick');
+});
+document.getElementById('btnSet').addEventListener('click', () => {
+  FX.sfx('uiClick');
+  syncVolUI();
+  document.getElementById('volMute').textContent =
+    (volCur.bgm === 0 && volCur.sfx === 0 && volCur.amb === 0) ? '取消静音' : '全部静音';
+  setEl.classList.remove('hidden');
+});
+document.getElementById('setClose').addEventListener('click', () => {
+  FX.sfx('uiClick');
+  setEl.classList.add('hidden');
+});
+setEl.addEventListener('click', e => { if (e.target === setEl) setEl.classList.add('hidden'); });
+/* 开机就套用（不弹面板）：进关之前 bgm 就要按玩家上次调的音量起，
+   否则"上次关小了、这次又炸响一下"比不能调还烦。 */
+syncVolUI();
+applyVol(volCur);
 
 /* ═════════════════════════ HQ 指挥部 ═════════════════════════
    三个页签共用一套渲染：切页签只是重画 #hqBody。
@@ -9693,6 +10140,10 @@ const MECH = [
       when: '炮兵想打贴近自己的目标。',
       effect: '旅炮兵营 2 格以内、师重炮 3 格以内完全打不到。防空武器不受此限（对空）。',
       tip: '炮阵地前面必须有步兵挡着。敌人贴到近界以内，炮就是一堆废铁——这也是它最容易被反掉的时候。' },
+    { k: '公路：轮式有捷径',
+      when: '轮式部队在道路上行军，而且**身边一格没有敌军**。',
+      effect: '轮式部队（摩步、装步、指挥部、辎重、炮兵、反坦克连）公路上每格只算 0.7 点；履带部队照常 1 点。相邻格出现敌人时，加成失效——那是接敌展开，不是行军。',
+      tip: '同样脱敌行军：摩步 8 点跑 11 格，中坦 10 点跑 10 格，重坦 7 点只跑 7 格。坦克要快就走开阔地，它越野不吃亏——追上敌人靠越野速度，赶到战场靠公路。' },
     { k: '牵引炮展收',
       when: '牵引式火炮进入战场时处于行军状态（兵牌带斜纹）。',
       effect: '要花一整个回合「展开放列」才能开火；打完想走，也要重新收起来。',
@@ -10321,6 +10772,12 @@ window.addEventListener('keydown', e => {
      顺序反了会出现"按 Esc 关掉了下面的面板，上面那层还盖着"。 */
   const hqEl = document.getElementById('hqScreen');
   if (e.key === 'Escape' && hqEl && !hqEl.classList.contains('hidden')) { closeHQ(); return; }
+  /* 设置面板也在这一层：它是模态的，Esc 先关它。
+     漏掉这一条的后果很具体——开着设置按 Esc 会一路清到"取消选中"，
+     而设置面板仍然盖在地图上，玩家以为 Esc 坏了。 */
+  if (e.key === 'Escape' && setEl && !setEl.classList.contains('hidden')) {
+    setEl.classList.add('hidden'); return;
+  }
   if (e.key === 'Escape' && state && state.cardId) { cancelCard(); return; }
   const tipsOpen = tipsEl && !tipsEl.classList.contains('hidden');
   if (e.key === 'Escape' && tipsOpen) { closeTips(); return; }
@@ -10657,7 +11114,7 @@ window.__WAR__ = {
   levelNoText, CHAPTERS, chapterOf, chapterStat,
   PROGRESS_KEY,
   /* 三种胜负条件（score / survive / reach） */
-  winSpec, inEscapeZone, escapeCells, escapeGoal, escapedCount, escapedStr,
+  winSpec, perfectHint, objClusters, inEscapeZone, escapeCells, escapeGoal, escapedCount, escapedStr,
   blueInitialStr, reachResult, checkEscape, checkEnd,
   getState: () => state,
   newGame, alive, uid, unitAt, terrainAt, cheb, hexDist, neighbors, inBounds,
@@ -10699,7 +11156,7 @@ window.__WAR__ = {
   CARDS, CARD_IDS, CARD_MAX, DEFAULT_DECK, cardById, readDeck, writeDeck, deckOf,
   armCard, cancelCard, useCard, cardFitsUnit, clearCardBuffs,
   openHQ, closeHQ, renderHQ, AIDE, DEX_GROUPS, dexStat, HQ_TABS,
-  TYPE, UNIT_INFO, unitInfo, MECH,
+  TYPE, UNIT_INFO, unitInfo, MECH, RESERVED_MECH,
   /* 文案渲染：兵种说明里的 **重点** 要在渲染口转成 <b>，
      导出它是为了让自测能直接断言"转换后不留星号"。 */
   bold,
@@ -10727,7 +11184,7 @@ window.__WAR__ = {
      谁能打它、界面怎么画。测试直接驱动 domainOf / moveCost / canHitAir，
      否则"加一种兵种忘了改 moveCost"这类事只能等玩出来。 */
   DOMAINS, NAV, SLOT, domainOf, layerOf, slotOf, layerUnitsAt,
-  isAir, isNaval, isGround, isAA, canHitAir, moveCost, airAt, surfaceAt, inEnemyZOC,
+  isAir, isNaval, isGround, isAA, canHitAir, moveCost, WHEEL_TYPES, ammoTick, airAt, surfaceAt, inEnemyZOC,
   /* 目标分类（打谁）：领域管"我怎么动"，tclass 管"我打的是什么"。
      潜艇在水上机动但按 sub 算，战列舰没有对潜就打不着它——这条只能测出来。 */
   tclass, canTarget, attackClasses,

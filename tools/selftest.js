@@ -2876,6 +2876,184 @@ console.log('\n[40] 装甲的两条动词：履带压制与突破跟进');
   api.setRng(Math.random);
 }
 
+console.log('\n[41] 公路加成（v4.17 第 8 条）');
+{
+  /* 规则形状：公路对轮式 0.7 点，**只在身边一格没有敌人时**生效。
+     三个断言分别守：加成存在、加成会失效、坦克不吃加成。
+     少任何一个，"公路加成"就会退化成"全局加速"或"永远不生效"，
+     而这两种坏法都不会报错，只会让十关的平衡数字悄悄漂走。 */
+  api.newGame({ level: 'C3', noSave: true });
+  const L3 = api.LEVEL;
+  const st = api.getState();
+
+  /* 找一格"干净的公路"：自身与六邻居都没有兵。
+     随便挑一格写死坐标不行——地图一改，那格可能正好站着人，
+     断言就会在"加成没生效"和"测试自己挑错了格子"之间分不清。 */
+  let road = null;
+  for (let r = 0; r < L3.rows && !road; r++) {
+    for (let c = 0; c < L3.cols && !road; c++) {
+      if (L3.map[r][c] !== '#') continue;
+      const cells = [[r, c]].concat(api.neighbors(r, c));
+      if (cells.some(p => api.unitsAt(p[0], p[1]).length)) continue;
+      road = [r, c];
+    }
+  }
+  ok('地图上找得到一格空公路', !!road, road ? road.join(',') : '没有空公路');
+
+  if (road) {
+    ok('轮式部队在空公路上按 0.7 点/格',
+       api.moveCost({ type: 'mob', pos: road, side: 'blue' }, '#') === 0.7,
+       api.moveCost({ type: 'mob', pos: road, side: 'blue' }, '#'));
+
+    /* 无 pos 的最小对象也要能算——tools/check.js 就是这么调它的。
+       以前这里直接取 u.pos[0]，整条校验链在部署检查那一步崩掉，
+       报错位置看着像"检查脚本坏了"。 */
+    ok('没有 pos 的调用方不抛错（校验器走的就是这条路）',
+       api.moveCost({ type: 'mob' }, '#') === 0.7);
+
+    /* 贴脸即失效：把最近的敌军临时挪到公路旁边 */
+    const foe = api.alive('red')[0];
+    const keep = foe.pos.slice();
+    const nb = api.neighbors(road[0], road[1])[0];
+    foe.pos = nb;
+    ok('身边一格有敌军时加成失效（接敌展开不是行军）',
+       api.moveCost({ type: 'mob', pos: road, side: 'blue' }, '#') === 1,
+       api.moveCost({ type: 'mob', pos: road, side: 'blue' }, '#'));
+    foe.pos = keep;
+
+    /* 坦克不吃这个加成。中坦 10 点跑 10 格，摩步 8 点跑 11 格——
+       这正是玩家反馈要的那个相对关系。 */
+    ok('坦克在公路上仍是 1 点/格',
+       api.moveCost({ type: 'marm', pos: road, side: 'blue' }, '#') === 1);
+    ok('摩步在公路上的实际脚程多于中坦',
+       Math.floor(8 / api.moveCost({ type: 'mob', pos: road, side: 'blue' }, '#')) >
+       Math.floor(10 / api.moveCost({ type: 'marm', pos: road, side: 'blue' }, '#')));
+    ok('越野时反过来：中坦（10 点 / 平原 2）比摩步（8 点）走得远',
+       Math.floor(10 / 2) > Math.floor(8 / 2));
+  }
+  void st;
+}
+
+console.log('\n[42] 弹药补给预测（v4.17 第 9 条）');
+{
+  /* 面板要显示"下回合补不补"，而"补不补"的判定必须和 endTurn 是同一份。
+     这里断言三种结果：满弹、已移动、静止且补给充足。
+     故意用假单位：supplyOf 只看 type / side / pos / moved / ammo，
+     不需要它真的躺在 state.units 里，也不会污染战局。 */
+  api.newGame({ level: 'C3', noSave: true });
+  const L3 = api.LEVEL;
+  const st = api.getState();
+  const src = (L3.blueSources && L3.blueSources[0]) || L3.blueSource;
+  const at = src ? src.slice() : null;
+  ok('C3 有蓝方补给源（补弹判定的落点）', !!at, String(at));
+
+  if (at) {
+    const base = { type: 'art', side: 'blue', pos: at, ammo: 2, maxAmmo: 6, moved: false };
+
+    ok('满弹时不算补给',
+       api.ammoTick(Object.assign({}, base, { ammo: 6 })).label === '已满',
+       JSON.stringify(api.ammoTick(Object.assign({}, base, { ammo: 6 }))));
+    ok('静止且在补给圈内 → 下回合 +1',
+       api.ammoTick(base).label === '+1',
+       JSON.stringify(api.ammoTick(base)));
+    ok('本回合动过 → 不补',
+       api.ammoTick(Object.assign({}, base, { moved: true })).label === '不补',
+       JSON.stringify(api.ammoTick(Object.assign({}, base, { moved: true }))));
+
+    /* 补给断绝：把补给场清空是最省事的造法（比找一格荒野可靠，
+       不会因为地图改了而忽然变成"充足"）。
+       但**核心要点会自持补给**——补给源往往就压在核心要点里，
+       在那格测"断绝"会拿到"紧张"（第一次写就是这么错的）。
+       所以先按数据挑一格不在核心要点上的地，再清空补给场。 */
+    const coreCells = new Set();
+    for (const o of L3.objectives) {
+      if (!o.core) continue;
+      for (const c of o.cells) coreCells.add(c[0] + ',' + c[1]);
+    }
+    let away = null;
+    for (let r = 0; r < L3.rows && !away; r++) {
+      for (let c = 0; c < L3.cols && !away; c++) {
+        const ch = L3.map[r][c];
+        if (ch === '~' || ch === 's' || ch === 'd') continue;
+        if (coreCells.has(r + ',' + c)) continue;
+        away = [r, c];
+      }
+    }
+    const fields = st.fields;
+    st.fields = { blue: {}, red: {} };
+    const cut = api.ammoTick(Object.assign({}, base, { pos: away }));
+    ok('补给断绝 → 不补，且原因写的是断绝而不是"已移动"',
+       cut.label === '不补' && cut.why === '补给断绝',
+       JSON.stringify(cut) + ' @ ' + away);
+    /* 断绝优先级要高于"已移动"：反过来时，玩家看到"本回合已移动"，
+       会以为下一回合能补，而实际上这一格根本补不上。 */
+    const cutMoved = api.ammoTick(Object.assign({}, base, { pos: away, moved: true }));
+    ok('断绝 + 动过：原因仍写断绝（判定顺序不能反）',
+       cutMoved.why === '补给断绝', JSON.stringify(cutMoved));
+    st.fields = fields;
+
+    /* 没有弹药概念的兵种不该有徽章：返回 null 才是"不显示" */
+    ok('步兵没有弹药条，返回 null（面板不画徽章）',
+       api.ammoTick({ type: 'inf', side: 'blue', pos: at }) === null);
+  }
+}
+
+console.log('\n[43] 超额条件提示（v4.17 第 6 条）');
+{
+  /* 菜单页的「★ 可超额」徽章要靠 perfectHint 给文案。
+     它必须与 judgeFinal / reachResult 同源，否则会出现
+     "菜单说可超额、打完不给超额"。三路各测一条。 */
+  const c2 = api.levelById('C2');
+  const h2 = api.perfectHint(c2);
+  ok('突围关：超额条件是战力留存', h2.ok && h2.text.indexOf('70%') >= 0, JSON.stringify(h2));
+
+  const c1 = api.levelById('C1');
+  const h1 = api.perfectHint(c1);
+  ok('坚守关：超额条件写明"全员无损失"与要守的核心',
+     h1.ok && h1.text.indexOf('无损失') >= 0 && h1.text.indexOf('要塞') >= 0,
+     JSON.stringify(h1));
+
+  const c3 = api.levelById('C3');
+  const h3 = api.perfectHint(c3);
+  const canPerfect3 = typeof c3.perfectScore === 'number' &&
+                      typeof c3.winScore === 'number' && c3.perfectScore > c3.winScore;
+  ok('计分关：有更高分数线才说"可超额"，没有就说不出来',
+     h3.ok === canPerfect3, JSON.stringify(h3) + ' / 分数线 ' + c3.winScore + '→' + c3.perfectScore);
+
+  const notReady = api.LEVELS.find(l => !l.ready);
+  if (notReady) {
+    ok('未编成的关卡不给超额徽章',
+       api.perfectHint(notReady).ok === false, JSON.stringify(api.perfectHint(notReady)));
+  }
+}
+
+console.log('\n[44] 要点标签按连通簇分段（v4.17 第 1 条）');
+{
+  /* 第 6 关「北郊防线」是分成两段的高地，算同一个要点。
+     标签原来按平均坐标算，落在两块中间的空地上——玩家看到一个飘在无人处的标签。
+     现在按连通簇各出一个标签。 */
+  const c6 = api.levelById('C6');
+  const line = c6.objectives.find(o => o.id === 'line');
+  const cl = api.objClusters(line);
+  ok('C6 北郊防线切成两段', cl.length === 2, cl.length + ' 段');
+  ok('两段各自连通（段内任意两格距离 ≤ 段的直径）',
+     cl.every(g => g.length >= 2), cl.map(g => g.length).join('+'));
+
+  const cross = c6.objectives.find(o => o.id === 'cross');
+  ok('连成一片的要点只出一段', api.objClusters(cross).length === 1);
+
+  /* 手写 cells 很容易写出重复坐标（编辑器里复制一行就重复了）。
+     重复坐标要么去重、要么产出两个一模一样的标签，这里守去重。 */
+  const dup = api.objClusters({ cells: [[3, 3], [3, 3], [3, 4]] });
+  ok('重复坐标不会打出两个标签', dup.length === 1 && dup[0].length === 2,
+     JSON.stringify(dup));
+
+  /* 不相邻的两格必须分家：判据是 hexDist === 1，写成 cheb 或 <=1 都会把斜角算进来 */
+  const far = api.objClusters({ cells: [[3, 3], [3, 6]] });
+  ok('隔开的两格分成两段（连通判据是六角相邻，不是直线距离）', far.length === 2,
+     JSON.stringify(far));
+}
+
 console.log('\n通过 ' + pass + ' 项，失败 ' + fail + ' 项');
 process.exit(fail ? 1 : 0);
 

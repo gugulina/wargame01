@@ -1353,6 +1353,94 @@ function skip(name, why) {
   }
 
   {
+    console.log('[26] 设置面板 / 结算返回首页 / 关键要点标注（v4.17）');
+    const W = window.__WAR__;
+    /* 这三条都是"玩家点得到才算数"的东西，selftest 的 stub DOM 里
+       getElementById 每次返回新的空对象，innerHTML 写进去读不回来，
+       在那里测等于什么都没测。所以放在这一层。 */
+
+    /* ── 音量设置 ── */
+    const setBtn = doc.getElementById('btnSet');
+    const setPanel = doc.getElementById('setScreen');
+    ok('顶栏有设置入口', !!setBtn);
+    ok('设置面板默认是关着的', !!setPanel && setPanel.classList.contains('hidden'));
+    if (setBtn && setPanel) {
+      setBtn.click();
+      ok('点设置之后面板打开', !setPanel.classList.contains('hidden'));
+      const ids = ['volBgm', 'volSfx', 'volAmb'];
+      const ranges = ids.map(id => doc.getElementById(id));
+      ok('音乐 / 音效 / 战场底噪三条都在，而且都是滑杆',
+         ranges.every(el => el && el.type === 'range'),
+         ranges.map(el => el && el.type).join(','));
+      ok('三条互不相同（不是同一个元素挂了三个名字）',
+         new Set(ranges.filter(Boolean)).size === 3);
+      ok('每条都有百分数读数',
+         ids.every(id => doc.getElementById(id + 'V') &&
+                         /%$/.test(doc.getElementById(id + 'V').textContent)));
+
+      /* 静音必须是"三条拉到 0"，而不是另立一个 mute 标记——
+         否则静音状态下拖一条滑杆，声音会从 0 直接跳到 65%。 */
+      doc.getElementById('volMute').click();
+      const muted = ids.map(id => Number(doc.getElementById(id).value));
+      ok('「全部静音」把三条都拉到 0', muted.every(v => v === 0), muted.join('/'));
+      let stored = {};
+      try { stored = JSON.parse(window.localStorage.getItem('wargame.vol') || '{}'); } catch (e) {}
+      ok('静音写进了本机设置（下一局沿用）',
+         stored.bgm === 0 && stored.sfx === 0 && stored.amb === 0, JSON.stringify(stored));
+
+      doc.getElementById('volReset').click();
+      const back = ids.map(id => Number(doc.getElementById(id).value));
+      ok('「恢复默认」回到 35 / 65 / 60', back.join('/') === '35/65/60', back.join('/'));
+      doc.getElementById('setClose').click();
+      ok('点「知道了」关掉面板', setPanel.classList.contains('hidden'));
+
+      /* Esc 层：设置面板必须能被 Esc 关掉，而且**只关它这一层**。
+         它插在"指挥部 > 战术卡 > 设置 > 说明 > 目标选择器 > 作业气泡 > 模式"之间；
+         漏了这一层，玩家打开设置按 Esc 会一路穿透，把选中的兵牌也一起清掉。 */
+      setBtn.click();
+      window.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      ok('Esc 关掉设置面板（不会穿透到下一层）', setPanel.classList.contains('hidden'));
+    }
+
+    /* ── 结算页返回首页 ── */
+    const home = doc.getElementById('mHome');
+    ok('结算面板有「返回首页」', !!home && /返回首页/.test(home.textContent || ''),
+       home ? home.textContent : '无');
+    const ov = doc.getElementById('overlay') || doc.getElementById('mOverlay');
+    ok('它确实在结算面板里（不是漂在别处）', !!ov && !!ov.contains(home));
+
+    /* ── 关键要点标注：描边 + 分段标签 ── */
+    W.newGame({ level: 'C3', noSave: true });
+    const cores = doc.querySelectorAll('#board .ocore');
+    ok('C3 的核心要点格上有金色描边', cores.length > 0, cores.length + ' 格');
+    const coreLabel = doc.querySelector('#board .oLabel.core');
+    ok('核心要点的标签带 ★（颜色靠不住，文字要能认）',
+       !!coreLabel && /★/.test(coreLabel.textContent || ''),
+       coreLabel ? coreLabel.textContent : '无');
+
+    /* 第 6 关「北郊防线」是两段高地，要出两个标签。
+       以前只有一个，落在两段中间的空地上——玩家反馈的第一条就是它。 */
+    W.newGame({ level: 'C6', noSave: true });
+    const labels = Array.from(doc.querySelectorAll('#board .oLabel'));
+    const lineLabels = labels.filter(el => (el.textContent || '').indexOf('北郊防线') >= 0);
+    ok('C6 北郊防线分成两段各标一处', lineLabels.length === 2,
+       lineLabels.length + ' 个标签');
+    const box = el => {
+      const m = /left:\s*([\d.]+)px;\s*top:\s*([\d.]+)px/.exec(el.getAttribute('style') || '');
+      return m ? [Number(m[1]), Number(m[2])] : null;
+    };
+    if (lineLabels.length === 2) {
+      const b0 = box(lineLabels[0]), b1 = box(lineLabels[1]);
+      ok('两个标签不重叠（分段真的分了，不是叠在一起）',
+         !!b0 && !!b1 && Math.abs(b0[0] - b1[0]) > 40,
+         b0 && b1 ? Math.abs(b0[0] - b1[0]) + 'px' : '读不到坐标');
+    }
+    const keepTxt = labels.map(el => el.textContent || '').join(' | ');
+    ok('必守要点在文字上写明（不只是换个颜色）',
+       keepTxt.indexOf('必守') >= 0, keepTxt.slice(0, 60));
+  }
+
+  {
     /* 菜单页的「版本公告」面板。index.html 从来没有被测过——它是玩家的入口，
        却一直是"打开看一眼"的验证方式。这里用第二个 jsdom 实例真跑一遍。
        两个 <script src> 在 jsdom 里不会自动加载（它不发 http 请求），

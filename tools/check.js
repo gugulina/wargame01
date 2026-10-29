@@ -251,6 +251,24 @@ for (const L of ready) {
       bad++;
     }
   }
+  /* 预备队组（group）：这类兵牌是 wave:0，**不进初始部署**，
+     唯一的进场方式就是事件里的 { kind:'spawn', group }。
+     事件没写这一条，这些兵牌整关都不存在——编制表上有番号、战场上一个没有，
+     而任何检查都不会响：第三关的敌第 8 摩步旅就这么消失了好几个版本。
+     上面那条 wave 检查管不到它（wave 是 0，不是 >1）。 */
+  const spawnedGroups = new Set();
+  for (const ev of (L.events || [])) {
+    for (const ef of (ev.effects || [])) {
+      if (ef && ef.kind === 'spawn' && ef.group) spawnedGroups.add(ef.group);
+    }
+  }
+  for (const g of new Set(L.units.map(u => u.group).filter(Boolean))) {
+    if (!spawnedGroups.has(g)) {
+      console.error('[3/4] ' + tag + '：预备队组 ' + g + ' 没有任何事件 spawn 它，' +
+        '这些兵牌整关都不会进场');
+      bad++;
+    }
+  }
 
   /* ── 事件触发条件校验 ──
      这一块是补血的：事件写错 id 不会报错、不会崩，只会**永远不触发**。

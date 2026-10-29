@@ -5,8 +5,8 @@
    为什么是 .js 而不是 .json：项目要能双击直接打开，
    file:// 下 fetch 会被同源策略拦掉，<script src> 不会。 */
 window.CANGYU = {
-  "ver": "v4.16",
-  "srcSig": "420973:1xzxytt",
+  "ver": "v4.17",
+  "srcSig": "438668:1ctuxmn",
   "storage": {
     "save": "wargame.lankou.save",
     "saveVer": 3,
@@ -118,6 +118,10 @@ window.CANGYU = {
       "prevId": null,
       "noText": "序 · ",
       "win": "score",
+      "perfect": {
+        "ok": true,
+        "text": "得分 99 以上（达成线 10）"
+      },
       "turns": 7,
       "cols": 12,
       "rows": 9,
@@ -145,6 +149,10 @@ window.CANGYU = {
       "prevId": null,
       "noText": "第 1 关 · ",
       "win": "survive",
+      "perfect": {
+        "ok": true,
+        "text": "全员无损失，且「要塞核心」不失守"
+      },
       "turns": 8,
       "cols": 12,
       "rows": 9,
@@ -172,6 +180,10 @@ window.CANGYU = {
       "prevId": "C1",
       "noText": "第 2 关 · ",
       "win": "reach",
+      "perfect": {
+        "ok": true,
+        "text": "撤出后保留战力不低于开局的 70%"
+      },
       "turns": 12,
       "cols": 16,
       "rows": 10,
@@ -199,6 +211,10 @@ window.CANGYU = {
       "prevId": "C2",
       "noText": "第 2 关 · 附属 · ",
       "win": "reach",
+      "perfect": {
+        "ok": true,
+        "text": "撤出后保留战力不低于开局的 70%"
+      },
       "turns": 10,
       "cols": 14,
       "rows": 10,
@@ -226,6 +242,10 @@ window.CANGYU = {
       "prevId": "C2",
       "noText": "第 3 关 · ",
       "win": "score",
+      "perfect": {
+        "ok": true,
+        "text": "得分 35 以上（达成线 26）"
+      },
       "turns": 12,
       "cols": 20,
       "rows": 14,
@@ -234,8 +254,8 @@ window.CANGYU = {
         "str": 133
       },
       "red": {
-        "cards": 25,
-        "str": 191
+        "cards": 27,
+        "str": 203
       }
     },
     {
@@ -253,6 +273,10 @@ window.CANGYU = {
       "prevId": "C3",
       "noText": "第 3 关 · 附属 · ",
       "win": "survive",
+      "perfect": {
+        "ok": true,
+        "text": "全员无损失，且「跑道」不失守"
+      },
       "turns": 10,
       "cols": 16,
       "rows": 10,
@@ -280,6 +304,10 @@ window.CANGYU = {
       "prevId": "C3",
       "noText": "第 4 关 · ",
       "win": "survive",
+      "perfect": {
+        "ok": true,
+        "text": "全员无损失，且「港口要塞」「波尔瓦萨市」不失守"
+      },
       "turns": 20,
       "cols": 22,
       "rows": 16,
@@ -288,8 +316,8 @@ window.CANGYU = {
         "str": 257
       },
       "red": {
-        "cards": 42,
-        "str": 304
+        "cards": 43,
+        "str": 307
       }
     },
     {
@@ -307,6 +335,10 @@ window.CANGYU = {
       "prevId": "C4",
       "noText": "第 4 关 · 附属 · ",
       "win": "reach",
+      "perfect": {
+        "ok": true,
+        "text": "撤出后保留战力不低于开局的 70%"
+      },
       "turns": 12,
       "cols": 22,
       "rows": 16,
@@ -334,6 +366,10 @@ window.CANGYU = {
       "prevId": "C4",
       "noText": "第 5 关 · ",
       "win": "survive",
+      "perfect": {
+        "ok": true,
+        "text": "全员无损失，且「桥南阵地」不失守"
+      },
       "turns": 12,
       "cols": 16,
       "rows": 12,
@@ -361,16 +397,20 @@ window.CANGYU = {
       "prevId": "C5",
       "noText": "第 6 关 · ",
       "win": "survive",
+      "perfect": {
+        "ok": true,
+        "text": "全员无损失，且「北郊防线」不失守"
+      },
       "turns": 14,
       "cols": 18,
       "rows": 12,
       "blue": {
-        "cards": 16,
-        "str": 83
+        "cards": 18,
+        "str": 91
       },
       "red": {
-        "cards": 14,
-        "str": 97
+        "cards": 15,
+        "str": 100
       }
     },
     {
@@ -388,6 +428,10 @@ window.CANGYU = {
       "prevId": null,
       "noText": "第 1 关 · ",
       "win": "survive",
+      "perfect": {
+        "ok": false,
+        "text": "尚未编成"
+      },
       "blue": {
         "cards": 0,
         "str": 0
@@ -412,6 +456,10 @@ window.CANGYU = {
       "prevId": null,
       "noText": "第 1 关 · 附属 · ",
       "win": "score",
+      "perfect": {
+        "ok": false,
+        "text": "尚未编成"
+      },
       "blue": {
         "cards": 0,
         "str": 0
@@ -436,6 +484,10 @@ window.CANGYU = {
       "prevId": null,
       "noText": "第 2 关 · ",
       "win": "survive",
+      "perfect": {
+        "ok": false,
+        "text": "尚未编成"
+      },
       "blue": {
         "cards": 0,
         "str": 0
@@ -460,6 +512,10 @@ window.CANGYU = {
       "prevId": null,
       "noText": "第 3 关 · ",
       "win": "score",
+      "perfect": {
+        "ok": false,
+        "text": "尚未编成"
+      },
       "blue": {
         "cards": 0,
         "str": 0
@@ -484,6 +540,10 @@ window.CANGYU = {
       "prevId": null,
       "noText": "第 3 关 · 附属 · ",
       "win": "score",
+      "perfect": {
+        "ok": false,
+        "text": "尚未编成"
+      },
       "blue": {
         "cards": 0,
         "str": 0
@@ -508,6 +568,10 @@ window.CANGYU = {
       "prevId": null,
       "noText": "第 4 关 · ",
       "win": "score",
+      "perfect": {
+        "ok": false,
+        "text": "尚未编成"
+      },
       "blue": {
         "cards": 0,
         "str": 0
@@ -532,6 +596,10 @@ window.CANGYU = {
       "prevId": null,
       "noText": "第 5 关 · ",
       "win": "survive",
+      "perfect": {
+        "ok": false,
+        "text": "尚未编成"
+      },
       "blue": {
         "cards": 0,
         "str": 0
@@ -556,6 +624,10 @@ window.CANGYU = {
       "prevId": null,
       "noText": "第 5 关 · 附属 · ",
       "win": "reach",
+      "perfect": {
+        "ok": false,
+        "text": "尚未编成"
+      },
       "blue": {
         "cards": 0,
         "str": 0
@@ -580,6 +652,10 @@ window.CANGYU = {
       "prevId": null,
       "noText": "第 6 关 · ",
       "win": "survive",
+      "perfect": {
+        "ok": false,
+        "text": "尚未编成"
+      },
       "blue": {
         "cards": 0,
         "str": 0
@@ -604,6 +680,10 @@ window.CANGYU = {
       "prevId": null,
       "noText": "第 1 关 · ",
       "win": "survive",
+      "perfect": {
+        "ok": false,
+        "text": "尚未编成"
+      },
       "blue": {
         "cards": 0,
         "str": 0
@@ -628,6 +708,10 @@ window.CANGYU = {
       "prevId": null,
       "noText": "第 2 关 · ",
       "win": "survive",
+      "perfect": {
+        "ok": false,
+        "text": "尚未编成"
+      },
       "blue": {
         "cards": 0,
         "str": 0
@@ -652,6 +736,10 @@ window.CANGYU = {
       "prevId": null,
       "noText": "第 2 关 · 附属 · ",
       "win": "survive",
+      "perfect": {
+        "ok": false,
+        "text": "尚未编成"
+      },
       "blue": {
         "cards": 0,
         "str": 0
@@ -676,6 +764,10 @@ window.CANGYU = {
       "prevId": null,
       "noText": "第 3 关 · ",
       "win": "survive",
+      "perfect": {
+        "ok": false,
+        "text": "尚未编成"
+      },
       "blue": {
         "cards": 0,
         "str": 0
@@ -700,6 +792,10 @@ window.CANGYU = {
       "prevId": null,
       "noText": "第 4 关 · ",
       "win": "survive",
+      "perfect": {
+        "ok": false,
+        "text": "尚未编成"
+      },
       "blue": {
         "cards": 0,
         "str": 0
@@ -724,6 +820,10 @@ window.CANGYU = {
       "prevId": null,
       "noText": "第 4 关 · 附属 · ",
       "win": "reach",
+      "perfect": {
+        "ok": false,
+        "text": "尚未编成"
+      },
       "blue": {
         "cards": 0,
         "str": 0
@@ -748,6 +848,10 @@ window.CANGYU = {
       "prevId": null,
       "noText": "第 5 关 · ",
       "win": "reach",
+      "perfect": {
+        "ok": false,
+        "text": "尚未编成"
+      },
       "blue": {
         "cards": 0,
         "str": 0
@@ -772,6 +876,10 @@ window.CANGYU = {
       "prevId": null,
       "noText": "第 6 关 · ",
       "win": "score",
+      "perfect": {
+        "ok": false,
+        "text": "尚未编成"
+      },
       "blue": {
         "cards": 0,
         "str": 0
@@ -796,6 +904,10 @@ window.CANGYU = {
       "prevId": null,
       "noText": "第 1 关 · ",
       "win": "survive",
+      "perfect": {
+        "ok": false,
+        "text": "尚未编成"
+      },
       "blue": {
         "cards": 0,
         "str": 0
@@ -820,6 +932,10 @@ window.CANGYU = {
       "prevId": null,
       "noText": "第 2 关 · ",
       "win": "score",
+      "perfect": {
+        "ok": false,
+        "text": "尚未编成"
+      },
       "blue": {
         "cards": 0,
         "str": 0
@@ -844,6 +960,10 @@ window.CANGYU = {
       "prevId": null,
       "noText": "第 2 关 · 附属 · ",
       "win": "score",
+      "perfect": {
+        "ok": false,
+        "text": "尚未编成"
+      },
       "blue": {
         "cards": 0,
         "str": 0
@@ -868,6 +988,10 @@ window.CANGYU = {
       "prevId": null,
       "noText": "第 3 关 · ",
       "win": "score",
+      "perfect": {
+        "ok": false,
+        "text": "尚未编成"
+      },
       "blue": {
         "cards": 0,
         "str": 0
@@ -892,6 +1016,10 @@ window.CANGYU = {
       "prevId": null,
       "noText": "第 4 关 · ",
       "win": "score",
+      "perfect": {
+        "ok": false,
+        "text": "尚未编成"
+      },
       "blue": {
         "cards": 0,
         "str": 0
@@ -916,6 +1044,10 @@ window.CANGYU = {
       "prevId": null,
       "noText": "第 4 关 · 附属 · ",
       "win": "reach",
+      "perfect": {
+        "ok": false,
+        "text": "尚未编成"
+      },
       "blue": {
         "cards": 0,
         "str": 0
@@ -940,6 +1072,10 @@ window.CANGYU = {
       "prevId": null,
       "noText": "第 5 关 · ",
       "win": "score",
+      "perfect": {
+        "ok": false,
+        "text": "尚未编成"
+      },
       "blue": {
         "cards": 0,
         "str": 0
@@ -964,6 +1100,10 @@ window.CANGYU = {
       "prevId": null,
       "noText": "第 6 关 · ",
       "win": "score",
+      "perfect": {
+        "ok": false,
+        "text": "尚未编成"
+      },
       "blue": {
         "cards": 0,
         "str": 0
@@ -988,6 +1128,10 @@ window.CANGYU = {
       "prevId": null,
       "noText": "第 6 关 · 附属 · ",
       "win": "survive",
+      "perfect": {
+        "ok": false,
+        "text": "尚未编成"
+      },
       "blue": {
         "cards": 0,
         "str": 0
@@ -1012,6 +1156,10 @@ window.CANGYU = {
       "prevId": null,
       "noText": "第 1 关 · ",
       "win": "reach",
+      "perfect": {
+        "ok": false,
+        "text": "尚未编成"
+      },
       "blue": {
         "cards": 0,
         "str": 0
@@ -1036,6 +1184,10 @@ window.CANGYU = {
       "prevId": null,
       "noText": "第 2 关 · ",
       "win": "score",
+      "perfect": {
+        "ok": false,
+        "text": "尚未编成"
+      },
       "blue": {
         "cards": 0,
         "str": 0
@@ -1060,6 +1212,10 @@ window.CANGYU = {
       "prevId": null,
       "noText": "第 2 关 · 附属 · ",
       "win": "survive",
+      "perfect": {
+        "ok": false,
+        "text": "尚未编成"
+      },
       "blue": {
         "cards": 0,
         "str": 0
@@ -1084,6 +1240,10 @@ window.CANGYU = {
       "prevId": null,
       "noText": "第 3 关 · ",
       "win": "score",
+      "perfect": {
+        "ok": false,
+        "text": "尚未编成"
+      },
       "blue": {
         "cards": 0,
         "str": 0
@@ -1108,6 +1268,10 @@ window.CANGYU = {
       "prevId": null,
       "noText": "第 4 关 · ",
       "win": "survive",
+      "perfect": {
+        "ok": false,
+        "text": "尚未编成"
+      },
       "blue": {
         "cards": 0,
         "str": 0
@@ -1132,6 +1296,10 @@ window.CANGYU = {
       "prevId": null,
       "noText": "第 5 关 · ",
       "win": "reach",
+      "perfect": {
+        "ok": false,
+        "text": "尚未编成"
+      },
       "blue": {
         "cards": 0,
         "str": 0
@@ -1156,6 +1324,10 @@ window.CANGYU = {
       "prevId": null,
       "noText": "第 6 关 · ",
       "win": "score",
+      "perfect": {
+        "ok": false,
+        "text": "尚未编成"
+      },
       "blue": {
         "cards": 0,
         "str": 0
@@ -1180,6 +1352,10 @@ window.CANGYU = {
       "prevId": null,
       "noText": "第 6 关 · 附属 · ",
       "win": "score",
+      "perfect": {
+        "ok": false,
+        "text": "尚未编成"
+      },
       "blue": {
         "cards": 0,
         "str": 0
@@ -1204,6 +1380,10 @@ window.CANGYU = {
       "prevId": null,
       "noText": "第 1 关 · ",
       "win": "score",
+      "perfect": {
+        "ok": false,
+        "text": "尚未编成"
+      },
       "blue": {
         "cards": 0,
         "str": 0
@@ -1228,6 +1408,10 @@ window.CANGYU = {
       "prevId": null,
       "noText": "第 2 关 · ",
       "win": "score",
+      "perfect": {
+        "ok": false,
+        "text": "尚未编成"
+      },
       "blue": {
         "cards": 0,
         "str": 0
@@ -1252,6 +1436,10 @@ window.CANGYU = {
       "prevId": null,
       "noText": "第 3 关 · ",
       "win": "score",
+      "perfect": {
+        "ok": false,
+        "text": "尚未编成"
+      },
       "blue": {
         "cards": 0,
         "str": 0
@@ -1276,6 +1464,10 @@ window.CANGYU = {
       "prevId": null,
       "noText": "第 3 关 · 附属 · ",
       "win": "score",
+      "perfect": {
+        "ok": false,
+        "text": "尚未编成"
+      },
       "blue": {
         "cards": 0,
         "str": 0
@@ -1300,6 +1492,10 @@ window.CANGYU = {
       "prevId": null,
       "noText": "第 4 关 · ",
       "win": "survive",
+      "perfect": {
+        "ok": false,
+        "text": "尚未编成"
+      },
       "blue": {
         "cards": 0,
         "str": 0
@@ -1324,6 +1520,10 @@ window.CANGYU = {
       "prevId": null,
       "noText": "第 5 关 · ",
       "win": "score",
+      "perfect": {
+        "ok": false,
+        "text": "尚未编成"
+      },
       "blue": {
         "cards": 0,
         "str": 0
@@ -1348,6 +1548,10 @@ window.CANGYU = {
       "prevId": null,
       "noText": "第 6 关 · ",
       "win": "score",
+      "perfect": {
+        "ok": false,
+        "text": "尚未编成"
+      },
       "blue": {
         "cards": 0,
         "str": 0
@@ -1372,6 +1576,10 @@ window.CANGYU = {
       "prevId": null,
       "noText": "第 6 关 · 附属 · ",
       "win": "score",
+      "perfect": {
+        "ok": false,
+        "text": "尚未编成"
+      },
       "blue": {
         "cards": 0,
         "str": 0
@@ -1396,6 +1604,10 @@ window.CANGYU = {
       "prevId": null,
       "noText": "第 1 关 · ",
       "win": "reach",
+      "perfect": {
+        "ok": false,
+        "text": "尚未编成"
+      },
       "blue": {
         "cards": 0,
         "str": 0
@@ -1420,6 +1632,10 @@ window.CANGYU = {
       "prevId": null,
       "noText": "第 1 关 · 附属 · ",
       "win": "score",
+      "perfect": {
+        "ok": false,
+        "text": "尚未编成"
+      },
       "blue": {
         "cards": 0,
         "str": 0
@@ -1444,6 +1660,10 @@ window.CANGYU = {
       "prevId": null,
       "noText": "第 2 关 · ",
       "win": "score",
+      "perfect": {
+        "ok": false,
+        "text": "尚未编成"
+      },
       "blue": {
         "cards": 0,
         "str": 0
@@ -1468,6 +1688,10 @@ window.CANGYU = {
       "prevId": null,
       "noText": "第 2 关 · 附属 · ",
       "win": "score",
+      "perfect": {
+        "ok": false,
+        "text": "尚未编成"
+      },
       "blue": {
         "cards": 0,
         "str": 0
@@ -1492,6 +1716,10 @@ window.CANGYU = {
       "prevId": null,
       "noText": "第 3 关 · ",
       "win": "score",
+      "perfect": {
+        "ok": false,
+        "text": "尚未编成"
+      },
       "blue": {
         "cards": 0,
         "str": 0
@@ -1516,6 +1744,10 @@ window.CANGYU = {
       "prevId": null,
       "noText": "第 4 关 · ",
       "win": "survive",
+      "perfect": {
+        "ok": false,
+        "text": "尚未编成"
+      },
       "blue": {
         "cards": 0,
         "str": 0
@@ -1540,6 +1772,10 @@ window.CANGYU = {
       "prevId": null,
       "noText": "第 4 关 · 附属 · ",
       "win": "score",
+      "perfect": {
+        "ok": false,
+        "text": "尚未编成"
+      },
       "blue": {
         "cards": 0,
         "str": 0
@@ -1564,6 +1800,10 @@ window.CANGYU = {
       "prevId": null,
       "noText": "第 5 关 · ",
       "win": "survive",
+      "perfect": {
+        "ok": false,
+        "text": "尚未编成"
+      },
       "blue": {
         "cards": 0,
         "str": 0
@@ -1588,6 +1828,10 @@ window.CANGYU = {
       "prevId": null,
       "noText": "第 1 关 · ",
       "win": "score",
+      "perfect": {
+        "ok": false,
+        "text": "尚未编成"
+      },
       "blue": {
         "cards": 0,
         "str": 0
@@ -1612,6 +1856,10 @@ window.CANGYU = {
       "prevId": null,
       "noText": "第 2 关 · ",
       "win": "score",
+      "perfect": {
+        "ok": false,
+        "text": "尚未编成"
+      },
       "blue": {
         "cards": 0,
         "str": 0
@@ -1636,6 +1884,10 @@ window.CANGYU = {
       "prevId": null,
       "noText": "第 2 关 · 附属 · ",
       "win": "survive",
+      "perfect": {
+        "ok": false,
+        "text": "尚未编成"
+      },
       "blue": {
         "cards": 0,
         "str": 0
@@ -1660,6 +1912,10 @@ window.CANGYU = {
       "prevId": null,
       "noText": "第 3 关 · ",
       "win": "score",
+      "perfect": {
+        "ok": false,
+        "text": "尚未编成"
+      },
       "blue": {
         "cards": 0,
         "str": 0
@@ -1684,6 +1940,10 @@ window.CANGYU = {
       "prevId": null,
       "noText": "第 4 关 · ",
       "win": "score",
+      "perfect": {
+        "ok": false,
+        "text": "尚未编成"
+      },
       "blue": {
         "cards": 0,
         "str": 0
@@ -1708,6 +1968,10 @@ window.CANGYU = {
       "prevId": null,
       "noText": "第 4 关 · 附属 · ",
       "win": "reach",
+      "perfect": {
+        "ok": false,
+        "text": "尚未编成"
+      },
       "blue": {
         "cards": 0,
         "str": 0
@@ -1732,6 +1996,10 @@ window.CANGYU = {
       "prevId": null,
       "noText": "第 5 关 · ",
       "win": "score",
+      "perfect": {
+        "ok": false,
+        "text": "尚未编成"
+      },
       "blue": {
         "cards": 0,
         "str": 0

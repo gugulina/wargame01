@@ -268,6 +268,15 @@
   .lv-org { font-size: 10.5px; color: var(--ink3); white-space: nowrap; }
   .lv-org b { font-weight: 600; color: var(--ink2); }
   .lv.locked .lv-org { opacity: .7; }
+  /* 「可超额达成」徽章：打之前就该知道这一关有更严的目标。
+     以前只有通关之后才在状态里出现"超额达成"，等于奖励一件
+     玩家不知道自己该去争的事。金色而不是绿色——绿在这里是"已通关"的意思。 */
+  .lv-pf {
+    font-size: 10px; font-weight: 600; padding: 1px 7px; border-radius: 20px;
+    background: #FBF3DF; color: #8A6414; border: 1px solid #EBDCBC;
+    white-space: nowrap; cursor: help;
+  }
+  .lv.locked .lv-pf { opacity: .55; }
 
   /* 点了锁着的关：不跳转，只在原地晃一下并说明原因 */
   @keyframes nudge {
@@ -677,6 +686,14 @@
     '兵种图鉴 / 战术卡 / 副官',
     () => go('game/campaign.html?hq=dex')));
 
+  /* 换战术卡也要能在门面上做（玩家反馈 v4.17）。
+     以前牌组只能进关之后从指挥部改，而"带哪三张"是**开局之前**的决定：
+     玩家退出到菜单想换一下，只能先随便开一关再翻指挥部，等于入口不存在。
+     ?hq=cards 直接落在战术卡页，改完顶栏「菜单」就回来了。 */
+  acts.appendChild(btn('btn-ghost', '更换战术卡',
+    '下一局带哪三张',
+    () => go('game/campaign.html?hq=cards')));
+
   /* ── 进度条 ──
      一格代表**一章**，不是一关。六十多关一格一关会细成一片灰；
      而"哪一章打完了、哪一章还是空的"才是这一栏要回答的问题。
@@ -757,6 +774,12 @@
       '<div class="lv-side">' +
         '<span class="state ' + stateCls + '"' + (stateTip ? ' title="' + stateTip + '"' : '') + '>' +
           state + '</span>' +
+        /* 超额条件由引擎算好带过来（lv.perfect），首页只显示。
+           注意徽章和"状态"是两件事：状态说的是"通没通"，
+           徽章说的是"这一关有没有更高的目标可争"。 */
+        (lv.ready && lv.perfect && lv.perfect.ok
+          ? '<span class="lv-pf" title="超额达成：' + lv.perfect.text + '">★ 可超额</span>'
+          : '') +
         (lv.ready
           ? '<span class="lv-org"><b>' + lv.blue.cards + '</b> 牌 · ' +
             lv.turns + ' 回合 · ' + lv.cols + '×' + lv.rows + '</span>'

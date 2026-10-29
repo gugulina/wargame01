@@ -287,13 +287,30 @@
     position: absolute; z-index: 5; pointer-events: none;
     transform: translate(-50%, -50%);
     background: rgba(43,42,38,.82); color: #fff;
-    font-size: 9px; font-weight: 600; letter-spacing: .3px;
-    padding: 1px 5px; border-radius: 3px; white-space: nowrap;
+    font-size: 9.5px; font-weight: 600; letter-spacing: .3px;
+    padding: 2px 6px; border-radius: 4px; white-space: nowrap;
+    box-shadow: 0 1px 3px rgba(0,0,0,.30);
   }
-  .oLabel.core { box-shadow: inset 0 0 0 1px rgba(255,255,255,.6); }
+  /* 关键要点：金边 + 星号。以前只有一个 1px 白色内描边，
+     在深色底上几乎看不见——玩家反馈"两侧高地作为关键点标注不够清晰"就是它。
+     颜色之外还加了 ★ 与"必守"字样，因为颜色在弱光屏与色弱视角下靠不住。 */
+  .oLabel.core {
+    box-shadow: inset 0 0 0 1.5px #E7C46A, 0 1px 3px rgba(0,0,0,.34);
+    font-size: 10px;
+  }
+  /* 「必守」= 丢了直接判负的那个要点（win.keep）。做成暖褐色底，
+     它比控制权颜色（蓝/红/争夺）更"沉"，不会被控制权盖掉。 */
+  .oLabel.keep { background: #7A4A12; box-shadow: inset 0 0 0 1.5px #F0D08A, 0 1px 3px rgba(0,0,0,.34); }
+  .oLabel.core.keep { background: #7A4A12; }
   .oLabel.b { background: rgba(58,110,165,.92); }
   .oLabel.r { background: rgba(168,58,58,.92); }
   .oLabel.c { background: rgba(176,126,30,.92); }
+  /* 关键要点格的描边。用真实元素而不是伪元素：::before 归要点染色、
+     ::after 归移动/攻击/工事，再抢一次会静默盖掉别人。 */
+  .ocore {
+    position: absolute; inset: 0; clip-path: inherit; pointer-events: none; z-index: 1;
+    box-shadow: inset 0 0 0 2.5px rgba(190,142,30,.95), inset 0 0 0 4.5px rgba(255,255,255,.5);
+  }
 
   aside.side { width: 330px; flex: 0 0 330px; }
   .block {
@@ -430,6 +447,10 @@
   #mNext:hover { background: #403E38; }
   .m-acts #mBtn { order: 2; }        /* 有"下一关"时，重开永远排后面 */
   .m-acts #mNext { order: 1; }
+  /* 返回首页排最后：它是"这一关我不打了"的意思，不该抢在主按钮前面。
+     样式刻意做成次要按钮（透明底 + 细边），和上面的实心按钮分开。 */
+  .m-acts #mHome { order: 3; background: transparent; color: var(--ink2); border-color: var(--line); }
+  .m-acts #mHome:hover { background: #F1EEE5; }
   /* .hidden 在这个项目里没有全局规则，只有 .overlay/.start/.brief/#cutscene
      各自写了专属的 display:none。任何新加的元素挂 class="hidden" 都不会生效——
      结算面板的"下一关"按钮和下方说明就踩到了这一点（一直显示）。
@@ -459,6 +480,51 @@
     background: #F1EFE8; box-shadow: 0 0 0 1px rgba(0,0,0,.10); color: var(--ink);
     font-family: inherit;
   }
+
+  /* ───────── 设置（音量） ─────────
+     宽度刻意比说明面板窄：它只有三行滑杆，撑到 600px 会显得空。
+     滑杆用原生 range，不自己画——原生控件在手机上自动是触摸友好的，
+     自绘的那种在打包后的 WebView 里点不中。 */
+  .set-card {
+    background: #fff; border-radius: 12px; padding: 18px 22px 20px;
+    width: min(420px, calc(100vw - 28px));
+    box-shadow: 0 12px 40px rgba(0,0,0,.2);
+  }
+  .set-card h2 { margin: 0 0 2px; font-size: 17px; }
+  .set-card .set-sub { color: var(--ink3); font-size: 12px; margin: 0 0 14px; }
+  .set-row {
+    display: grid; grid-template-columns: 72px 1fr 46px;
+    align-items: center; gap: 10px; margin: 10px 0;
+  }
+  .set-row label { font-size: 12.5px; color: var(--ink2); }
+  .set-row b { font-size: 12px; color: var(--ink2); text-align: right; font-weight: 600; }
+  .set-row input[type=range] {
+    -webkit-appearance: none; appearance: none;
+    width: 100%; height: 4px; border-radius: 3px; background: #E3DFD3; outline: none;
+  }
+  .set-row input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 16px; height: 16px; border-radius: 50%;
+    background: #2B2A26; cursor: pointer; border: 2px solid #fff;
+    box-shadow: 0 1px 4px rgba(0,0,0,.28);
+  }
+  .set-row input[type=range]::-moz-range-thumb {
+    width: 14px; height: 14px; border-radius: 50%; border: 2px solid #fff;
+    background: #2B2A26; cursor: pointer; box-shadow: 0 1px 4px rgba(0,0,0,.28);
+  }
+  .set-row input[type=range]:focus-visible { box-shadow: 0 0 0 2px rgba(58,110,165,.55); }
+  .set-btns { grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 16px; }
+  .set-btns button {
+    padding: 7px 10px; font-size: 12px; border-radius: 7px; cursor: pointer;
+    background: #F6F4EC; color: var(--ink2); border: 1px solid var(--line);
+  }
+  .set-btns button:hover { background: #EFECE1; }
+  .set-card .set-ok {
+    width: 100%; margin-top: 12px; padding: 9px 10px; font-size: 13px;
+    border-radius: 7px; cursor: pointer; background: #2B2A26; color: #FBF9F3;
+    border: 1px solid #2B2A26; font-weight: 600;
+  }
+  .set-card .set-ok:hover { background: #403E38; }
   .tips-card button { margin-top: 18px; width: 100%; }
   .tipsbtn {
     width: 26px; height: 26px; border-radius: 50%; padding: 0;

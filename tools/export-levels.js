@@ -89,6 +89,11 @@ const levels = (api.LEVELS || []).map(lv => {
        brief 形式：菜单页按章分组，章名在组头上。 */
     noText: api.levelNoText(lv),
     win: lv.win && lv.win.kind ? lv.win.kind : 'score',
+    /* 超额达成条件。**由引擎算**（`perfectHint`），菜单页只负责显示。
+       在首页复刻一遍判定必然会漂——项目里为"两份实现"付过学费
+       （`accessPrereq` 那次：菜单页自己扫"前面第一个已制作的关"，
+       漏了"附属关不挡主线"，通关第 3 关之后仍把玩家锁在支线上）。 */
+    perfect: api.perfectHint(lv),
     turns: lv.maxTurns,
     cols: lv.cols,
     rows: lv.rows,
