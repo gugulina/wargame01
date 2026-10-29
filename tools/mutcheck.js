@@ -120,8 +120,8 @@ const MUTANTS = [
      舰队每回合都开火，一旦补弹要求"本回合没开火"，实际效果就是永远补不上——
      弹打光了舰队还算在场，只是不再开枪。 */
   ['舰船补弹退回「这一回合没开火才算」（舰队每回合开火 = 永远补不上）',
-   "    } else if (isNaval(u) && !u.moved && s.label === '充足') {",
-   "    } else if (isNaval(u) && !u.moved && !u.fired && s.label === '充足') {",
+   "    if (s.label !== '充足') return { ok: false, label: '不补', why: '不在码头补给圈' };",
+   "    if (s.label !== '充足' || u.fired) return { ok: false, label: '不补', why: '不在码头补给圈' };",
    '舰船停泊 + 补给充足时，开过火的回合也补弹'],
 
   /* ── v4.6 的崩溃机制 ── */

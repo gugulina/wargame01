@@ -4344,6 +4344,14 @@ const FX = {
     }
     const cs = document.getElementById('cutscene');
     if (cs) { cs.classList.add('hidden'); cs.innerHTML = ''; }
+    /* 只清 innerHTML 不够：正在播的剧情卡里有一个未 resolve 的 done 挂在 _csChain
+       上、一个打字机 interval、一个 document 级 keydown 监听——不调 close() 它们
+       全部残留，而且 _csChain 永远卡住，之后所有剧情卡都排不进来（整局哑火）。
+       close 之外还要作废排队中的卡：它们挂在旧链上，链一 resolve 就会冒出来，
+       所以用代际号判废，而不是去拆 then 链。 */
+    this._csGen = (this._csGen || 0) + 1;
+    this._csChain = Promise.resolve();
+    if (this._csClose) { try { this._csClose(); } catch (e) {} this._csClose = null; }
   },
 
   /* ── 音效：小池子复用。同一种音效最多同时叠 4 个，
@@ -4527,7 +4535,11 @@ const FX = {
   cutin(spec) {
     if (!this.on || !spec || !spec.text) return Promise.resolve();
     this.stat.cutin++;
-    this._csChain = this._csChain.then(() => new Promise(done => this._showCutin(spec, done)));
+    const gen = (this._csGen = this._csGen || 0);
+    this._csChain = this._csChain.then(() => new Promise(done => {
+      if (gen !== this._csGen) { done(); return; }    // 中途 FX.clear 过：这一卡作废
+      this._showCutin(spec, done);
+    }));
     return this._csChain;
   },
 
@@ -4569,8 +4581,10 @@ const FX = {
       host.innerHTML = '';
       host.removeEventListener('click', onClick);
       if (document && document.removeEventListener) document.removeEventListener('keydown', onKey);
+      if (this._csClose === close) this._csClose = null;
       done();
     };
+    this._csClose = close;
     const showAll = () => {
       if (timer) { clearInterval(timer); timer = null; }
       i = full.length;
@@ -4667,18 +4681,6 @@ function hexDist(a, b) {
 }
 function hexToPixel(r, c) {
   return { x: c * HEX_W + ((r & 1) ? HEX_W / 2 : 0), y: r * HEX_H * 0.75 };
-}
-function pixelToHex(px, py) {
-  let best = null, bd = Infinity;
-  for (let r = 0; r < LEVEL.rows; r++) {
-    for (let c = 0; c < LEVEL.cols; c++) {
-      const p = hexToPixel(r, c);
-      const dx = px - (p.x + HEX_W / 2), dy = py - (p.y + HEX_H / 2);
-      const d = dx * dx + dy * dy;
-      if (d < bd) { bd = d; best = [r, c]; }
-    }
-  }
-  return best;
 }
 
 const kk = (r, c) => r + ',' + c;
@@ -4914,10 +4916,6 @@ const DEFAULT_DECK = ['forced', 'hold', 'assault'];
 function cardById(id) { return CARDS[id] || null; }
 /* 当前这一局的牌组。没配就退回默认三张，避免老存档 / 新关税直接变空手 */
 function deckOf() { return (state && Array.isArray(state.deck)) ? state.deck : DEFAULT_DECK; }
-function cardRemaining(id) {
-  if (!state || !state.cardUsed) return 1;
-  return state.cardUsed[id] ? 0 : 1;
-}
 /* 目标类型对不上就不让用。UI 靠它决定高亮哪些格子 */
 function cardFitsUnit(c, u) {
   if (!c || !u || !state) return false;
@@ -6224,6 +6222,10 @@ function saveSnapshot() {
 
 function saveGame() {
   if (!state || state.result) return false;      // 已分胜负的局不再更新存档
+  /* 敌方行动中（phase==='ai'）不落盘：doMove / 结算在红方回合里也会走到这里，
+     落盘会让读档回到"红方走了一半、却轮到我方"的半程态。
+     restoreGame 强制回 blue 阶段，前提就是档只在 blue 静止时写——闸门必须在这里兑现。 */
+  if (state.phase !== 'blue') return false;
   try {
     if (typeof localStorage === 'undefined' || !localStorage) return saveBroken('浏览器不允许本地存储');
     localStorage.setItem(SAVE_KEY, JSON.stringify(saveSnapshot()));
@@ -6381,6 +6383,20 @@ function validateSave(s) {
       }
     }
   }
+  /* 雷区 / 补给点：结构与工事同族。伪造档把它们写成数字时，restoreGame 的
+     `s.mines || []` 会原样放行，下一帧 renderBoard / 作业判定里的 .find 就崩。 */
+  for (const [key, name] of [['mines', '雷区'], ['depots', '补给点']]) {
+    if (s[key] === undefined || s[key] === null) continue;
+    if (!Array.isArray(s[key])) return { ok: false, msg: '存档的' + name + '不是一个列表。' };
+    for (const it of s[key]) {
+      if (!it || typeof it !== 'object') return { ok: false, msg: '存档的' + name + '里有一条格式不对。' };
+      if (it.side !== 'blue' && it.side !== 'red') return { ok: false, msg: '存档的' + name + '阵营无效。' };
+      if (!Number.isInteger(it.r) || !Number.isInteger(it.c) ||
+          it.r < 0 || it.r >= lv.rows || it.c < 0 || it.c >= lv.cols) {
+        return { ok: false, msg: '存档里有' + name + '落在战场之外。' };
+      }
+    }
+  }
   /* 牌组：不认识的卡 id 会让「本局 3/3」永远差一张 */
   if (s.deck !== undefined && s.deck !== null) {
     if (!Array.isArray(s.deck)) return { ok: false, msg: '存档的牌组不是一个列表。' };
@@ -6523,7 +6539,7 @@ function restoreGame(s) {
     targets: [],
     mode: null,
     fortKind: 'H',
-    deck: Array.isArray(s.deck) && s.deck.length ? s.deck.filter(id => CARDS[id]) : readDeck(),
+    deck: Array.isArray(s.deck) ? s.deck.filter(id => CARDS[id]).slice(0, CARD_MAX) : readDeck(),
     cardUsed: s.cardUsed || {},
     cardId: null,
     escapedCount: s.escapedCount || 0,
@@ -7489,9 +7505,8 @@ function targetsAt(r, c) {
   if (!state.selected || !state.targets.length) return [];
   return unitsAt(r, c).filter(x => state.targets.includes(x));
 }
-/* 只要一支时走这里。**别在多目标的地方用它**——它按堆叠顺序取第一个，
-   同格两支敌军时"想打后面那支"没有任何入口（见 openPick）。 */
-function targetAt(r, c) { return targetsAt(r, c)[0] || null; }
+/* 只要一支时走 targetsAt(...)[0]，多目标必须走 openPick——
+   同格两支敌军时按堆叠顺序取第一个，"想打后面那支"没有别的入口。 */
 function onHexClick(r, c) {
   if (!state || state.result) return;
   const u = unitAt(r, c);
@@ -9488,25 +9503,6 @@ function renderUnitBox() {
     }
   }
   box.innerHTML = h;
-
-  box.querySelectorAll('button[data-act]').forEach(b => {
-    b.addEventListener('click', () => {
-      const a = b.dataset.act;
-      if (a === 'depot') { doDepot(u); return; }
-      if (a === 'pack') { doPack(u); return; }
-      if (a === 'unpack') { doUnpack(u); return; }
-      if (a === 'fort') {
-        const k = b.dataset.kind || 'H';
-        const same = state.mode === 'fort' && state.fortKind === k;
-        state.fortKind = k;
-        state.mode = same ? null : 'fort';
-      } else {
-        state.mode = state.mode === a ? null : a;
-      }
-      render();
-      renderUnitBox();
-    });
-  });
 }
 
 /* 战报行允许的样式类白名单。存档里的 cls 直接当 class 拼会变成属性注入，
@@ -9759,6 +9755,9 @@ document.getElementById('zIn').addEventListener('click', () => zoomBy(1.28));
 document.getElementById('zOut').addEventListener('click', () => zoomBy(1 / 1.28));
 document.getElementById('zFit').addEventListener('click', () => { fitView(false); });
 document.getElementById('zHome').addEventListener('click', () => {
+  /* boot → 选关 → 简报播放期间 state 还是 null（runBriefing 在 await），这时
+     缩放条已经可用，不设守卫会把 zHome 变成进关后第一个能点出的 TypeError。 */
+  if (!state) { fitView(false); return; }
   const u = state.selected;
   const t = u ? u.pos : state.terrainSel;
   if (!t) { fitView(false); return; }
@@ -9801,21 +9800,21 @@ function showBriefPage(page, i, total) {
     let done = false;
     const last = i === total - 1;
     const paras = (page.paras || []).map(p =>
-      '<p' + (p.hl ? ' class="hl"' : '') + '>' + p.t + '</p>').join('');
+      '<p' + (p.hl ? ' class="hl"' : '') + '>' + esc(p.t) + '</p>').join('');
     const nums = (page.nums || []).length
       ? '<div class="brief-nums">' + page.nums.map(n =>
-          '<div><span>' + n.k + '</span><b' + (n.hot ? ' class="r"' : '') + '>' +
-          n.v + '</b></div>').join('') + '</div>'
+          '<div><span>' + esc(n.k) + '</span><b' + (n.hot ? ' class="r"' : '') + '>' +
+          esc(n.v) + '</b></div>').join('') + '</div>'
       : '';
     const dots = Array.from({ length: total }, (_, k) =>
       '<i' + (k === i ? ' class="on"' : '') + '></i>').join('');
 
     host.innerHTML =
       '<div class="brief-paper">' +
-        '<div class="brief-top"><span>' + (page.order || '作战命令') + '</span><b>绝 密</b></div>' +
+        '<div class="brief-top"><span>' + esc(page.order || '作战命令') + '</span><b>绝 密</b></div>' +
         '<div class="brief-page">' +
-          '<div class="brief-kicker">' + (page.kicker || '') + '</div>' +
-          '<h2 class="brief-title">' + (page.title || '') + '</h2>' +
+          '<div class="brief-kicker">' + esc(page.kicker || '') + '</div>' +
+          '<h2 class="brief-title">' + esc(page.title || '') + '</h2>' +
           '<div class="brief-body">' + paras + '</div>' + nums +
         '</div>' +
         '<div class="brief-foot">' +

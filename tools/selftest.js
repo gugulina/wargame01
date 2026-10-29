@@ -509,6 +509,22 @@ console.log('\n[13] 存档往返');
   api.getState().result = 'win';
   ok('已分胜负的局不再写档', api.saveGame() === false);
 
+  /* 红方行动中（AI 半程）也不写档：restoreGame 强制回 blue 阶段，
+     若在红方半程落盘，读档会得到"红方走了一半却轮到我方"的倒带态。 */
+  api.newGame();
+  api.getState().phase = 'ai';
+  ok('红方行动中不再写档', api.saveGame() === false);
+
+  /* 空牌组是玩家在 HQ 里主动卸光的结果（readDeck 的 null/[] 语义必须区分），
+     读档不能弹回默认三张。 */
+  api.newGame();
+  const sd = api.readSave();
+  ok('测试前提：能读到当前存档', !!sd);
+  sd.deck = [];
+  api.restoreGame(sd);
+  ok('卸空的牌组读档后仍是空的', Array.isArray(api.deckOf()) && api.deckOf().length === 0,
+     JSON.stringify(api.deckOf()));
+
   /* 版本 / 关卡不符一律拒绝，宁可让玩家重开也不能读半个坏局 */
   api.newGame();
   const raw = JSON.parse(LS.getItem(api.SAVE_KEY));
@@ -1943,6 +1959,20 @@ console.log('\n[31] 存档内容校验（导入路径与本地读档共用一套
 
   const c7 = clone(); c7.units = [];
   ok('没有任何部队 → 拒绝', !api.validateSave(c7).ok);
+
+  /* 雷区 / 补给点与工事同族：伪造档把它们写成数字时，restoreGame 的
+     `s.mines || []` 会原样放行，下一帧 renderBoard 的 .find 就崩。 */
+  const cm1 = clone(); cm1.mines = 7;
+  ok('雷区不是列表 → 拒绝', !api.validateSave(cm1).ok && /雷区/.test(api.validateSave(cm1).msg),
+     api.validateSave(cm1).msg);
+  const cm2 = clone(); cm2.mines = [{ r: 999, c: 0, side: 'blue' }];
+  ok('雷区坐标在战场之外 → 拒绝', !api.validateSave(cm2).ok && /雷区/.test(api.validateSave(cm2).msg),
+     api.validateSave(cm2).msg);
+  const cm3 = clone(); cm3.depots = [{ r: 0, c: 0 }];
+  ok('补给点缺阵营 → 拒绝', !api.validateSave(cm3).ok && /补给点/.test(api.validateSave(cm3).msg),
+     api.validateSave(cm3).msg);
+  const cm4 = clone(); cm4.depots = [{ r: 0, c: 0, side: 'blue' }];
+  ok('格式正确的雷区补给点照常通过', api.validateSave(cm4).ok, api.validateSave(cm4).msg);
 
   /* ── 以下是 v4.6 体检补的内容校验。它们不制造 NaN，而是制造**代码**：
      渲染层有 25 处 innerHTML，存档里的字符串字段会被直接拼进标签。
