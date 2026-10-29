@@ -2653,11 +2653,13 @@ console.log('\n[38] 敌情检视与堆叠目标挑选');
   ok('每条机制都写全了触发条件 / 触发效果 / 怎么用', mechBad.length === 0,
      '不全：' + (mechBad.map(m => m.k || '(无名)').join(',') || '无'));
   /* 点名几条"玩家一定会问"的机制必须还在。整页被误删时上面的条数断言会红，
-     但只删掉其中三条不会——这三条是最容易被合并/误删的。 */
+     但只删掉其中几条不会——这些是最容易被合并/误删的。
+     装甲那两条（履带压制 / 突破跟进）是 v4.16 新加的：规则改了手册没跟上，
+     玩家会照旧按"坦克冲上去清场"的用法打，然后觉得这版没变化。 */
   const names = mechs.map(m => m.k);
-  const must = ['击退', '补给', '建制崩溃'];
+  const must = ['击退', '补给', '建制崩溃', '履带压制', '突破跟进'];
   const lost = must.filter(n => names.indexOf(n) < 0);
-  ok('击退 / 补给 / 建制崩溃 三条核心机制都在手册里', lost.length === 0,
+  ok('击退 / 补给 / 建制崩溃 / 履带压制 / 突破跟进 都在手册里', lost.length === 0,
      '缺：' + (lost.join(',') || '无'));
 
   /* 版本公告：数据在 data/notes.js，与菜单页共用。
@@ -2687,6 +2689,194 @@ console.log('\n[38] 敌情检视与堆叠目标挑选');
      '顺序不对：' + (dateBad.map(n => n.date).join(',') || '无'));
 }
 
+console.log('\n[40] 装甲的两条动词：履带压制与突破跟进');
+{
+  /* v4.16 加的两条装甲规则。它们的效果分别落在"组织度少 6 点"和"位置差一格"上，
+     两样在界面上都看不见——玩家只会觉得"这关手感变了"。
+     所以每条都要分两层验：纯函数验判定边界（城里/工事里/非装甲都要为 0），
+     端到端验它真的进了 doAttack 的结算（函数写对了没人调，是最常见的一种假绿）。 */
+  api.newGame({ level: 'C1', noSave: true });
+  const S = api.getState();
+  const T = api.TYPE;
+  const M = api.LEVEL.map;
+  S.units.length = 0;
+  S.forts = [];
+
+  let seq = 0;
+  const put = (side, t, r, c, str) => {
+    const u = api.makeUnit({ id: (side === 'blue' ? 'B' : 'R') + (++seq), side, type: t,
+      abbr: 'T' + seq, name: '测试' + T[t].name, r, c, corps: 'T',
+      str: str === undefined ? 10 : str,
+      mov: T[t].mv || 8, rng: T[t].rg === undefined ? 1 : T[t].rg }, false);
+    S.units.push(u);
+    return u;
+  };
+  const clear = () => { S.units.length = 0; S.forts = []; };
+
+  /* 找一条"攻方 — 目标 — 落点"三格平原直线。不写死坐标：换一关地图尺寸就变。 */
+  let spot = null;
+  for (let r = 1; r < api.LEVEL.rows - 1 && !spot; r++) {
+    for (let c = 1; c < api.LEVEL.cols - 1; c++) {
+      if (M[r][c] !== '.') continue;
+      for (const a of api.neighbors(r, c)) {
+        const dr = r - a[0], dc = c - a[1];
+        const far = [r + dr, c + dc];
+        if (!api.inBounds(far[0], far[1])) continue;
+        if (M[a[0]][a[1]] !== '.' || M[far[0]][far[1]] !== '.') continue;
+        spot = { att: a, def: [r, c], far };
+        break;
+      }
+      if (spot) break;
+    }
+  }
+  ok('前提：地图上有一条三格平原直线', !!spot,
+     spot ? [spot.att, spot.def, spot.far].map(p => p.join(',')).join(' → ') : '没有');
+
+  /* 找一格城市，做"地形不对就没有压制"的对照组 */
+  let town = null;
+  for (let r = 0; r < api.LEVEL.rows && !town; r++)
+    for (let c = 0; c < api.LEVEL.cols; c++) if (M[r][c] === 't') { town = [r, c]; break; }
+  ok('前提：地图上有城市格', !!town, town ? town.join(',') : '没有');
+
+  /* ── 一、履带压制的四个边界 ── */
+  const pressCase = () => {
+    clear();
+    /* 战力给足：击退要求"守方还有战力"，一炮就打没了的话
+       走的是歼灭分支，测不到击退与跟进。 */
+    const att = put('blue', 'marm', spot.att[0], spot.att[1], 30);
+    const def = put('red', 'inf', spot.def[0], spot.def[1], 12);
+    return { att, def };
+  };
+  let c1p = pressCase();
+  ok('中坦在平原打步兵营：额外掉 6 点组织度', api.trackPress(c1p.att, c1p.def) === 6,
+     String(api.trackPress(c1p.att, c1p.def)));
+
+  c1p = pressCase();
+  c1p.def.pos = town.slice();
+  ok('目标躲进城里：没有履带压制', api.trackPress(c1p.att, c1p.def) === 0,
+     String(api.trackPress(c1p.att, c1p.def)));
+
+  c1p = pressCase();
+  const at = put('blue', 'at', spot.att[0], spot.att[1], 30);
+  ok('反坦克连打步兵：没有履带压制（不是装甲）', api.trackPress(at, c1p.def) === 0,
+     String(api.trackPress(at, c1p.def)));
+
+  c1p = pressCase();
+  const tank = put('red', 'marm', spot.def[0], spot.def[1], 30);
+  ok('中坦打中坦：没有履带压制（不是步兵）', api.trackPress(c1p.att, tank) === 0,
+     String(api.trackPress(c1p.att, tank)));
+
+  c1p = pressCase();
+  /* 守方脚下的工事才算掩体。用最小字段直接塞进 forts：
+     这里验的是 trackPress 的判定，不是造工事的流程（那条另有断言）。 */
+  S.forts.push({ r: c1p.def.pos[0], c: c1p.def.pos[1], kind: 'H', side: 'red',
+    def: 0.15, hp: 0, maxHp: 0 });
+  ok('步兵蹲在自家堑壕里：没有履带压制', api.trackPress(c1p.att, c1p.def) === 0,
+     String(api.trackPress(c1p.att, c1p.def)));
+
+  c1p = pressCase();
+  S.forts.push({ r: c1p.def.pos[0], c: c1p.def.pos[1], kind: 'H', side: 'blue',
+    def: 0.15, hp: 0, maxHp: 0 });
+  ok('工事是别人丢下的（阵营不对）：压制照常', api.trackPress(c1p.att, c1p.def) === 6,
+     String(api.trackPress(c1p.att, c1p.def)));
+
+  /* ── 二、端到端：那 6 点真的进了结算 ── */
+  api.setRng(() => 0.5);          // 骰面固定：floor(0.5×6)=3，即第 4 面
+  c1p = pressCase();
+  {
+    const pv = api.previewAttack(c1p.att, c1p.def, S.fields);
+    const loss = api.CRT[pv.tier][3][1];
+    const org0 = c1p.def.org;
+    api.doAttack(c1p.att, c1p.def);
+    ok('端到端：这一炮的目标组织度 = 损失 × 3 + 压制 6',
+       c1p.def.org === Math.max(0, org0 - loss * 3 - 6),
+       org0 + ' → ' + c1p.def.org + '（损失 ' + loss + '）');
+  }
+
+  /* ── 三、突破跟进 ── */
+  const pushCase = (blockGap) => {
+    clear();
+    const att = put('blue', 'marm', spot.att[0], spot.att[1], 60);
+    const def = put('red', 'inf', spot.def[0], spot.def[1], 12);
+    if (blockGap) {
+      put('red', 'inf', spot.far[0], spot.far[1], 6);
+      for (const n of api.neighbors(spot.def[0], spot.def[1])) {
+        if (S.units.some(u => u.pos[0] === n[0] && u.pos[1] === n[1])) continue;
+        put('red', 'inf', n[0], n[1], 6);
+      }
+    }
+    return { att, def };
+  };
+
+  let pc = pushCase(false);
+  {
+    const gap = pc.def.pos.slice();
+    const attFrom = pc.att.pos.slice();
+    const org0 = pc.att.org;
+    const pv = api.previewAttack(pc.att, pc.def, S.fields);
+    const attLoss = pv.counter ? api.CRT[pv.tier][3][0] : 0;
+    api.doAttack(pc.att, pc.def);
+    ok('前提：这一炮够 3:1', pv.ratio >= 3, pv.ratio.toFixed(2));
+    ok('目标被击退离开了原位', pc.def.pos.join(',') !== gap.join(','),
+       gap.join(',') + ' → ' + pc.def.pos.join(','));
+    ok('攻方顺着缺口推进到目标原来的格子', pc.att.pos.join(',') === gap.join(','),
+       attFrom.join(',') + ' → ' + pc.att.pos.join(','));
+    ok('缺口那一格的数据归属已经变成攻方', api.unitAt(gap[0], gap[1]) === pc.att);
+    ok('跟进要付 3 点组织度',
+       pc.att.org === Math.max(0, org0 - attLoss * 3 - 3),
+       org0 + ' → ' + pc.att.org + '（反击损失 ' + attLoss + '）');
+  }
+
+  pc = pushCase(true);
+  {
+    const attFrom = pc.att.pos.slice();
+    const defFrom = pc.def.pos.slice();
+    const org0 = pc.def.org;
+    const pv = api.previewAttack(pc.att, pc.def, S.fields);
+    const loss = api.CRT[pv.tier][3][1];
+    api.doAttack(pc.att, pc.def);
+    ok('退路堵死时目标原地不动', pc.def.pos.join(',') === defFrom.join(','),
+       defFrom.join(',') + ' → ' + pc.def.pos.join(','));
+    /* 精确式，不是"掉得比 8 多就行"：那样写连"多扣了 6 点压制"也能过。
+       这一条要能区分"扣 8"和"什么都没扣"，所以把三项都算进去。 */
+    ok('退路堵死时改扣 8 点组织度（不是跟进）',
+       pc.def.org === Math.max(0, org0 - loss * 3 - 6 - 8),
+       org0 + ' → ' + pc.def.org + '（损失 ' + loss + '，期望 ' +
+       Math.max(0, org0 - loss * 3 - 6 - 8) + '）');
+    ok('退路堵死时攻方也不跟进', pc.att.pos.join(',') === attFrom.join(','),
+       attFrom.join(',') + ' → ' + pc.att.pos.join(','));
+  }
+
+  /* 目标与友军同格：它被推走了，友军还在原地，那不是缺口 */
+  clear();
+  {
+    const att = put('blue', 'marm', spot.att[0], spot.att[1], 60);
+    const def = put('red', 'inf', spot.def[0], spot.def[1], 12);
+    const mate = put('red', 'inf', spot.def[0], spot.def[1], 6);
+    const gap = def.pos.slice();
+    api.doAttack(att, def);
+    ok('前提：目标确实被推走了', def.pos.join(',') !== gap.join(','),
+       gap.join(',') + ' → ' + def.pos.join(','));
+    ok('同格还有友军时缺口没空出来，攻方不跟进',
+       att.pos.join(',') === spot.att.join(','),
+       spot.att.join(',') + ' → ' + att.pos.join(',') + '（' + mate.abbr + ' 还在缺口）');
+  }
+
+  /* 轻坦没有吨位：既不击退，也不跟进 */
+  clear();
+  {
+    const att = put('blue', 'larm', spot.att[0], spot.att[1], 60);
+    const def = put('red', 'inf', spot.def[0], spot.def[1], 12);
+    const gap = def.pos.slice();
+    api.doAttack(att, def);
+    ok('轻坦：目标不被击退，攻方也不跟进',
+       def.pos.join(',') === gap.join(',') && att.pos.join(',') === spot.att.join(','));
+  }
+
+  api.setRng(Math.random);
+}
+
 console.log('\n通过 ' + pass + ' 项，失败 ' + fail + ' 项');
 process.exit(fail ? 1 : 0);
+
 

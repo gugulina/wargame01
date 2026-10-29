@@ -58,7 +58,7 @@
      <link> 不会——跟 data/levels.js 必须用 <script src> 是同一个原因。
      ?v= 跟着顶栏版本走（tools/check.js 校验），否则改完样式玩家可能还在吃
      GitHub Pages 的十分钟缓存，看到的是一半新一半旧的页面。 -->
-<link rel="stylesheet" href="campaign.css?v=4.15">
+<link rel="stylesheet" href="campaign.css?v=4.16">
 <!-- 版本公告数据与菜单页共用一份（HQ 的「版本公告」页签读它）。
      放在 <head> 里同步加载：页签是玩家点了才渲染的，但真读不到时那一页要能
      说清"文件缺了"，而不是显示一片空白——异步加载失败是静默的。 -->
@@ -76,7 +76,7 @@
       <span class="pill" id="phasePill">我方阶段</span>
       <!-- 全项目唯一的版本标记：tools/export-levels.js 按这个 span 的原样文本抓版本号，
            开始页撤掉之后它挪到了顶栏，标签必须保持 <span id="verTag"> 这个形状 -->
-      <span id="verTag">v4.15</span>
+      <span id="verTag">v4.16</span>
       <!-- 存档异常：只在真的写失败时出现（隐私模式 / 配额满 / 被清理）。
            默认 display:none，别让它平时占位——一排胶囊里突然多一个红字，
            玩家第一反应是"我是不是哪里点坏了"。 -->
@@ -4654,6 +4654,29 @@ function canPushBack(u) { return u && (u.type === 'marm' || u.type === 'harm'); 
 /* 退无可退时改为掉的组织度。不写进 doAttack 里的字面量：
    值和"击退"这条规则的强度是一体的，调一次要能一眼找到。 */
 const PUSH_BLOCK_ORG = 8;
+/* 突破跟进：击退成功之后，攻方顺着缺口推进一格。
+   没有这一条，击退只是"把敌人推走、自己原地站着"——缺口一合，等于白打。
+   一回合最多推两格（移动一格 + 跟进一格），"突破"才第一次在规则上成立。
+   代价是 3 点组织度：追进去的车队顾不上收拢。 */
+const BREAK_PUSH_ORG = 3;
+/* 履带压制：坦克在开阔地冲步兵，杀不完，但能把一个营打散。
+   三条限制说的是同一件事——坦克只在"看得见、开得动"的地方压得住人：
+     城里、林地、丘陵里看不见；工事里的人有掩体。
+   这条把"坦克杀步兵"改成"坦克把步兵打崩"，于是坦克的正确用法是
+   推开步兵、让己方步兵去占点，而不是拿坦克清场。 */
+const TRACK_PRESS_ORG = 6;
+/* 按地形的 cls 判，不按中文名：哪天改了地形叫法，这里不会静默失效 */
+const TRACK_PRESS_TERRAIN = ['t-plain', 't-road', 't-air'];
+/* 步兵类（能踩着地面占领要点的徒步编制）。打这些才有压制效果 */
+const FOOT_TYPES = ['inf', 'gdn', 'mob', 'mech', 'mrb', 'para'];
+function trackPress(att, def) {
+  if (!isArmor(att) || !def || !att.pos || !def.pos) return 0;
+  if (!FOOT_TYPES.includes(def.type)) return 0;
+  if (!TRACK_PRESS_TERRAIN.includes(terrainAt(def.pos[0], def.pos[1]).cls)) return 0;
+  /* 只看守方自己那边的工事：踩在对方丢下的工事上不算有掩护 */
+  if (fortSelf(def)) return 0;
+  return TRACK_PRESS_ORG;
+}
 /* 坦克的地形手感。open = 平原/道路加成，town = 城镇惩罚 */
 const ARMOR_PROFILE = {
   larm: { open: 0.10, town: 0.10 },
@@ -6770,7 +6793,11 @@ function doAttack(att, def) {
 
   def.str = Math.max(0, def.str - defLoss);
   att.str = Math.max(0, att.str - attLoss);
-  def.org = Math.max(0, def.org - defLoss * 3);
+  /* 履带压制必须在这里算，不能挪到击退之后：击退会把目标推走，
+     地形跟着换一格，那时再判就会出现"在城里被打、按平原扣组织度"。
+     同理这条也不参与伤害计算——它压的是组织度，不是战力。 */
+  const pressOrg = trackPress(att, def);
+  def.org = Math.max(0, def.org - defLoss * 3 - pressOrg);
   att.org = Math.max(0, att.org - attLoss * 3);
   def.fortify = 0;
 
@@ -6779,6 +6806,7 @@ function doAttack(att, def) {
             ' · 骰 ' + (die + 1) + (flanks ? ' · 协同 ' + flanks : '') + '）→ 我方 -' + attLoss +
             '，敌方 -' + defLoss;
   if (fortAbsorb) msg += '（工事吸收 ' + fortAbsorb + '）';
+  if (pressOrg) msg += '（履带压制 组织度 −' + pressOrg + '）';
   if (!pv.counter) msg += ' · 对方无法反击';
   log(msg, att.side === 'blue' ? 'b' : 'r');
 
@@ -6789,10 +6817,29 @@ function doAttack(att, def) {
      现在改成"沿击退方向逐格找第一个空地"，一个都找不到就不击退，
      换成掉组织度：比"退进去叠着"合理，也比"什么都没发生"更像真打了一仗。 */
   if (pv.ratio >= 3 && canCapture(att) && canPushBack(att) && def.str > 0) {
+    /* 记住目标原来站的那一格——击退之后它就是缺口 */
+    const gap = def.pos.slice();
     const push = retreatCell(att.pos, def.pos);
     if (push) {
       def.pos = push;
       log('  ' + def.abbr + ' 被击退至 ' + coordName(push), 'sys');
+      /* 突破跟进：目标退走、缺口空出来，攻方顺着缺口推进一格。
+         已经移动过也可以跟进——追进去本来就得靠走，加限制会把
+         "冲击 + 跟进"这种最典型的连招用自己的额度掐死。
+
+         缺口的判定必须重算，不能因为"def 走了"就认为空了：
+         地面一格能站两支，def 可能与友军同格，它被推走、友军还在原地，
+         那不是缺口；跟进上去就是两个兵牌叠在一格（v4.13 踩过的那个坑）。
+         地形与距离也一起判：跟进只走相邻一格，且必须是它自己进得去的地形。 */
+      if (att.str > 0 && inBounds(gap[0], gap[1]) && hexDist(att.pos, gap) === 1 &&
+          moveCost(att, LEVEL.map[gap[0]][gap[1]]) !== Infinity &&
+          layerUnitsAt(gap[0], gap[1], 'surface').length === 0) {
+        att.pos = gap;
+        att.org = Math.max(0, att.org - BREAK_PUSH_ORG);
+        log('  ' + att.abbr + ' 顺着缺口突入 ' + coordName(gap) +
+            '（组织度 −' + BREAK_PUSH_ORG + '）。', att.side === 'blue' ? 'b' : 'r');
+        FX.move(att);
+      }
     } else {
       def.org = Math.max(0, def.org - PUSH_BLOCK_ORG);
       log('  ' + def.abbr + ' 退路被堵死，挤作一团（组织度 −' + PUSH_BLOCK_ORG + '）。', 'sys');
@@ -9615,6 +9662,14 @@ const MECH = [
       when: '坦克（三型都是）在本回合移动过之后仍然开火。',
       effect: '坦克与自行火炮不受"行进间射击 −10%"的惩罚，打完就能走。',
       tip: '这是装甲部队的核心优势：别的兵种要么打要么走，坦克两样都要。用它来连续突破，别让坦克停在原地当炮台。' },
+    { k: '突破跟进',
+      when: '击退成功、守军退走并让出一格空位，且进攻的是中型或重型坦克（轻坦推不动人，也就无从跟进）。',
+      effect: '攻方顺着缺口推进到守军原来的位置，**不消耗本回合的动作额度**——已经开过火、走过路都照样能进。代价是自身组织度 **−3**：追进去的车队顾不上收拢。',
+      tip: '这是坦克唯一能在一个回合里推进两格的方式（走一格、跟进一格）。用它把防线撕成两半：先从最薄的一处顶出一个缺口，再顺着缺口往里塞第二支。缺口没顶开时别急着往里挤——守军还站在原地，跟进的位置根本不存在。' },
+    { k: '履带压制',
+      when: '坦克在**平原、道路、机场**上攻击步兵类（步兵、守备、摩托化、装甲步兵、海军步兵、伞兵），且目标脚下没有自己的工事。',
+      effect: '除了正常的战力损失，目标**额外掉 6 点组织度**。城内、林地、丘陵的步兵不受影响，蹲在工事里的也不受影响。',
+      tip: '它把"坦克杀步兵"变成"坦克把步兵打崩"——崩掉的营不能主动进攻，反击却照常，于是正确的用法是**用坦克把步兵推开、让自己的步兵上去占点**，而不是拿坦克一格格清场。反过来，反坦克连存在的意义就是别让坦克开进这片开阔地。' },
     { k: '堆叠与协同',
       when: '两支部队站进同一格（上限 2 支同阵营）。',
       effect: '同格友军按 50% 计入防御协同（相邻格是 35%），所以堆着守更硬；代价是堆在一起的部队被当成一个目标一起挨打。',
@@ -10605,7 +10660,7 @@ window.__WAR__ = {
   winSpec, inEscapeZone, escapeCells, escapeGoal, escapedCount, escapedStr,
   blueInitialStr, reachResult, checkEscape, checkEnd,
   getState: () => state,
-  newGame, alive, uid, unitAt, terrainAt, cheb, hexDist, neighbors,
+  newGame, alive, uid, unitAt, terrainAt, cheb, hexDist, neighbors, inBounds,
   /* 存档：selftest 会用 saveSnapshot / restoreGame 做往返一致性校验 */
   saveGame, readSave, clearSave, restoreGame, saveSnapshot,
   SAVE_KEY, SAVE_VER, LOG, DEBUG,
@@ -10635,6 +10690,10 @@ window.__WAR__ = {
   TOWED_TYPES, AT_LIKE, isTowed, minRange, inRangeTargets, doPack, doUnpack,
   /* 坦克三型 */
   ARMOR_TYPES, isArmor, AT_VS_ARMOR, ARM_VS, ARMOR_PROFILE, canPushBack,
+  /* v4.16 的两条装甲动词：履带压制（额外掉组织度）与突破跟进（推进缺口）。
+     两条都单独导出——它们的效果全在"组织度差"和"位置差"上，
+     只靠整局打完看结果，验不出"该扣 6 分的时候扣了 0 分"。 */
+  trackPress, TRACK_PRESS_ORG, TRACK_PRESS_TERRAIN, FOOT_TYPES, BREAK_PUSH_ORG,
   ARM_FIRE,
   /* 战术卡与 HQ */
   CARDS, CARD_IDS, CARD_MAX, DEFAULT_DECK, cardById, readDeck, writeDeck, deckOf,

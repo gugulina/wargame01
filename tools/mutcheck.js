@@ -467,6 +467,55 @@ const MUTANTS = [
    '',
    '每条机制都有三个小标题', 'brief'],
 
+  /* ── 装甲的两条动词（v4.16）──
+     这两条的效果是"少掉 6 点组织度"和"往前挪一格"，都不弹窗、不报错。
+     漏接的话只会表现为"这版跟上一版手感一样"，没人会当 bug 报上来。
+     所以五个守卫逐个变异：地形、工事、兵种、攻方类型、缺口占位。 */
+  ['履带压制算出来了却没用上（函数对、结算不扣）',
+   '  def.org = Math.max(0, def.org - defLoss * 3 - pressOrg);',
+   '  def.org = Math.max(0, def.org - defLoss * 3);',
+   '端到端：这一炮的目标组织度'],
+
+  ['压制不看地形（城里林地照样压）',
+   "  if (!TRACK_PRESS_TERRAIN.includes(terrainAt(def.pos[0], def.pos[1]).cls)) return 0;",
+   '  if (false) return 0;',
+   '目标躲进城里'],
+
+  ['压制不看工事（蹲在堑壕里的人照样被压）',
+   '  if (fortSelf(def)) return 0;',
+   '  if (false) return 0;',
+   '步兵蹲在自家堑壕里'],
+
+  ['压制不看兵种（坦克打坦克也压组织度）',
+   '  if (!FOOT_TYPES.includes(def.type)) return 0;',
+   '  if (false) return 0;',
+   '中坦打中坦'],
+
+  ['压制不看攻方（反坦克连也能压步兵）',
+   '  if (!isArmor(att) || !def || !att.pos || !def.pos) return 0;',
+   '  if (!def || !att.pos || !def.pos) return 0;',
+   '反坦克连打步兵'],
+
+  ['突破跟进不判缺口占位（和退走的友军叠在一格）',
+   '          layerUnitsAt(gap[0], gap[1], \'surface\').length === 0) {',
+   '          true) {',
+   '同格还有友军时缺口没空出来'],
+
+  ['突破跟进整段不执行（击退又退回"推走就完事"）',
+   '        att.pos = gap;',
+   '        att.pos = att.pos;',
+   '攻方顺着缺口推进到目标原来的格子'],
+
+  ['跟进不收组织度代价（白得一次推进）',
+   '        att.org = Math.max(0, att.org - BREAK_PUSH_ORG);',
+   '        att.org = att.org;',
+   '跟进要付 3 点组织度'],
+
+  ['退路堵死时不再扣组织度（堵死了反而什么都没发生）',
+   '      def.org = Math.max(0, def.org - PUSH_BLOCK_ORG);',
+   '      def.org = def.org;',
+   '退路堵死时改扣 8 点组织度'],
+
 ];
 
 /* 锚点按 LF 写，但 campaign.html 是 CRLF（7356 行全是）。
