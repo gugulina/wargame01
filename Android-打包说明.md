@@ -1,5 +1,10 @@
 # Android 打包说明
 
+> **v4.16（2026-10-29）只改了 `build.gradle` 的版本号（versionCode 10 / versionName 4.16），
+> 没有出包。** 当前发布物仍是下面的 v9，它装的是 v4.15 引擎。
+> 下包之前先把这一行连同 §四 的清单一起对一遍——gradle 已经比包超前一个版本，
+> 直接 `cap copy` + 构建出来的 v10 才是 4.16。
+
 **当前包**：`苍屿战役-v9.apk`（versionCode 9 / versionName 4.15）· 7,743,691 字节 ≈ 7.4 MiB
 **上一版**：v8（versionCode 8 / versionName 4.14）· 7,736,355 字节 —— v9 净增 7,336 字节
 （新增的是 `data/notes.js`（12,456 字节）与菜单页公告面板；这是 `clean assembleDebug` 的数字，
