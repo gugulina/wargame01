@@ -3035,12 +3035,13 @@ console.log('\n[43] 超额条件提示（v4.17 第 6 条）');
      "菜单说可超额、打完不给超额"。三路各测一条。 */
   const c2 = api.levelById('C2');
   const h2 = api.perfectHint(c2);
-  ok('突围关：超额条件是战力留存', h2.ok && h2.text.indexOf('70%') >= 0, JSON.stringify(h2));
+  ok('突围关：超额条件是战力留存（v4.18 降到 60%）',
+     h2.ok && h2.text.indexOf('60%') >= 0, JSON.stringify(h2));
 
   const c1 = api.levelById('C1');
   const h1 = api.perfectHint(c1);
-  ok('坚守关：超额条件写明"全员无损失"与要守的核心',
-     h1.ok && h1.text.indexOf('无损失') >= 0 && h1.text.indexOf('要塞') >= 0,
+  ok('坚守关：超额条件写明"七成幸存"与要守的核心',
+     h1.ok && h1.text.indexOf('七成') >= 0 && h1.text.indexOf('要塞') >= 0,
      JSON.stringify(h1));
 
   const c3 = api.levelById('C3');
@@ -3049,6 +3050,11 @@ console.log('\n[43] 超额条件提示（v4.17 第 6 条）');
                       typeof c3.winScore === 'number' && c3.perfectScore > c3.winScore;
   ok('计分关：有更高分数线才说"可超额"，没有就说不出来',
      h3.ok === canPerfect3, JSON.stringify(h3) + ' / 分数线 ' + c3.winScore + '→' + c3.perfectScore);
+
+  const t1 = api.levelById('T1');
+  const h0 = api.perfectHint(t1);
+  ok('教学关不留超额：perfectHint 直接说没有',
+     h0.ok === false && h0.text.indexOf('教学') >= 0, JSON.stringify(h0));
 
   const notReady = api.LEVELS.find(l => !l.ready);
   if (notReady) {
@@ -3061,13 +3067,19 @@ console.log('\n[44] 要点标签按连通簇分段（v4.17 第 1 条）');
 {
   /* 第 6 关「北郊防线」是分成两段的高地，算同一个要点。
      标签原来按平均坐标算，落在两块中间的空地上——玩家看到一个飘在无人处的标签。
-     现在按连通簇各出一个标签。 */
+     现在按连通簇各出一个标签。
+     v4.18 起两段拆成了两个独立要点（lineW / lineE，各 10 分），
+     但每个要点自身仍然只有一个连通簇，objClusters 的行为不变。 */
   const c6 = api.levelById('C6');
-  const line = c6.objectives.find(o => o.id === 'line');
+  const line = c6.objectives.find(o => o.id === 'lineW');
   const cl = api.objClusters(line);
-  ok('C6 北郊防线切成两段', cl.length === 2, cl.length + ' 段');
-  ok('两段各自连通（段内任意两格距离 ≤ 段的直径）',
+  ok('C6 西段防线只有一个连通簇', cl.length === 1, cl.length + ' 段');
+  ok('该簇至少两格（段内连通）',
      cl.every(g => g.length >= 2), cl.map(g => g.length).join('+'));
+  const lineE = c6.objectives.find(o => o.id === 'lineE');
+  ok('C6 两段防线已是两个独立要点（keep 各占一条）',
+     api.levelById('C6').win.keep.indexOf('lineW') >= 0 &&
+     api.levelById('C6').win.keep.indexOf('lineE') >= 0);
 
   const cross = c6.objectives.find(o => o.id === 'cross');
   ok('连成一片的要点只出一段', api.objClusters(cross).length === 1);
@@ -3082,6 +3094,391 @@ console.log('\n[44] 要点标签按连通簇分段（v4.17 第 1 条）');
   const far = api.objClusters({ cells: [[3, 3], [3, 6]] });
   ok('隔开的两格分成两段（连通判据是六角相邻，不是直线距离）', far.length === 2,
      JSON.stringify(far));
+}
+
+console.log('\n[45] 无效接触 / doAttack 闸门 / 工事分槽 / 乘数夹紧（v4.17 补丁）');
+{
+  /* 四组断言守 docs/20 §三 §五 §六 §八 的四个口子。
+     每组都带一条"反向对照"：闸门不能把合法的攻击也拦掉，
+     否则修一个静默漏洞、造一个明着的安全区。 */
+  api.newGame({ level: 'C3', noSave: true });
+  const S = api.getState();
+  const T = api.TYPE;
+  S.units.length = 0;
+  S.forts = [];
+  S.mods = [];
+
+  let seq = 0;
+  const put = (side, t, r, c, str) => {
+    const u = api.makeUnit({ id: (side === 'blue' ? 'B' : 'R') + (++seq), side, type: t,
+      abbr: 'T' + seq, name: '测试' + T[t].name, r, c, corps: 'T',
+      str: str === undefined ? 10 : str,
+      mov: T[t].mv || 8, rng: T[t].rg === undefined ? 1 : T[t].rg }, false);
+    S.units.push(u);
+    return u;
+  };
+  const passable = (r, c) => api.inBounds(r, c) && api.TERRAIN[api.LEVEL.map[r][c]].cost < 99;
+
+  /* 找一个城区格 + 它旁边一格能站的陆地格。C3 的岚口市一定满足。 */
+  let city = null, beside = null;
+  outer:
+  for (let r = 0; r < api.LEVEL.rows; r++) {
+    for (let c = 0; c < api.LEVEL.cols; c++) {
+      if (api.terrainAt(r, c).cls !== 't-town' || !passable(r, c)) continue;
+      for (const n of api.neighbors(r, c)) {
+        if (passable(n[0], n[1])) { city = [r, c]; beside = n; break outer; }
+      }
+    }
+  }
+  ok('找到城区与相邻格', !!city && !!beside, JSON.stringify([city, beside]));
+
+  /* ── 一、无效接触 ──
+     守军必须用红方：targetsFor 只列敌方目标，蓝打蓝列不出来，那不是闸门在拦。 */
+  S.forts.push({ r: city[0], c: city[1], side: 'red', kind: 'B', def: 0.28, hp: 3, maxHp: 3 });
+  const turtle = put('red', 'gdn', city[0], city[1], 10);
+  turtle.fortify = 0.30;
+  const weak = put('blue', 'at', beside[0], beside[1], 2);
+  weak.moved = true;
+  ok('前提：弱攻方对满工事城区的比值低于无效接触线',
+     api.previewAttack(weak, turtle, S.fields).ratio < api.INVALID_RATIO,
+     api.previewAttack(weak, turtle, S.fields).ratio.toFixed(3));
+  ok('无效接触不进目标列表', !api.targetsFor(weak, S.fields).includes(turtle));
+  ok('无效接触在 doAttack 也被拒（绕过列表的兜底闸）',
+     api.doAttack(weak, turtle) === false && turtle.str === 10, '守方 str ' + turtle.str);
+  const strong = put('blue', 'marm', beside[0], beside[1], 60);
+  ok('反向对照：强攻方照常看得见同一目标',
+     api.targetsFor(strong, S.fields).includes(turtle));
+
+  /* ── 二、射程 / 弹药 / 展开（canFire + 距离复查）── */
+  clear0(S);
+  function clear0(s) { s.units.length = 0; s.forts = []; }
+  const shooter = put('blue', 'inf', beside[0], beside[1], 10);
+  let far = null;
+  for (let r = 0; r < api.LEVEL.rows && !far; r++) {
+    for (let c = 0; c < api.LEVEL.cols; c++) {
+      if (passable(r, c) && api.hexDist([r, c], shooter.pos) >= 4) { far = [r, c]; break; }
+    }
+  }
+  const remote = put('red', 'inf', far[0], far[1], 10);
+  ok('前提：目标在射程之外', api.hexDist(shooter.pos, remote.pos) > api.attackRange(shooter));
+  ok('超距目标不进列表', !api.targetsFor(shooter, S.fields).includes(remote));
+  ok('超距 doAttack 被拒（列表外的直接调用也进不去）',
+     api.doAttack(shooter, remote) === false && remote.str === 10, '守方 str ' + remote.str);
+
+  S.units.length = 0;
+  const gun = put('blue', 'art', beside[0], beside[1], 10);
+  gun.rng = 3;   /* TYPE 只有展示文案，射程跟着兵牌走；这里按旅炮的 2–5 格直接给 */
+  let mid = null;
+  for (let r = 0; r < api.LEVEL.rows && !mid; r++) {
+    for (let c = 0; c < api.LEVEL.cols; c++) {
+      if (passable(r, c) && api.hexDist([r, c], gun.pos) === 2) { mid = [r, c]; break; }
+    }
+  }
+  const near = put('red', 'inf', mid[0], mid[1], 10);
+  const dGun = api.hexDist(gun.pos, near.pos);
+  ok('前提：目标在火炮射程带内', dGun >= api.minRange(gun) && dGun <= api.attackRange(gun),
+     dGun + ' / 近界 ' + api.minRange(gun));
+  gun.ammo = 0;
+  ok('空弹的炮列不出目标', api.targetsFor(gun, S.fields).length === 0);
+  ok('空弹的炮在 doAttack 也被拒', api.doAttack(gun, near) === false && near.str === 10);
+  gun.ammo = 1;
+  ok('补回弹药后同一门炮照常锁定目标', api.targetsFor(gun, S.fields).includes(near));
+  gun.packed = true;
+  ok('行军状态的拖曳炮列不出目标', api.targetsFor(gun, S.fields).length === 0);
+  ok('行军状态的拖曳炮在 doAttack 也被拒',
+     api.doAttack(gun, near) === false && near.str === 10);
+
+  /* ── 三、工事分槽 ── */
+  S.units.length = 0; S.forts = [];
+  let plainCell = null;
+  for (let r = 0; r < api.LEVEL.rows && !plainCell; r++) {
+    for (let c = 0; c < api.LEVEL.cols; c++) {
+      if (passable(r, c) && api.terrainAt(r, c).cls !== 't-town') plainCell = [r, c];
+    }
+  }
+  S.forts.push({ r: plainCell[0], c: plainCell[1], side: 'blue', kind: 'H', def: 0.15, hp: 0, maxHp: 0 });
+  const aac = put('blue', 'aac', plainCell[0], plainCell[1], 4);
+  ok('防空阵地能立在最常见的堑壕格上（分槽前被 def 0.10 < 0.15 永久锁死）',
+     api.fortKindsFor(aac, plainCell).includes('F'), api.fortKindsFor(aac, plainCell).join('/'));
+  ok('碉堡不可被堑壕反向覆盖（同槽仍要求 def 更大）',
+     !api.fortKindsFor(aac, plainCell).includes('H'));
+  S.forts.push({ r: city[0], c: city[1], side: 'blue', kind: 'B', def: 0.28, hp: 3, maxHp: 3 });
+  const eng = put('blue', 'eng', plainCell[0], plainCell[1], 4);
+  ok('工兵在碉堡格上可以改立火力点与防空（跨槽），但堑壕仍进不来（同槽 def 更小）',
+     city && api.fortKindsFor(eng, city).includes('P') &&
+     api.fortKindsFor(eng, city).includes('F') &&
+     !api.fortKindsFor(eng, city).includes('H'),
+     api.fortKindsFor(eng, city).join('/'));
+
+  /* ── 四、乘数夹紧与炮兵减半口径 ──
+     夹紧的上限要在"为了祖国"也叠上的局面里验（0.85+0.30+0.28+0.20=1.63）。
+     「为了祖国」只认 kind 为 city/air 的要点，不是每关都有——按关卡搜一个。 */
+  let site = null;
+  for (const lv of api.LEVELS.filter(l => l.ready)) {
+    api.newGame({ level: lv.id, noSave: true });
+    const st = api.getState();
+    for (const o of (lv.objectives || [])) {
+      if (o.kind !== 'city' && o.kind !== 'air') continue;
+      const cell = (o.cells || []).find(x =>
+        api.terrainAt(x[0], x[1]).cls === 't-town' &&
+        api.TERRAIN[api.LEVEL.map[x[0]][x[1]]].cost < 99);
+      if (cell) { site = { lv, o, cell, st }; break; }
+    }
+    if (site) break;
+  }
+  ok('找到 kind 为 city/air 的城区要点关卡', !!site, site ? site.lv.id : '无');
+  if (site) {
+    const st = site.st;
+    st.units.length = 0; st.forts = []; st.mods = [];
+    let q = 0;
+    const putAt = (t, r, c, str) => {
+      const u = api.makeUnit({ id: 'B' + (++q), side: 'blue', type: t,
+        abbr: 'T' + q, name: '测试' + T[t].name, r, c, corps: 'T',
+        str: str === undefined ? 10 : str,
+        mov: T[t].mv || 8, rng: T[t].rg === undefined ? 1 : T[t].rg }, false);
+      st.units.push(u);
+      return u;
+    };
+    st.ctrl = {}; st.ctrl[site.o.id] = 'blue';
+    st.forts.push({ r: site.cell[0], c: site.cell[1], side: 'blue', kind: 'B', def: 0.28, hp: 3, maxHp: 3 });
+    const turtle2 = putAt('gdn', site.cell[0], site.cell[1], 10);
+    turtle2.fortify = 0.30;
+    ok('防御叠放触顶后被夹紧（0.85+0.30+0.28+0.20=1.63 → 1.6，否则下一个加防御的特性就是 ×2.63 起步）',
+       Math.abs(api.terrainDefFor(turtle2) - 1.6) < 1e-9, api.terrainDefFor(turtle2).toFixed(4));
+    const artyOnFort = putAt('art', site.cell[0], site.cell[1], 10);
+    const footOnFort = putAt('inf', site.cell[0], site.cell[1], 10);
+    ok('炮兵的被动防御收益整体减半（含工兵碉堡，口径不再取决于"掩体是谁修的"）',
+       Math.abs(api.terrainDefFor(artyOnFort) - (0.85 + 0.28) * 0.5) < 1e-9,
+       api.terrainDefFor(artyOnFort).toFixed(4));
+    ok('反向对照：步兵在同一个碉堡格吃满 0.85 + 0.28（不是 gdn，没有为了祖国）',
+       Math.abs(api.terrainDefFor(footOnFort) - 1.13) < 1e-9,
+       api.terrainDefFor(footOnFort).toFixed(4));
+
+    st.forts = [];
+    const buffed = putAt('inf', site.cell[0], site.cell[1], 10);
+    const victim = putAt('inf', site.cell[0], site.cell[1] + 1, 10);
+    st.mods = [{ side: 'blue', atk: 5, label: '探针加成' }];
+    const pv = api.previewAttack(buffed, victim, st.fields);
+    /* 期望值必须照公式全算：主攻 + 协同，再乘夹紧后的 2.0。
+       只拿 effStr × 2 对账的话，协同那一份会被误记成"夹紧没生效"。 */
+    const wantSum = (api.effStr(buffed, st.fields) +
+        pv.attHelp.reduce((s, a) => s + api.effStr(a.u, st.fields) * a.w, 0)) * 2.0;
+    ok('前提：修正池确实越过了 +1（否则夹紧断言没咬住任何东西）', pv.attMod > 4, pv.attMod.toFixed(2));
+    ok('攻击乘数封顶 2.0（attSum 按夹紧后的乘数算，而不是 1+attMod）',
+       Math.abs(pv.attSum - wantSum) < 1e-6,
+       pv.attSum.toFixed(3) + ' vs ' + wantSum.toFixed(3));
+    st.mods = [];
+  }
+}
+
+console.log('\n[46] 炮兵均摊 / 多面进攻 / 指挥部防炮 / 教学关封顶（v4.18）');
+{
+  api.newGame({ level: 'C3', noSave: true });
+  const S = api.getState();
+  const T = api.TYPE;
+  S.units.length = 0;
+  S.forts = [];
+  S.mods = [];
+  S.flanges = {};
+
+  let seq = 0;
+  const put = (side, t, r, c, str) => {
+    const u = api.makeUnit({ id: (side === 'blue' ? 'B' : 'R') + (++seq), side, type: t,
+      abbr: 'T' + seq, name: '测试' + T[t].name, r, c, corps: 'T',
+      str: str === undefined ? 10 : str,
+      mov: T[t].mv || 8, rng: T[t].rg === undefined ? 1 : T[t].rg }, false);
+    S.units.push(u);
+    return u;
+  };
+  const passable = (r, c) => api.inBounds(r, c) && api.TERRAIN[api.LEVEL.map[r][c]].cost < 99;
+  const key = p => p[0] + ',' + p[1];
+
+  /* ── 一、炮兵均摊：同一格的所有地表单位一起掉血 ──
+     炮兵打的是"格子"不是"番号"。堆在一格里挡炮的两支，
+     伤亡四舍五入均摊；非炮兵仍然是单体结算。 */
+  let stack = null, artySpot = null;
+  outer46:
+  for (let r = 0; r < api.LEVEL.rows; r++) {
+    for (let c = 0; c < api.LEVEL.cols; c++) {
+      if (!passable(r, c) || api.terrainAt(r, c).cls === 't-town') continue;
+      /* 炮位要在近界之外（野炮 2 格）、射程之内（art 5 格）——取 3 格 */
+      for (const n of api.neighbors(r, c)) {
+        if (!passable(n[0], n[1])) continue;
+        for (let rr = 0; rr < api.LEVEL.rows && !artySpot; rr++) {
+          for (let cc = 0; cc < api.LEVEL.cols; cc++) {
+            if (passable(rr, cc) && api.hexDist([rr, cc], [r, c]) === 3) {
+              stack = [r, c]; artySpot = [rr, cc]; break outer46;
+            }
+          }
+        }
+      }
+    }
+  }
+  ok('找到开阔堆叠格与 3 格外的炮位', !!stack && !!artySpot, JSON.stringify([stack, artySpot]));
+  if (stack && artySpot) {
+    const v1 = put('red', 'inf', stack[0], stack[1], 10);
+    const v2 = put('red', 'inf', stack[0], stack[1], 10);
+    /* 炮兵 str 40：比值 2:1，保证任何骰面下均摊份额 ≥1（否则断言掷骰运气） */
+    const gun = put('blue', 'art', artySpot[0], artySpot[1], 40);
+    /* TYPE.art 不带 rg（射程是单位数据，不是兵种表）——测试里自己给满射程 */
+    gun.rng = 5;
+    ok('前提：炮兵进了射程带（近界外、射程内）',
+       api.minRange(gun) <= api.hexDist(gun.pos, v1.pos) &&
+       api.hexDist(gun.pos, v1.pos) <= gun.rng,
+       api.hexDist(gun.pos, v1.pos) + ' / 近界 ' + api.minRange(gun));
+    ok('前提：堆叠目标在炮的目标列表里', api.targetsFor(gun, S.fields).includes(v1));
+    api.doAttack(gun, v1);
+    const l1 = 10 - v1.str, l2 = 10 - v2.str;
+    ok('炮击均摊：两支同格单位掉同样的血（四舍五入）',
+       l1 === l2 && l1 > 0, v1.str + ' / ' + v2.str);
+    ok('炮击均摊：组织度也一起掉', v1.org < 100 && v2.org < 100,
+       v1.org + ' / ' + v2.org);
+    /* "相等"拦不住"都掉全额"的 mutant——账目必须对上：
+       战报里写着面上损失 X 与每支份额 Y，Y 必须是 round(X / 受害支数)。 */
+    const lm = S.log.map(l => l.text).reverse().find(t => t.indexOf('均摊') >= 0);
+    const mm = /面上 -(\d+)（(\d+) 支均摊 −(\d+)）/.exec(lm || '');
+    ok('均摊账目：每支份额是面上损失的一半（四舍五入）',
+       !!mm && Number(mm[3]) === Math.round(Number(mm[1]) / Number(mm[2])) &&
+       Number(mm[3]) < Number(mm[1]), lm);
+    ok('炮击均摊：工事被波及清零', v1.fortify === 0 && v2.fortify === 0,
+       v1.fortify + ' / ' + v2.fortify);
+
+    /* 反向对照：非炮兵打同一格，只有被点名的目标掉血 */
+    const w1 = put('red', 'inf', stack[0], stack[1], 10);
+    const w2 = put('red', 'inf', stack[0], stack[1], 10);
+    const b2 = api.neighbors(stack[0], stack[1]).find(n => passable(n[0], n[1]));
+    const hit = put('blue', 'marm', b2[0], b2[1], 6);
+    api.doAttack(hit, w1);
+    ok('非炮兵仍是单体结算：同格友军不掉血',
+       w2.str === 10, w2.str);
+    S.units = S.units.filter(u => u !== v1 && u !== v2 && u !== gun && u !== w1 && u !== w2 && u !== hit);
+  }
+
+  /* ── 二、多面进攻：同一回合被不同方向攻打，防御乘数 −0.30（下限 ×1）── */
+  let city = null, adj1 = null, adj2 = null;
+  outer46b:
+  for (let r = 0; r < api.LEVEL.rows; r++) {
+    for (let c = 0; c < api.LEVEL.cols; c++) {
+      if (api.terrainAt(r, c).cls !== 't-town' || !passable(r, c)) continue;
+      const ns = api.neighbors(r, c).filter(n => passable(n[0], n[1]));
+      if (ns.length >= 2) { city = [r, c]; adj1 = ns[0]; adj2 = ns[1]; break outer46b; }
+    }
+  }
+  ok('找到城区与两个相邻格', !!city && !!adj1 && !!adj2, JSON.stringify([city, adj1, adj2]));
+  if (city) {
+    const def = put('red', 'inf', city[0], city[1], 10);
+    def.fortify = 0.30;
+    const a1 = put('blue', 'marm', adj1[0], adj1[1], 10);
+    put('blue', 'marm', adj2[0], adj2[1], 10);
+    const pv0 = api.previewAttack(a1, def, S.fields);
+    ok('前提：无侧翼记录时不算多面进攻', pv0.flanked === false, String(pv0.flanked));
+    ok('前提：城区守军的防御加成高于 0.30（否则夹紧会吃掉对照）',
+       api.terrainDefFor(def) > 0.30, api.terrainDefFor(def).toFixed(2));
+    /* flanges 的账由 doAttack 记（noteFlank），测试直接摆账本：
+       键是"挨打的格"，值是"第一个进攻方来的格"——从别的格再打就算包抄。 */
+    S.flanges[key(def.pos)] = key(adj2);
+    const pv1 = api.previewAttack(a1, def, S.fields);
+    ok('另一方向打过之后，previewAttack 标记 flanked', pv1.flanked === true);
+    ok('多面进攻削防御：defSum 严格变小', pv1.defSum < pv0.defSum,
+       pv1.defSum.toFixed(2) + ' vs ' + pv0.defSum.toFixed(2));
+    const expect = pv0.defSum / (1 + api.terrainDefFor(def)) *
+                   (1 + api.terrainDefFor(def) - 0.30);
+    ok('削的量恰是 FLANK_PENALTY（0.30 加在乘数括号里）',
+       Math.abs(pv1.defSum - expect) < 1e-6,
+       pv1.defSum.toFixed(3) + ' vs ' + expect.toFixed(3));
+    /* 同一个方向打两次不算包抄：账本记的是"来的格"，不是"来过几次" */
+    S.flanges[key(def.pos)] = key(adj1);
+    ok('同一格方向 repeat 不算多面进攻', api.previewAttack(a1, def, S.fields).flanked === false);
+    delete S.flanges[key(def.pos)];
+
+    /* 刹车：开阔地上防御加成本来就是 0，乘数夹在 ×1，多面进攻不再往下压 */
+    const flat = api.neighbors(city[0], city[1]).find(n => passable(n[0], n[1]) &&
+      api.terrainAt(n[0], n[1]).cls !== 't-town' && api.terrainDefFor(def) >= 0);
+    if (flat) {
+      const openDef = put('red', 'inf', flat[0], flat[1], 10);
+      const fa1 = put('blue', 'marm', ...api.neighbors(flat[0], flat[1]).find(n => passable(n[0], n[1])));
+      const f0 = api.previewAttack(fa1, openDef, S.fields);
+      S.flanges[key(openDef.pos)] = '0,0';
+      if (api.previewAttack(fa1, openDef, S.fields).flanked) {
+        const f1 = api.previewAttack(fa1, openDef, S.fields);
+        ok('开阔地：乘数夹在 ×1，多面进攻不把防御压成负',
+           f1.defSum === f0.defSum, f1.defSum.toFixed(2) + ' vs ' + f0.defSum.toFixed(2));
+      } else {
+        ok('开阔地：乘数夹在 ×1（该格无第二方向，跳过数值对照）', true);
+      }
+      delete S.flanges[key(openDef.pos)];
+    }
+    S.units = S.units.filter(u => ![def, a1].includes(u));
+  }
+
+  /* ── 三、指挥部防炮：炮兵 / 舰炮对指挥部 attMod −0.30 ── */
+  {
+    const hq = put('red', 'hqd', city[0], city[1], 10);
+    const foot = put('red', 'inf', city[0], city[1], 10);
+    /* 炮位按指挥部的位置现找：近界外（≥2）、射程内（≤5），取 3 格 */
+    let spot2 = null;
+    for (let r = 0; r < api.LEVEL.rows && !spot2; r++)
+      for (let c = 0; c < api.LEVEL.cols && !spot2; c++)
+        if (passable(r, c) && api.hexDist([r, c], city) === 3) spot2 = [r, c];
+    ok('前提：找到指挥部 3 格外的炮位', !!spot2, JSON.stringify(spot2));
+    const gun2 = put('blue', 'art', spot2[0], spot2[1], 40);
+    gun2.rng = 5;
+    const blade = put('blue', 'marm', adj1[0], adj1[1], 10);
+    ok('前提：炮兵在射程带内', api.targetsFor(gun2, S.fields).includes(hq));
+    const byGun = api.previewAttack(gun2, hq, S.fields).attMod;
+    const byGunInf = api.previewAttack(gun2, foot, S.fields).attMod;
+    ok('炮击指挥部：attMod 比炮击普通部队低 0.30',
+       Math.abs((byGunInf - byGun) - 0.30) < 1e-9,
+       byGun.toFixed(2) + ' vs ' + byGunInf.toFixed(2));
+    const byBlade = api.previewAttack(blade, hq, S.fields).attMod;
+    const byBladeInf = api.previewAttack(blade, foot, S.fields).attMod;
+    ok('反过来说：平射指挥部不吃这个减免（是"防炮"，不是"防平射"）',
+       Math.abs(byBlade - byBladeInf) < 1e-9,
+       byBlade.toFixed(2) + ' vs ' + byBladeInf.toFixed(2));
+    S.units = S.units.filter(u => ![hq, foot, gun2, blade].includes(u));
+  }
+
+  /* ── 四、教学关封顶：打再高也只判 win，不给 perfect ── */
+  {
+    ok('isTutorial 认得教学关、放行普通关',
+       api.isTutorial(api.levelById('T1')) === true &&
+       api.isTutorial(api.levelById('C1')) === false);
+    api.newGame({ level: 'T1', noSave: true });
+    const T1 = api.getState();
+    /* 造一个"必然超额"的局面：把超额线拉到 5 分、占住演习要点。
+       没有封顶的话 judgeFinal 会先判 perfect 再被 isTutorial 压回 win；
+       封顶失效的 mutant 会让这里变红。 */
+    api.LEVEL.perfectScore = 5;
+    const drill = api.LEVEL.objectives[0];
+    const holder = put('blue', 'inf', drill.cells[0][0], drill.cells[0][1], 10);
+    T1.units.push(holder);
+    api.updateControl();
+    api.judgeFinal();
+    ok('教学关：分数越过超额线也只判 win', T1.result === 'win', T1.result);
+    ok('教学关：确实越过了超额线（对照不是白设的）',
+       api.blueScore() >= 5, String(api.blueScore()));
+    delete api.LEVEL.perfectScore;
+  }
+
+  /* ── 五、坚守关七成线端到端：judgeFinal 与 perfectHint 必须同源 ──
+     perfectHint 的文案会说"七成"，但真正判 perfect 的是 judgeFinal 里
+     那个 0.7——两处各写各的话，就会出现"菜单说可超额、打完不给超额"。 */
+  {
+    api.newGame({ level: 'C1', noSave: true });
+    const C1 = api.getState();
+    const initN = api.LEVEL.units.filter(u => u.side === 'blue' && u.wave === 1).length;
+    ok('前提：C1 是坚守关、蓝方第一波不少于 7 支',
+       api.LEVEL.win.kind === 'survive' && initN >= 7,
+       api.LEVEL.win.kind + ' / ' + initN);
+    for (const id of api.LEVEL.win.keep) C1.ctrl[id] = 'blue';
+    /* 摘掉一支（alive 不过滤 str=0 的兵牌，置 0 不算阵亡）：
+       11/12 ≥ 七成但 < 全额，正好卡在两条判据之间。 */
+    const victim = api.alive('blue')[0];
+    C1.units.splice(C1.units.indexOf(victim), 1);
+    api.judgeFinal();
+    ok('坚守关：损一支仍在七成线上，judgeFinal 判 perfect', C1.result === 'perfect',
+       C1.result);
+  }
 }
 
 console.log('\n通过 ' + pass + ' 项，失败 ' + fail + ' 项');

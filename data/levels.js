@@ -5,8 +5,8 @@
    为什么是 .js 而不是 .json：项目要能双击直接打开，
    file:// 下 fetch 会被同源策略拦掉，<script src> 不会。 */
 window.CANGYU = {
-  "ver": "v4.17",
-  "srcSig": "439329:agvggq",
+  "ver": "v4.18",
+  "srcSig": "444312:1r01ghg",
   "storage": {
     "save": "wargame.lankou.save",
     "saveVer": 3,
@@ -119,8 +119,8 @@ window.CANGYU = {
       "noText": "序 · ",
       "win": "score",
       "perfect": {
-        "ok": true,
-        "text": "得分 99 以上（达成线 10）"
+        "ok": false,
+        "text": "教学关不设超额达成"
       },
       "turns": 7,
       "cols": 12,
@@ -151,7 +151,7 @@ window.CANGYU = {
       "win": "survive",
       "perfect": {
         "ok": true,
-        "text": "全员无损失，且「要塞核心」不失守"
+        "text": "兵牌幸存不少于七成，且「要塞核心」不失守"
       },
       "turns": 8,
       "cols": 12,
@@ -182,7 +182,7 @@ window.CANGYU = {
       "win": "reach",
       "perfect": {
         "ok": true,
-        "text": "撤出后保留战力不低于开局的 70%"
+        "text": "撤出后保留战力不低于开局的 60%"
       },
       "turns": 12,
       "cols": 16,
@@ -213,7 +213,7 @@ window.CANGYU = {
       "win": "reach",
       "perfect": {
         "ok": true,
-        "text": "撤出后保留战力不低于开局的 70%"
+        "text": "撤出后保留战力不低于开局的 60%"
       },
       "turns": 10,
       "cols": 14,
@@ -244,7 +244,7 @@ window.CANGYU = {
       "win": "score",
       "perfect": {
         "ok": true,
-        "text": "得分 35 以上（达成线 26）"
+        "text": "得分 30 以上（达成线 26）"
       },
       "turns": 12,
       "cols": 20,
@@ -275,7 +275,7 @@ window.CANGYU = {
       "win": "survive",
       "perfect": {
         "ok": true,
-        "text": "全员无损失，且「跑道」不失守"
+        "text": "兵牌幸存不少于七成，且「跑道」不失守"
       },
       "turns": 10,
       "cols": 16,
@@ -306,7 +306,7 @@ window.CANGYU = {
       "win": "survive",
       "perfect": {
         "ok": true,
-        "text": "全员无损失，且「港口要塞」「波尔瓦萨市」不失守"
+        "text": "兵牌幸存不少于七成，且「港口要塞」「波尔瓦萨市」不失守"
       },
       "turns": 20,
       "cols": 22,
@@ -337,7 +337,7 @@ window.CANGYU = {
       "win": "reach",
       "perfect": {
         "ok": true,
-        "text": "撤出后保留战力不低于开局的 70%"
+        "text": "撤出后保留战力不低于开局的 60%"
       },
       "turns": 12,
       "cols": 22,
@@ -368,7 +368,7 @@ window.CANGYU = {
       "win": "survive",
       "perfect": {
         "ok": true,
-        "text": "全员无损失，且「桥南阵地」不失守"
+        "text": "兵牌幸存不少于七成，且「桥南阵地」不失守"
       },
       "turns": 12,
       "cols": 16,
@@ -399,7 +399,7 @@ window.CANGYU = {
       "win": "survive",
       "perfect": {
         "ok": true,
-        "text": "全员无损失，且「北郊防线」不失守"
+        "text": "兵牌幸存不少于七成，且「北郊防线·西段」「北郊防线·东段」不失守"
       },
       "turns": 14,
       "cols": 18,

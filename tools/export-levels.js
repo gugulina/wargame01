@@ -1,4 +1,5 @@
-/* 把关卡元数据从 campaign.html 抽出来，写成 data/levels.js 给首页用。
+/* 把关卡元数据和战术卡展示字段从 campaign.html 抽出来，写成 data/levels.js
+   与 data/cards.js 给首页 / 配牌页用。
 
    为什么不直接 fetch JSON：这个项目是"双击 index.html 就能玩"的纯静态页面，
    file:// 协议下 fetch/XHR 会被同源策略拦死，但 <script src> 放行。
@@ -9,7 +10,7 @@
    改完关名忘了改首页，首页就会指着一个不存在的关名。这里生成、check 模式校验。
 
    用法：
-     node tools/export-levels.js             生成 data/levels.js
+     node tools/export-levels.js             生成 data/levels.js + data/cards.js
      node tools/export-levels.js --check     只比对，不写文件；不一致退出码 1
 */
 const fs = require('fs');
@@ -121,6 +122,17 @@ const chapters = (api.CHAPTERS || []).map(c => {
   };
 });
 
+/* 战术卡展示数据也带出去（v4.18 配牌独立成 cards.html）。
+   cards.html 只拿**展示字段**：apply() 这类行为逻辑留在引擎里——
+   行为抄第二份必然走样，纯数据抄走不会错。 */
+const cards = (api.CARD_IDS || []).map(id => {
+  const c = api.CARDS[id] || {};
+  return {
+    id, name: c.name, tag: c.tag, short: c.short,
+    desc: c.desc, note: c.note, target: c.target
+  };
+});
+
 const body = `/* 由 tools/export-levels.js 从 game/campaign.html 生成 —— 不要手改这个文件。
    改了关卡数据之后跑一次：node tools/export-levels.js
    想确认首页和引擎有没有走样：node tools/export-levels.js --check
@@ -138,25 +150,48 @@ window.CANGYU = ${JSON.stringify({
 }, null, 2)};
 `;
 
+/* cards.html 的数据文件。上限与默认牌组也从引擎带出：
+   CARD_MAX 改成 4 而配牌页还写死 3，玩家会带第四张进关然后被引擎拒收。 */
+const cardsOutPath = path.join(root, 'data', 'cards.js');
+const cardsBody = `/* 由 tools/export-levels.js 从 game/campaign.html 生成 —— 不要手改这个文件。
+   改了战术卡数据之后跑一次：node tools/export-levels.js
+
+   cards.html（局外配牌页）从这里拿展示字段与上限；
+   行为逻辑（apply）不在这里——用卡永远发生在引擎里。 */
+window.WARGAME_CARDS = ${JSON.stringify({
+  max: api.CARD_MAX,
+  defaultDeck: api.DEFAULT_DECK,
+  cards
+}, null, 2)};
+`;
+
 if (checkOnly) {
-  let old = '';
-  try { old = fs.readFileSync(outPath, 'utf8'); } catch (e) { old = ''; }
-  /* 比对前同样归一化：工作区的 data/levels.js 可能是 CRLF（Windows 检出），
-     而 body 永远是 LF。只差行尾就报"不一致"是最冤的一种红。 */
-  if (old.replace(/\r\n?/g, '\n') !== body) {
-    console.error('✗ data/levels.js 与 campaign.html 不一致——跑 node tools/export-levels.js 重新生成');
+  const cmp = (file, want, label) => {
+    let old = '';
+    try { old = fs.readFileSync(file, 'utf8'); } catch (e) { old = ''; }
+    /* 比对前同样归一化：工作区的 data/*.js 可能是 CRLF（Windows 检出），
+       而 body 永远是 LF。只差行尾就报"不一致"是最冤的一种红。 */
+    return old.replace(/\r\n?/g, '\n') === want ? null : label;
+  };
+  const bad = [
+    cmp(outPath, body, 'data/levels.js 与 campaign.html 不一致——跑 node tools/export-levels.js 重新生成'),
+    cmp(cardsOutPath, cardsBody, 'data/cards.js 与 campaign.html 不一致——跑 node tools/export-levels.js 重新生成')
+  ].filter(Boolean);
+  if (bad.length) {
+    for (const b of bad) console.error('✗ ' + b);
     /* 先把指纹摆出来。指纹不同而关卡全同，说明引擎动过、数据没动；
        反过来才是关卡数据本身的问题。少了这一行，只能靠重新生成 + git diff
        才看得出差在哪（v4.6.2 查 CI 就是这么查的，绕了一大圈）。 */
+    const oldRaw = (() => { try { return fs.readFileSync(outPath, 'utf8'); } catch (e) { return ''; } })();
     const sigOf = s => { const m = /"srcSig":\s*"([^"]+)"/.exec(s || ''); return m ? m[1] : '(无)'; };
-    if (sigOf(old) !== srcSig) {
-      console.error('  引擎指纹：文件里 ' + sigOf(old) + '，当前 ' + srcSig);
+    if (sigOf(oldRaw) !== srcSig) {
+      console.error('  引擎指纹：文件里 ' + sigOf(oldRaw) + '，当前 ' + srcSig);
     }
     /* 具体差在哪：逐关比 id / name / when，比"两个文件不一样"有用 */
     let prev = null;
     try { prev = require(outPath.includes(':') ? path.resolve(outPath) : outPath); } catch (e) {}
-    const oldLevels = old ? (() => {
-      const m = /\{[\s\S]*\}/.exec(old);
+    const oldLevels = oldRaw ? (() => {
+      const m = /\{[\s\S]*\}/.exec(oldRaw);
       try { return JSON.parse(m[0]).levels || []; } catch (e) { return []; }
     })() : [];
     if (oldLevels.length !== levels.length) {
@@ -173,11 +208,14 @@ if (checkOnly) {
     process.exit(1);
   }
   console.log('✓ data/levels.js 与引擎一致（' + levels.length + ' 关，' + ver + '）');
+  console.log('✓ data/cards.js 与引擎一致（' + cards.length + ' 张卡）');
   process.exit(0);
 }
 
 fs.writeFileSync(outPath, body, 'utf8');
+fs.writeFileSync(cardsOutPath, cardsBody, 'utf8');
 console.log('✓ 已写 data/levels.js：' + levels.length + ' 关 / ' + chapters.length + ' 章（' + ver + '）');
+console.log('✓ 已写 data/cards.js：' + cards.length + ' 张卡');
 /* 按章打出来。8 章 60 多关一口气平铺，人是看不出结构的——
    而"哪一章还只有 2 关"恰恰是最需要一眼看见的东西。 */
 let curCh = null;

@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="苍屿战役 · 战术卡配牌页 —— 开局之前决定下一局带哪三张。">
+<title>苍屿战役 · 更换战术卡</title>
+<style>
+  /* 与首页同一套纸面视觉（index.html 的变量），卡条样式与引擎内一致
+     （campaign.css 的 .tcard 系）——两个页面长得不一样，玩家会怀疑改的地方没生效 */
+  :root {
+    --bg: #F4F2EC; --paper: #FBFAF6; --card: #FFFFFF;
+    --ink: #2B2A26; --ink2: #6E6B64; --ink3: #9A968C;
+    --line: #E2DED3; --blue: #3A6EA5; --blue-d: #325F8F; --blue-bg: #E8EFF7;
+    --red: #A83A3A; --red-bg: #F7E9E9;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; background: var(--bg); color: var(--ink);
+    font: 14px/1.65 -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    background-image:
+      linear-gradient(rgba(43,42,38,.028) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(43,42,38,.028) 1px, transparent 1px);
+    background-size: 28px 28px; background-position: -1px -1px;
+  }
+  .wrap { max-width: 640px; margin: 0 auto; padding: 38px 22px 48px; }
+  .kicker {
+    display: flex; align-items: center; gap: 9px;
+    font-size: 10.5px; letter-spacing: 2.6px; text-transform: uppercase;
+    color: var(--ink3); margin-bottom: 16px;
+  }
+  .kicker::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+  h1 { margin: 0 0 10px; font-size: 30px; font-weight: 700; letter-spacing: 2px; }
+  .lead { margin: 0 0 22px; color: var(--ink2); font-size: 13px; line-height: 1.95; }
+  .lead b { color: var(--ink); font-weight: 600; }
+  .back {
+    display: inline-block; margin-bottom: 18px; padding: 7px 14px;
+    border: 1px solid var(--line); border-radius: 8px; background: var(--card);
+    color: var(--ink2); font-size: 12.5px; font-weight: 600;
+    text-decoration: none; cursor: pointer;
+  }
+  .back:hover { border-color: #CFC9BC; color: var(--ink); }
+
+  .card-bar {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 14px;
+    padding: 9px 12px; background: #F5F1E7; border-radius: 4px;
+    border: 1px solid #E4DCCC; font-size: 11.5px; color: var(--ink2);
+  }
+  .card-bar b { color: var(--ink); font-size: 13px; }
+  .card-bar .warn { color: var(--red); font-weight: 700; }
+  .card-list { display: flex; flex-direction: column; gap: 8px; }
+  .tcard {
+    display: flex; gap: 12px; align-items: flex-start;
+    border: 1px solid #E2DCCD; border-radius: 4px; padding: 11px 13px;
+    background: #FFFDF8;
+  }
+  .tcard.on { border-color: #3A6EA5; background: #F4F8FC; }
+  .tcard-l { flex: 1; min-width: 0; }
+  .tcard-h { display: flex; align-items: center; gap: 7px; margin-bottom: 3px; }
+  .tcard-h b { font-size: 13px; }
+  .tcard-tag {
+    font-size: 9px; font-weight: 800; letter-spacing: 1px;
+    padding: 1px 5px; border-radius: 2px;
+    background: #EDE8DB; color: #8A7A55;
+  }
+  .tcard-d { font-size: 11.5px; color: var(--ink); line-height: 1.6; margin-bottom: 3px; }
+  .tcard-n { font-size: 10.5px; color: var(--ink3); line-height: 1.6; }
+  .tcard-b {
+    flex: 0 0 auto; font: inherit; font-size: 11px; font-weight: 700;
+    padding: 6px 13px; border-radius: 4px; cursor: pointer;
+    border: 1px solid #2B2A26; background: #2B2A26; color: #FBF9F3;
+    white-space: nowrap;
+  }
+  .tcard-b:hover { background: #403E38; }
+  .tcard-b.drop { background: none; color: var(--ink2); border-color: #D3CCBC; }
+  .tcard-b.drop:hover { color: var(--red); border-color: var(--red); }
+  .note {
+    margin-top: 18px; font-size: 11px; color: var(--ink3); line-height: 1.8;
+  }
+  .fallback {
+    padding: 14px 16px; border: 1px solid var(--red); border-radius: 6px;
+    background: var(--red-bg); color: var(--red); font-size: 13px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="index.html">← 返回菜单</a>
+  <div class="kicker">苍屿战役 · 开局准备</div>
+  <h1>战术卡</h1>
+  <p class="lead">决定<b>下一局</b>带哪三张。牌组存在本机、跨关沿用；
+    每张卡整局只能用一次，加成持续到下一次我方阶段开始——
+    <b>防守类会完整覆盖敌方那一轮</b>。正在打的那一局牌组已定，改了也从下一关生效。</p>
+  <div class="card-bar" id="bar">读取中……</div>
+  <div class="card-list" id="list"></div>
+  <p class="note" id="deckNote"></p>
+  <noscript><p class="fallback">需要开启 JavaScript 才能配牌。</p></noscript>
+</div>
+<script src="data/levels.js"></script>
+<script src="data/cards.js"></script>
+<script>
+/* 配牌页只有一个职责：读写战役进度里的 deck 字段。
+   进度 key 不在这里硬编码——data/levels.js 里引擎已经把 storage.progress 带出来了，
+   再抄一份迟早跟引擎说不到一块儿去。 */
+(function () {
+  const D = window.WARGAME_CARDS || {};
+  const PROGRESS = (window.CANGYU && window.CANGYU.storage &&
+                    window.CANGYU.storage.progress) || 'wargame.campaign.progress';
+  const MAX = D.max || 3;
+  const DEF = D.defaultDeck || [];
+  const CARDS = D.cards || [];
+  const byId = {};
+  for (const c of CARDS) byId[c.id] = c;
+
+  function readProgress() {
+    try {
+      const p = JSON.parse(localStorage.getItem(PROGRESS) || '');
+      return (p && typeof p === 'object') ? p : {};
+    } catch (e) { return {}; }
+  }
+  /* 与引擎 readDeck 同一条规则：null = 从没配过 → 默认三张；
+     [] = 玩家主动全卸了 → 真的是空手。两者混了就清不空牌组。 */
+  function readDeck() {
+    const d = readProgress().deck;
+    if (Array.isArray(d)) return d.filter(id => !!byId[id]).slice(0, MAX);
+    return DEF.slice();
+  }
+  function writeDeck(d) {
+    const p = readProgress();
+    p.deck = d.filter(id => !!byId[id]).slice(0, MAX);
+    try { localStorage.setItem(PROGRESS, JSON.stringify(p)); return true; }
+    catch (e) { return false; }
+  }
+
+  const bar = document.getElementById('bar');
+  const list = document.getElementById('list');
+  const note = document.getElementById('deckNote');
+
+  function render() {
+    const deck = readDeck();
+    const left = MAX - deck.length;
+    bar.innerHTML = '携带 <b>' + deck.length + ' / ' + MAX + '</b>' +
+      '<span style="flex:1"></span>' +
+      (left > 0 ? '<span>还能再带 <b>' + left + '</b> 张</span>'
+                : '<span class="warn">已满，先卸一张再选</span>');
+    list.innerHTML = CARDS.map(c => {
+      const on = deck.indexOf(c.id) >= 0;
+      return '<div class="tcard' + (on ? ' on' : '') + '">' +
+        '<div class="tcard-l"><div class="tcard-h"><b>' + c.name + '</b>' +
+        '<span class="tcard-tag">' + c.tag + '</span></div>' +
+        '<div class="tcard-d">' + c.desc + '</div>' +
+        '<div class="tcard-n">' + c.note + '</div></div>' +
+        '<button class="tcard-b' + (on ? ' drop' : '') + '" data-card="' + c.id + '">' +
+        (on ? '卸下' : '携带') + '</button></div>';
+    }).join('');
+    note.textContent = deck.length
+      ? '带 ' + deck.length + ' 张进下一关。全部卸下也可以——开局不带任何战术卡。'
+      : '当前是空手开局：不带任何战术卡。想要默认三张，把 ' +
+        DEF.map(id => (byId[id] || {}).name || id).join('、') + ' 重新带上即可。';
+
+    list.querySelectorAll('[data-card]').forEach(b => {
+      b.addEventListener('click', () => {
+        const id = b.dataset.card;
+        let deck = readDeck().slice();
+        if (deck.indexOf(id) >= 0) deck = deck.filter(x => x !== id);
+        else if (deck.length >= MAX) return;
+        else deck.push(id);
+        writeDeck(deck);
+        render();
+      });
+    });
+  }
+
+  if (!CARDS.length) {
+    bar.innerHTML = '<span class="warn">读不到战术卡数据（data/cards.js）。</span>' +
+      '<span style="flex:1"></span><span>先跑 node tools/export-levels.js 生成</span>';
+    return;
+  }
+  render();
+})();
+</script>
+</body>
+</html>

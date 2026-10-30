@@ -26,6 +26,11 @@
     --blue-bg: #E8EFF7;
     --red: #A83A3A;
     --red-bg: #F7E9E9;
+    /* 友军（预留）：v4.18 起兵牌支持 u.ally 标记，渲染成绿色。
+       友军在规则层仍属蓝方阵营（可协同、可堆叠、共享补给），
+       绿色只回答"这支兵不是我直接指挥的"——后续关卡加协同步兵旅时直接用。 */
+    --ally: #3E7D46;
+    --ally-bg: #E9F3EA;
     --hex-w: 47px;
     --hex-h: 54px;
   }
@@ -230,6 +235,7 @@
   }
   .unit.blue { background: var(--blue); }
   .unit.red  { background: var(--red); }
+  .unit.ally { background: var(--ally); }
   /* 空军：白色虚线框 + 顶部高光。为什么不用"上浮投影"——六角格是
      clip-path 裁出来的，格子外面的阴影一律被裁掉，看着像没画。
      虚线框是唯一在格内也一眼可辨的处理，配合兵牌简称（航）足够。 */
@@ -399,6 +405,7 @@
     background: #F1EEE5; color: var(--ink2);
   }
   .tag.b { background: var(--blue-bg); color: var(--blue); }
+  .tag.ally { background: var(--ally-bg); color: var(--ally); }
   .tag.r { background: var(--red-bg); color: var(--red); }
   .ub-meta { color: var(--ink3); font-size: 11px; margin-bottom: 7px; }
   /* 取消选中的可发现性提示。它存在的理由：取消有三条路（点自己 / Esc / 右键），

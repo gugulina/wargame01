@@ -295,8 +295,8 @@ const MUTANTS = [
    '加粗真的渲染成 <b>', 'brief'],
 
   ['HQ 页签清单少了 dex（菜单页的「战时手册」静默落到存档页）',
-   "const HQ_TABS = ['dex', 'mech', 'cards', 'aide', 'notes', 'save', 'credits'];",
-   "const HQ_TABS = ['mech', 'cards', 'aide', 'notes', 'save', 'credits'];",
+   "const HQ_TABS = ['dex', 'mech', 'aide', 'notes', 'save', 'credits'];",
+   "const HQ_TABS = ['mech', 'aide', 'notes', 'save', 'credits'];",
    'HQ_TABS 与页签按钮一一对应', 'brief'],
 
   ['文案里塞回超出二战水平的装备（战斗机挂空空导弹）',
@@ -472,8 +472,8 @@ const MUTANTS = [
      漏接的话只会表现为"这版跟上一版手感一样"，没人会当 bug 报上来。
      所以五个守卫逐个变异：地形、工事、兵种、攻方类型、缺口占位。 */
   ['履带压制算出来了却没用上（函数对、结算不扣）',
-   '  def.org = Math.max(0, def.org - defLoss * 3 - pressOrg);',
-   '  def.org = Math.max(0, def.org - defLoss * 3);',
+   '  def.org = Math.max(0, def.org - pressOrg);',
+   '  def.org = Math.max(0, def.org);',
    '端到端：这一炮的目标组织度'],
 
   ['压制不看地形（城里林地照样压）',
@@ -515,6 +515,83 @@ const MUTANTS = [
    '      def.org = Math.max(0, def.org - PUSH_BLOCK_ORG);',
    '      def.org = def.org;',
    '退路堵死时改扣 8 点组织度'],
+
+  /* ── v4.17 补丁（docs/20 §三 §五 §六 §八）── */
+
+  ['超距闸门失效（列表外 14 格也能开火）',
+   '    if (d < minRange(att) || d > attackRange(att)) return false;',
+   '    if (false) return false;',
+   '超距 doAttack 被拒'],
+
+  ['canFire 闸门失效（空弹与未展开照常开火）',
+   '  if (!canFire(att)) return false;',
+   '  if (false) return false;',
+   '空弹的炮在 doAttack 也被拒'],
+
+  ['无效接触兜底闸失效（ratio 0.01 照样结算）',
+   '  if (pv.ratio < INVALID_RATIO) return false;',
+   '  if (false) return false;',
+   '无效接触在 doAttack 也被拒'],
+
+  ['无效接触不再从目标列表剔除（面板与 AI 又看得见了）',
+   '    return previewAttack(u, t, fields).ratio >= INVALID_RATIO;',
+   '    return true;',
+   '无效接触不进目标列表'],
+
+  ['工事分槽退回 def 大小判据（F 又被堑壕锁死）',
+   '    return FORT_SLOT[k] !== FORT_SLOT[cur.kind] || FORT[k].def > cur.def + 1e-9;',
+   '    return FORT[k].def > cur.def + 1e-9;',
+   '防空阵地能立在最常见的堑壕格上'],
+
+  ['攻击乘数夹紧移除（修正池叠穿 ±1 就翻负）',
+   '  const attMul = Math.max(0.15, Math.min(2.0, 1 + attMod));',
+   '  const attMul = 1 + attMod;',
+   '攻击乘数封顶 2.0'],
+
+  ['防御叠放夹紧移除（1.63 起步没有上限）',
+   '  return Math.max(0, Math.min(1.6, d));',
+   '  return d;',
+   '防御叠放触顶后被夹紧'],
+
+  ['炮兵减半失效（碉堡照单全收）',
+   '  if (isArty(u)) d *= 0.5;',
+   '  if (false) d *= 0.5;',
+   '炮兵的被动防御收益整体减半'],
+
+  /* ── v4.18 ── */
+  ['炮兵均摊退回单体（堆叠格只点名目标掉血）',
+   '  const per = victims.length ? Math.round(defLoss / victims.length) : 0;',
+   '  const per = defLoss;',
+   '均摊账目：每支份额是面上损失的一半（四舍五入）'],
+
+  ['FLANK_PENALTY 失效（多面进攻白打）',
+   'const FLANK_PENALTY = 0.30;',
+   'const FLANK_PENALTY = 0;',
+   '多面进攻削防御：defSum 严格变小'],
+
+  ['指挥部防炮移除（炮击指挥旗不受罚）',
+   '  if (isHQ(def) && (isArty(att) || isNaval(att))) attMod -= 0.30;',
+   '  if (false) attMod -= 0.30;',
+   '炮击指挥部：attMod 比炮击普通部队低 0.30'],
+
+  /* 教学关封顶在 judgeFinal 里是两道互为冗余的闸（分支条件 !isTutorial
+     和事后的 perfect→win 回退），单改一处观察不到——锚点必须一次拿掉两道。 */
+  ['教学关超额封顶移除（教学关又能刷 perfect）',
+   "    if (sc >= LEVEL.perfectScore && !isTutorial(LEVEL)) state.result = 'perfect';\n" +
+   "    else if (sc >= LEVEL.winScore) state.result = 'win';\n" +
+   "    else state.result = 'fail';\n" +
+   "    /* 教学关不留超额：引导关的目标就是让所有人能过，再挂一个更高的线\n" +
+   "       只会把新手往\"追求完美\"的方向拽（v4.18 反馈第 6 条）。 */\n" +
+   "    if (state.result === 'perfect' && isTutorial(LEVEL)) state.result = 'win';",
+   "    if (sc >= LEVEL.perfectScore) state.result = 'perfect';\n" +
+   "    else if (sc >= LEVEL.winScore) state.result = 'win';\n" +
+   "    else state.result = 'fail';",
+   '教学关：分数越过超额线也只判 win'],
+
+  ['survive 超额判据退回"一个不损"（v4.18 已放宽到七成）',
+   '        aliveNow >= Math.ceil(initN * 0.7)) {',
+   '        aliveNow >= initN) {',
+   '坚守关：损一支仍在七成线上，judgeFinal 判 perfect'],
 
 ];
 

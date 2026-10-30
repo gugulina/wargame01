@@ -58,7 +58,7 @@
      <link> 不会——跟 data/levels.js 必须用 <script src> 是同一个原因。
      ?v= 跟着顶栏版本走（tools/check.js 校验），否则改完样式玩家可能还在吃
      GitHub Pages 的十分钟缓存，看到的是一半新一半旧的页面。 -->
-<link rel="stylesheet" href="campaign.css?v=4.17">
+<link rel="stylesheet" href="campaign.css?v=4.18">
 <!-- 版本公告数据与菜单页共用一份（HQ 的「版本公告」页签读它）。
      放在 <head> 里同步加载：页签是玩家点了才渲染的，但真读不到时那一页要能
      说清"文件缺了"，而不是显示一片空白——异步加载失败是静默的。 -->
@@ -76,15 +76,14 @@
       <span class="pill" id="phasePill">我方阶段</span>
       <!-- 全项目唯一的版本标记：tools/export-levels.js 按这个 span 的原样文本抓版本号，
            开始页撤掉之后它挪到了顶栏，标签必须保持 <span id="verTag"> 这个形状 -->
-      <span id="verTag">v4.17</span>
+      <span id="verTag">v4.18</span>
       <!-- 存档异常：只在真的写失败时出现（隐私模式 / 配额满 / 被清理）。
            默认 display:none，别让它平时占位——一排胶囊里突然多一个红字，
            玩家第一反应是"我是不是哪里点坏了"。 -->
       <button id="saveWarn" class="pill warn" style="display:none"
               title="这一局的进度没能写进本机存储（隐私模式或空间不足）。点这里去导出存档。">存档异常</button>
-      <button id="btnMenu" class="hqbtn" title="返回菜单页：换关、看进度、导存档">菜单</button>
-      <button id="btnHQ" class="hqbtn" title="指挥部：兵种图鉴 / 战术卡 / 副官 / 存档">HQ</button>
-      <button id="btnSet" class="tipsbtn" title="设置：音乐与音效音量">⚙</button>
+      <button id="btnMenu" class="hqbtn" title="返回菜单页：换关、看进度、导存档、换战术卡">菜单</button>
+      <button id="btnSet" class="tipsbtn" title="设置：音量 · 战时手册">⚙</button>
       <button id="btnTips" class="tipsbtn" title="操作说明">?</button>
     </div>
     <div id="boardWrap">
@@ -187,11 +186,12 @@
   </div>
 </div>
 
-<!-- ═══════════════ HQ：指挥部 ═══════════════
-     一个面板装三件事：兵种图鉴（查）、战术卡（选携带）、副官（问答式操作指南）。
-     做成三页签而不是三个面板，是因为它们的使用时机完全一样——
-     都是"打之前想弄明白点什么"的那一刻。 -->
-<div class="hq hidden" id="hqScreen" role="dialog" aria-modal="true" aria-label="作战指挥部：战时手册">
+<!-- ═══════════════ 战时手册（原 HQ）═══════════════
+     一个面板装五件事：兵种图鉴（查）、特殊机制（查）、副官（问答）、
+     版本公告（查）、存档 / 素材来源（合规与出入口）。
+     战术卡**不在**这里：配牌是开局之前的决定，入口在菜单页的
+     「更换战术卡」（cards.html）；局内查手册走设置 ⚙ 里的快捷按钮。 -->
+<div class="hq hidden" id="hqScreen" role="dialog" aria-modal="true" aria-label="战时手册">
   <div class="hq-card">
     <div class="hq-head">
       <div class="hq-title">
@@ -201,7 +201,6 @@
       <div class="hq-tabs" id="hqTabs">
         <button data-tab="dex" class="on">兵种图鉴</button>
         <button data-tab="mech">特殊机制</button>
-        <button data-tab="cards">战术卡</button>
         <button data-tab="aide">副官</button>
         <button data-tab="notes">版本公告</button>
         <button data-tab="save">存档</button>
@@ -305,6 +304,18 @@
     <div class="set-row set-btns">
       <button id="volMute">全部静音</button>
       <button id="volReset">恢复默认</button>
+    </div>
+    <!-- 战时手册快捷入口。顶栏不再放 HQ 按钮（v4.18）：设置本来就是
+         "打之前/打之中想弄明白点什么"的停顿点，手册各页从这儿进
+         比常驻顶栏少一个永远冷着的按钮。 -->
+    <p class="set-sub" style="margin-top:14px">战时手册</p>
+    <div class="set-row set-btns" id="setHqBtns">
+      <button data-hqopen="dex">兵种图鉴</button>
+      <button data-hqopen="mech">特殊机制</button>
+      <button data-hqopen="aide">副官</button>
+      <button data-hqopen="notes">版本公告</button>
+      <button data-hqopen="save">存档</button>
+      <button data-hqopen="credits">素材来源</button>
     </div>
     <button id="setClose" class="set-ok">知道了</button>
   </div>
@@ -969,7 +980,8 @@ const LEVELS = [
   blueSources: [[8, 3]],
   redSource: [1, 9],
   winScore: 10,
-  perfectScore: 99,
+  /* 教学关不设超额（v4.18 反馈第 6 条）：judgeFinal 与 perfectHint 都走
+     isTutorial 分流，这里不再放一条形式上 99 分的假线。 */
   map: [
     '............',
     '..ff....ff..',
@@ -1374,7 +1386,7 @@ const LEVELS = [
     '初冬 · 阴，江面有雾。敌军自西面突破后一路东推，第三方面军主力被南北两路钳形攻势夹在青溪以西。',
     '第 107 步兵师与第 201 坦克旅位于包围圈靠东一侧，奉命作为突围主力，向青溪渡口方向撕开封锁线。',
     '任务：至少 4 支兵牌抵达地图东侧绿色撤离区（渡口与滩头）。走进撤离区即离场，不再返回。',
-    '全部兵牌被歼、或 12 回合结束仍未凑够 4 支，均判失败。撤离后仍保有七成战力为超额达成。'
+    '全部兵牌被歼、或 12 回合结束仍未凑够 4 支，均判失败。撤离后仍保有六成战力为超额达成。'
   ],
   /* 12 回合。10 回合那一版自战 0%——蓝方从出发点走到渡口要 4 回合，
      中间还得打穿一道封锁线，时间根本不够。 */
@@ -1536,12 +1548,12 @@ const LEVELS = [
           paras: [
             { t: '地图东侧绿色区域是撤离区（渡口滩头）。<b>至少 4 支兵牌走进去</b>即达成突围。' },
             { t: '走进撤离区的部队立即离场，不占格、不再参战——所以不要指望它们掩护后面的人。' },
-            { t: '撤离后仍保有全军七成以上战力为超额达成。带不走的装备，就是白送给敌人的。', hl: true }
+            { t: '撤离后仍保有全军六成以上战力为超额达成。带不走的装备，就是白送给敌人的。', hl: true }
           ],
           nums: [
             { k: '回合', v: '12' },
             { k: '达成', v: '3 支撤出' },
-            { k: '超额', v: '保七成战力' }
+            { k: '超额', v: '保六成战力' }
           ]
         }
       ],
@@ -1829,7 +1841,10 @@ const LEVELS = [
   blueSources: [[12, 2], [12, 16]],
   redSource: [1, 2],
   winScore: 26,
-  perfectScore: 35,
+  /* 35 → 30（v4.18 反馈第 6 条）：超额原线要求 35/50 分，实测长期只有
+     两极分布（要么远超要么不及），中间档没人落。30 分仍然要求拿下
+     两个主要点以上的大半，但不再逼玩家把每个渡口都抢到手。 */
+  perfectScore: 30,
   /* 波次投入时刻。第 4 回合装甲旅、第 8 回合战斗群——数字是"上一回合末"，
      所以在 settlePhase 里比对的是 state.turn。比原设计各早一回合：
      炮兵射程上调后蓝方覆盖变宽，红方需要更早形成压力。 */
@@ -1989,14 +2004,14 @@ const LEVELS = [
           kicker: '你的任务',
           title: '守住十二个回合',
           paras: [
-            { t: '12 回合结束，控制不少于 <b>26 分</b>要点即为完成防御任务；控制 35 分以上为超额。' },
+            { t: '12 回合结束，控制不少于 <b>26 分</b>要点即为完成防御任务；控制 30 分以上为超额。' },
             { t: '岚口市 15 分 · 岚口机场 15 分 · 青溪镇 10 分 · 两处渡口各 5 分。' },
             { t: '青溪镇在北岸，是敌人的补给走廊。守军去抢就是送人头——那 10 分是诱饵，别碰。', hl: true }
           ],
           nums: [
             { k: '回合', v: '12' },
             { k: '达成', v: '26 分' },
-            { k: '超额', v: '35 分' }
+            { k: '超额', v: '30 分' }
           ]
         }
       ],
@@ -3336,7 +3351,7 @@ const LEVELS = [
   when: '新历 1208 年 8 月 15 日', where: '首都圈 · 岚京北郊防线',
   teaser: '退到不能再退。城外最后一道防线后面就是首都，防线上只有刚补满的新兵。',
   ready: true,
-  win: { kind: 'survive', keep: ['line'] },
+  win: { kind: 'survive', keep: ['lineW', 'lineE'] },
   prev: {
     win:  '南岭守住了，四个师按时过桥。可这四天里能补上的只有一个预备役师——新兵，刚学会开枪。',
     fail: '南岭没守住，纵队在桥南散了。撤到岚京的部队比计划少一半，防线只能用新兵填。'
@@ -3348,6 +3363,7 @@ const LEVELS = [
     '第 102 步兵师第 305 团第 1 营在南岭打光了，第 204 装甲旅第 2 营没有撤出来。',
     '首都把陆军大学和炮兵指挥学院的学员编成一个军校生旅送了上来——他们能在阵地上自己恢复建制，是新兵营垮下去之后唯一还站得住的人。',
     '任务：坚守防线 14 回合，北郊防线必须始终在我方手中。全部兵牌被歼立即判负。',
+    '北郊防线分成**西段**与**东段**两个要点，各 10 分、分开计——只守一段，另一段失守一样算防线告破。两段都得派兵。',
     '防线是三段高地加两个公路口。高地有堑壕（+0.15 / 累计 +0.30），公路口只有碉堡——**别把新兵摆在公路上**。',
     '两座防空阵地在城郊，敌机第 10 回合到。轰炸机专挑炮位，把炮兵摆在阵地半径以内。'
   ],
@@ -3379,8 +3395,14 @@ const LEVELS = [
     '..................'
   ],
   objectives: [
-    { id: 'line',   name: '北郊防线',   vp: 20, core: true, rule: 'contest',
-      cells: [[6,2],[6,3],[6,4],[6,13],[6,14],[6,15]] },
+    /* 两段防线各自独立计分（v4.18 反馈第 2 条）。合成一个 20 分要点时，
+       contest 规则按多数格定归属——守死西段三格 + 东段蹭一格，整条"北郊防线"
+       就还是蓝的，玩家可以只防一半。拆开后 keep 要两条都拿在手里，
+       两段高地都得派兵。总分不变（10 + 10 = 20）。 */
+    { id: 'lineW',  name: '北郊防线·西段', vp: 10, core: true, rule: 'contest',
+      cells: [[6,2],[6,3],[6,4]] },
+    { id: 'lineE',  name: '北郊防线·东段', vp: 10, core: true, rule: 'contest',
+      cells: [[6,13],[6,14],[6,15]] },
     { id: 'cross',  name: '公路交叉口', vp: 10, core: false, kind: 'road', cells: [[7,8],[7,9],[8,8],[8,9]] },
     { id: 'suburb', name: '城郊市镇',   vp: 10, core: false, kind: 'town', cells: [[9,9],[9,10],[10,10],[10,11]] }
   ],
@@ -3406,10 +3428,20 @@ const LEVELS = [
       ]
     },
     {
-      id: 'line_breached', desc: '防线被突破',
-      when: { kind: 'control', obj: 'line', side: 'red' },
+      id: 'line_breached_w', desc: '防线西段被突破（稀有分支）',
+      rare: true,
+      when: { kind: 'control', obj: 'lineW', side: 'red' },
       effects: [
-        { kind: 'log', text: '敌军踩上高地了。防线上出现一个口子——不堵住，后面就是城。', cls: 'r' },
+        { kind: 'log', text: '敌军踩上西段高地了。防线上出现一个口子——不堵住，后面就是城。', cls: 'r' },
+        { kind: 'org', side: 'blue', delta: -5 }
+      ]
+    },
+    {
+      id: 'line_breached_e', desc: '防线东段被突破（稀有分支）',
+      rare: true,
+      when: { kind: 'control', obj: 'lineE', side: 'red' },
+      effects: [
+        { kind: 'log', text: '东段高地失守。两段防线是两个口袋，破一个，另一个立刻变成突出部。', cls: 'r' },
         { kind: 'org', side: 'blue', delta: -5 }
       ]
     },
@@ -4705,6 +4737,11 @@ function terrainAt(r, c) { return TERRAIN[LEVEL.map[r][c]]; }
    不能让它们互相挤占名额；空中自己的上限是 SLOT.air = 1。 */
 const STACK_MAX = 2;
 const STACK_COVER = 0.50;      // 同格友军防御协同系数
+/* 多面进攻（v4.18 反馈第 3 条）：同一回合内，第二支敌军从**不同的格**再打
+   同一个格子时，守军的工事、协同与朝向都只对着第一面——防御乘数被拉开。
+   只减防御乘数、不动有效战力：被包抄的是"阵地"不是"编制"。
+   0.30 恰好抵掉一道堑壕 + 半个碉堡，让"扎堆单点防御"不再是免死金牌。 */
+const FLANK_PENALTY = 0.30;
 
 function unitsAt(r, c) {
   return state.units.filter(u => u.pos[0] === r && u.pos[1] === c);
@@ -5365,11 +5402,18 @@ function effStr(u, fields) {
 function terrainDefFor(u) {
   let d = isAir(u) ? 0 : terrainAt(u.pos[0], u.pos[1]).def;
   if (u.fortify) d += u.fortify;
-  if (isArty(u)) d *= 0.5;                  // 炮兵阵地暴露，地形收益减半
   if (homeBonus(u)) d += 0.20;              // 为了祖国
   d += traitSum(u, 'def');                  // 特殊单位：死战不退这类阵地底子
   d += fortDef(u);                          // 工兵构筑的野战工事
-  return d;
+  /* 炮兵阵地暴露：**一切**被动防御收益都减半。
+     原来乘在中间，只减到地形与自筑堑壕——工兵碉堡、"为了祖国"、死战不退
+     这些后加进来的收益全被漏掉，于是"同样是掩体，打折与否取决于谁修的"，
+     这条口径没有任何文档支持，玩家也看不见。挪到最后，口径统一成一句话。 */
+  if (isArty(u)) d *= 0.5;
+  /* 夹紧上限：城区 0.85 + 自筑 0.30 + 碉堡 0.28 + 为了祖国 0.20 = 1.63，
+     已经贴着"防御乘数 ×2.6"。没有上限的话，下一个加防御的特性会直接
+     造出 ×3 以上的铁乌龟（docs/20 §五）。1.6 = 现有最大合法叠放 + 一点余量。 */
+  return Math.max(0, Math.min(1.6, d));
 }
 function attackRange(u) {
   let r = u.rng;
@@ -5505,6 +5549,27 @@ function ratioTier(k) {
   return 6;
 }
 
+/* 无效接触线。ratio 低于它时这一炮打不出任何有意义的结果：
+   最坏档的中位行是"攻方掉 6、守方掉 2"，白送编制换不来任何东西；
+   而 0.01 与 0.39 在七档里是同一档，连"打得多亏"都区分不出来。
+   同时拦两处——targetsFor 不列出（玩家面板与 AI 都看不见），
+   doAttack 直接拒绝（战术卡、测试绕过列表时兜底）。同一常数，改一处两边一起变。 */
+const INVALID_RATIO = 0.35;
+
+/* 多面进攻的记账：state.flanges[目标格] = 第一支进攻方的位置串。
+   只记"位置串"不记单位——判的是"从不同格打过来"，不是"几个人打"。
+   每回合清空（回合边界在 endBluePhase 里），撤销栈同滚（pushUndo 快照里有）。 */
+function flankKey(pos) { return pos[0] + ',' + pos[1]; }
+function flankedBy(att, defPos) {
+  const prev = state.flanges && state.flanges[flankKey(defPos)];
+  return !!(prev && prev !== flankKey(att.pos));
+}
+function noteFlank(att, defPos) {
+  if (!state.flanges) state.flanges = {};
+  const k = flankKey(defPos);
+  if (!state.flanges[k]) state.flanges[k] = flankKey(att.pos);
+}
+
 /* 相邻友军协同：同格按 50% 计入，相邻格按 35% 计入，最多 3 支。
    同格权重更高——两支部队挤在一个格子里，火线是贴着的。
    只算**同一层**的友军：地面营的火力支援对一架飞在头顶的飞机不成立，
@@ -5632,6 +5697,11 @@ function previewAttack(att, def, fields) {
      这条管"看见了也炸不利索"。少了这一条，一次空袭就能抹掉一个 str 2 的师部，
      而师部一没，全师组织度当场 -25（见 TYPE.hqd），等于一条命换掉半个师。 */
   if (isHQ(def) && isAir(att)) attMod -= 0.20;
+  /* 指挥部对炮击更扛打（v4.18 反馈第 5 条）：HQ 有掩蔽部、警卫分队与疏散预案，
+     曲射火力的面覆盖很难直接掀掉指挥中枢——被一两个齐射抹掉的师部
+     连带着全师组织度重罚，性价比高得离谱。给炮击单独一档 −0.30，
+     比空袭的 −0.20 更高：炮是面覆盖，直接命中本该更难。 */
+  if (isHQ(def) && (isArty(att) || isNaval(att))) attMod -= 0.30;
   attMod += recBonus(att, def.pos);
   attMod -= aaPenalty(att, def.pos);
   /* 工事抗炮击：远程火力打有工事的目标，攻击额外减成。
@@ -5650,14 +5720,25 @@ function previewAttack(att, def, fields) {
   defMod += modDef(def);
   defMod += (def.cardDef || 0);      // 战术卡：坚守
 
+  /* 乘数夹紧：修正池是加法，理论上可以叠穿 ±1——真到那天 attSum 会翻负，
+     ratio 跟着变负，结果仍是"最坏档攻方掉 6"，静默且反直觉。
+     现在的常数凑巧到不了（实测最坏 −0.85），夹紧不改变任何现状，
+     只堵住"将来再加一档惩罚就翻车"这条路。上限同理：修正是加法不是叠乘，
+     2.0 意味着"修正最多把战力翻一倍"，超过的部分必须靠协同和集中兵力。 */
+  const attMul = Math.max(0.15, Math.min(2.0, 1 + attMod));
   const attSum = (effStr(att, fields) +
-      attHelp.reduce((s, a) => s + effStr(a.u, fields) * a.w, 0)) * (1 + attMod);
+      attHelp.reduce((s, a) => s + effStr(a.u, fields) * a.w, 0)) * attMul;
+  /* 多面进攻：本回合已有别的敌军从不同格打过这一格，防御乘数被拉开。
+     下限 1.0——包抄最多把阵地打回"平原裸奔"，不能把防御打成负数。 */
+  const flanked = flankedBy(att, def.pos);
+  const defMul = Math.max(1, 1 + terrainDefFor(def) + defMod -
+                          (flanked ? FLANK_PENALTY : 0));
   const defSum = (effStr(def, fields) +
-      defHelp.reduce((s, a) => s + effStr(a.u, fields) * a.w, 0)) * (1 + terrainDefFor(def) + defMod);
+      defHelp.reduce((s, a) => s + effStr(a.u, fields) * a.w, 0)) * defMul;
 
   const ratio = attSum / Math.max(defSum, 0.1);
   return {
-    ratio, tier: ratioTier(ratio), attSum, defSum, attHelp, defHelp,
+    ratio, tier: ratioTier(ratio), attSum, defSum, attHelp, defHelp, flanked,
     counter: canCounter(att, def),
     counterSoft: canCounter(att, def) && isDirectArty(def),   // 直瞄炮仓促应战，反击火力减半
     attMod, defMod
@@ -5674,8 +5755,30 @@ function inRangeTargets(u, fields) {
     if (d < lo || d > hi) return false;
     /* 打不着的就不该列出来：对空能力、目标类别白名单都在 canTarget 里。
        以前这里只判"是不是飞机"，于是鱼雷艇会把岸上目标也列成红色。 */
-    return canTarget(u, t);
+    if (!canTarget(u, t)) return false;
+    /* 无效接触不列：ratio 连 0.35 都不到的目标，打出去只掉自己的编制
+       （最坏档"攻 6 守 2"），七档里连"有多亏"都区分不出来。
+       面板与 AI 共用这份列表，所以两边同时不再浪费动作；
+       doAttack 里有同一常数的兜底闸（见 doAttack 开头），列表绕不过去。 */
+    return previewAttack(u, t, fields).ratio >= INVALID_RATIO;
   });
+}
+/* "这一门炮现在能不能响"：弹药与展开状态。
+   原来这两条只写在 targetsFor 里，doAttack 自己不知道——
+   空弹的舰、没展开的拖曳炮，绕过列表直接调 doAttack 照样能打出伤害
+   （探针实测）。抽成函数让列表与战斗闸共用同一份判断，改条件只改一处。 */
+function canFire(u) {
+  /* 弹药打光了就不能开火。以前只认炮兵（isArty），因为 v4.3 之前
+     有弹药的只有炮；v4.4 给军舰和飞机也写了 `am`，而它们**打得完但不会补**——
+     战列舰 6 发、巡洋舰 8 发，20 回合里每回合都能开火是不可能的，
+     可代码里没有这一条，于是舰队成了打不完的固定炮台：
+     波尔瓦萨港第一版自战 100 局全胜，实测把七艘舰的战力改成 1，
+     同样的局立刻 0%（蓝方全灭）。胜负全挂在"舰炮有没有弹"上。
+     航空兵的 `am` 语义是"架次"，另有一套（尚未实现），这里不动它。 */
+  if ((isArty(u) || isNaval(u)) && u.ammo !== undefined && u.ammo <= 0) return false;
+  /* 拖曳炮没展开（行军状态）就开不了火 */
+  if (isTowed(u) && (u.packed || u.moved)) return false;
+  return true;
 }
 function targetsFor(u, fields) {
   if (u.rng === 0) return [];
@@ -5683,16 +5786,7 @@ function targetsFor(u, fields) {
      只拦**主动攻击**——被咬住时的反击照常（见 canCounter），
      否则一支被压住的营会同时失去进攻和自卫，那是"阵亡"不是"崩溃"。 */
   if (isBroken(u)) return [];
-  /* 弹药打光了就不能开火。以前这里只认炮兵（isArty），因为 v4.3 之前
-     有弹药的只有炮；v4.4 给军舰和飞机也写了 `am`，而它们**打得完但不会补**——
-     战列舰 6 发、巡洋舰 8 发，20 回合里每回合都能开火是不可能的，
-     可代码里没有这一条，于是舰队成了打不完的固定炮台：
-     波尔瓦萨港第一版自战 100 局全胜，实测把七艘舰的战力改成 1，
-     同样的局立刻 0%（蓝方全灭）。胜负全挂在"舰炮有没有弹"上。
-     航空兵的 `am` 语义是"架次"，另有一套（尚未实现），这里不动它。 */
-  if ((isArty(u) || isNaval(u)) && u.ammo !== undefined && u.ammo <= 0) return [];
-  /* 拖曳炮没展开（行军状态）就开不了火 */
-  if (isTowed(u) && (u.packed || u.moved)) return [];
+  if (!canFire(u)) return [];
   return inRangeTargets(u, fields);
 }
 
@@ -6215,6 +6309,7 @@ function saveSnapshot() {
     eventsDone: { ...state.eventsDone },
     storySeen: { ...state.storySeen },
     everSeen: { ...state.everSeen },
+    flanges: { ...state.flanges },
     initStr: { ...state.initStr },
     log: state.log.slice(-80)     // 战报只留最近 80 条，整局全存会让档越滚越大
   };
@@ -6552,6 +6647,7 @@ function restoreGame(s) {
     eventsDone: s.eventsDone || {},
     storySeen: s.storySeen || {},
     everSeen: s.everSeen || {},
+    flanges: s.flanges || {},
     initStr: s.initStr || {}
   };
   clearUndo();
@@ -6589,6 +6685,7 @@ function pushUndo() {
     storySeen: state.storySeen,
     everSeen: state.everSeen,
     initStr: state.initStr,
+    flanges: state.flanges,
     log: state.log.slice(-60)
   }));
   if (undoStack.length > UNDO_MAX) undoStack.shift();
@@ -6624,6 +6721,7 @@ function doUndo() {
   state.storySeen = s.storySeen;
   state.everSeen = s.everSeen;
   state.initStr = s.initStr;
+  state.flanges = s.flanges || {};
   state.log = s.log;
   clearSelection();
   refreshFields();
@@ -6754,6 +6852,7 @@ function newGame(opt) {
     eventsDone: {},      // 已触发事件
     storySeen: {},       // 已播放过的剧情演出
     everSeen: {},        // 曾进入战场的兵牌（用于判定阵亡）
+    flanges: {},         // 多面进攻记账：目标格 → 第一支进攻方的位置串，回合边界清空
     initStr: {}          // 各编制初始战力，用于伤亡比例判定
   };
   state.units = LEVEL.units.filter(u => u.wave === 1).map(u => makeUnit(u, false));
@@ -7001,8 +7100,21 @@ function doAttack(att, def) {
     log(att.abbr + ' 建制崩溃，组织不起进攻。', 'sys');
     return false;
   }
-  pushUndo();
+  /* 射程 / 弹药 / 展开的第二道闸。这三条"能不能打"原来只活在 targetsFor
+     的列表里，战斗函数自己不知道——探针实测超距 14 格、空弹、未展开三种
+     非法调用全部照常结算出伤害。列表是 UI，不是规则；
+     判断与列表共用 canFire，射程在这里单独复查（列表之外还能被谁调用，不赌）。 */
+  if (!canFire(att)) return false;
+  {
+    const d = hexDist(att.pos, def.pos);
+    if (d < minRange(att) || d > attackRange(att)) return false;
+  }
+  /* 无效接触的兜底闸，常数与 targetsFor 是同一个 INVALID_RATIO。
+     previewAttack 是纯函数，放在 pushUndo 之前：被拒绝的攻击
+     不能在撤销栈里留一条假记录。 */
   const pv = previewAttack(att, def, state.fields);
+  if (pv.ratio < INVALID_RATIO) return false;
+  pushUndo();
   const die = Math.floor(rng() * 6);
   const row = CRT[pv.tier][die];
   const flanks = pv.attHelp.length;
@@ -7025,21 +7137,41 @@ function doAttack(att, def) {
   /* 全场第一次交火。事件里用 when:{kind:'firstBlood'} 就能写"打响了"那句，
      不用去猜玩家第几回合才开第一枪。 */
   if (!state.firstBlood) state.firstBlood = state.turn;
+  /* 记一笔多面进攻：无论打没打穿，这一格"本回合被谁打过"都要留下 */
+  noteFlank(att, def.pos);
 
-  def.str = Math.max(0, def.str - defLoss);
+  /* 炮击的面覆盖（v4.18 反馈第 4 条）：榴弹打的是格子，不是"选中的那一支"。
+     目标格里所有敌方地面单位均摊战力损失，按支四舍五入——
+     堆叠协同照样给防御分，但"两个人挤一起挨一发"就是两个人一起掉血。
+     非炮兵路径 victims 只有一支（原行为，一点不变）。 */
+  const splash = isArty(att);
+  const victims = splash
+    ? state.units.filter(u => u.str > 0 && u.side === def.side &&
+        !isAir(u) && u.pos[0] === def.pos[0] && u.pos[1] === def.pos[1])
+    : [def];
+  const per = victims.length ? Math.round(defLoss / victims.length) : 0;
+
+  def.str = Math.max(0, def.str - per);
   att.str = Math.max(0, att.str - attLoss);
   /* 履带压制必须在这里算，不能挪到击退之后：击退会把目标推走，
      地形跟着换一格，那时再判就会出现"在城里被打、按平原扣组织度"。
      同理这条也不参与伤害计算——它压的是组织度，不是战力。 */
   const pressOrg = trackPress(att, def);
-  def.org = Math.max(0, def.org - defLoss * 3 - pressOrg);
+  for (const v of victims) {
+    if (v !== def) v.str = Math.max(0, v.str - per);
+    v.org = Math.max(0, v.org - per * 3);
+    v.fortify = 0;
+  }
+  def.org = Math.max(0, def.org - pressOrg);
   att.org = Math.max(0, att.org - attLoss * 3);
-  def.fortify = 0;
 
   const tdef = terrainAt(def.pos[0], def.pos[1]);
   let msg = att.abbr + ' 攻击 ' + def.abbr + '（' + tdef.name + ' · ' + TIER_LABEL[pv.tier] +
             ' · 骰 ' + (die + 1) + (flanks ? ' · 协同 ' + flanks : '') + '）→ 我方 -' + attLoss +
-            '，敌方 -' + defLoss;
+            (splash
+              ? '，面上 -' + defLoss + '（' + victims.length + ' 支均摊 −' + per + '）'
+              : '，敌方 -' + defLoss);
+  if (pv.flanked) msg += ' · 多面进攻（防御 −' + FLANK_PENALTY + '）';
   if (fortAbsorb) msg += '（工事吸收 ' + fortAbsorb + '）';
   if (pressOrg) msg += '（履带压制 组织度 −' + pressOrg + '）';
   if (!pv.counter) msg += ' · 对方无法反击';
@@ -7092,7 +7224,8 @@ function doAttack(att, def) {
     attType: att.type
   });
 
-  if (def.str <= 0) { removeUnit(def); }
+  /* 面覆盖打死的不只是"目标"：均摊里掉到 0 的每一支都要下场 */
+  for (const v of victims) if (v.str <= 0) removeUnit(v);
   if (att.str <= 0) { removeUnit(att); }
 
   clearSelection();
@@ -7314,15 +7447,26 @@ function fortReqOk(kind, pos) {
   return true;
 }
 /* 某支部队在某个格子能建哪些工事。
-   一格只留一处，但允许「升级」：已有的己方工事可以被更强的替换（堑壕 → 碉堡），
-   所以步兵先挖的战壕不会挡住后来工兵营的正规加固。 */
+   一格只留一处；已有的己方工事按功能分槽替换（见 FORT_SLOT），
+   所以步兵先挖的战壕不会挡住后来工兵营的正规加固，也不会挡住防空阵地。 */
+/* 工事功能分槽：掩体（H/B）/ 火力点（P/A）/ 防空（F）。
+   原来的可替换判据只有"def 更大"，三个后果（docs/20 §六）：
+   · F 的 def 0.10 低于 H 的 0.15——挖了堑壕的格子永远立不起防空阵地，
+     而"拆工事"这个动词不存在，F 只能退到没人挖堑壕的边缘位置；
+   · P/A 的 def 被 B 严格支配，100 局自战 0 处落位；
+   · "允许升级"的承诺实际只对同一种工事成立。
+   改成：跨槽可覆盖（拿掩体换火力/防空是玩家自己的权衡，
+   一格只留一处、旧工事直接移除），同槽内仍要求 def 更大。 */
+const FORT_SLOT = { H: 'cover', B: 'cover', P: 'gun', A: 'gun', F: 'aa' };
+
 function fortKindsFor(u, pos) {
   if (terrainAt(pos[0], pos[1]).cost >= 99) return [];
   const cur = fortAt(pos[0], pos[1]);
   return FORT_KEYS.filter(k => {
     if (!FORT[k].by.includes(u.type) || !fortReqOk(k, pos)) return false;
     if (!cur) return true;
-    return cur.side === u.side && FORT[k].def > cur.def + 1e-9;
+    if (cur.side !== u.side) return false;
+    return FORT_SLOT[k] !== FORT_SLOT[cur.kind] || FORT[k].def > cur.def + 1e-9;
   });
 }
 
@@ -7346,14 +7490,17 @@ function doFort(u, pos, kind) {
   pushUndo();
   const spec = FORT[kind];
   const prev = fortAt(pos[0], pos[1]);
-  if (prev) state.forts = state.forts.filter(f => f !== prev);   // 升级：替换旧工事
+  if (prev) state.forts = state.forts.filter(f => f !== prev);   // 替换旧工事（跨功能分槽也算）
   state.forts.push({
     r: pos[0], c: pos[1], side: u.side, kind, def: spec.def,
     hp: spec.hp || 0, maxHp: spec.hp || 0
   });
   u.moved = true; u.fired = true;
   noteAct(u, 'fort');
-  log(u.abbr + ' 在 ' + coordName(pos) + (prev ? '把工事升级为' : '构筑') + spec.name + '（' + kind +
+  /* 跨槽不一定是"升级"：拿堑壕换防空阵地，防御值是降的。
+     战报把旧工事名字报出来，玩家才看得出自己换掉了什么。 */
+  log(u.abbr + ' 在 ' + coordName(pos) +
+      (prev ? '把' + FORT[prev.kind].name + '改为' : '构筑') + spec.name + '（' + kind +
       '）· 防御 +' + Math.round(spec.def * 100) + '%' +
       (spec.hp ? ' · 耐久 ' + spec.hp : ''),
       u.side === 'blue' ? 'b' : 'r');
@@ -7641,6 +7788,8 @@ function endBluePhase() {
     if (state.turn > LEVEL.maxTurns) { judgeFinal(); return; }
     state.phase = 'blue';
     state.units.forEach(u => { u.moved = false; u.fired = false; });
+    /* 多面进攻的记账跟着回合走：新回合谁都没打过谁，包抄记录清零 */
+    state.flanges = {};
     /* 战术卡的临时加成到新回合失效。**注意位置**：这里已经是"敌方回合打完、
        新回合开始"，所以坚守卡的防御加成完整覆盖了敌方那一轮。 */
     clearCardBuffs();
@@ -7843,16 +7992,18 @@ function winSpec() { return (LEVEL.win && LEVEL.win.kind) ? LEVEL.win : { kind: 
 function perfectHint(lv) {
   const L = lv || LEVEL;
   if (!L || !L.ready) return { ok: false, text: '尚未编成' };
+  /* 教学关：没有超额这回事，别给新手画一条更高的线 */
+  if (isTutorial(L)) return { ok: false, text: '教学关不设超额达成' };
   const w = (L.win && L.win.kind) ? L.win : { kind: 'score' };
   if (w.kind === 'reach') {
-    return { ok: true, text: '撤出后保留战力不低于开局的 70%' };
+    return { ok: true, text: '撤出后保留战力不低于开局的 60%' };
   }
   if (w.kind === 'survive') {
     const ids = (w.keep || []).map(id => {
       const o = (L.objectives || []).find(x => x.id === id);
       return o ? o.name : id;
     });
-    return { ok: true, text: '全员无损失' + (ids.length ? '，且「' + ids.join('」「') + '」不失守' : '') };
+    return { ok: true, text: '兵牌幸存不少于七成' + (ids.length ? '，且「' + ids.join('」「') + '」不失守' : '') };
   }
   const ps = L.perfectScore;
   const ws = L.winScore;
@@ -7907,14 +8058,23 @@ function blueInitialStr() {
     .reduce((s, u) => s + u.str, 0);
 }
 
-/* 撤离类关卡的结算。达标就赢；达标且基本成建制（保住七成战力）算超额。
+/* 教学关判据：序章（ch 0）与 type 里带"教学"的关。
+   教学关不留超额达成——引导关的义务是让新手能过，不是给老玩家刷徽章。 */
+function isTutorial(lv) {
+  const L = lv || LEVEL;
+  return !!L && (L.ch === 0 || String(L.type || '').includes('教学'));
+}
+
+/* 撤离类关卡的结算。达标就赢；达标且基本成建制（保住六成战力）算超额。
    为什么超额不看"撤出更多"：checkEnd 在达标那一刻就结束战斗，
-   "再多撤一支"这条路根本来不及走——旧写法里的 escaped > goal 永远不成立。 */
+   "再多撤一支"这条路根本来不及走——旧写法里的 escaped > goal 永远不成立。
+   0.7 → 0.6（v4.18 反馈第 6 条）：撤离关的战力本来就要付买路钱，
+   六成建制同样叫"成建制撤出"。 */
 function reachResult() {
   if (escapedCount() < escapeGoal()) return 'fail';
   const total = blueInitialStr();
   const keep = alive('blue').reduce((s, u) => s + u.str, 0) + escapedStr();
-  return (total > 0 && keep >= total * 0.7) ? 'perfect' : 'win';
+  return (total > 0 && keep >= total * 0.6) ? 'perfect' : 'win';
 }
 
 /* 每回合末与每次移动后调用：走进撤离区的部队立刻离场并计数。
@@ -7958,18 +8118,24 @@ function judgeFinal() {
     });
     const aliveNow = alive('blue').length;
     state.result = (aliveNow > 0 && held) ? 'win' : 'fail';
-    /* 一个没损失、要点全在，算超额 */
-    if (state.result === 'win' && held &&
-        aliveNow >= LEVEL.units.filter(u => u.side === 'blue' && u.wave === 1).length) {
+    /* 超额 = 兵牌幸存 ≥ 初始的七成（v4.18 反馈第 6 条，原判据是"一个不损"）。
+       "一个没损失"在炮兵面覆盖、多面进攻这些规则面前过于苛刻——
+       打得漂亮和一个人不死是两回事，七成建制是更合理的"完整"线。 */
+    const initN = LEVEL.units.filter(u => u.side === 'blue' && u.wave === 1).length;
+    if (state.result === 'win' && held && initN > 0 &&
+        aliveNow >= Math.ceil(initN * 0.7)) {
       state.result = 'perfect';
     }
   } else if (w.kind === 'reach') {
     state.result = reachResult();
   } else {
     const sc = blueScore();
-    if (sc >= LEVEL.perfectScore) state.result = 'perfect';
+    if (sc >= LEVEL.perfectScore && !isTutorial(LEVEL)) state.result = 'perfect';
     else if (sc >= LEVEL.winScore) state.result = 'win';
     else state.result = 'fail';
+    /* 教学关不留超额：引导关的目标就是让所有人能过，再挂一个更高的线
+       只会把新手往"追求完美"的方向拽（v4.18 反馈第 6 条）。 */
+    if (state.result === 'perfect' && isTutorial(LEVEL)) state.result = 'win';
   }
   showOverlay();
   render();
@@ -8106,6 +8272,9 @@ function showOverlay() {
 function scoreTarget(att, t, fields) {
   const pv = previewAttack(att, t, fields);
   let s = pv.ratio;
+  /* 多面进攻过的格子值更多分：防御已经被第一波攻击拉开，
+     第二炮是真正的破防炮——AI 该知道把火力砸向同一个伤口。 */
+  if (pv.flanked) s += 0.3;
   if (isHQ(t)) s += 0.8;
   if (isArty(t)) s += 0.6;
   if (t.type === 'sup') s += 0.4;
@@ -8297,7 +8466,12 @@ async function runAI() {
         const guard = aiGuardSituation(u);
         if (guard && hexDist(u.pos, guard.mate.pos) <= 1 && tg.indexOf(guard.foe) >= 0) best = guard.foe;
         const pv = previewAttack(u, best, state.fields);
-        if (pv.ratio >= 0.85 || isArty(u)) {
+        /* 开火底线（v4.18 反馈第 7 条）：ratio 0.85 以下的硬仗，直射单位不碰；
+           火炮本来"反正够得着就打一炮"，现在也有底线 0.55——再低就是 1:2 档
+           白送编制。已经吃过第一轮攻击的格子例外：防御被拉开了 0.30，
+           阈值跟着放松，这一炮很可能值回票价（多面进攻的 AI 侧）。 */
+        const gate = (isArty(u) ? 0.55 : 0.85) - (pv.flanked ? 0.15 : 0);
+        if (pv.ratio >= gate) {
           doAttack(u, best);
           await sleep(240);
           continue;
@@ -8386,7 +8560,8 @@ async function runAI() {
             const guard2 = aiGuardSituation(u);
             if (guard2 && hexDist(u.pos, guard2.mate.pos) <= 1 && tg.indexOf(guard2.foe) >= 0) bestT = guard2.foe;
             const pv = previewAttack(u, bestT, state.fields);
-            if (pv.ratio >= 0.9) { doAttack(u, bestT); await sleep(220); }
+            const gate2 = (isArty(u) ? 0.60 : 0.90) - (pv.flanked ? 0.15 : 0);
+            if (pv.ratio >= gate2) { doAttack(u, bestT); await sleep(220); }
           }
         }
       }
@@ -8520,7 +8695,7 @@ function kbScrollIntoView() {
    任何需要先开面板的入口都会让玩家懒得用。现在点卡 → 地图上点目标，
    两个动作连着做完。目标格子会被 .cardtgt 圈出来（见 renderBoard）。
 
-   HQ 里那一页保留，但只负责**局外配牌**（携带 / 卸下）。
+   配牌入口在菜单页的「更换战术卡」（cards.html，v4.18 起独立页面）。
    局内换牌没意义——这一局的牌组开局就定了，能换反而让玩家以为可以中途改。 */
 function renderCardBar() {
   const bar = document.getElementById('cardBar');
@@ -8534,7 +8709,7 @@ function renderCardBar() {
   if (hint) hint.textContent = deck.length ? ('剩余 ' + left + ' / ' + deck.length) : '未携带';
 
   if (!deck.length) {
-    bar.innerHTML = '<div class="tc-empty">本局没有携带战术卡。到 HQ → 战术卡 里选三张带上。</div>';
+    bar.innerHTML = '<div class="tc-empty">本局没有携带战术卡。回菜单页的「更换战术卡」选好再进。</div>';
     return;
   }
   bar.innerHTML = deck.map((id, i) => {
@@ -8640,7 +8815,10 @@ function renderBoard() {
       const surf = layerUnitsAt(r, c, 'surface');
       const airs = layerUnitsAt(r, c, 'air');
       surf.concat(airs).forEach(u2 => {
-        let uc = 'unit ' + u2.side;
+        /* 友军预留（v4.18 第 8 条）：带 u.ally 标记的蓝方单位渲染成绿色——
+           规则层它就是蓝方（可协同/堆叠/吃光环），颜色只区分指挥权。
+           关卡数据里写 ally: true 即生效，引擎其余逻辑零改动。 */
+        let uc = 'unit ' + (u2.ally ? 'ally' : u2.side);
         const same = isAir(u2) ? airs : surf;
         const idx = same.indexOf(u2);
         if (same.length > 1) uc += ' stk stk' + idx;
@@ -9350,7 +9528,7 @@ function renderUnitBox() {
 
   let h = '';
   h += '<div class="ub-head"><span class="ub-name">' + esc(u.name) + '</span>' +
-       '<span class="tag ' + (u.side === 'blue' ? 'b' : 'r') + '">' +
+       '<span class="tag ' + (u.ally ? 'ally' : (u.side === 'blue' ? 'b' : 'r')) + '">' +
        (u.side === 'blue' ? '我方' : '敌方') + '</span></div>';
   h += '<div class="ub-meta">' + ty.name + ' · ' + ty.role + ' · ' + coordName(u.pos) + ' ' + t.name + '</div>';
   /* 检视和选中长得一样，只有这一行能区分。不写清楚的话，玩家会以为
@@ -10040,15 +10218,24 @@ document.getElementById('setClose').addEventListener('click', () => {
   setEl.classList.add('hidden');
 });
 setEl.addEventListener('click', e => { if (e.target === setEl) setEl.classList.add('hidden'); });
+/* 设置页里的战时手册快捷入口：先收设置再开手册，两层遮罩不同时叠着 */
+document.getElementById('setHqBtns').addEventListener('click', e => {
+  const b = e.target.closest('button[data-hqopen]');
+  if (!b) return;
+  FX.sfx('uiClick');
+  setEl.classList.add('hidden');
+  openHQ(b.dataset.hqopen);
+});
 /* 开机就套用（不弹面板）：进关之前 bgm 就要按玩家上次调的音量起，
    否则"上次关小了、这次又炸响一下"比不能调还烦。 */
 syncVolUI();
 applyVol(volCur);
 
-/* ═════════════════════════ HQ 指挥部 ═════════════════════════
-   三个页签共用一套渲染：切页签只是重画 #hqBody。
-   全部内容从 TYPE / CARDS / AIDE 三张表里长出来，加一个兵种或一张卡
-   不用碰这里的任何代码——图鉴和卡组是派生视图，不是第二份数据。
+/* ═════════════════════════ 战时手册 ═════════════════════════
+   五个页签共用一套渲染：切页签只是重画 #hqBody。
+   全部内容从 TYPE / AIDE 两张表里长出来，加一个兵种不用碰这里的任何代码
+   ——图鉴是派生视图，不是第二份数据。战术卡的配牌在 cards.html（局外）
+   和关卡界面的卡条（局内），都不在这里。
    ═════════════════════════════════════════════════════════════ */
 /* ───────────────────── 特殊机制（图鉴 · 机制页） ─────────────────────
    为什么要有这一页：这些规则全都在代码里生效，但玩家在界面上**看不到**它们——
@@ -10283,7 +10470,7 @@ const AIDE = [
        '反过来说：炮击的真正杀伤不是打死人，是把人打散——这也是机场那种' +
        '"人还在、阵地没了"的局面的成因。' },
   { q: '战术卡怎么用？',
-    a: '在上面的「战术卡」页选好要带的 3 张（跨关沿用）——这一页只管<b>配牌</b>。<br>' +
+    a: '在菜单页的「更换战术卡」里选好要带的 3 张（跨关沿用）——局内只管<b>用牌</b>。<br>' +
        '真正使用时看<b>右侧「战术卡」栏</b>：点一张卡，然后在地图上点目标单位（键盘 1 / 2 / 3 同效），' +
        '合法目标会被圈出来，再点一次卡或按 Esc 撤回。<br>' +
        '每张卡整局只能用一次，加成只持续到下一次我方阶段开始——' +
@@ -10306,13 +10493,14 @@ const AIDE = [
 
 let hqTab = 'dex';
 
-/* HQ 四个页签。菜单页可以带 `?hq=<id>` 直接跳到某一页（「战时手册」走 dex），
+/* 手册页签。菜单页可以带 `?hq=<id>` 直接跳到某一页（「战时手册」走 dex），
    所以这里要有一份权威清单：表外的值一律回落存档页，不要打开一个空面板。
+   战术卡不在此列——它是独立页面 cards.html，老链接 ?hq=cards 在启动处改跳。
    新增页签时必须同步这里，否则菜单页跳过来会被当成非法值。 */
 /* 页签顺序：常用的在前，素材来源垫底——它是**合规页**，不是功能页。
    但垫底不等于可以省：CC-BY 的署名是分发时的义务，玩家点不到就等于没署。
    加页签必须同时改三处：这里、HTML 的 #hqTabs、renderHQ 的分支。 */
-const HQ_TABS = ['dex', 'mech', 'cards', 'aide', 'notes', 'save', 'credits'];
+const HQ_TABS = ['dex', 'mech', 'aide', 'notes', 'save', 'credits'];
 
 /* 打开 HQ 前的焦点位置。关闭时还给它——
    dialog 的基本礼貌：焦点从哪来回哪去，不能把键盘用户丢在 <body> 上
@@ -10367,7 +10555,6 @@ function renderHQ() {
 
   if (hqTab === 'dex') { box.innerHTML = hqDex(); }
   else if (hqTab === 'mech') { box.innerHTML = hqMech(); }
-  else if (hqTab === 'cards') { box.innerHTML = hqCards(); }
   else if (hqTab === 'notes') { box.innerHTML = hqNotes(); }
   else if (hqTab === 'credits') { box.innerHTML = hqCredits(); }
   else if (hqTab === 'save') { box.innerHTML = hqSave(); }
@@ -10375,23 +10562,6 @@ function renderHQ() {
      别因为加了一页就把兜底换成最冷的一页。 */
   else { box.innerHTML = hqAide(); }
 
-  /* 战术卡的「携带 / 卸下」绑定。
-     v4.6 起这里**没有**「立即使用」了：使用入口在关卡界面的卡条上
-     （renderCardBar）。HQ 只做局外配牌——这一页在局内也打得开，
-     但局内改牌组没意义，所以 inGame 时整页只显示"回地图上点卡片"。 */
-  box.querySelectorAll('[data-cardpick]').forEach(b => {
-    b.addEventListener('click', () => {
-      const id = b.dataset.cardpick;
-      let deck = readDeck().slice();
-      if (deck.includes(id)) deck = deck.filter(x => x !== id);
-      else if (deck.length >= CARD_MAX) { FX.sfx('lose'); return; }
-      else deck.push(id);
-      if (!deck.length) deck = [];            // 允许清空，但开局会退回默认三张
-      writeDeck(deck);
-      renderHQ();
-      FX.sfx('uiClick');
-    });
-  });
   box.querySelectorAll('[data-saveact]').forEach(b => {
     b.addEventListener('click', () => {
       if (b.dataset.saveact === 'export') {
@@ -10493,52 +10663,6 @@ function hqNotes() {
          '<div class="note-title">' + n.title + '</div>' +
          '<ul>' + (n.items || []).map(x => '<li>' + bold(x) + '</li>').join('') + '</ul>' +
          '</div>';
-  }
-  return h;
-}
-
-function hqCards() {
-  const deck = readDeck();
-  const left = CARD_MAX - deck.length;
-  let h = '<div class="card-bar">' +
-    '携带 <b>' + deck.length + ' / ' + CARD_MAX + '</b>' +
-    '<span style="flex:1"></span>' +
-    (left > 0 ? '<span>还能再带 <b>' + left + '</b> 张</span>'
-              : '<span class="warn">已满，先卸一张再选</span>') +
-    '</div>';
-  h += '<div style="font-size:10.5px;color:var(--ink3);margin:-6px 0 12px;line-height:1.7">' +
-    '每张卡整局只能用一次，加成持续到下一次我方阶段开始。牌组跨关沿用。</div>';
-  h += '<div class="card-list">';
-  /* 局内 / 局外是两套按钮。局内既不能换牌（state.deck 开局就固定了），
-     也不能用牌（v4.6 起使用入口在关卡界面的卡条上）——所以这一页在局内是**只读**的，
-     只显示"这一局带了哪三张、用掉没有"。
-     以前局内这里挂的是「立即使用」，那是全项目最绕的一条路：
-     开 HQ → 找卡 → 点使用 → HQ 自动关掉 → 回地图点目标。 */
-  const inGame = !!(state && state.units && state.units.length &&
-                    !state.result && state.phase === 'blue');
-  for (const id of CARD_IDS) {
-    const c = CARDS[id], on = deck.includes(id);
-    const used = !!(state && state.cardUsed && state.cardUsed[id]);
-    let btn;
-    if (inGame) {
-      const txt = !on ? '未携带' : used ? '本局已用' : '本局未用';
-      btn = '<span class="tcard-b" style="background:none;border-color:#E2DCCD;color:#8D887B;' +
-            'cursor:default">' + txt + '</span>';
-    } else {
-      btn = '<button class="tcard-b' + (on ? ' drop' : '') + '" data-cardpick="' + id + '">' +
-            (on ? '卸下' : '携带') + '</button>';
-    }
-    h += '<div class="tcard' + (on ? ' on' : '') + '">' +
-      '<div class="tcard-l"><div class="tcard-h"><b>' + c.name + '</b>' +
-      '<span class="tcard-tag">' + c.tag + '</span></div>' +
-      '<div class="tcard-d">' + c.desc + '</div>' +
-      '<div class="tcard-n">' + c.note + '</div></div>' + btn + '</div>';
-  }
-  h += '</div>';
-  if (inGame) {
-    h += '<div style="font-size:10.5px;color:var(--ink3);margin-top:12px;line-height:1.7">' +
-      '这一局已经开始，牌组不能再改。<b>用卡请回到地图</b>，点右侧「战术卡」栏里的一张，' +
-      '再点地图上的目标单位。</div>';
   }
   return h;
 }
@@ -10705,7 +10829,6 @@ function hqAide() {
   return h;
 }
 
-document.getElementById('btnHQ').addEventListener('click', () => openHQ());
 document.getElementById('hqClose').addEventListener('click', () => { FX.sfx('uiClick'); closeHQ(); });
 document.getElementById('hqScreen').addEventListener('click', e => {
   if (e.target === document.getElementById('hqScreen')) closeHQ();
@@ -10892,11 +11015,13 @@ function boot() {
   const wantResume = arg('resume') === '1';
 
   /* 菜单页的「存档管理」/「战时手册」：静默开一局（noSave，不碰玩家进度），
-     直接把 HQ 停在指定页签。`?hq=1` 是老写法（存档页），`?hq=dex` 这类
+     直接把手册停在指定页签。`?hq=1` 是老写法（存档页），`?hq=dex` 这类
      带页签名的新写法给菜单页的「战时手册」用——手册是玩家最常找的东西，
-     之前只能先进地图再点顶栏，等于藏起来了。 */
+     之前只能先进地图再点顶栏，等于藏起来了。
+     `?hq=cards` 是 v4.17 的老链接：战术卡已是独立页面，原样跳过去。 */
   if (arg('hq')) {
     const want = arg('hq');
+    if (want === 'cards') { location.href = '../cards.html'; return; }
     const s = readSave();
     if (s && levelById(s.lv)) LEVEL = levelById(s.lv);
     else { const rec = recommendLevel(); if (rec) LEVEL = rec; }
@@ -11104,7 +11229,7 @@ window.__WAR__ = {
   /* LEVEL 用 getter 而不是值拷贝：切关之后 __WAR__.LEVEL 必须跟着变，
      否则自测与自动化读到的永远是初始那一关，切关的 bug 一条都测不出来 */
   get LEVEL() { return LEVEL; },
-  TERRAIN, TYPE, CRT, TIER_LABEL, ASSETS, FX, SONIC,
+  TERRAIN, TYPE, CRT, TIER_LABEL, INVALID_RATIO, ASSETS, FX, SONIC,
   /* 按关预载：自检要能算"这一关会拉多少"，不然只能靠截图看 */
   sfxForLevel, SFX_ALWAYS,
   /* 多关框架 */
@@ -11113,7 +11238,7 @@ window.__WAR__ = {
   levelNoText, CHAPTERS, chapterOf, chapterStat,
   PROGRESS_KEY,
   /* 三种胜负条件（score / survive / reach） */
-  winSpec, perfectHint, objClusters, inEscapeZone, escapeCells, escapeGoal, escapedCount, escapedStr,
+  winSpec, perfectHint, isTutorial, objClusters, inEscapeZone, escapeCells, escapeGoal, escapedCount, escapedStr,
   blueInitialStr, reachResult, checkEscape, checkEnd,
   getState: () => state,
   newGame, alive, uid, unitAt, terrainAt, cheb, hexDist, neighbors, inBounds,
@@ -11127,14 +11252,14 @@ window.__WAR__ = {
      这两件事必须能从测试里直接驱动——不然"某部队行动后触发对话"这类事件
      id 写错了也查不出来，只会安静地永不触发。 */
   noteAct, triggerMet,
-  fortAt, fortDef, doFort, FORT, FORT_KEYS, fortKindsFor, fortKind, fortReqOk, onAABunker, aaBunkerBonus,
+  fortAt, fortDef, doFort, FORT, FORT_KEYS, FORT_SLOT, fortKindsFor, fortKind, fortReqOk, onAABunker, aaBunkerBonus,
   /* 防空压制（驱散）：三个都导出。aaSuppressTick 单独导出是因为
      settlePhase 会连带推进工事开火、修正倒计时、波次入场与事件判定，
      为看组织度变化去调它，等于一次动了五件事。 */
   aaSuppressed, aaSuppressOrg, aaSuppressTick,
   doMine, doClearMine, doBridge, doDepot, doDrop, dropSpot,
   fortFire, fortAlive, fortWorking, fortSuppressed, damageFort, ARM_FIRE,
-  isDirectArty, attackRange, aaPenalty, minRange, canCounter,
+  isDirectArty, attackRange, aaPenalty, minRange, canCounter, canFire,
   blueScore, redScore, canCounter, isArty, canCapture, isNaval,
   /* 组织度崩溃：阈值函数与判定要能单独驱动，
      不然"崩溃后不能攻击"这条规则只能靠整局打完才知道对不对。 */

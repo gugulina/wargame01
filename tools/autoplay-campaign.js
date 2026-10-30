@@ -112,9 +112,11 @@ function stepToward(u, goal) {
 }
 
 /* 选工事：城区给要塞炮，其余给碉堡，工兵连只能挖堑壕 */
+const pickCand = [];
 function pickFortKind(u, cell) {
   const kinds = api.fortKindsFor(u, cell);
   if (!kinds.length) return null;
+  pickCand.push(kinds.join(''));               // --diag：候选集本来只有翻代码才知道
   const cls = api.TERRAIN[L.map[cell[0]][cell[1]]].cls;
   if (kinds.includes('P') && cls === 't-town') return 'P';
   if (kinds.includes('B')) return 'B';
@@ -376,6 +378,9 @@ async function playOne(idx) {
   /* 每回合采样：蓝方有多少单位真在工事里、有多少在要点里。
      只看终局快照会被"人都死了"干扰，逐回合累计才能反映守备质量。 */
   let fortAcc = 0, coreAcc = 0, aliveAcc = 0, samples = 0;
+  /* --diag 采样：org 崩溃触线（单位·回合）与单局最低组织度 */
+  let brokenAcc = 0, hadBroken = false, minOrg = 100;
+  pickCand.length = 0;
   while (!st.result && guard < 60) {
     guard++;
     if (st.phase !== 'blue') break;
@@ -390,7 +395,30 @@ async function playOne(idx) {
     coreAcc += bs.filter(u => inCore(u.pos)).length;
     aliveAcc += bs.length;
     samples++;
+    const brokenN = bs.filter(u => api.isBroken(u)).length;
+    brokenAcc += brokenN;
+    if (brokenN) hadBroken = true;
+    for (const u of bs) if (u.org < minOrg) minOrg = u.org;
     await api.endBluePhase();
+  }
+
+  /* --diag：规则触发计数只能从战报文本捞——这些规则（击退/跟进/崩溃）
+     不在任何数值报表里，不扫日志的话"规则从没成立过"这种事只有翻代码才知道。 */
+  const logCounts = { push: 0, follow: 0, blocked: 0, broken: 0 };
+  for (const l of st.log) {
+    const t = l.text || '';
+    if (t.includes('被击退至')) logCounts.push++;
+    if (t.includes('顺着缺口突入')) logCounts.follow++;
+    if (t.includes('退路被堵死')) logCounts.blocked++;
+    /* 第二道闸那句（"建制崩溃，组织不起进攻"）是同一事件的重复计费，剔掉 */
+    if (t.includes('建制崩溃') && !t.includes('组织不起进攻')) logCounts.broken++;
+  }
+  /* --diag：工事落位矩阵（类型 × 要点内外），终局快照 */
+  const fortPlace = { core: {}, out: {} };
+  for (const f of (st.forts || [])) {
+    const p = Array.isArray(f.pos) ? f.pos : [f.r, f.c];
+    const b = isCoreCell(p) ? fortPlace.core : fortPlace.out;
+    b[f.kind] = (b[f.kind] || 0) + 1;
   }
 
   if (VERBOSE && idx === 0) {
@@ -433,6 +461,8 @@ async function playOne(idx) {
     blueAlive: st.units.filter(u => u.side === 'blue').length,
     gdnAlive: st.units.filter(u => u.side === 'blue' && u.type === 'gdn').length,
     forts: (st.forts || []).length,
+    brokenAcc, hadBroken, minOrg, logCounts, fortPlace,
+    cands: pickCand.slice(),
     fortKinds: (st.forts || []).reduce((m, f) => {
       m[f.kind] = (m[f.kind] || 0) + 1; return m;
     }, {})
@@ -448,18 +478,31 @@ async function playOne(idx) {
   const ctrlTally = {};
   let blueAliveSum = 0, gdnSum = 0;
   let fortAccSum = 0, coreAccSum = 0, aliveAccSum = 0, sampleSum = 0;
+  /* --diag 汇总 */
+  let brokenAccSum = 0, brokenGames = 0, minOrgSum = 0;
+  const ruleSum = { push: 0, follow: 0, blocked: 0, broken: 0 };
+  const fortCoreSum = {}, fortOutSum = {}, candSum = {};
+  const scores = [];
 
   for (let i = 0; i < ROUNDS; i++) {
     const r = await playOne(i);
     tally[r.result] = (tally[r.result] || 0) + 1;
     for (const e of r.events) evtTally[e] = (evtTally[e] || 0) + 1;
     scoreSum += r.score; turnSum += r.turn;
+    scores.push(r.score);
     escapeSum += r.escaped; if (!r.keepHeld) keepNone++;
     bLoss += r.blueLoss; rLoss += r.redLoss;
     blueAliveSum += r.blueAlive; gdnSum += r.gdnAlive;
     fortAccSum += r.fortAcc; coreAccSum += r.coreAcc;
     aliveAccSum += r.aliveAcc; sampleSum += r.samples;
     starveSum += r.starved; orgSum += r.avgOrg; fortSum += r.forts;
+    brokenAccSum += r.brokenAcc;
+    if (r.hadBroken) brokenGames++;
+    minOrgSum += r.minOrg;
+    for (const k in r.logCounts) ruleSum[k] += r.logCounts[k];
+    for (const k in r.fortPlace.core) fortCoreSum[k] = (fortCoreSum[k] || 0) + r.fortPlace.core[k];
+    for (const k in r.fortPlace.out) fortOutSum[k] = (fortOutSum[k] || 0) + r.fortPlace.out[k];
+    for (const c of r.cands) candSum[c] = (candSum[c] || 0) + 1;
     for (const k in r.fortKinds) kindSum[k] = (kindSum[k] || 0) + r.fortKinds[k];
     for (const k in r.ctrl) {
       const key = k + ':' + r.ctrl[k];
@@ -517,6 +560,33 @@ async function playOne(idx) {
     console.log('终局 我方兵牌 ' + (blueAliveSum / ROUNDS).toFixed(1) +
                 ' 个（守备营 ' + (gdnSum / ROUNDS).toFixed(1) + ' 个）' +
                 (kind === 'reach' ? ' · 已撤出 ' + (escapeSum / ROUNDS).toFixed(2) : ''));
+    /* 以下四项是 docs/20 §十一 点名的测量缺口——都是报表，不动规则。 */
+    console.log('org 触线    蓝方崩溃 ' + brokenAccSum + ' 单位·回合（' + brokenGames +
+                ' 局出现过）· 蓝方单局最低 org 均值 ' + (minOrgSum / ROUNDS).toFixed(1));
+    console.log('规则触发/局 击退 ' + (ruleSum.push / ROUNDS).toFixed(2) +
+                ' · 突破跟进 ' + (ruleSum.follow / ROUNDS).toFixed(2) +
+                ' · 退路堵死 ' + (ruleSum.blocked / ROUNDS).toFixed(2) +
+                ' · 进入崩溃（双方）' + (ruleSum.broken / ROUNDS).toFixed(2));
+    if (kind === 'score') {
+      const cap = Math.max(L.winScore || 0, ...scores, 1);
+      const NB = 10, bins = new Array(NB).fill(0);
+      for (const s of scores) bins[Math.min(NB - 1, Math.floor(s / cap * NB))]++;
+      const mx = Math.max(...bins, 1);
+      console.log('得分直方图  0 – ' + cap.toFixed(0) + '（判定线 ' + (L.winScore || '?') + '，10 桶）');
+      for (let b = 0; b < NB; b++) {
+        const lo = (b / NB * cap).toFixed(0), hi = ((b + 1) / NB * cap).toFixed(0);
+        console.log('  ' + String(lo).padStart(4) + '–' + String(hi).padEnd(4) +
+          String(bins[b]).padStart(4) + '  ' + '█'.repeat(Math.round(bins[b] / mx * 30)));
+      }
+    }
+    const placeRow = m => ['H', 'B', 'P', 'A', 'F']
+      .map(k => k + (m[k] ? (m[k] / ROUNDS).toFixed(1) : '0')).join(' / ');
+    console.log('工事落位    核心要点内  ' + placeRow(fortCoreSum));
+    console.log('            要点外      ' + placeRow(fortOutSum));
+    const candList = Object.keys(candSum).sort((a, b) => candSum[b] - candSum[a]);
+    if (candList.length) {
+      console.log('工事候选集  ' + candList.slice(0, 6).map(c => c + '×' + candSum[c]).join('  '));
+    }
   }
   if (L.events && L.events.length) {
     console.log('────────────────────────────────');

@@ -86,6 +86,10 @@ function plan() {
 
   add('index.html', '菜单页（线上与包里都是它当入口）');
   for (const r of refsOf('index.html')) add(r, '菜单页引用');
+  /* 配牌页（v4.18 从手册里拆出来的独立页面）。它引用 data/levels.js 与
+     data/cards.js，refsOf 会自动跟进，不用手工列。 */
+  add('cards.html', '战术卡配牌页');
+  for (const r of refsOf('cards.html')) add(r, '配牌页引用');
   /* 引擎引用的是 campaign.css 和一堆相对路径；campaign.html 本身没有外链，
      解析它是为了让"以后引擎新增一个 <link>"时不用回来改这里。 */
   add('game/campaign.html', '引擎');

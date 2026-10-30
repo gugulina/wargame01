@@ -167,20 +167,24 @@ function skip(name, why) {
   ok('棋盘已渲染', doc.getElementById('board').innerHTML.length > 500);
   ok('顶栏版本号存在', /v\d+\.\d+/.test(doc.getElementById('verTag').textContent));
 
-  console.log('[9] HQ 面板');
+  console.log('[9] 设置与战时手册入口');
   {
     const W = window.__WAR__;
-    doc.getElementById('btnHQ').click();
+    /* v4.18 起顶栏没有 HQ 按钮了：手册从设置 ⚙ 里的快捷按钮进。
+       这里按玩家的真实路径走一遍：点设置 → 点「兵种图鉴」。 */
+    doc.getElementById('btnSet').click();
+    await wait(40);
+    const set = doc.getElementById('setScreen');
+    ok('设置面板打开', !set.classList.contains('hidden'));
+    doc.querySelector('#setHqBtns button[data-hqopen="dex"]').click();
     await wait(60);
     const hq = doc.getElementById('hqScreen');
-    ok('HQ 面板打开', !hq.classList.contains('hidden'));
+    ok('点快捷按钮打开战时手册', !hq.classList.contains('hidden'));
+    ok('设置面板已收起（两层遮罩不同时叠着）', set.classList.contains('hidden'));
     ok('默认停在兵种图鉴', doc.getElementById('hqBody').textContent.indexOf('轻型坦克营') >= 0);
     ok('图鉴覆盖到重坦', doc.getElementById('hqBody').textContent.indexOf('重型坦克营') >= 0);
-
-    doc.querySelector('#hqTabs button[data-tab="cards"]').click();
-    await wait(50);
-    ok('战术卡页有六张卡', doc.querySelectorAll('#hqBody .tcard').length >= 6);
-    ok('战术卡页显示携带上限', doc.getElementById('hqBody').textContent.indexOf('/ 3') >= 0);
+    /* 配牌不在手册里了（cards.html 独立页面），页签里不该再有「战术卡」 */
+    ok('手册页签里没有战术卡页', !doc.querySelector('#hqTabs button[data-tab="cards"]'));
 
     doc.querySelector('#hqTabs button[data-tab="aide"]').click();
     await wait(50);
@@ -701,16 +705,8 @@ function skip(name, why) {
        body.querySelectorAll('.dex li b').length + ' 处');
     ok('图鉴文本里不留 ** 标记', body.textContent.indexOf('**') < 0);
 
-    tab('cards').click();
-    ok('切到战术卡页签', tab('cards').classList.contains('on'));
-    ok('卡页显示携带数量', /携带/.test(body.querySelector('.card-bar').textContent));
-    ok('切页签后旧内容被换掉（不是叠在一起）', body.querySelectorAll('.dex').length === 0);
-    /* v4.6 的规则：局内只读。以前这里挂着「立即使用」，
-       点它 → HQ 自动关掉 → 回地图点目标，是全项目最绕的一条路。 */
-    ok('局内不能在这里换牌 / 用牌（没有「立即使用」）',
-       body.textContent.indexOf('立即使用') < 0);
-
     tab('save').click();
+    ok('切页签后旧内容被换掉（不是叠在一起）', body.querySelectorAll('.dex').length === 0);
     ok('存档页有两个动作按钮（导出 / 导入）',
        body.querySelectorAll('[data-saveact]').length === 2);
     ok('存档页写清了"导入会覆盖本机存档"', /覆盖/.test(body.textContent));
@@ -1395,7 +1391,7 @@ function skip(name, why) {
       ok('点「知道了」关掉面板', setPanel.classList.contains('hidden'));
 
       /* Esc 层：设置面板必须能被 Esc 关掉，而且**只关它这一层**。
-         它插在"指挥部 > 战术卡 > 设置 > 说明 > 目标选择器 > 作业气泡 > 模式"之间；
+         它插在"战时手册 > 设置 > 说明 > 目标选择器 > 作业气泡 > 模式"之间；
          漏了这一层，玩家打开设置按 Esc 会一路穿透，把选中的兵牌也一起清掉。 */
       setBtn.click();
       window.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
@@ -1484,6 +1480,53 @@ function skip(name, why) {
     ok('加了公告面板之后关卡列表照常渲染',
        (doc2.getElementById('levels').textContent || '').indexOf('北岭要塞') >= 0,
        (doc2.getElementById('levels').textContent || '').replace(/\s+/g, ' ').slice(0, 40));
+  }
+
+  {
+    /* 战术卡配牌页（cards.html，v4.18 从手册里拆出来的独立页面）。
+       同菜单页的做法：两个 <script src> 换成内联再跑渲染 IIFE。
+       它写的是战役进度里的 deck 字段——写入格式必须和引擎 readDeck 的
+       约定一致（数组、过滤无效 id、上限 3），否则配好的牌进局会被丢掉。 */
+    const { JSDOM: JSDOM3 } = require('jsdom');
+    const rootDir = path.join(__dirname, '..');
+    const rd = f => fs.readFileSync(path.join(rootDir, f), 'utf8');
+    let cHtml = rd('cards.html');
+    cHtml = cHtml.replace('<script src="data/levels.js"></script>',
+                          '<script>' + rd('data/levels.js') + '</script>');
+    cHtml = cHtml.replace('<script src="data/cards.js"></script>',
+                          '<script>' + rd('data/cards.js') + '</script>');
+    const d3 = new JSDOM3(cHtml, {
+      runScripts: 'dangerously', pretendToBeVisual: true, virtualConsole: vc,
+      url: 'http://127.0.0.1/cards.html'
+    });
+    await wait(200);
+    const doc3 = d3.window.document;
+    const CW = d3.window.WARGAME_CARDS || {};
+    ok('配牌页拿到了引擎导出的卡数据', (CW.cards || []).length >= 6,
+       (CW.cards || []).length + ' 张');
+    const onBtns = () => Array.from(doc3.querySelectorAll('#list .tcard.on button'));
+    ok('配牌页渲染出全部战术卡',
+       doc3.querySelectorAll('#list .tcard').length === CW.cards.length);
+    ok('从没配过时默认带上三张', onBtns().length === (CW.defaultDeck || []).length,
+       onBtns().length + ' 张');
+    ok('携带计数与选中数一致',
+       doc3.getElementById('bar').textContent.indexOf(
+         onBtns().length + ' / ' + CW.max) >= 0);
+
+    /* 卸一张 → 计数与选中数一起走 */
+    const dropId = onBtns()[0].dataset.card;
+    onBtns()[0].click();
+    await wait(50);
+    ok('卸下后计数更新', onBtns().length === 2 &&
+       doc3.getElementById('bar').textContent.indexOf('2 / ' + CW.max) >= 0);
+    const p = JSON.parse(d3.window.localStorage.getItem(d3.window.CANGYU.storage.progress));
+    ok('写入的是引擎的进度 key 里的 deck 字段',
+       Array.isArray(p.deck) && p.deck.length === 2 && p.deck.indexOf(dropId) < 0,
+       JSON.stringify(p.deck));
+    /* 再带回来 → 回到三张。点的是「携带」按钮（不在 .on 里的那张） */
+    doc3.querySelector('#list .tcard:not(.on) button[data-card="' + dropId + '"]').click();
+    await wait(50);
+    ok('再点一次能带回来', onBtns().length === 3);
   }
 
   console.log('');
