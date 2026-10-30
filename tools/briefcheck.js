@@ -1529,6 +1529,142 @@ function skip(name, why) {
     ok('再点一次能带回来', onBtns().length === 3);
   }
 
+  console.log('[27] 炮兵点堆叠格直接开火（v4.19 热补丁）');
+  /* 炮兵打的是格子：面覆盖本来就把同格所有敌方地面单位一起算，
+     再弹一次"打哪一支"既多余又容易点歪。直射单位仍然要问——
+     它们打的是具体那支，替玩家决定就是抢了他的选择权。
+     这条只能在这里测：断的是**点击之后 DOM 有没有弹选择器**，selftest 的
+     stub DOM 连 pickBox 都不存在，判"没弹"会永远绿。 */
+  {
+    const domA = new JSDOM(html, {
+      runScripts: 'dangerously',
+      pretendToBeVisual: true,
+      virtualConsole: vc,
+      url: 'http://127.0.0.1/game/campaign.html?lv=C1&nointro=1'
+    });
+    const WA = domA.window.__WAR__;
+    const dA = domA.window.document;
+    await wait(200);
+    const SA = WA.getState();
+    const arty = SA.units.find(u => u.abbr === '103炮');
+    const infB = SA.units.find(u => u.abbr === '103-1');
+    ok('前提：C1 有炮兵与步兵', !!arty && !!infB,
+       (arty && arty.abbr) + ' / ' + (infB && infB.abbr));
+
+    const passable = (r, c) => WA.inBounds(r, c) && WA.TERRAIN[WA.LEVEL.map[r][c]].cost < 99;
+    const freeCell = (from, d) => {
+      for (let r = 0; r < WA.LEVEL.rows; r++) {
+        for (let c = 0; c < WA.LEVEL.cols; c++) {
+          if (!passable(r, c)) continue;
+          if (WA.layerUnitsAt(r, c, 'surface').length) continue;
+          if (WA.hexDist([r, c], from) !== d) continue;
+          return [r, c];
+        }
+      }
+      return null;
+    };
+    const putFoe = (cell, id) => {
+      const u = WA.makeUnit({ id, side: 'red', type: 'inf', abbr: id, name: '测试敌军',
+        r: cell[0], c: cell[1], corps: 'T', str: 9, mov: 6, rng: 1 }, false);
+      SA.units.push(u);
+      return u;
+    };
+
+    /* ── 一、炮兵点堆叠格：直接开火，不弹选择器 ── */
+    const spot = freeCell(arty.pos, 3);
+    ok('找到 3 格外的空格摆堆叠守军', !!spot, JSON.stringify(spot));
+    if (spot) {
+      const f1 = putFoe(spot, 'TA1');
+      const f2 = putFoe(spot, 'TA2');
+      WA.select(arty);
+      ok('前提：这一格有两支可打目标', WA.targetsAt(spot[0], spot[1]).length === 2,
+         String(WA.targetsAt(spot[0], spot[1]).length));
+      const boxA = dA.getElementById('pickBox');
+      WA.onHexClick(spot[0], spot[1]);
+      await wait(60);
+      ok('炮兵点下去直接开火（敌方格两支都掉战力）',
+         f1.str < 9 && f2.str < 9, 'str ' + f1.str + ' / ' + f2.str);
+      ok('炮兵没有弹出目标选择器',
+         !SA.pick && boxA.classList.contains('hidden'),
+         'pick=' + JSON.stringify(SA.pick));
+      /* 收尾：把炮兵的状态复原，留着同一台 dom 给下面用 */
+      SA.units = SA.units.filter(u => u !== f1 && u !== f2);
+      arty.fired = false; arty.moved = false;
+      WA.select(arty);
+    }
+
+    /* ── 二、反向对照：直射单位（步兵）点堆叠格仍然弹选择器 ── */
+    const nearBlue = freeCell(infB.pos, 1);
+    ok('找到步兵旁边的空格', !!nearBlue, JSON.stringify(nearBlue));
+    if (nearBlue) {
+      const g1 = putFoe(nearBlue, 'TB1');
+      const g2 = putFoe(nearBlue, 'TB2');
+      WA.select(infB);
+      const n = WA.targetsAt(nearBlue[0], nearBlue[1]).length;
+      ok('前提：步兵这一格也有两支可打目标', n === 2, String(n));
+      WA.onHexClick(nearBlue[0], nearBlue[1]);
+      await wait(60);
+      const boxB = dA.getElementById('pickBox');
+      ok('步兵点堆叠格弹出选择器（打谁由玩家定）',
+         !!SA.pick && !boxB.classList.contains('hidden'),
+         'pick=' + JSON.stringify(SA.pick));
+      ok('选择器里两个目标加取消共三个按钮',
+         boxB.querySelectorAll('button[data-t]').length === 3,
+         String(boxB.querySelectorAll('button[data-t]').length));
+      ok('选择器弹出时敌人还没掉血', g1.str === 9 && g2.str === 9,
+         g1.str + ' / ' + g2.str);
+    }
+    /* ── 桌面端缩放：transform 必须真写进 DOM ──
+       jsdom 不带 matchMedia，isNarrow() 返回 false，这一块天然就是"宽屏"分支。
+       旧实现在 applyView 里对宽屏直接 `transform = ''`，于是玩家按放大键，
+       vK 变了、屏幕上却一动不动。所以这里断的是 DOM 上的 transform，
+       而不是模块变量——变量改了不等于画面改了，selftest 只能验到前者。 */
+    const vw = WA.view;
+    const bV = dA.getElementById('boardView');
+    ok('前提：这一支走的是桌面分支（jsdom 没有 matchMedia）', vw.isNarrow() === false);
+    vw.fitView(false);
+    ok('桌面 fitView 后棋盘上写了 transform', /scale\(/.test(bV.style.transform || ''),
+       bV.style.transform);
+    vw.zoomBy(1.4);
+    ok('桌面放大后 vK 变大', vw.k > 1 + 1e-9, 'k=' + vw.k);
+    const kDom = parseFloat((String(bV.style.transform).match(/scale\(([\d.]+)/) || [])[1]);
+    ok('桌面放大后 DOM 里的倍数跟着变',
+       Math.abs(kDom - vw.k) < 0.01, 'dom=' + kDom + ' k=' + vw.k);
+    vw.fitView(false);
+    ok('桌面点「适应屏幕」能把倍数收回适应值',
+       Math.abs(vw.k - vw.fitK) < 1e-9, 'k=' + vw.k + ' fit=' + vw.fitK);
+
+    /* 滚轮与拖动：桌面端真正顺手的两种操作，按钮只是兜底。
+       只断"按钮能改 vK"是不够的——玩家根本不会去点那四个小按钮。 */
+    const wrapEl = dA.getElementById('boardWrap');
+    const kBefore = vw.k;
+    wrapEl.dispatchEvent(new domA.window.WheelEvent('wheel', {
+      deltaY: -120, clientX: 100, clientY: 100, bubbles: true, cancelable: true
+    }));
+    ok('桌面滚轮向上滚能放大', vw.k > kBefore + 1e-9, kBefore + ' → ' + vw.k);
+    /* 拖动只断"进了平移态"：jsdom 没有布局，clientWidth 是 0，
+       位移量会被 clampView 夹回去，断坐标变化会是一条永远绿或永远红的假线。 */
+    wrapEl.dispatchEvent(new domA.window.MouseEvent('mousedown', {
+      button: 0, clientX: 300, clientY: 300, bubbles: true
+    }));
+    domA.window.dispatchEvent(new domA.window.MouseEvent('mousemove', {
+      clientX: 360, clientY: 340, bubbles: true
+    }));
+    ok('桌面左键拖动进入平移态', wrapEl.classList.contains('grabbing'));
+    domA.window.dispatchEvent(new domA.window.MouseEvent('mouseup', { bubbles: true }));
+    ok('松开鼠标后退出平移态', !wrapEl.classList.contains('grabbing'));
+
+    /* 桌面上要真有按钮可点：.zctrl 的基础态以前是 display:none，
+       只有窄屏媒体查询才打开，桌面玩家连手柄都看不见。 */
+    const cssV = fs.readFileSync(require('path').join(__dirname, '..', 'game', 'campaign.css'), 'utf8');
+    ok('缩放按钮在桌面端也显示（.zctrl 基础态 display:grid）',
+       /\.zctrl\s*\{[^}]*display\s*:\s*grid/.test(cssV));
+    ok('地图容器在桌面端交给 JS 平移（#boardWrap 基础态 overflow:hidden）',
+       /#boardWrap\s*\{[^}]*overflow\s*:\s*hidden/.test(cssV));
+
+    domA.window.close();
+  }
+
   console.log('');
   console.log('通过 ' + pass + ' 项' + (skipped ? ' · 跳过 ' + skipped + ' 项' : '') +
               '，失败 ' + fail + ' 项');

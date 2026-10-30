@@ -242,6 +242,22 @@ for (const L of ready) {
     console.error('[3/4] ' + tag + '：没有要点，红方 AI 会全体停滞');
     bad++;
   }
+  /* 红方 AI 的脾气按关卡类别查表（v4.19 热补丁）。
+     查不到会**静默**退回夺取型：新关卡写了个新类别词、或者 aiStyle 拼错，
+     三种脾气立刻退化成一种，而战报、断言、界面全都看不出异常——
+     只有玩的人觉得"这关敌人怎么和上一关一个脾气"。所以在这里点名。 */
+  if (api.AI_STYLE_BY_TYPE) {
+    const cat = String(L.type || '').replace(/^附属\s*·\s*/, '');
+    if (L.aiStyle && !api.AI_STYLES[L.aiStyle]) {
+      console.error('[3/4] ' + tag + '：aiStyle「' + L.aiStyle +
+        '」不是 assault / hold / seize 之一，会静默退回夺取型');
+      bad++;
+    } else if (!L.aiStyle && !api.AI_STYLE_BY_TYPE[cat]) {
+      console.error('[3/4] ' + tag + '：关卡类别「' + cat + '」不在 AI_STYLE_BY_TYPE 里，' +
+        '红方会静默退回夺取型（补表，或在关卡里写 aiStyle）');
+      bad++;
+    }
+  }
   /* 波次：LEVEL.waves 里声明的波次必须有对应兵牌，反之亦然 */
   const waveDecl = (L.waves || []).map(x => x.wave);
   const waveUnits = [...new Set(L.units.filter(u => u.wave > 1).map(u => u.wave))];

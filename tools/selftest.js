@@ -329,10 +329,23 @@ console.log('\n[4] 地图视图');
      Math.abs(bs.w - expW) < 0.01 && Math.abs(bs.h - expH) < 0.01,
      bs.w.toFixed(1) + '×' + bs.h.toFixed(1));
 
-  /* Node 环境没有 matchMedia，isNarrow 应为 false，桌面不做任何变换 */
-  ok('桌面模式不缩放', v.isNarrow() === false && v.k === 1, 'k=' + v.k);
+  /* Node 环境没有 matchMedia，isNarrow 应为 false —— 这一支就是"桌面端"。
+     v4.19 热补丁之前桌面被写死成 1 倍且不写 transform，缩放手柄也不显示，
+     窗口比棋盘窄时只能左右拖着看。现在桌面和手机同一套 transform，
+     差别只在：fit 不往 1 倍以上放（点阵屏少放大会糊、且看不全战场）。 */
+  ok('桌面模式初始不缩放', v.isNarrow() === false && v.k === 1, 'k=' + v.k);
   v.fitView(false);
-  ok('桌面调用 fitView 后仍为 1 倍', v.k === 1 && v.x === 0 && v.y === 0);
+  ok('桌面 fit 后不超过 1 倍（不放大到比原图还大）',
+     v.k > 0 && v.k <= 1 + 1e-9 && v.fitK <= 1 + 1e-9,
+     'k=' + v.k + ' fit=' + v.fitK);
+  ok('桌面的缩放上限高于适应值（否则放不动）', v.maxK > v.fitK,
+     'max=' + v.maxK + ' fit=' + v.fitK);
+  v.zoomBy(1.4);
+  ok('桌面也能放大', v.k > 1 + 1e-9, 'k=' + v.k);
+  /* 缩放比例真的被钳在上限上，不是"按一次涨一次" */
+  for (let i = 0; i < 12; i++) v.zoomBy(1.4);
+  ok('放大到上限就停住', Math.abs(v.k - v.maxK) < 1e-9, 'k=' + v.k + ' max=' + v.maxK);
+  v.fitView(false);
 }
 
 /* ───────── 六、表现层接口（FX / ASSETS） ───────── */
@@ -3559,6 +3572,203 @@ console.log('\n[47] 无效接触只拦"会被反击"的攻击（v4.18 热修：�
   ok('有反击的低比值攻击仍被挡在列表外', !api.targetsFor(at, S.fields).includes(hold));
   ok('有反击的低比值攻击在 doAttack 仍被拒',
      api.doAttack(at, hold) === false && hold.str === 10, '守方 str ' + hold.str);
+}
+
+console.log('\n[48] 三种 AI 脾气 / 炮兵打堆叠格 / 撤销返还战术卡（v4.19 热补丁）');
+{
+  /* ── 一、关卡类别 → 脾气 ──
+     这一层最容易"看起来对、其实没生效"：类别词写错一个字，查表失败，
+     红方静默退回夺取型，三种脾气变回一种而没有任何报错。 */
+  const keyOf = id => api.aiStyleKey(api.levelById(id));
+  ok('坚守关 → 夺取型', keyOf('C1') === 'seize', keyOf('C1'));
+  ok('突围关 → 进攻型', keyOf('C2') === 'assault', keyOf('C2'));
+  ok('附属·特种 → 防守型', keyOf('C2B') === 'hold', keyOf('C2B'));
+  ok('迟滞关 → 进攻型', keyOf('C5') === 'assault', keyOf('C5'));
+  ok('防御关 → 夺取型', keyOf('C6') === 'seize', keyOf('C6'));
+  ok('类别查不到时退回夺取型（不抛错）',
+     api.aiStyleKey({ type: '不存在的类别' }) === 'seize');
+  ok('关卡里写 aiStyle 能覆盖类别表',
+     api.aiStyleKey({ type: '坚守', aiStyle: 'assault' }) === 'assault');
+  /* 拼错的值不能生效——它必须退回类别表，而不是把 LEVEL 变成 undefined 后再崩 */
+  ok('拼错的 aiStyle 被忽略，仍按类别走',
+     api.aiStyleKey({ type: '坚守', aiStyle: 'asault' }) === 'seize');
+
+  api.newGame({ level: 'C1', noSave: true });
+  const S = api.getState();
+  const A = api.AI_STYLES;
+  const inf = api.alive('blue').find(u => u.type === 'inf');
+  const gun = api.alive('blue').find(u => u.type === 'art');
+  const pv0 = { ratio: 0.7, flanked: false };
+  ok('前提：C1 里蓝方有步兵与炮兵', !!inf && !!gun,
+     (inf && inf.abbr) + ' / ' + (gun && gun.abbr));
+
+  /* ── 二、开火门槛：三种脾气三套数字 ── */
+  ok('进攻型：直射 0.55 / 火炮 0.30',
+     Math.abs(api.aiFireGate(inf, null, pv0, A.assault, false) - 0.55) < 1e-9 &&
+     Math.abs(api.aiFireGate(gun, null, pv0, A.assault, false) - 0.30) < 1e-9);
+  ok('防守型：直射 1.05 / 火炮 0.75',
+     Math.abs(api.aiFireGate(inf, null, pv0, A.hold, false) - 1.05) < 1e-9 &&
+     Math.abs(api.aiFireGate(gun, null, pv0, A.hold, false) - 0.75) < 1e-9);
+  ok('夺取型：直射 0.85 / 火炮 0.55',
+     Math.abs(api.aiFireGate(inf, null, pv0, A.seize, false) - 0.85) < 1e-9 &&
+     Math.abs(api.aiFireGate(gun, null, pv0, A.seize, false) - 0.55) < 1e-9);
+  ok('走完再打另加 0.05（阵型没展开）',
+     Math.abs(api.aiFireGate(inf, null, pv0, A.seize, true) - 0.90) < 1e-9);
+  ok('多面进攻过放松 0.15',
+     Math.abs(api.aiFireGate(inf, null, { ratio: 0.7, flanked: true }, A.seize, false) - 0.70) < 1e-9);
+  /* 夺取型的"不惜代价"：目标站在敌方要点上，门槛归零；防守型同格仍然挑 */
+  const anyObj = api.LEVEL.objectives[0];
+  const objCell = anyObj.cells[0];
+  const defOnObj = { pos: objCell.slice(), side: 'red', type: 'inf', str: 10, org: 100 };
+  ok('夺取型：攻打敌方要点上的守军不计代价（门槛 0）',
+     api.aiFireGate(gun, defOnObj, { ratio: 0.05, flanked: false }, A.seize, false) === 0);
+  ok('防守型：同样的目标仍然按 0.75 挑',
+     Math.abs(api.aiFireGate(gun, defOnObj, { ratio: 0.05, flanked: false }, A.hold, false) - 0.75) < 1e-9);
+  ok('进攻型：也不为要点破例',
+     Math.abs(api.aiFireGate(gun, defOnObj, { ratio: 0.05, flanked: false }, A.assault, false) - 0.30) < 1e-9);
+
+  /* ── 三、落脚格打分：防守型钻掩体、进攻型贴人 ── */
+  const goal = api.aiGoalFor(inf, A.hold);
+  ok('aiGoalFor 给出一个真实落点', Array.isArray(goal) && goal.length === 2, JSON.stringify(goal));
+  const passable = (r, c) => api.inBounds(r, c) && api.TERRAIN[api.LEVEL.map[r][c]].cost < 99;
+  /* 找一对"离目标点一样远、离敌军也一样远、地形防御却差得多"的格子：
+     把目标距离与敌军距离都按住，比出来的就只剩 terrainWeight 这一项。 */
+  const minFoe = p => api.alive('red').reduce((m, f) => Math.min(m, api.hexDist(p, f.pos)), 99);
+  let pair = null;
+  for (let r = 0; r < api.LEVEL.rows && !pair; r++) {
+    for (let c = 0; c < api.LEVEL.cols && !pair; c++) {
+      if (!passable(r, c)) continue;
+      const d0 = api.hexDist([r, c], goal), f0 = minFoe([r, c]);
+      const defA = api.terrainAt(r, c).def;
+      for (let r2 = 0; r2 < api.LEVEL.rows && !pair; r2++) {
+        for (let c2 = 0; c2 < api.LEVEL.cols; c2++) {
+          if (!passable(r2, c2)) continue;
+          if (api.hexDist([r2, c2], goal) !== d0) continue;
+          if (minFoe([r2, c2]) !== f0) continue;
+          const defB = api.terrainAt(r2, c2).def;
+          if (Math.abs(defA - defB) >= 0.25) {
+            const hi = defA > defB ? [r, c] : [r2, c2];
+            const lo = defA > defB ? [r2, c2] : [r, c];
+            pair = { hi, lo };
+            break;
+          }
+        }
+      }
+    }
+  }
+  ok('找到一对等高差掩体落点', !!pair, JSON.stringify(pair));
+  if (pair) {
+    const dHold = api.aiMoveScore(inf, pair.hi, goal, A.hold) - api.aiMoveScore(inf, pair.lo, goal, A.hold);
+    const dAss = api.aiMoveScore(inf, pair.hi, goal, A.assault) - api.aiMoveScore(inf, pair.lo, goal, A.assault);
+    ok('防守型明显偏爱有掩体的落点', dHold > dAss + 0.2,
+       dHold.toFixed(2) + ' vs ' + dAss.toFixed(2));
+  }
+  /* 进攻型朝最近敌军靠：同目标距离、同地形的两格里，离敌人近的那格分更高。
+     做法是把探针敌军直接放在其中一格上——它离那格 0 格、离另一格 d 格，
+     比出来的就只剩 foePull 这一项（夺取型的 foePull 是 0，两格分数必须相同）。 */
+  let nearPair = null;
+  for (let r = 0; r < api.LEVEL.rows && !nearPair; r++) {
+    for (let c = 0; c < api.LEVEL.cols && !nearPair; c++) {
+      if (!passable(r, c)) continue;
+      for (let r2 = 0; r2 < api.LEVEL.rows && !nearPair; r2++) {
+        for (let c2 = 0; c2 < api.LEVEL.cols; c2++) {
+          if (!passable(r2, c2)) continue;
+          if (api.LEVEL.map[r][c] !== api.LEVEL.map[r2][c2]) continue;   // 地形字符相同 = 同防御同消耗
+          if (api.hexDist([r, c], goal) !== api.hexDist([r2, c2], goal)) continue;
+          const d = api.hexDist([r, c], [r2, c2]);
+          if (d >= 1 && d <= 6) { nearPair = { near: [r, c], far: [r2, c2] }; break; }
+        }
+      }
+    }
+  }
+  if (nearPair) {
+    const foe = api.makeUnit({ id: 'AFOE', side: 'red', type: 'inf', abbr: '敌', name: '探针',
+      r: nearPair.near[0], c: nearPair.near[1], corps: 'A', str: 8, mov: 6, rng: 1 }, false);
+    api.getState().units.push(foe);
+    ok('进攻型朝最近敌军靠（同目标距离时选更近的一格）',
+       api.aiMoveScore(inf, nearPair.near, goal, A.assault) > api.aiMoveScore(inf, nearPair.far, goal, A.assault));
+    ok('夺取型不吃这一项（同一对格子分数相同）',
+       Math.abs(api.aiMoveScore(inf, nearPair.near, goal, A.seize) - api.aiMoveScore(inf, nearPair.far, goal, A.seize)) < 1e-9);
+    api.getState().units.splice(api.getState().units.indexOf(foe), 1);
+  } else {
+    ok('进攻型朝最近敌军靠（同目标距离时选更近的一格）', false, '找不到可比的一对格子');
+    ok('夺取型不吃这一项（同一对格子分数相同）', false, '找不到可比的一对格子');
+  }
+
+  /* ── 四、挑目标：进攻型偏残血，防守型偏贴脸的 ── */
+  const redInf = api.alive('red').find(u => u.type === 'inf' || u.type === 'mob');
+  if (redInf) {
+    const wounded = { ...redInf, str: 3 };
+    const sAss = api.scoreTarget(inf, wounded, S.fields, A.assault);
+    const sSeize = api.scoreTarget(inf, wounded, S.fields, A.seize);
+    ok('进攻型对残血目标额外感兴趣（+0.4）',
+       Math.abs((sAss - sSeize) - (8 - 3) * 0.08) < 1e-9,
+       (sAss - sSeize).toFixed(2));
+    const sHold = api.scoreTarget(inf, redInf, S.fields, A.hold);
+    const sSeize2 = api.scoreTarget(inf, redInf, S.fields, A.seize);
+    ok('防守型的加分只跟"离我多近"有关（0–0.48 之间）',
+       sHold - sSeize2 >= 0 && sHold - sSeize2 <= 0.49,
+       (sHold - sSeize2).toFixed(2));
+  } else {
+    ok('进攻型对残血目标额外感兴趣（+0.4）', false, 'C1 没有红方步兵');
+    ok('防守型的加分只跟"离我多近"有关（0–0.48 之间）', false, 'C1 没有红方步兵');
+  }
+
+  /* ── 五、炮兵打堆叠格：选"兵力最强的一支"当基准 ── */
+  const fake = [{ str: 3, abbr: 'a' }, { str: 9, abbr: 'b' }, { str: 5, abbr: 'c' }];
+  ok('splashTarget 取格内兵力最强的一支', api.splashTarget(fake).abbr === 'b',
+     api.splashTarget(fake).abbr);
+  ok('splashTarget 只有一支时原样返回', api.splashTarget([{ str: 7, abbr: 'z' }]).abbr === 'z');
+
+  /* ── 六、撤销要返还战术卡 ──
+     漏了这条的后果：卡打出去 → 撤销 → 兵牌属性回到从前，卡却算用掉，
+     玩家看到"卡没了、效果也没了"，只能重开一局。 */
+  api.newGame({ level: 'C3', noSave: true });
+  const S2 = api.getState();
+  S2.deck = ['hold'];
+  /* 兵种别写死：C3 的蓝方主力是守备营与装步，找"第一个能当地面目标的友军"最稳。 */
+  const u0 = api.alive('blue').find(u => !api.isAir(u) && !api.isNaval(u));
+  ok('前提：C3 里有可用的蓝方地面兵牌', !!u0, String(u0 && u0.abbr));
+  const uid0 = u0.id;
+  const def0 = u0.cardDef || 0;
+  ok('前提：这张卡还没用过', !S2.cardUsed.hold);
+  ok('用卡成功', api.useCard('hold', u0) === true);
+  ok('用卡后记进 cardUsed', S2.cardUsed.hold === true);
+  const u1 = api.getState().units.find(x => x.id === uid0);
+  ok('用卡后兵牌拿到 +0.30 防御', Math.abs((u1.cardDef || 0) - (def0 + 0.30)) < 1e-9,
+     String(u1.cardDef));
+  ok('撤销成功', api.doUndo() === true);
+  const S3 = api.getState();
+  const u2 = S3.units.find(x => x.id === uid0);
+  ok('撤销后卡回到手牌', !S3.cardUsed.hold, JSON.stringify(S3.cardUsed));
+  ok('撤销后兵牌属性复原', Math.abs((u2.cardDef || 0) - def0) < 1e-9, String(u2.cardDef));
+  ok('撤销后又能再用这张卡', api.useCard('hold', u2) === true);
+
+  /* ── 七、撤销只返还"被撤销掉的那一步"用掉的卡 ──
+     两张卡连着打，撤销一次只该退回后一张，前一张仍算用掉。
+     这一段同时守住两处代码：pushUndo 得真把 cardUsed 记进快照（记成空对象的话
+     前一张也会回到手牌，等于撤销能刷卡），doUndo 得真把它恢复（否则后一张退不回来）。
+     只测"撤销后最后一张卡回来了"是不够的——那一条在 pushUndo 写错时照样绿。 */
+  api.newGame({ level: 'C3', noSave: true });
+  const S4 = api.getState();
+  S4.deck = ['hold', 'assault'];
+  const u4 = api.alive('blue').find(u => !api.isAir(u) && !api.isNaval(u));
+  ok('前提：连续用卡的用例里有地面兵牌', !!u4, String(u4 && u4.abbr));
+  const uid4 = u4.id;
+  ok('第一张卡用掉', api.useCard('hold', u4) === true);
+  ok('第二张卡用掉', api.useCard('assault', u4) === true);
+  ok('两张都记进 cardUsed',
+     !!api.getState().cardUsed.hold && !!api.getState().cardUsed.assault);
+  ok('撤销一次', api.doUndo() === true);
+  const S5 = api.getState();
+  ok('撤销不返还先前用掉的卡', S5.cardUsed.hold === true, JSON.stringify(S5.cardUsed));
+  ok('撤销返还这一步用掉的卡', !S5.cardUsed.assault, JSON.stringify(S5.cardUsed));
+  const u5 = S5.units.find(x => x.id === uid4);
+  ok('先前那张卡仍然打不出去', api.useCard('hold', u5) === false);
+  ok('再撤销一次', api.doUndo() === true);
+  const S6 = api.getState();
+  ok('连撤两步两张卡都回到手牌', !S6.cardUsed.hold && !S6.cardUsed.assault,
+     JSON.stringify(S6.cardUsed));
 }
 
 console.log('\n通过 ' + pass + ' 项，失败 ' + fail + ' 项');

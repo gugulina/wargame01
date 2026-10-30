@@ -6702,6 +6702,12 @@ function pushUndo() {
     everSeen: state.everSeen,
     initStr: state.initStr,
     flanges: state.flanges,
+    /* 战术卡的"已使用"记录必须一起进快照（v4.19 热补丁）。
+       漏了它的后果是：打出一张卡 → 撤销 → 兵牌属性回到从前，
+       但那张卡仍然算用掉——玩家看到"卡没了、效果也没了"，只能重开一局。
+       存档（saveSnapshot）早就带了 cardUsed，撤销栈漏了这一项，
+       两套快照口径不一致，是最容易被漏掉的一类不一致。 */
+    cardUsed: { ...(state.cardUsed || {}) },
     log: state.log.slice(-60)
   }));
   if (undoStack.length > UNDO_MAX) undoStack.shift();
@@ -6738,6 +6744,11 @@ function doUndo() {
   state.everSeen = s.everSeen;
   state.initStr = s.initStr;
   state.flanges = s.flanges || {};
+  /* 只返还"被撤销掉的那一步"用掉的卡：快照里的 cardUsed 是压栈那一刻的值，
+     恢复它，就等于把这一步期间用掉的卡退回手牌，而更早用掉的一张不少。
+     不能写成 `s.cardUsed || {}` —— 快照里没有这一项时（旧版撤销栈），
+     `|| {}` 会把整局用掉的卡全部退回来，玩家连撤几步就能把卡刷满。 */
+  state.cardUsed = s.cardUsed ? { ...s.cardUsed } : state.cardUsed;
   state.log = s.log;
   clearSelection();
   refreshFields();
@@ -7668,8 +7679,21 @@ function targetsAt(r, c) {
   if (!state.selected || !state.targets.length) return [];
   return unitsAt(r, c).filter(x => state.targets.includes(x));
 }
+/* 炮兵打的是格子，不是番号（v4.19 热补丁）。
+   面覆盖本来就把同格所有敌方地面单位一起算（见 doAttack 的 victims），
+   再让玩家多点一次"打哪一支"纯属多余——而且在手机上那一下往往点歪。
+   挑谁当基准只影响结算入口（def 的抵抗值、击退、履带压制），
+   取**兵力最强的一支**：它决定这一格的防御基数，也最像"你要打的那一坨"。
+   直射单位（坦克、步兵）仍然弹选择器——它们打的是具体那支，
+   打谁就是打谁，不能替玩家决定。 */
+function splashTarget(list) {
+  let best = list[0];
+  for (const t of list) if (t.str > best.str) best = t;
+  return best;
+}
 /* 只要一支时走 targetsAt(...)[0]，多目标必须走 openPick——
-   同格两支敌军时按堆叠顺序取第一个，"想打后面那支"没有别的入口。 */
+   同格两支敌军时按堆叠顺序取第一个，"想打后面那支"没有别的入口。
+   （炮兵的例外见 splashTarget。） */
 function onHexClick(r, c) {
   if (!state || state.result) return;
   const u = unitAt(r, c);
@@ -7742,7 +7766,11 @@ function onHexClick(r, c) {
          格内两支以上可打目标（地表堆叠、或地表 + 空中）时先弹选择器：
          直接打第一支等于替玩家做了"打谁"的决定，而且没有第二次机会。 */
       const tHere = targetsAt(r, c);
-      if (tHere.length > 1) { openPick(r, c); return; }
+      /* 炮兵见堆叠格直接开火：面覆盖不分番号（见 splashTarget）。 */
+      if (tHere.length > 1) {
+        if (state.selected && isArty(state.selected)) { doAttack(state.selected, splashTarget(tHere)); return; }
+        openPick(r, c); return;
+      }
       if (tHere.length === 1) { doAttack(state.selected, tHere[0]); return; }
       /* 同一格里已经选中了一支时，再点这格：
          · 有堆叠 → 轮到下一支（不然下层永远选不到）
@@ -7767,7 +7795,10 @@ function onHexClick(r, c) {
           而且 selectTerrain 会 state.selected = null，选着自己部队点一下远处敌人，
           选中反而丢了。 */
     const rTgts = targetsAt(r, c);
-    if (rTgts.length > 1) { openPick(r, c); return; }
+    if (rTgts.length > 1) {
+      if (state.selected && isArty(state.selected)) { doAttack(state.selected, splashTarget(rTgts)); return; }
+      openPick(r, c); return;
+    }
     if (rTgts.length === 1) { doAttack(state.selected, rTgts[0]); return; }
     if (state.mode === 'move' && state.selected &&
         state.reachable.stop && state.reachable.stop[kk(r, c)] !== undefined) {
@@ -8285,7 +8316,91 @@ function showOverlay() {
 }
 
 /* ───────────────────────── 红方 AI ───────────────────────── */
-function scoreTarget(att, t, fields) {
+/* 三种脾气（v4.19 热补丁，不计版本号）。**按关卡类别配**，不逐关手写：
+
+     关卡类别（LEVEL.type）          红方在干什么              AI
+     坚守 / 防御 / 附属·防御          来抢要点                 夺取型 seize
+     突围 / 迟滞 / 附属·撤离·护送·搜救 封堵、追击、歼灭         进攻型 assault
+     附属·特种 / 破袭 / 夜战 / 防空    守着要点等你去撞          防守型 hold
+
+   为什么按类别配而不是逐关写：类别本身就是"这一关谁在攻谁在守"的答案，
+   逐关写会出现"同一类关卡两种脾气"，玩家学不到规律。
+   关卡里仍可写 `aiStyle: 'assault'` 硬改（少数关需要例外时用），
+   但那是例外，不是常规入口——`check.js` 会把写了但拼错的值报出来。
+
+   三种性格只在**四处**分岔，全部收在下面这四个函数里，别散进 runAI：
+     aiGoalFor()  往哪走 · aiMoveScore() 落脚在哪 · aiFireGate() 打不打 · scoreTarget() 打谁
+
+   ⚠ 一条历史教训写在这里：v4.17 试过"没有要抢的要点时向最近敌军推进"，
+   C2 突围关的达成率从 45% 掉到 **0%**——红方离开封锁线去追人，逃生部队被逐个咬死。
+   所以三种脾气都**共用同一个推进轴（要点）**，"进攻型"改的是
+   "贴多近、打多狠、挑谁打"，不是"要不要守自己的阵地"。 */
+const AI_STYLES = {
+  /* 进攻型：优先消灭有生力量，高进攻欲望。
+     开火门槛压到 0.55 / 0.30，挑目标偏"好打的"（残血、低战力），
+     走位对掩体几乎不挑，且主动往最近敌军靠（但仍沿要点推进）。 */
+  assault: {
+    name: '进攻型',
+    fireOther: 0.55, fireArty: 0.30,
+    objPull: 1.2, foePull: 1.0, terrainWeight: 0.5,
+    guard: false, allInOnObjective: false,
+    preferKill: true, defensive: false
+  },
+  /* 防守型：依托要点与工事据守，低进攻欲望。
+     目标要点**包括已经在我手里的**（守方要待在自己阵地上），
+     走位对地形防御与工事权重最高，已经在坑里又没敌人贴脸就不挪窝；
+     只有比值 1.05 / 0.75 以上才开火，挑目标偏"离我最近的"。 */
+  hold: {
+    name: '防守型',
+    fireOther: 1.05, fireArty: 0.75,
+    objPull: 1.2, foePull: 0.0, terrainWeight: 3.0,
+    guard: true, allInOnObjective: false,
+    preferKill: false, defensive: true,
+    digIn: true
+  },
+  /* 夺取型：抢关键点。要点被蓝方据守时**不惜代价**（开火门槛归零），
+     这是它与前两种最本质的区别——为了那 20 分，赔掉编制也认。 */
+  seize: {
+    name: '夺取型',
+    fireOther: 0.85, fireArty: 0.55,
+    objPull: 1.2, foePull: 0.0, terrainWeight: 2.0,
+    guard: true, allInOnObjective: true,
+    preferKill: false, defensive: false
+  }
+};
+
+/* 类别 → 脾气。键是 levelTypeText() 之后的样子（附属前缀已经剥掉）。
+   读法：**玩家在干什么**决定红方在干什么——
+     · 玩家守（坚守 / 防御 / 争夺 / 会战 / 巷战 / 登陆…）→ 红方来抢 → seize
+     · 玩家跑（突围 / 撤离 / 追击）或抢时间（迟滞 / 阻击 / 歼灭）→ 红方追着打 → assault
+     · 玩家去攻（进攻 / 特种 / 破袭 / 夜战 / 防空 / 清剿 / 斩首 / 突袭 / 空降）→ 红方是守备队 → hold
+   表里没有的类别会让红方静默退回夺取型，所以 `check.js` 逐个关卡对表点名。 */
+const AI_STYLE_BY_TYPE = {
+  /* 夺取型：来抢要点 */
+  '防御': 'seize', '坚守': 'seize', '争夺': 'seize', '会战': 'seize', '巷战': 'seize',
+  '突破': 'seize', '压缩': 'seize', '相持': 'seize', '对峙': 'seize', '威慑': 'seize',
+  '终局': 'seize', '登陆': 'seize', '海战': 'seize',
+  /* 进攻型：追歼、抢时间 */
+  '突围': 'assault', '迟滞': 'assault', '阻击': 'assault', '歼灭': 'assault',
+  '撤离': 'assault', '追击': 'assault', '渗透': 'assault', '搜救': 'assault',
+  '护送': 'assault', '护航': 'assault', '机动': 'assault',
+  /* 防守型：守备队，等你来撞 */
+  '进攻': 'hold', '特种': 'hold', '破袭': 'hold', '夜战': 'hold', '防空': 'hold',
+  '清剿': 'hold', '斩首': 'hold', '突袭': 'hold', '空降': 'hold', '侦察': 'hold',
+  '教学': 'hold'
+};
+/* 这一关用哪种脾气：显式 aiStyle 优先，否则按类别查表，查不到才落默认。
+   **查不到不静默**：check.js 会把"关卡类别不在表里"报出来——
+   新关卡用了新类别词，AI 会一声不响退回夺取型，那种 bug 查起来极费劲。 */
+function aiStyleKey(lv) {
+  const L = lv || LEVEL;
+  if (L && L.aiStyle && AI_STYLES[L.aiStyle]) return L.aiStyle;
+  const t = levelTypeText(L);
+  return AI_STYLE_BY_TYPE[t] || 'seize';
+}
+function aiStyle(lv) { return AI_STYLES[aiStyleKey(lv)]; }
+
+function scoreTarget(att, t, fields, style) {
   const pv = previewAttack(att, t, fields);
   let s = pv.ratio;
   /* 多面进攻过的格子值更多分：防御已经被第一波攻击拉开，
@@ -8295,21 +8410,89 @@ function scoreTarget(att, t, fields) {
   if (isArty(t)) s += 0.6;
   if (t.type === 'sup') s += 0.4;
   if (!pv.counter) s += 0.35;
+  /* 进攻型：先吃掉好打的。挑"最硬的"会把主力磨在工事上，
+     而歼灭战看的是"这一轮谁先归零"——残血与低战力优先。 */
+  if (style && style.preferKill) s += Math.max(0, 8 - t.str) * 0.08;
+  /* 防守型：谁离我最近谁最危险。守方要守的是这块地，不是杀敌数。 */
+  if (style && style.defensive) s += Math.max(0, 4 - hexDist(att.pos, t.pos)) * 0.12;
   return s;
 }
 
-function redGoal(u) {
-  const foe = LEVEL.objectives.filter(o => objectiveControl(o) !== 'red');
-  if (!foe.length) return null;
+/* 往哪走。三种脾气共用同一条推进轴（要点），差别只在"要不要顺手吃人"：
+   目标点的取法分两类——
+     · 夺取型：**还没归我**的要点，核心要点另有 2 格加权
+     · 防守型：离自己最近的要点（包括已经在手里的，守方就该待在阵地上）
+   进攻型沿用夺取型的目标点：它靠 foePull 把走位往敌人身上拽，而不是换目标。 */
+function aiGoalFor(u, style) {
+  const st = style || aiStyle();
+  let list;
+  if (st === AI_STYLES.hold) {
+    list = LEVEL.objectives.slice();
+  } else {
+    list = LEVEL.objectives.filter(o => objectiveControl(o) !== 'red');
+    if (!list.length) list = LEVEL.objectives.slice();
+  }
+  if (!list.length) return null;
   let best = null, bd = Infinity;
-  for (const o of foe) {
+  for (const o of list) {
     for (const cell of o.cells) {
-      const d = hexDist(u.pos, cell) - (o.core ? 2 : 0);
+      /* 夺取型：核心要点优先（那 20 分比边角值钱）。
+         守方反过来——不加权，守的是"我这片阵地"，加权会把守军都吸到一个点。 */
+      const d = hexDist(u.pos, cell) - (st.allInOnObjective && o.core ? 2 : 0);
       if (d < bd) { bd = d; best = cell; }
     }
   }
   return best;
 }
+
+/* 落脚格打分。三种脾气的唯一差别都在这几个系数里（见 AI_STYLES）：
+   地形防御权重（防守型 3.0 vs 进攻型 0.5）、朝最近敌军的吸引（进攻型 1.0）。 */
+function aiMoveScore(u, p, goal, style) {
+  const st = style || aiStyle();
+  const t = terrainAt(p[0], p[1]);
+  let s = -hexDist(p, goal) * st.objPull + t.def * st.terrainWeight;
+  if (st.foePull) {
+    let mind = Infinity;
+    for (const f of alive(other(u.side))) mind = Math.min(mind, hexDist(p, f.pos));
+    if (mind < Infinity) s -= Math.min(mind, 6) * st.foePull;
+  }
+  /* 防守型把己方工事当成家：一格碉堡/要塞炮比多两格的空地值钱。 */
+  if (st.digIn) {
+    const f = fortAt(p[0], p[1]);
+    if (f && f.side === u.side) s += 2.5;
+  }
+  /* 炮兵怕贴脸——这条与脾气无关，谁的炮被贴住都打不出东西。 */
+  if (isArty(u)) {
+    let mind = Infinity;
+    for (const f of alive(other(u.side))) mind = Math.min(mind, hexDist(p, f.pos));
+    if (mind < 2) s -= isDirectArty(u) ? 25 : 40;
+    /* v4.17：提前一回合起身。原来的分界只有"2 格内"和"3 格内加分"，
+       敌人在 2 格时它才想起要跑，这一回合已经来不及。 */
+    else if (mind < 3) s -= isDirectArty(u) ? 10 : 18;
+    else if (mind <= 4) s += 1.5;
+  }
+  return s;
+}
+
+/* 打不打。门槛是"这一仗值不值得"，三种脾气三套数字；
+   多面进攻过的格子放松 0.15（第一波已经把防御拉开），
+   移动之后再打另加 0.05（阵型没展开）。 */
+function aiFireGate(u, def, pv, style, afterMove) {
+  const st = style || aiStyle();
+  let g = (isArty(u) ? st.fireArty : st.fireOther) - (pv.flanked ? 0.15 : 0);
+  if (afterMove) g += 0.05;
+  /* 夺取型的不惜代价：目标站在**敌方控制的要点**上，这一仗赔本也得打。 */
+  if (st.allInOnObjective && def && onEnemyObjective(def)) g = Math.min(g, 0);
+  return g;
+}
+/* 这一格是不是"敌方（或争夺中的）要点"。用于夺取型的 all-in 判定。 */
+function onEnemyObjective(def) {
+  if (!def || !def.pos) return false;
+  return LEVEL.objectives.some(o =>
+    o.cells.some(x => x[0] === def.pos[0] && x[1] === def.pos[1]) &&
+    objectiveControl(o) !== 'red');
+}
+
 
 /* 关于"进攻意愿低"（v4.17 反馈第 2 条）——试过三种改法，全部 A/B 记录在案：
 
@@ -8346,6 +8529,10 @@ function aiGuardSituation(u) {
 }
 
 async function runAI() {
+  /* 这一关红方的脾气（v4.19 热补丁）。整场只取一次：
+     关卡中途不会换类别，每支部队各查一遍只是白算。 */
+  const style = aiStyle();
+  const goalOf = u => aiGoalFor(u, style);
   const acts = alive('red').slice();
   for (const u of acts) {
     if (!state.units.includes(u) || state.result) break;
@@ -8385,7 +8572,7 @@ async function runAI() {
 
     /* 防空单位守在主力后方，不冲最前 */
     if (u.type === 'aac' || u.type === 'aab') {
-      const goal = redGoal(u);
+      const goal = goalOf(u);
       if (goal && !u.moved) {
         const reach = computeReach(u);
         let best = null, bs = -Infinity;
@@ -8450,7 +8637,7 @@ async function runAI() {
       if (!u.fired && u.rng > 0) {
         const tg = targetsFor(u, state.fields);
         if (tg.length) {
-          tg.sort((a, b) => scoreTarget(u, b, state.fields) - scoreTarget(u, a, state.fields));
+          tg.sort((a, b) => scoreTarget(u, b, state.fields, style) - scoreTarget(u, a, state.fields, style));
           doAttack(u, tg[0]);
           await sleep(220);
         }
@@ -8474,20 +8661,21 @@ async function runAI() {
     if (u.rng > 0 && !u.fired) {
       const tg = targetsFor(u, state.fields);
       if (tg.length) {
-        tg.sort((a, b) => scoreTarget(u, b, state.fields) - scoreTarget(u, a, state.fields));
+        tg.sort((a, b) => scoreTarget(u, b, state.fields, style) - scoreTarget(u, a, state.fields, style));
         let best = tg[0];
         /* 贴身护卫（v4.17 第 2 条）：有人摸到自己炮兵/指挥部一格内，
            这一炮先打他。**只改打谁，不改往哪走**——
-           走位一改就把主力从要点上拽回去，C3 试过 50% → 97%。 */
-        const guard = aiGuardSituation(u);
+           走位一改就把主力从要点上拽回去，C3 试过 50% → 97%。
+           进攻型不干这事：它的目标是歼灭，回头救炮会打断冲击（见 AI_STYLES.guard）。 */
+        const guard = style.guard ? aiGuardSituation(u) : null;
         if (guard && hexDist(u.pos, guard.mate.pos) <= 1 && tg.indexOf(guard.foe) >= 0) best = guard.foe;
         const pv = previewAttack(u, best, state.fields);
-        /* 开火底线（v4.18 反馈第 7 条）：ratio 0.85 以下的硬仗，直射单位不碰；
-           火炮本来"反正够得着就打一炮"，现在也有底线 0.55——再低就是 1:2 档
-           白送编制。已经吃过第一轮攻击的格子例外：防御被拉开了 0.30，
-           阈值跟着放松，这一炮很可能值回票价（多面进攻的 AI 侧）。 */
-        const gate = (isArty(u) ? 0.55 : 0.85) - (pv.flanked ? 0.15 : 0);
-        if (pv.ratio >= gate) {
+        /* 开火底线（v4.18 反馈第 7 条）：按这一关红方的脾气取——
+           进攻型 0.55 / 防守型 1.05 / 夺取型 0.85，火炮各降一档。
+           已经吃过第一轮攻击的格子例外：防御被拉开了 0.30，阈值跟着放松，
+           这一炮很可能值回票价（多面进攻的 AI 侧）。
+           夺取型另有"不惜代价"：目标站在敌方要点上时门槛归零（见 aiFireGate）。 */
+        if (pv.ratio >= aiFireGate(u, best, pv, style, false)) {
           doAttack(u, best);
           await sleep(240);
           continue;
@@ -8504,7 +8692,7 @@ async function runAI() {
     if (u.type === 'sup') {
       const mates = alive(u.side).filter(m => m !== u && hexDist(u.pos, m.pos) <= 4).length;
       if (mates < 2) {
-        const goal = redGoal(u);
+        const goal = goalOf(u);
         if (goal) stepToward(u, goal);
       }
       await sleep(120);
@@ -8518,7 +8706,7 @@ async function runAI() {
          ② 相邻有真正的河流格（不是已有渡口）
          ③ 架完这一格，离作战目标确实更近——不为了架桥而架桥 */
     if (u.type === 'eng' || u.type === 'engc') {
-      const goal = redGoal(u);
+      const goal = goalOf(u);
       if (u.type === 'eng' && goal && !u.moved && !u.fired) {
         /* neighbors 的签名是 (r, c)，传数组会静默返回空表——
            这里曾经写成 neighbors(u.pos)，于是红方工兵一辈子没架过桥，
@@ -8544,25 +8732,16 @@ async function runAI() {
     }
 
     /* 机动 */
-    const goal = redGoal(u);
+    const goal = goalOf(u);
     const stuckTowed = isTowed(u) && !u.packed;    // 没收到炮，挪不动
     if (goal && !u.moved && !stuckTowed) {
       const reach = computeReach(u);
       let best = null, bs = -Infinity;
       for (const key in reach.stop) {
         const p = key.split(',').map(Number);
-        const t = terrainAt(p[0], p[1]);
-        let s = -hexDist(p, goal) * 1.2 + t.def * 2;
-        if (isArty(u)) {
-          let mind = Infinity;
-          for (const f of alive('blue')) mind = Math.min(mind, hexDist(p, f.pos));
-          if (mind < 2) s -= isDirectArty(u) ? 25 : 40;   // 直瞄炮可以稍微靠前，重炮绝不贴脸
-          /* v4.17：提前一回合起身。原来的分界只有"2 格内"和"3 格内加分"，
-             敌人在 2 格时它才想起要跑，这一回合已经来不及——
-             实测反馈说的"炮兵不躲"其实是"躲得晚半拍"。 */
-          else if (mind < 3) s -= isDirectArty(u) ? 10 : 18;
-          else if (mind <= 4) s += 1.5;
-        }
+        /* 落点打分收进 aiMoveScore：三种脾气的系数差异全在 AI_STYLES 里，
+           runAI 这边只负责"遍历可达格、取最高分"。 */
+        const s = aiMoveScore(u, p, goal, style);
         if (s > bs) { bs = s; best = p; }
       }
       if (best) {
@@ -8571,13 +8750,16 @@ async function runAI() {
         if (u.rng > 0 && !u.fired) {
           const tg = targetsFor(u, state.fields);
           if (tg.length) {
-            tg.sort((a, b) => scoreTarget(u, b, state.fields) - scoreTarget(u, a, state.fields));
+            tg.sort((a, b) => scoreTarget(u, b, state.fields, style) - scoreTarget(u, a, state.fields, style));
             let bestT = tg[0];
-            const guard2 = aiGuardSituation(u);
+            const guard2 = style.guard ? aiGuardSituation(u) : null;
             if (guard2 && hexDist(u.pos, guard2.mate.pos) <= 1 && tg.indexOf(guard2.foe) >= 0) bestT = guard2.foe;
             const pv = previewAttack(u, bestT, state.fields);
-            const gate2 = (isArty(u) ? 0.60 : 0.90) - (pv.flanked ? 0.15 : 0);
-            if (pv.ratio >= gate2) { doAttack(u, bestT); await sleep(220); }
+            /* 走完再打比原地打难一档（+0.05）：阵型没展开。 */
+            if (pv.ratio >= aiFireGate(u, bestT, pv, style, true)) {
+              doAttack(u, bestT);
+              await sleep(220);
+            }
           }
         }
       }
@@ -9788,22 +9970,17 @@ function clampView() {
 }
 
 function applyView() {
-  if (!isNarrow()) {
-    boardView.style.transform = '';
-    boardWrap.style.height = '';
-    /* 桌面端没有 transform，但转屏 / 改窗口大小会让格子重排，气泡得跟着走 */
-    repositionUops();
-    return;
-  }
-  const { h } = boardSize();
+  const { w, h } = boardSize();
   const p = wrapPad();
-  const outer = Math.min(Math.round(h * vK), mapCap()) + p + 2;
+  /* 视口高度：窄屏按屏高的固定比例（下面还有面板），宽屏就按棋盘原高——
+     放大时不撑高容器（靠拖动看局部），缩小时容器跟着收，避免下方留一片空白。 */
+  const cap = isNarrow() ? mapCap() : Math.round(h);
+  const outer = Math.min(Math.round(h * vK), cap) + p + 2;
   boardWrap.style.height = outer + 'px';
   clampView();
   boardView.style.transform =
     'translate(' + vX.toFixed(2) + 'px,' + vY.toFixed(2) + 'px) scale(' + vK.toFixed(4) + ')';
   /* 全图状态下没有东西可拖，就把竖向滑动让给页面滚动，否则玩家会觉得页面卡住 */
-  const { w } = boardSize();
   const box = innerBox();
   const needPan = (w * vK > box.w + 1) || (h * vK > box.h + 1);
   boardWrap.style.touchAction = needPan ? 'none' : 'pan-y';
@@ -9816,15 +9993,20 @@ function applyView() {
   repositionUops();
 }
 
-/* 适应屏幕：keep=true 时保留当前缩放，只重算边界 */
+/* 适应屏幕：keep=true 时保留当前缩放，只重算边界。
+   宽屏也走这一条——v4.19 之前桌面上这里是 `vK = 1; return;`，
+   于是窗口比棋盘窄时右边被切成两半、又没有缩放按钮，只能左右拖着看。 */
 function fitView(keep) {
-  if (!isNarrow()) { vK = 1; vX = 0; vY = 0; applyView(); return; }
   const { w, h } = boardSize();
   const box = innerBox();
   const p = wrapPad();
-  /* 全图可见的倍数要同时受宽度和高度限制，否则横屏会算出比屏幕还高的图 */
+  /* 全图可见的倍数要同时受宽度和高度限制，否则横屏会算出比屏幕还高的图。
+     宽屏只受宽度约束、并封顶在 1 倍：桌面点数够细，再往上放只会让玩家
+     只能看到战场一角，反而更难看全局。 */
   const kw = box.w > 0 ? box.w / w : 1;
-  const kh = (mapCap() - p) > 0 ? (mapCap() - p) / h : 1;
+  const kh = isNarrow()
+    ? ((mapCap() - p) > 0 ? (mapCap() - p) / h : 1)
+    : 1;
   vFit = Math.max(0.12, Math.min(1, kw, kh));
   vMax = Math.max(1.6, vFit * 3);
   if (!keep) {
@@ -9854,7 +10036,6 @@ function zoomBy(f) {
 
 /* 把某一格带到视野中心（已经在视野内就原地不动，避免乱跳） */
 function centerOnCell(r, c, force) {
-  if (!isNarrow()) return;
   const box = innerBox();
   const p = hexToPixel(r, c);
   const cx = (p.x + HEX_W / 2) * vK, cy = (p.y + HEX_H / 2) * vK;
@@ -9889,7 +10070,8 @@ function touchDist(t) {
 }
 
 boardWrap.addEventListener('touchstart', e => {
-  if (!isNarrow()) return;
+  /* 桌面端也走这一套：触屏笔记本的双指缩放、单指拖动同样有效。
+     鼠标那一路见下面的 wheel 与 mousedown。 */
   if (e.touches.length >= 2) {
     gDist = touchDist(e.touches);
     const rc = boardWrap.getBoundingClientRect();
@@ -9905,7 +10087,6 @@ boardWrap.addEventListener('touchstart', e => {
 }, { passive: true });
 
 boardWrap.addEventListener('touchmove', e => {
-  if (!isNarrow()) return;
   if (e.touches.length >= 2 && gDist > 0) {
     e.preventDefault();
     const rc = boardWrap.getBoundingClientRect();
@@ -9934,7 +10115,6 @@ boardWrap.addEventListener('touchmove', e => {
 }, { passive: false });
 
 boardWrap.addEventListener('touchend', e => {
-  if (!isNarrow()) return;
   if (e.touches.length === 1) {
     gLast = { x: e.touches[0].clientX, y: e.touches[0].clientY };
     gDist = 0;
@@ -9943,6 +10123,50 @@ boardWrap.addEventListener('touchend', e => {
   }
   if (supClick) setTimeout(() => { supClick = false; }, 320);
 }, { passive: true });
+
+/* ── 鼠标：滚轮缩放 + 左键拖动平移 ──
+   桌面端补的两条。滚轮直接缩放、不要求按住 Ctrl：地图区是这一页的主交互区，
+   玩家不会先在地图上方滚滚轮再滚页面。但**到底就放行**——vK 已经等于 vFit
+   （全图）或 vMax（上限）时不再拦，否则鼠标停在地图上整页就滚不动，
+   玩家会以为页面卡死。 */
+boardWrap.addEventListener('wheel', e => {
+  if (!state || state.result) return;
+  /* 触摸板捏合在 Chrome 里报成 ctrl+wheel。让给浏览器的页面缩放，
+     不然会和下面的 touch 手势重复触发，一次捏合跳两档。 */
+  if (e.ctrlKey) return;
+  const rc = boardWrap.getBoundingClientRect();
+  const next = Math.min(vMax, Math.max(vFit, vK * (e.deltaY < 0 ? 1.12 : 1 / 1.12)));
+  if (Math.abs(next - vK) < 1e-6) return;
+  e.preventDefault();
+  zoomAt(next, e.clientX - rc.left, e.clientY - rc.top);
+  hideZhint();
+}, { passive: false });
+
+/* 左键拖动平移。位移超过 4px 才算拖动，并抑制紧跟着的那一次点击——
+   否则玩家想点格子、手抖两个像素，就变成"图动了但什么都没选中"。 */
+let mDrag = null;
+boardWrap.addEventListener('mousedown', e => {
+  if (e.button !== 0 || !state || state.result) return;
+  mDrag = { x: e.clientX, y: e.clientY, ox: vX, oy: vY, moved: false };
+});
+window.addEventListener('mousemove', e => {
+  if (!mDrag) return;
+  const dx = e.clientX - mDrag.x, dy = e.clientY - mDrag.y;
+  if (!mDrag.moved && Math.abs(dx) + Math.abs(dy) <= 4) return;
+  mDrag.moved = true;
+  e.preventDefault();
+  vX = mDrag.ox + dx; vY = mDrag.oy + dy;
+  clampView(); applyView();
+  supClick = true;
+  boardWrap.classList.add('grabbing');
+}, { passive: false });
+window.addEventListener('mouseup', () => {
+  if (!mDrag) return;
+  /* click 排在 mouseup 之后同一轮里：30ms 足够挡掉这一次，又不会误伤下一次 */
+  if (mDrag.moved) setTimeout(() => { supClick = false; }, 30);
+  mDrag = null;
+  boardWrap.classList.remove('grabbing');
+});
 
 /* ── 按钮与重排 ── */
 document.getElementById('zIn').addEventListener('click', () => zoomBy(1.28));
@@ -11309,7 +11533,11 @@ window.__WAR__ = {
   getKbCur: () => kbCur, setKbCur: v => { kbCur = v; },
   kbHome, kbMove, kbEnter, kbAnnounce, kbSyncAria,
   /* 地图内作业气泡 */
-  unitOps, syncUnitOps, runOp,
+  unitOps, syncUnitOps, runOp, splashTarget,
+  /* 红方 AI 的三种脾气（v4.19 热补丁）：关卡类别选脾气，三处判据各自导出，
+     断言直接问这一关用哪种、这一格走不走、这一炮打不打，不用整局跑完猜。 */
+  AI_STYLES, AI_STYLE_BY_TYPE, aiStyleKey, aiStyle, aiGoalFor, aiMoveScore, aiFireGate,
+  onEnemyObjective, scoreTarget,
   /* 存档文件 */
   buildSaveFile, applySaveFile, importSaveText, exportSave, SAVE_FILE_APP,
   validateSave, cleanProgress, readSave, clearSave,

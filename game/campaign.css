@@ -86,8 +86,12 @@
 
   #boardWrap {
     background: var(--card); border: 1px solid var(--line); border-radius: 10px;
-    padding: 12px; overflow: auto; position: relative;
+    padding: 12px; overflow: hidden; position: relative;
   }
+  /* 拖动平移时的光标与"别选中格子里文字"：只在真正拖动的那一下生效，
+     平时保持指针，否则玩家会以为整张地图是块可拖的灰布。 */
+  #boardWrap.grabbing, #boardWrap.grabbing * { cursor: grabbing !important; }
+  #boardWrap.grabbing { user-select: none; }
   .legend {
     display: flex; gap: 14px; align-items: center; flex-wrap: wrap;
     padding: 8px 4px 0; font-size: 11.5px; color: var(--ink3);
@@ -1104,11 +1108,15 @@
   }
   .cs-next:hover { color: var(--ink2); }
 
-  /* 缩放手柄：2×2 放在地图右下角，避免竖向占满整个高度 */
+  /* 缩放手柄：2×2 放在地图右下角，避免竖向占满整个高度。
+     v4.19 热补丁起桌面上也显示——宽屏不再是"原生滚动条 + 固定 1 倍"，
+     而和手机同一套 transform 缩放，只是手势换成滚轮与拖动。 */
   .zctrl {
     position: absolute; right: 8px; bottom: 8px;
-    display: none; grid-template-columns: repeat(2, 36px); gap: 5px; z-index: 30;
+    display: grid; grid-template-columns: repeat(2, 36px); gap: 5px; z-index: 30;
+    opacity: .62; transition: opacity .18s;
   }
+  .zctrl:hover, .zctrl:focus-within { opacity: 1; }
   .zctrl button {
     width: 36px; height: 36px; padding: 0; border-radius: 9px;
     background: rgba(255,255,255,.94); border: 1px solid var(--line);
@@ -1153,7 +1161,7 @@
       touch-action: none; overscroll-behavior: contain;
     }
     #boardView { touch-action: none; }
-    .zctrl { display: grid; }
+    /* .zctrl 的显示不再靠断点切换：桌面端现在也要缩放按钮 */
     .zhint { display: block; }
 
     .legend { gap: 8px 10px; font-size: 10.5px; padding-top: 6px; }

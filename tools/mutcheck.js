@@ -600,6 +600,55 @@ const MUTANTS = [
    '        aliveNow >= initN) {',
    '坚守关：损一支仍在七成线上，judgeFinal 判 perfect'],
 
+  /* ── v4.19 热补丁（三条都是"看起来在、其实没生效"的典型）── */
+
+  /* 炮兵点堆叠格直接开火：这条只能靠 briefcheck 断（DOM 里有没有弹选择器）。
+     变异退回"一律弹选择器"，断言必须红。 */
+  ['炮兵打堆叠格又弹选择器（热补丁回退）',
+   '      if (state.selected && isArty(state.selected)) { doAttack(state.selected, splashTarget(rTgts)); return; }',
+   '      if (false) { doAttack(state.selected, splashTarget(rTgts)); return; }',
+   '炮兵没有弹出目标选择器', 'brief'],
+
+  /* 撤销返还战术卡，分两条守：
+     ① 快照记成空对象 → 撤销会把"先前用掉的卡"也一起退回来（能刷卡）；
+     ② 恢复那一步被删 → 卡退不回手牌（卡没了、效果也没了）。
+     两条必须分别红一条断言：只写"撤销后卡回到手牌"这一个断言的话，
+     ① 号变异下它照样绿（最后一张卡确实回来了），这就是一条假防线。 */
+  ['撤销栈把 cardUsed 记成空对象（撤销能把卡刷回来）',
+   '    cardUsed: { ...(state.cardUsed || {}) },',
+   '    cardUsed: {},',
+   '撤销不返还先前用掉的卡'],
+
+  ['doUndo 不恢复 cardUsed（卡用掉就再也回不来）',
+   '  state.cardUsed = s.cardUsed ? { ...s.cardUsed } : state.cardUsed;',
+   '  /* 变异：不恢复已用卡 */;',
+   '撤销返还这一步用掉的卡'],
+
+  /* 关卡类别 → 脾气：查表这一步被短路，三种脾气退化成一种 */
+  ['AI 类别查表被短路（全部退回夺取型）',
+   "  return AI_STYLE_BY_TYPE[t] || 'seize';",
+   "  return 'seize';",
+   '突围关 → 进攻型'],
+
+  /* 防守型的开火门槛退回夺取型的 0.85：低进攻欲望这条规则等于没写 */
+  ['防守型开火门槛退回夺取型（低进攻欲望失效）',
+   '    fireOther: 1.05, fireArty: 0.75,',
+   '    fireOther: 0.85, fireArty: 0.55,',
+   '防守型：直射 1.05 / 火炮 0.75'],
+
+  /* 桌面端缩放：退回"清空 transform"的老写法。
+     这一条只有在 briefcheck 里能抓——selftest 的 stub DOM 读不到 style。 */
+  ['桌面 applyView 又清空 transform（放大键按了没反应）',
+   "  boardView.style.transform =\n    'translate(' + vX.toFixed(2) + 'px,' + vY.toFixed(2) + 'px) scale(' + vK.toFixed(4) + ')';",
+   "  boardView.style.transform = '';",
+   '桌面 fitView 后棋盘上写了 transform', 'brief'],
+
+  /* 滚轮这条：next 恒等于 vK，滚一圈什么都不发生 */
+  ['滚轮缩放失效（next 恒等于当前倍数）',
+   '  const next = Math.min(vMax, Math.max(vFit, vK * (e.deltaY < 0 ? 1.12 : 1 / 1.12)));',
+   '  const next = vK;',
+   '桌面滚轮向上滚能放大', 'brief'],
+
 ];
 
 /* 锚点按 LF 写，但 campaign.html 是 CRLF（7356 行全是）。
