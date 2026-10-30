@@ -7168,7 +7168,10 @@ function doAttack(att, def) {
   noteFlank(att, def.pos);
 
   /* 炮击的面覆盖（v4.18 反馈第 4 条）：榴弹打的是格子，不是"选中的那一支"。
-     目标格里所有敌方地面单位均摊战力损失，按支四舍五入——
+     目标格里所有敌方地面单位一起承担战力损失，**按各自当前战力比例摊**
+     （splashSplit，最大余数法取整，合计等于面上损失）。
+     原来是按支平均分：两支战力 2 / 6 挨一发 4 点的炮，各掉 2 ——
+     战力 2 的整支被抹掉、6 的那支几乎无感，等于炮弹精准绕过了主力。
      堆叠协同照样给防御分，但"两个人挤一起挨一发"就是两个人一起掉血。
      非炮兵路径 victims 只有一支（原行为，一点不变）。 */
   const splash = isArty(att);
@@ -7176,19 +7179,23 @@ function doAttack(att, def) {
     ? state.units.filter(u => u.str > 0 && u.side === def.side &&
         !isAir(u) && u.pos[0] === def.pos[0] && u.pos[1] === def.pos[1])
     : [def];
-  const per = victims.length ? Math.round(defLoss / victims.length) : 0;
+  const shares = splash ? splashSplit(defLoss, victims) : [defLoss];
+  const dealt = shares.reduce((a, b) => a + b, 0);
 
-  def.str = Math.max(0, def.str - per);
   att.str = Math.max(0, att.str - attLoss);
-  /* 履带压制必须在这里算，不能挪到击退之后：击退会把目标推走，
-     地形跟着换一格，那时再判就会出现"在城里被打、按平原扣组织度"。
-     同理这条也不参与伤害计算——它压的是组织度，不是战力。 */
-  const pressOrg = trackPress(att, def);
-  for (const v of victims) {
-    if (v !== def) v.str = Math.max(0, v.str - per);
-    v.org = Math.max(0, v.org - per * 3);
+  /* 减员必须在 trackPress 之前：履带压制的判据里有"目标还活着"这一层，
+     先压组织度再减员，就会出现"已经被打光的那支还在挨压制"的日志。
+     也不能挪到击退之后——击退会把目标推走，地形跟着换一格，
+     那时再判就成了"在城里被打、按平原扣组织度"。 */
+  for (let i = 0; i < victims.length; i++) {
+    const v = victims[i];
+    const d = shares[i] || 0;
+    v.str = Math.max(0, v.str - d);
+    v.org = Math.max(0, v.org - d * 3);
     v.fortify = 0;
   }
+  /* 这条压的是组织度，不参与伤害计算 */
+  const pressOrg = trackPress(att, def);
   def.org = Math.max(0, def.org - pressOrg);
   att.org = Math.max(0, att.org - attLoss * 3);
 
@@ -7196,8 +7203,11 @@ function doAttack(att, def) {
   let msg = att.abbr + ' 攻击 ' + def.abbr + '（' + tdef.name + ' · ' + TIER_LABEL[pv.tier] +
             ' · 骰 ' + (die + 1) + (flanks ? ' · 协同 ' + flanks : '') + '）→ 我方 -' + attLoss +
             (splash
-              ? '，面上 -' + defLoss + '（' + victims.length + ' 支均摊 −' + per + '）'
-              : '，敌方 -' + defLoss);
+              ? (victims.length > 1
+                  ? '，面上 -' + dealt + '（' + victims.length + ' 支按战力分摊 ' +
+                    shares.join(' / ') + '）'
+                  : '，面上 -' + dealt)
+              : '，敌方 -' + dealt);
   if (pv.flanked) msg += ' · 多面进攻（防御 −' + FLANK_PENALTY + '）';
   if (fortAbsorb) msg += '（工事吸收 ' + fortAbsorb + '）';
   if (pressOrg) msg += '（履带压制 组织度 −' + pressOrg + '）';
@@ -7243,7 +7253,7 @@ function doAttack(att, def) {
   /* 表现层：一个攻击动作的统一出口。规则层只说"谁掉多少"，
      响什么、闪几下、飘什么字，全交给 FX 决定 */
   FX.hit({
-    defLoss, attLoss,
+    defLoss: dealt, attLoss,
     defPos: def.pos.slice(), attPos: att.pos.slice(),
     defSide: def.side, attSide: att.side,
     /* 谁在打。FX 靠这个选枪声还是炮声——规则层只报兵种代号，
@@ -7251,7 +7261,7 @@ function doAttack(att, def) {
     attType: att.type
   });
 
-  /* 面覆盖打死的不只是"目标"：均摊里掉到 0 的每一支都要下场 */
+  /* 面覆盖打死的不只是"目标"：分摊里掉到 0 的每一支都要下场 */
   for (const v of victims) if (v.str <= 0) removeUnit(v);
   if (att.str <= 0) { removeUnit(att); }
 
@@ -7690,6 +7700,45 @@ function splashTarget(list) {
   let best = list[0];
   for (const t of list) if (t.str > best.str) best = t;
   return best;
+}
+
+/* 一次炮击的面上损失怎么分到格内各支（v4.18 热补丁）。
+   按**当前战力比例**分摊，用最大余数法取整，合计恰好等于总伤害：
+     伤害 4、战力 2 / 6 → 1 / 3；伤害 4、战力 3 / 7 → 1 / 3。
+
+   为什么不直接四舍五入：4 点分给两支 1 血，各得 2、合计 4，没问题；
+   可 3 点分给两支 1 血，四舍五入后是 2 + 2 = 4——**比炮弹本身还多**。
+   所以先按比例取下整，再把剩下的点数按小数部分从大到小补齐；
+   小数相同时给战力高的那支，仍平手就按格内顺序。
+   顺序必须定死：预览、实战、AI 评估三处各算一遍，规则一飘数值就对不上。
+
+   下限（用户定的一条，**故意不守恒**）：被地形或工事削到 2 点及以下时，
+   整格每支各吃 1 点。一发 2 点的炮弹落在三支残部中间会打出 3 点总伤——
+   这是有意的，榴弹对密集队形的压制本来就该有下限，
+   "一个被打死、另一个毫发无伤"违反直觉，也让人不敢再往一格堆兵。
+   单支不吃这条保底：它本来就该全吃（2 点给 1 支就是 2，给 1 反而少算）。
+   伤害为 0（工事全吸收、最坏档打空）时全员 0，不然"打不穿"就变成了"必掉 1"。 */
+function splashSplit(total, victims) {
+  const n = victims.length;
+  if (!n) return [];
+  if (total <= 0) return victims.map(() => 0);
+  if (n === 1) return [total];
+  if (total <= 2) return victims.map(() => 1);
+  const w = victims.map(v => Math.max(0, v.str || 0));
+  const sum = w.reduce((a, b) => a + b, 0);
+  /* 权重全为 0（理论上进不来，victims 只收 str>0 的）：退回等权，
+     别在这里除零。递归一层就够——等权时 sum = n > 0。 */
+  if (sum <= 0) return splashSplit(total, victims.map(() => ({ str: 1 })));
+  const raw = w.map(x => total * x / sum);
+  /* 1e-9 是防浮点：3 * 7 / 10 = 2.8000000000000003 下整没问题，
+     但 2 * 3 / 3 = 1.9999999999999998 会被下整成 1，凭空少 1 点。 */
+  const out = raw.map(x => Math.floor(x + 1e-9));
+  const rest = total - out.reduce((a, b) => a + b, 0);
+  const order = raw
+    .map((x, i) => ({ i, frac: x - Math.floor(x + 1e-9), str: w[i] }))
+    .sort((a, b) => (b.frac - a.frac) || (b.str - a.str) || (a.i - b.i));
+  for (let k = 0; k < rest; k++) out[order[k].i] += 1;
+  return out;
 }
 /* 只要一支时走 targetsAt(...)[0]，多目标必须走 openPick——
    同格两支敌军时按堆叠顺序取第一个，"想打后面那支"没有别的入口。
@@ -11538,7 +11587,7 @@ window.__WAR__ = {
   getKbCur: () => kbCur, setKbCur: v => { kbCur = v; },
   kbHome, kbMove, kbEnter, kbAnnounce, kbSyncAria,
   /* 地图内作业气泡 */
-  unitOps, syncUnitOps, runOp, splashTarget,
+  unitOps, syncUnitOps, runOp, splashTarget, splashSplit,
   /* 红方 AI 的三种脾气（v4.19 热补丁）：关卡类别选脾气，三处判据各自导出，
      断言直接问这一关用哪种、这一格走不走、这一炮打不打，不用整局跑完猜。 */
   AI_STYLES, AI_STYLE_BY_TYPE, aiStyleKey, aiStyle, aiGoalFor, aiMoveScore, aiFireGate,

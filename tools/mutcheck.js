@@ -566,10 +566,34 @@ const MUTANTS = [
    '炮兵的被动防御收益整体减半'],
 
   /* ── v4.18 ── */
-  ['炮兵均摊退回单体（堆叠格只点名目标掉血）',
-   '  const per = victims.length ? Math.round(defLoss / victims.length) : 0;',
-   '  const per = defLoss;',
-   '均摊账目：每支份额是面上损失的一半（四舍五入）'],
+  ['炮兵分摊退回单体（堆叠格每支各吃全额）',
+   '  const shares = splash ? splashSplit(defLoss, victims) : [defLoss];',
+   '  const shares = splash ? victims.map(() => defLoss) : [defLoss];',
+   '不等战力堆叠：战力 4 的那支最多吃 2 点'],
+
+  /* 按比例 → 平均分：两支 2 / 6 挨 4 点，平均分是 2 / 2，比例分才是 1 / 3 */
+  ['分摊退回按支平均（战力 2 的那支被整支抹掉）',
+   '  const w = victims.map(v => Math.max(0, v.str || 0));',
+   '  const w = victims.map(() => 1);',
+   '伤害 4、战力 2 / 6 → 1 / 3'],
+
+  /* 只取下整、不补余数：4 点分给 3 / 7 会变成 1 + 2 = 3，少打 1 点 */
+  ['最大余数不补（合计比炮弹少）',
+   '  for (let k = 0; k < rest; k++) out[order[k].i] += 1;',
+   '  /* 不补余数 */;',
+   '伤害 4、战力 3 / 7 → 1 / 3'],
+
+  /* 2 点保底失效：削到 2 点还按比例分，就会出现"一支吃 1、另一支毫发无伤" */
+  ['2 点保底失效（削到 1 点时有人毫发无伤）',
+   '  if (total <= 2) return victims.map(() => 1);',
+   '  if (false) return victims.map(() => 1);',
+   '削到 1 点：两支各吃 1'],
+
+  /* 保底对单支也生效：2 点给 1 支变成 1，凭空少 1 点 */
+  ['单支也吃 2 点保底（伤害凭空少一半）',
+   '  if (n === 1) return [total];',
+   '  if (n === 1 && total > 2) return [total];',
+   '单支不吃保底：2 点全给'],
 
   ['FLANK_PENALTY 失效（多面进攻白打）',
    'const FLANK_PENALTY = 0.30;',

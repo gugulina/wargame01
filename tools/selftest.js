@@ -3285,7 +3285,7 @@ console.log('\n[45] 无效接触 / doAttack 闸门 / 工事分槽 / 乘数夹紧
   }
 }
 
-console.log('\n[46] 炮兵均摊 / 多面进攻 / 指挥部防炮 / 教学关封顶（v4.18）');
+console.log('\n[46] 炮兵分摊 / 多面进攻 / 指挥部防炮 / 教学关封顶（v4.18）');
 {
   api.newGame({ level: 'C3', noSave: true });
   const S = api.getState();
@@ -3307,9 +3307,10 @@ console.log('\n[46] 炮兵均摊 / 多面进攻 / 指挥部防炮 / 教学关封
   const passable = (r, c) => api.inBounds(r, c) && api.TERRAIN[api.LEVEL.map[r][c]].cost < 99;
   const key = p => p[0] + ',' + p[1];
 
-  /* ── 一、炮兵均摊：同一格的所有地表单位一起掉血 ──
-     炮兵打的是"格子"不是"番号"。堆在一格里挡炮的两支，
-     伤亡四舍五入均摊；非炮兵仍然是单体结算。 */
+  /* ── 一、炮兵分摊：同一格的所有地表单位一起掉血 ──
+     炮兵打的是"格子"不是"番号"。堆在一格里的两支按各自战力比例分摊，
+     非炮兵仍然是单体结算。取整的边界（0 点 / 单支 / 2 点保底）
+     在下面的 [49] 里穷举，这一节只验"真打一发时账目对得上"。 */
   let stack = null, artySpot = null;
   outer46:
   for (let r = 0; r < api.LEVEL.rows; r++) {
@@ -3343,19 +3344,54 @@ console.log('\n[46] 炮兵均摊 / 多面进攻 / 指挥部防炮 / 教学关封
     ok('前提：堆叠目标在炮的目标列表里', api.targetsFor(gun, S.fields).includes(v1));
     api.doAttack(gun, v1);
     const l1 = 10 - v1.str, l2 = 10 - v2.str;
-    ok('炮击均摊：两支同格单位掉同样的血（四舍五入）',
-       l1 === l2 && l1 > 0, v1.str + ' / ' + v2.str);
-    ok('炮击均摊：组织度也一起掉', v1.org < 100 && v2.org < 100,
+    /* 等战力的两支份额应当尽量均等——但奇数伤害必然差 1（3 点分成 2 / 1），
+       所以判"差不超过 1"，判"相等"会变成靠骰子运气。 */
+    ok('炮击分摊：等战力两支份额相差不超过 1',
+       Math.abs(l1 - l2) <= 1 && l1 + l2 > 0, l1 + ' / ' + l2);
+    ok('炮击分摊：组织度也一起掉', v1.org < 100 && v2.org < 100,
        v1.org + ' / ' + v2.org);
-    /* "相等"拦不住"都掉全额"的 mutant——账目必须对上：
-       战报里写着面上损失 X 与每支份额 Y，Y 必须是 round(X / 受害支数)。 */
-    const lm = S.log.map(l => l.text).reverse().find(t => t.indexOf('均摊') >= 0);
-    const mm = /面上 -(\d+)（(\d+) 支均摊 −(\d+)）/.exec(lm || '');
-    ok('均摊账目：每支份额是面上损失的一半（四舍五入）',
-       !!mm && Number(mm[3]) === Math.round(Number(mm[1]) / Number(mm[2])) &&
-       Number(mm[3]) < Number(mm[1]), lm);
-    ok('炮击均摊：工事被波及清零', v1.fortify === 0 && v2.fortify === 0,
+    /* "相差不超过 1"拦不住"都掉全额"的 mutant——账目必须对上：
+       战报里写着面上损失 X 与各支份额，份额合计必须等于 X。 */
+    const lm = S.log.map(l => l.text).reverse().find(t => t.indexOf('按战力分摊') >= 0);
+    const mm = /面上 -(\d+)（(\d+) 支按战力分摊 ([\d\s\/]+)）/.exec(lm || '');
+    ok('炮击战报给出逐支份额', !!mm, lm);
+    if (mm) {
+      const dealt = Number(mm[1]);
+      const parts = mm[3].trim().split(/\s*\/\s*/).map(Number);
+      ok('分摊明细合计等于面上损失（不是每支各掉一份）',
+         parts.reduce((a, b) => a + b, 0) === dealt, parts.join('+') + ' vs ' + dealt);
+      ok('分摊明细与两支的实际掉血一致',
+         parts.slice().sort().join() === [l1, l2].sort().join(),
+         parts.join('/') + ' vs ' + l1 + '/' + l2);
+    }
+    ok('炮击分摊：工事被波及清零', v1.fortify === 0 && v2.fortify === 0,
        v1.fortify + ' / ' + v2.fortify);
+
+    /* 等战力时"按比例"与"按支平均"算出来一模一样（两支平分 4 点 → 2/2），
+       抓不到"退回平均分"的变异。换一组 4 与 20 的堆叠——比例是 1:5，
+       平均分会让两支各掉一样多，那才是真的"炮弹精准绕过主力"。
+       血量必须给够（4 而不是 2）：只有 2 血的小队，就算每支吃全额也只掉得下 2 点，
+       "全量 vs 分摊"在数值上看不出差别，变异就这么漏过去。
+       炮位给 80 战力：比值稳在 3:1 以上，CRT 最坏档也有 4 点，必然走出 2 点保底。 */
+    S.units = S.units.filter(u => u !== v1 && u !== v2 && u !== gun);
+    const thin = put('red', 'inf', stack[0], stack[1], 4);
+    const fat = put('red', 'inf', stack[0], stack[1], 20);
+    const gun2 = put('blue', 'art', artySpot[0], artySpot[1], 80);
+    gun2.rng = 5;
+    ok('前提：不等战力堆叠也在炮的目标列表里',
+       api.targetsFor(gun2, S.fields).includes(fat));
+    api.doAttack(gun2, fat);
+    const l3 = 4 - thin.str, l4 = 20 - fat.str;
+    /* 比例 1:5、单发上限 7 点 → 小队理论上最多也就吃 2 点；
+       它掉到 3 点以上就说明"每支各吃全额"了。 */
+    ok('不等战力堆叠：战力 4 的那支最多吃 2 点', l3 >= 0 && l3 <= 2, String(l3));
+    ok('不等战力堆叠：战力 20 的那支吃得明显更多', l4 > l3, l3 + ' / ' + l4);
+    /* 判"大头占比"而不是"l4 ≈ 5×l3"：伤害小时 1:5 的份额会被取整压成 0，
+       线性比值在 0/3、1/3 这种组合上必然失败，那是取整的必然误差，
+       不是规则错了。占比只要落在 5/6 附近就够了。 */
+    const fatShare = l4 / Math.max(1, l3 + l4);
+    ok('不等战力堆叠：大头拿走约 5/6 的伤害',
+       Math.abs(fatShare - 5 / 6) < 0.2, fatShare.toFixed(2) + '（' + l3 + '/' + l4 + '）');
 
     /* 反向对照：非炮兵打同一格，只有被点名的目标掉血 */
     const w1 = put('red', 'inf', stack[0], stack[1], 10);
@@ -3365,7 +3401,9 @@ console.log('\n[46] 炮兵均摊 / 多面进攻 / 指挥部防炮 / 教学关封
     api.doAttack(hit, w1);
     ok('非炮兵仍是单体结算：同格友军不掉血',
        w2.str === 10, w2.str);
-    S.units = S.units.filter(u => u !== v1 && u !== v2 && u !== gun && u !== w1 && u !== w2 && u !== hit);
+    S.units = S.units.filter(u => u !== v1 && u !== v2 && u !== gun &&
+      u !== thin && u !== fat && u !== gun2 &&
+      u !== w1 && u !== w2 && u !== hit);
   }
 
   /* ── 二、多面进攻：同一回合被不同方向攻打，防御乘数 −0.30（下限 ×1）── */
@@ -3770,6 +3808,64 @@ console.log('\n[48] 三种 AI 脾气 / 炮兵打堆叠格 / 撤销返还战术�
   const S6 = api.getState();
   ok('连撤两步两张卡都回到手牌', !S6.cardUsed.hold && !S6.cardUsed.assault,
      JSON.stringify(S6.cardUsed));
+}
+
+console.log('\n[49] 炮兵分摊取整：按战力比例 + 最大余数 + 2 点保底（v4.18 热补丁）');
+{
+  /* splashSplit 是纯函数，不碰 DOM 也不碰关卡——这一段才是这条规则的真防线。
+     [46] 那一节只能验"打完之后账目对不对"，边界（0 点、单支、保底）在关卡里
+     基本凑不出来：CRT 最坏档才 0，单支炮兵打单支守军又走不到分摊。 */
+  const S = (t, hp) => api.splashSplit(t, hp.map(s => ({ str: s })));
+  const same = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
+
+  /* 用户给的两个例子，就是这套取整的全部理由 */
+  ok('伤害 4、战力 2 / 6 → 1 / 3', same(S(4, [2, 6]), [1, 3]), JSON.stringify(S(4, [2, 6])));
+  ok('伤害 4、战力 3 / 7 → 1 / 3', same(S(4, [3, 7]), [1, 3]), JSON.stringify(S(4, [3, 7])));
+
+  ok('等战力平分：伤害 4、战力 1 / 1 → 2 / 2', same(S(4, [1, 1]), [2, 2]),
+     JSON.stringify(S(4, [1, 1])));
+  /* 四舍五入会把 1.5 进成 2、两支合计 4，比炮弹本身还多——这条专治"顺手写 round" */
+  ok('奇数伤害不超发：伤害 3、战力 1 / 1 → 2 / 1',
+     same(S(3, [1, 1]), [2, 1]), JSON.stringify(S(3, [1, 1])));
+  ok('三支等权：伤害 5 → 2 / 2 / 1', same(S(5, [1, 1, 1]), [2, 2, 1]),
+     JSON.stringify(S(5, [1, 1, 1])));
+  /* 极端：7 点分给四支 1 血，余数只补三处 */
+  ok('四支等权：伤害 7 → 2 / 2 / 2 / 1', same(S(7, [1, 1, 1, 1]), [2, 2, 2, 1]),
+     JSON.stringify(S(7, [1, 1, 1, 1])));
+
+  /* 地形 / 工事把伤害削到 2 点及以下：整格每支各吃 1（用户定的下限）。
+     这一条故意不守恒——总伤会超过炮弹本身。 */
+  ok('削到 2 点：两支各吃 1', same(S(2, [2, 6]), [1, 1]), JSON.stringify(S(2, [2, 6])));
+  ok('削到 1 点：两支各吃 1', same(S(1, [2, 6]), [1, 1]), JSON.stringify(S(1, [2, 6])));
+  ok('三支遇到 2 点保底：总伤 3，故意超过炮弹本身',
+     same(S(2, [1, 1, 1]), [1, 1, 1]), JSON.stringify(S(2, [1, 1, 1])));
+  /* 单支不吃保底：它本来就该全吃，给 1 等于凭空少算 1 点 */
+  ok('单支不吃保底：2 点全给', same(S(2, [5]), [2]), JSON.stringify(S(2, [5])));
+  ok('单支 5 点全给', same(S(5, [5]), [5]), JSON.stringify(S(5, [5])));
+  /* 0 点不能触发保底，否则"工事全吸收"变成"必掉 1"，工事就没意义了 */
+  ok('伤害为 0：全员 0', same(S(0, [2, 6]), [0, 0]), JSON.stringify(S(0, [2, 6])));
+  ok('空名单返回空', S(4, []).length === 0);
+
+  /* 穷举：总和守恒只在 3 点以上成立，保底区间反过来允许多打 */
+  let badSum = null, badFloor = null;
+  for (let t = 1; t <= 12; t++) {
+    for (let a = 1; a <= 9; a++) {
+      for (let b = 1; b <= 9; b++) {
+        const r = S(t, [a, b]);
+        if (t >= 3 && r[0] + r[1] !== t) badSum = badSum || [t, a, b, r];
+        if (t <= 2 && (r[0] < 1 || r[1] < 1)) badFloor = badFloor || [t, a, b, r];
+      }
+    }
+  }
+  ok('穷举 1–12 点 × 9×9 组战力：3 点以上合计恒等于面上损失',
+     !badSum, JSON.stringify(badSum));
+  ok('穷举 2 点及以下：每支至少 1', !badFloor, JSON.stringify(badFloor));
+
+  /* 顺序必须稳定：预览、实战、AI 评估各算一遍，飘一次数值就对不上 */
+  ok('同一输入两次结果一致', same(S(7, [3, 9, 5]), S(7, [3, 9, 5])),
+     JSON.stringify([S(7, [3, 9, 5]), S(7, [3, 9, 5])]));
+  ok('余数平手时给战力高的那支（不是按格内顺序）',
+     same(S(3, [1, 5]), [0, 3]), JSON.stringify(S(3, [1, 5])));
 }
 
 console.log('\n通过 ' + pass + ' 项，失败 ' + fail + ' 项');
