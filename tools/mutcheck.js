@@ -649,6 +649,12 @@ const MUTANTS = [
    '  const next = vK;',
    '桌面滚轮向上滚能放大', 'brief'],
 
+  /* 适应倍数又封顶 1 倍：小棋盘在宽屏上缩成中间一小块，两边空一片 */
+  ['桌面适应倍数又封顶 1 倍（小棋盘缩在中间）',
+   '  vFit = Math.max(0.12, Math.min(2, kw, kh));',
+   '  vFit = Math.max(0.12, Math.min(1, kw, kh));',
+   '桌面小棋盘会放大铺满容器', 'brief'],
+
 ];
 
 /* 锚点按 LF 写，但 campaign.html 是 CRLF（7356 行全是）。

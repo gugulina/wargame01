@@ -1654,6 +1654,23 @@ function skip(name, why) {
     domA.window.dispatchEvent(new domA.window.MouseEvent('mouseup', { bubbles: true }));
     ok('松开鼠标后退出平移态', !wrapEl.classList.contains('grabbing'));
 
+    /* 小棋盘在桌面要放大着铺满：C1 的棋盘只有 584×378，容器有 975 宽。
+       封顶 1 倍的话左右各空近 200 px，看着像"图没加载完"。
+       jsdom 不做布局（clientWidth 恒 0），这里手动喂一个真实宽度，
+       否则 kw 永远算成 1，这条断言会变成"怎么改都绿"。 */
+    const bsV = vw.boardSize();
+    Object.defineProperty(wrapEl, 'clientWidth', { configurable: true, value: 975 });
+    vw.fitView(false);
+    ok('桌面小棋盘会放大铺满容器（不再被 1 倍封顶）',
+       vw.k > 1.05 && Math.abs(vw.k - vw.fitK) < 1e-9,
+       'k=' + vw.k + ' fit=' + vw.fitK + ' board=' + Math.round(bsV.w));
+    /* 反例：容器比棋盘窄时必须缩到看得全，而不是硬撑 1 倍把右边切掉 */
+    Object.defineProperty(wrapEl, 'clientWidth', { configurable: true, value: 300 });
+    vw.fitView(false);
+    ok('容器比棋盘窄时自动缩到全图可见',
+       vw.k < 1 && Math.abs(vw.k - 300 / bsV.w) < 0.01,
+       'k=' + vw.k + ' 期望≈' + (300 / bsV.w).toFixed(3));
+
     /* 桌面上要真有按钮可点：.zctrl 的基础态以前是 display:none，
        只有窄屏媒体查询才打开，桌面玩家连手柄都看不见。 */
     const cssV = fs.readFileSync(require('path').join(__dirname, '..', 'game', 'campaign.css'), 'utf8');

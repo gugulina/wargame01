@@ -9954,10 +9954,16 @@ function innerBox() {
   const p = wrapPad();
   return { w: boardWrap.clientWidth - p, h: boardWrap.clientHeight - p };
 }
-/* 地图区高度上限：竖屏给下面的面板留空间，横屏几乎占满高度 */
+/* 地图区可用高度。窄屏要给下面的操作栏和图例留空间；
+   宽屏按视口比例给（地图是这一页的主体），不再"棋盘多高就多高"——
+   那样小棋盘在宽屏上只占中间一小块，左右各空出一大片。
+   两个调用点（applyView 的容器高、fitView 的适应倍数）必须共用这一个数：
+   分开写就会出现"按 A 算倍数、按 B 裁高度"，图的下沿被切掉。 */
 function mapCap() {
+  const vh = window.innerHeight || 640;
+  if (!isNarrow()) return Math.round(vh * 0.68);
   const land = MQ_LAND && MQ_LAND.matches;
-  return Math.round((window.innerHeight || 640) * (land ? 0.80 : 0.62));
+  return Math.round(vh * (land ? 0.80 : 0.62));
 }
 
 /* 把 vX / vY 约束在合理范围：内容比视口小就居中，大就不允许拖出空白 */
@@ -9972,10 +9978,8 @@ function clampView() {
 function applyView() {
   const { w, h } = boardSize();
   const p = wrapPad();
-  /* 视口高度：窄屏按屏高的固定比例（下面还有面板），宽屏就按棋盘原高——
-     放大时不撑高容器（靠拖动看局部），缩小时容器跟着收，避免下方留一片空白。 */
-  const cap = isNarrow() ? mapCap() : Math.round(h);
-  const outer = Math.min(Math.round(h * vK), cap) + p + 2;
+  /* 放大时不撑高容器（靠拖动看局部），缩小时容器跟着收，避免下方留一片空白 */
+  const outer = Math.min(Math.round(h * vK), mapCap()) + p + 2;
   boardWrap.style.height = outer + 'px';
   clampView();
   boardView.style.transform =
@@ -9994,20 +9998,21 @@ function applyView() {
 }
 
 /* 适应屏幕：keep=true 时保留当前缩放，只重算边界。
-   宽屏也走这一条——v4.19 之前桌面上这里是 `vK = 1; return;`，
+   宽屏也走这一条——v4.18 之前桌面上这里是 `vK = 1; return;`，
    于是窗口比棋盘窄时右边被切成两半、又没有缩放按钮，只能左右拖着看。 */
 function fitView(keep) {
   const { w, h } = boardSize();
   const box = innerBox();
   const p = wrapPad();
   /* 全图可见的倍数要同时受宽度和高度限制，否则横屏会算出比屏幕还高的图。
-     宽屏只受宽度约束、并封顶在 1 倍：桌面点数够细，再往上放只会让玩家
-     只能看到战场一角，反而更难看全局。 */
+     宽窄屏用同一套判据（差别只在 mapCap），小棋盘在宽屏上会**放大**着铺满，
+     不再被 1 倍封顶——C1 的棋盘只有 584×378，容器有 975 宽，
+     封顶 1 倍就会左右各空近 200 px，看着像"图没加载完"。 */
   const kw = box.w > 0 ? box.w / w : 1;
-  const kh = isNarrow()
-    ? ((mapCap() - p) > 0 ? (mapCap() - p) / h : 1)
-    : 1;
-  vFit = Math.max(0.12, Math.min(1, kw, kh));
+  const kh = (mapCap() - p) > 0 ? (mapCap() - p) / h : 1;
+  /* 上限 2 倍：再往上放，DOM 文字（番号、战力）重采样会明显发虚，
+     而且一屏已经装不下整张图，与"适应屏幕"的本意相反。 */
+  vFit = Math.max(0.12, Math.min(2, kw, kh));
   vMax = Math.max(1.6, vFit * 3);
   if (!keep) {
     /* 初始就是「全图可见」：手机上先让玩家看到整个战场，

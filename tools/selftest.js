@@ -330,14 +330,15 @@ console.log('\n[4] 地图视图');
      bs.w.toFixed(1) + '×' + bs.h.toFixed(1));
 
   /* Node 环境没有 matchMedia，isNarrow 应为 false —— 这一支就是"桌面端"。
-     v4.19 热补丁之前桌面被写死成 1 倍且不写 transform，缩放手柄也不显示，
+     v4.18 热补丁之前桌面被写死成 1 倍且不写 transform，缩放手柄也不显示，
      窗口比棋盘窄时只能左右拖着看。现在桌面和手机同一套 transform，
-     差别只在：fit 不往 1 倍以上放（点阵屏少放大会糊、且看不全战场）。 */
+     适应倍数也同一套判据（受容器宽与可用高共同约束、2 倍封顶）。 */
   ok('桌面模式初始不缩放', v.isNarrow() === false && v.k === 1, 'k=' + v.k);
   v.fitView(false);
-  ok('桌面 fit 后不超过 1 倍（不放大到比原图还大）',
-     v.k > 0 && v.k <= 1 + 1e-9 && v.fitK <= 1 + 1e-9,
+  ok('桌面 fit 后 vK 落在适应值上', Math.abs(v.k - v.fitK) < 1e-9,
      'k=' + v.k + ' fit=' + v.fitK);
+  ok('适应倍数在 0.12–2 之间（下限防糊成一团、上限防文字发虚）',
+     v.fitK >= 0.12 && v.fitK <= 2 + 1e-9, 'fit=' + v.fitK);
   ok('桌面的缩放上限高于适应值（否则放不动）', v.maxK > v.fitK,
      'max=' + v.maxK + ' fit=' + v.fitK);
   v.zoomBy(1.4);
