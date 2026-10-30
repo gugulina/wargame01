@@ -296,6 +296,18 @@ console.log('\n[5] 火炮射程（1.5 km/格）');
   ok('步兵贴脸重炮 → 够不着，不反击', api.canCounter(inf, hr) === false);
   ok('步兵贴脸自行炮 → 可反击（直瞄）', api.canCounter(inf, sha) === true);
 
+  /* 拖曳炮没放列就不能反击。步兵站在 2 格（近界外，够得着），
+     变量只剩"放没放列"这一个——和上面三条不同，这里距离不是原因。 */
+  const inf2 = { type: 'gdn', rng: 1, pos: [5, 5] };
+  const artMarch = { type: 'art', rng: 5, pos: [5, 7], packed: true };
+  const artSet   = { type: 'art', rng: 5, pos: [5, 7], packed: false };
+  const shaMarch = { type: 'sha', rng: 3, pos: [5, 7], packed: true };
+  ok('行军状态的旅野炮不能反击', api.canCounter(inf2, artMarch) === false);
+  ok('已展开的旅野炮可以反击', api.canCounter(inf2, artSet) === true);
+  ok('自行炮行军时照常反击（打带跑）', api.canCounter(inf2, shaMarch) === true);
+  /* 缺省 packed 按"已展开"——不能因为老数据没写这个字段就集体缴械 */
+  ok('packed 缺省视为已展开', api.canCounter(inf2, { type: 'hr', rng: 9, pos: [5, 8] }) === true);
+
   /* 目标列表按近界过滤 */
   api.newGame();
   const a = api.alive('blue').find(u => u.type === 'art');
@@ -3404,6 +3416,38 @@ console.log('\n[46] 炮兵分摊 / 多面进攻 / 指挥部防炮 / 教学关封
     S.units = S.units.filter(u => u !== v1 && u !== v2 && u !== gun &&
       u !== thin && u !== fat && u !== gun2 &&
       u !== w1 && u !== w2 && u !== hit);
+
+    /* 收着炮的拖曳炮不能反击（v4.18 热补丁，走真实结算而不只是纯函数）。
+       用"炮打炮"造这个局面：步兵射程只有 1，贴到 1 格时拖曳炮本来就因近界
+       还不了手，测不出 packed 的作用；炮对炮站在 3 格，距离与射程都够，
+       变量只剩"放没放列"。 */
+    S.units.length = 0;
+    /* rng 必须显式给 5：`put()` 按 `T[t].rg` 取值，而 TYPE.art 没有 rg 字段，
+       默认落到 1 格——那样 3 格外本来就在射程外，counter 会因为"射程不够"
+       变假，`packed` 这条就测不出来了（两个原因混在一起）。 */
+    const towed = put('red', 'art', stack[0], stack[1]);
+    towed.packed = true; towed.rng = 5;
+    const gunner = put('blue', 'art', artySpot[0], artySpot[1]);
+    gunner.rng = 5;
+    const gBefore = gunner.str;
+    ok('前提：两门炮相距 3 格（近界外、射程内）且守方收着炮',
+       api.hexDist(gunner.pos, towed.pos) === 3 && towed.packed === true);
+    /* 只看本次 doAttack 新增的日志：`S.log` 是整局累积的，前面某次战斗
+       也可能写过"对方无法反击"，扫全文会让这条断言被上一条顶替而假绿。 */
+    const logBefore = S.log.length;
+    const hitOk = api.doAttack(gunner, towed);
+    ok('打行军状态的拖曳炮：攻击成立', hitOk !== false);
+    ok('打行军状态的拖曳炮：攻方零损失（对方没还手）',
+       gunner.str === gBefore, gBefore + ' → ' + gunner.str);
+    const hitLogs = S.log.slice(logBefore).map(l => String(l.text || ''));
+    ok('战报写明「对方无法反击」',
+       hitLogs.some(t => t.indexOf('对方无法反击') >= 0), hitLogs.join(' | '));
+    /* 对照：同一门炮展开后就能还手。
+       没有这条，"canCounter 恒返回 false"也能让上面两条全绿。 */
+    towed.packed = false;
+    const gunner2 = put('blue', 'art', artySpot[0], artySpot[1]);
+    ok('对照：同一门炮展开后可以反击',
+       api.previewAttack(gunner2, towed, S.fields).counter === true);
   }
 
   /* ── 二、多面进攻：同一回合被不同方向攻打，防御乘数 −0.30（下限 ×1）── */

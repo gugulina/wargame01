@@ -121,6 +121,45 @@ function skip(name, why) {
   ok('第三页标题与数据一致', t3 === BP.pages[2].title, t3 + ' / ' + BP.pages[2].title);
   ok('末页按钮改名接管指挥', doc.getElementById('briefNext').textContent.indexOf('接管指挥') >= 0);
 
+  /* 有强调标记的关卡：简报正文必须真的加粗，不能连尖括号一起印在纸上。
+     v4.18 热补丁之前关卡数据里写的是 <b>…</b>，而渲染口只有 esc()，
+     于是每一关都在简报上印出「<b>全部兵牌被歼则立即判负。</b>」。
+     上面几页用的是 C3——它的简报**恰好一组标记都没有**，所以这条一直测不出来；
+     这里换 C1（第 3 页目标说明里有标记），专测这条链路。 */
+  {
+    const domB = new JSDOM(html, {
+      runScripts: 'dangerously', pretendToBeVisual: true, virtualConsole: vc,
+      url: 'http://127.0.0.1/game/campaign.html?lv=C1'
+    });
+    const dB = domB.window.document;
+    await wait(700);
+    const bB = dB.getElementById('briefScreen');
+    const PB = domB.window.__WAR__.LEVEL.story.briefing;
+    /* 从数据里算出"第一处带标记的页"和"它有几组 **"，不在测试里抄文案 */
+    let pageIdx = -1, starCount = 0;
+    (PB.pages || []).forEach((p, i) => {
+      const c = (p.paras || []).reduce((s, x) =>
+        s + ((String(x.t).match(/\*\*/g) || []).length / 2), 0);
+      if (c > 0 && pageIdx < 0) { pageIdx = i; starCount = c; }
+    });
+    ok('前提：C1 简报里确实有强调标记', pageIdx >= 0, '第 ' + (pageIdx + 1) + ' 页');
+    for (let k = 0; k < pageIdx; k++) {
+      const nx = dB.getElementById('briefNext');
+      if (nx) nx.click();
+      await wait(90);
+    }
+    const bodyTxt = (bB.querySelector('.brief-body') || bB).textContent || '';
+    ok('简报正文不残留 <b> 标签字面量',
+       bodyTxt.indexOf('<b>') < 0 && bodyTxt.indexOf('</b>') < 0,
+       bodyTxt.slice(0, 120));
+    /* 只查"没有标签"挡不住"整段没渲染"：还要确认加粗元素真的出现了，
+       而且个数与数据里 ** 的组数一致（多出来的 <b> 是「绝 密」这类装饰）。 */
+    ok('简报正文的重点标记渲染成加粗',
+       bB.querySelectorAll('.brief-body b').length === starCount,
+       bB.querySelectorAll('.brief-body b').length + ' / ' + starCount);
+    domB.window.close();
+  }
+
   console.log('[5] 末页点击 → 对话过场，纸张仍在（当暗背景）');
   doc.getElementById('briefNext').click();
   await wait(120);
