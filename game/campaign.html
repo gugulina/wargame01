@@ -5553,8 +5553,22 @@ function ratioTier(k) {
    最坏档的中位行是"攻方掉 6、守方掉 2"，白送编制换不来任何东西；
    而 0.01 与 0.39 在七档里是同一档，连"打得多亏"都区分不出来。
    同时拦两处——targetsFor 不列出（玩家面板与 AI 都看不见），
-   doAttack 直接拒绝（战术卡、测试绕过列表时兜底）。同一常数，改一处两边一起变。 */
+   doAttack 直接拒绝（战术卡、测试绕过列表时兜底）。同一常数，改一处两边一起变。
+
+   **只拦"会被反击"的攻击**（v4.18 热修）。这条闸的理由是"白送编制"，
+   而"白送编制"的前提是守方能还手——`attLoss` 只在 `pv.counter` 为真时才非零
+   （见 doAttack）。间瞄炮兵站在敌人射程之外，本来就不掉自己一兵一卒，
+   低比值的那一炮是净收益：掉的是守方的战力与组织度，赚的是压制。
+   漏了这一条，炮兵对着整编营会**一个目标都列不出来**（5 打 10 的比值约 0.21），
+   面板上只剩"移动 / 收炮"两项，玩家看到的就是"炮兵射程坏了"。
+   直瞄炮（近界 1、贴脸开火）照样吃这条闸，因为它是会被反击的。 */
 const INVALID_RATIO = 0.35;
+/* 这一炮是不是"白打"：比值不够，而且对面够得着还手。
+   列表与战斗闸共用，省得两处判据再次分家。 */
+function invalidContact(att, def, fields) {
+  const pv = previewAttack(att, def, fields);
+  return pv.ratio < INVALID_RATIO && pv.counter;
+}
 
 /* 多面进攻的记账：state.flanges[目标格] = 第一支进攻方的位置串。
    只记"位置串"不记单位——判的是"从不同格打过来"，不是"几个人打"。
@@ -5759,8 +5773,10 @@ function inRangeTargets(u, fields) {
     /* 无效接触不列：ratio 连 0.35 都不到的目标，打出去只掉自己的编制
        （最坏档"攻 6 守 2"），七档里连"有多亏"都区分不出来。
        面板与 AI 共用这份列表，所以两边同时不再浪费动作；
-       doAttack 里有同一常数的兜底闸（见 doAttack 开头），列表绕不过去。 */
-    return previewAttack(u, t, fields).ratio >= INVALID_RATIO;
+       doAttack 里有同一判据的兜底闸（见 doAttack 开头），列表绕不过去。
+       **判据不是纯粹的比值**：守方打不着我时不掉编制，白赚的炮不该被藏起来
+       （invalidContact，v4.18 热修）。 */
+    return !invalidContact(u, t, fields);
   });
 }
 /* "这一门炮现在能不能响"：弹药与展开状态。
@@ -7109,11 +7125,11 @@ function doAttack(att, def) {
     const d = hexDist(att.pos, def.pos);
     if (d < minRange(att) || d > attackRange(att)) return false;
   }
-  /* 无效接触的兜底闸，常数与 targetsFor 是同一个 INVALID_RATIO。
+  /* 无效接触的兜底闸，判据与 targetsFor 是同一个 invalidContact。
      previewAttack 是纯函数，放在 pushUndo 之前：被拒绝的攻击
      不能在撤销栈里留一条假记录。 */
   const pv = previewAttack(att, def, state.fields);
-  if (pv.ratio < INVALID_RATIO) return false;
+  if (pv.ratio < INVALID_RATIO && pv.counter) return false;
   pushUndo();
   const die = Math.floor(rng() * 6);
   const row = CRT[pv.tier][die];
@@ -11246,6 +11262,9 @@ window.__WAR__ = {
   saveGame, readSave, clearSave, restoreGame, saveSnapshot,
   SAVE_KEY, SAVE_VER, LOG, DEBUG,
   computeReach, previewAttack, targetsFor, supplyOf, effStr, terrainDefFor,
+  /* 无效接触的判据（v4.18 热修抽出）：比值不够**且**对面够得着还手。
+     导出它是为了让断言能问"这条闸到底拦了谁"，而不是只看列表面板。 */
+  INVALID_RATIO, invalidContact,
   doMove, doAttack, endBluePhase, settlePhase, judgeFinal, render,
   objectiveControl, ctrlState, updateControl, checkEvents, applyEffect, modAtk, modDef, spawnGroup,
   /* 事件触发器：noteAct 写计数器，triggerMet 读它。

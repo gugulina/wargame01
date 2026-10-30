@@ -3481,6 +3481,86 @@ console.log('\n[46] 炮兵均摊 / 多面进攻 / 指挥部防炮 / 教学关封
   }
 }
 
+console.log('\n[47] 无效接触只拦"会被反击"的攻击（v4.18 热修：炮兵射程内的目标被藏起来）');
+{
+  /* 玩家报的现场：C1 的 103 师炮兵营（str 5）站在要塞炮上，射程 6，
+     红方整编营推进到 3 格外——面板上一个可打的格都没有，点下去毫无反应。
+     根因是 v4.18 的无效接触闸只看比值：5 打 10 约 0.21，被当成"白送编制"。
+     但那条理由的前提是**守方能还手**；间瞄炮站在敌人射程之外，attLoss 恒为 0，
+     这一炮是净赚的。判据因此改成"比值不够 **且** 对面够得着还手"。 */
+  api.newGame({ level: 'C3', noSave: true });
+  const S = api.getState();
+  const T = api.TYPE;
+  S.units.length = 0;
+  S.forts = [];
+  S.mods = [];
+  S.flanges = {};
+
+  let seq = 0;
+  const put = (side, t, r, c, str) => {
+    const u = api.makeUnit({ id: (side === 'blue' ? 'B' : 'R') + (++seq), side, type: t,
+      abbr: 'T' + seq, name: '测试' + T[t].name, r, c, corps: 'T',
+      str: str === undefined ? 10 : str,
+      mov: T[t].mv || 8, rng: T[t].rg === undefined ? 1 : T[t].rg }, false);
+    S.units.push(u);
+    return u;
+  };
+  const passable = (r, c) => api.inBounds(r, c) && api.TERRAIN[api.LEVEL.map[r][c]].cost < 99;
+
+  /* ── 一、间瞄炮兵 3 格外打整编营：比值低，但自己不挨打 ── */
+  let spot = null, gunSpot = null;
+  outer47:
+  for (let r = 0; r < api.LEVEL.rows; r++) {
+    for (let c = 0; c < api.LEVEL.cols; c++) {
+      if (!passable(r, c)) continue;
+      for (let rr = 0; rr < api.LEVEL.rows; rr++) {
+        for (let cc = 0; cc < api.LEVEL.cols; cc++) {
+          if (passable(rr, cc) && api.hexDist([rr, cc], [r, c]) === 3) {
+            spot = [r, c]; gunSpot = [rr, cc]; break outer47;
+          }
+        }
+      }
+    }
+  }
+  ok('找到相距 3 格的一对落点', !!spot && !!gunSpot, JSON.stringify([spot, gunSpot]));
+  const foe = put('red', 'inf', spot[0], spot[1], 10);
+  /* 真实编制：103 师炮兵营是 str 5 / rng 5，近界 2 —— 与关卡数据一致 */
+  const gun = put('blue', 'art', gunSpot[0], gunSpot[1], 5);
+  gun.rng = 5;
+  const pvG = api.previewAttack(gun, foe, S.fields);
+  ok('前提：5 打 10 的比值远低于无效接触线', pvG.ratio < api.INVALID_RATIO, pvG.ratio.toFixed(3));
+  ok('前提：守方够不着炮位，这一炮不掉炮组自己的编制', pvG.counter === false);
+  ok('无反击的低比值炮击不算"无效接触"',
+     api.invalidContact(gun, foe, S.fields) === false);
+  ok('因此射程内的整编营回到炮兵的目标列表', api.targetsFor(gun, S.fields).includes(foe));
+  /* 骰面锁在最不利那一行（tier6 第 6 行 = 攻 7 守 2）：守方必定掉 2 点 */
+  api.setRng(() => 0.9);
+  const hp0 = foe.str;
+  /* doAttack 成功时不返回 true（末尾没有 return，走完就是 undefined），
+     被拒才返回 false——所以这里判的是"没被拒"。 */
+  ok('因此 doAttack 不再拒绝这一炮', api.doAttack(gun, foe) !== false);
+  ok('炮击确实打掉了守方战力', foe.str < hp0, hp0 + ' → ' + foe.str);
+  ok('这一炮没掉炮组自己的编制', gun.str === 5, String(gun.str));
+  api.setRng();
+
+  /* ── 二、反向对照：直瞄反坦克炮贴脸打满编营——会被反击，仍然算无效接触 ──
+     少了这条对照，把闸门整个删掉也能让上面全绿。 */
+  S.units.length = 0;
+  S.flanges = {};
+  const hold = put('red', 'inf', spot[0], spot[1], 10);
+  const adj = api.neighbors(spot[0], spot[1]).find(n => passable(n[0], n[1]));
+  ok('找到守军旁边的一格', !!adj, JSON.stringify(adj));
+  const at = put('blue', 'at', adj[0], adj[1], 2);
+  const pvA = api.previewAttack(at, hold, S.fields);
+  ok('前提：2 打 10 的比值也低于无效接触线', pvA.ratio < api.INVALID_RATIO, pvA.ratio.toFixed(3));
+  ok('前提：贴脸时守方够得着还手', pvA.counter === true);
+  ok('有反击的低比值攻击仍算"无效接触"',
+     api.invalidContact(at, hold, S.fields) === true);
+  ok('有反击的低比值攻击仍被挡在列表外', !api.targetsFor(at, S.fields).includes(hold));
+  ok('有反击的低比值攻击在 doAttack 仍被拒',
+     api.doAttack(at, hold) === false && hold.str === 10, '守方 str ' + hold.str);
+}
+
 console.log('\n通过 ' + pass + ' 项，失败 ' + fail + ' 项');
 process.exit(fail ? 1 : 0);
 

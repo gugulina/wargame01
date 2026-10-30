@@ -529,14 +529,21 @@ const MUTANTS = [
    '空弹的炮在 doAttack 也被拒'],
 
   ['无效接触兜底闸失效（ratio 0.01 照样结算）',
-   '  if (pv.ratio < INVALID_RATIO) return false;',
+   '  if (pv.ratio < INVALID_RATIO && pv.counter) return false;',
    '  if (false) return false;',
    '无效接触在 doAttack 也被拒'],
 
   ['无效接触不再从目标列表剔除（面板与 AI 又看得见了）',
-   '    return previewAttack(u, t, fields).ratio >= INVALID_RATIO;',
+   '    return !invalidContact(u, t, fields);',
    '    return true;',
    '无效接触不进目标列表'],
+
+  /* v4.18 热修：闸门只看比值、不看有没有反击 →
+     间瞄炮兵对着整编营一个目标都列不出来（玩家报的"炮兵射程坏了"）。 */
+  ['无效接触闸忽略"打不着我"（炮兵又列不出目标）',
+   '  return pv.ratio < INVALID_RATIO && pv.counter;',
+   '  return pv.ratio < INVALID_RATIO;',
+   '无反击的低比值炮击不算'],
 
   ['工事分槽退回 def 大小判据（F 又被堑壕锁死）',
    '    return FORT_SLOT[k] !== FORT_SLOT[cur.kind] || FORT[k].def > cur.def + 1e-9;',
