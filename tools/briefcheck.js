@@ -34,14 +34,18 @@ const file = process.argv[2] && !process.argv[2].startsWith('-')
   : path.join(__dirname, '..', 'game', 'campaign.html');
 const html0 = fs.readFileSync(file, 'utf8');
 
-/* 引擎的版本公告数据来自 data/notes.js（一个 <script src>）。jsdom 只解析 DOM、
-   不替你去取外部脚本，所以不内联的话 window.CANGYU_NOTES 永远是 undefined，
-   HQ 的公告页签会走进"读不到数据"的兜底分支——而那个分支**不报错**
-   （它本来就要能处理缺文件），于是断言只会静默地变空。
-   变异过的引擎如果没有这个标签，replace 就什么也不做，那时断言该红就红。 */
-const NOTES_TAG = '<script src="../data/notes.js"></script>';
-const html = html0.replace(NOTES_TAG,
-  '<script>' + fs.readFileSync(path.join(__dirname, '..', 'data', 'notes.js'), 'utf8') + '</script>');
+/* jsdom 只解析 DOM、不替你去取外部脚本，所以 <script src> 不内联的话，
+   那些文件里的顶层声明全是 undefined——而**它不报错**：每个渲染口都有自己的
+   兜底分支（"读不到数据"），断言只会静默地变空。
+   具体实现放在 load.js（levelcheck 也要用同一份，两处各写一遍必然漂移）。 */
+const { inlineLocalScripts } = require('./load');
+const html = inlineLocalScripts(html0, path.dirname(file));
+/* AI 那一段是所有 jsdom 用例的地基：没内联进来时 openHQ / 简报 / 战斗回放
+   全都会走到"函数未定义"上，报错点散落在各处、看着像引擎坏了。
+   在这里点名，比让六十条断言各报一次 ReferenceError 强。 */
+if (/<script src="[^"]*ai\.js\?/.test(html)) {
+  console.error('[警告] game/ai.js 没有内联进 jsdom —— 检查 campaign.html 的 <script src>');
+}
 
 const dom = new JSDOM(html, {
   runScripts: 'dangerously',

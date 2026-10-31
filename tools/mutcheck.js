@@ -22,6 +22,9 @@ const cp = require('child_process');
 const ROOT = path.join(__dirname, '..');
 const SRC = path.join(ROOT, 'game', 'campaign.html');
 const TMP = path.join(ROOT, 'game', '_mut_campaign.html');
+/* v4.21 起 AI 是独立文件，AI 那些锚点要改它，并把 HTML 指向变异副本 */
+const AI_SRC = path.join(ROOT, 'game', 'ai.js');
+const AI_TMP = path.join(ROOT, 'game', '_mut_ai.js');
 
 /* [说明, 原文锚点, 替换成, 期望变红的断言名（子串匹配）, 跑哪个脚本]
    每条盯一个机制，别贪多：一个变异只该打中一两条，打中一片说明断言互相耦合了。
@@ -1163,19 +1166,44 @@ function resolve(base, anchor, neu) {
   return null;
 }
 
-const base = fs.readFileSync(SRC, 'utf8');
+/* v4.21 把红方 AI 抽到了 game/ai.js。变异表里三十多条 AI 的锚点跟着搬了家，
+   所以「改哪个文件」必须**按锚点落在哪**自动判断，而不是给每条标个来源——
+   标了之后一旦挪代码就得同步改标记，那是第二份真相，迟早对不上。
+   顺序：先 campaign.html（多数条目在这里），找不到再 ai.js。 */
+const baseHtml = fs.readFileSync(SRC, 'utf8');
+const baseAi = fs.existsSync(AI_SRC) ? fs.readFileSync(AI_SRC, 'utf8') : '';
+
+/* 把 HTML 里指向 ai.js 的标签改指临时文件。
+   保留 ?v= 查询串：load.js / briefcheck 都会 split('?')[0] 再解析，
+   留着能顺带验证"版本戳不影响加载"。 */
+function htmlPointingToMutAi(html) {
+  return html.replace(/<script src="([^"]*?)ai\.js(\?[^"]*)?"><\/script>/g,
+    (m, dir, q) => '<script src="' + (dir || '') + '_mut_ai.js' + (q || '') + '"></script>');
+}
+
 const GREP = (process.argv.find(a => a.startsWith('--grep=')) || '').slice(7);
-let bad = 0;
+let bad = 0, fromAi = 0;
 try {
   for (const [name, old, neu, expect, runner] of MUTANTS) {
     if (GREP && name.indexOf(GREP) < 0) continue;
-    const anchor = resolve(base, old, neu);
+    let anchor = resolve(baseHtml, old, neu);
+    let where = 'html';
+    if (!anchor && baseAi) { anchor = resolve(baseAi, old, neu); where = 'ai'; }
     if (!anchor) {
-      console.log('  ? ' + name + '\n    锚点找不到，引擎这行改过了，MUTANTS 表要更新');
+      console.log('  ? ' + name + '\n    锚点找不到（campaign.html 与 ai.js 都没有），这行改过了，MUTANTS 表要更新');
       bad++;
       continue;
     }
-    fs.writeFileSync(TMP, base.replace(anchor[0], anchor[1]), 'utf8');
+    if (where === 'ai') {
+      fromAi++;
+      fs.writeFileSync(AI_TMP, baseAi.replace(anchor[0], anchor[1]), 'utf8');
+      fs.writeFileSync(TMP, htmlPointingToMutAi(baseHtml), 'utf8');
+    } else {
+      /* 上一次可能变异的是 ai.js，残留会让这一次的 HTML 无故指向旧变异版——
+         表现是"这条变异没改也红了"，比不红更难查。 */
+      if (fs.existsSync(AI_TMP)) fs.unlinkSync(AI_TMP);
+      fs.writeFileSync(TMP, baseHtml.replace(anchor[0], anchor[1]), 'utf8');
+    }
     const script = runner === 'brief' ? 'briefcheck.js' : 'selftest.js';
     const r = cp.spawnSync(process.execPath, [path.join(__dirname, script), TMP],
       { encoding: 'utf8', env: process.env });
@@ -1189,9 +1217,11 @@ try {
     }
   }
 } finally {
-  /* 中途抛异常也要擦干净：这个文件躺在 game/ 里，留着会被打包、也会被 git 看见。 */
+  /* 中途抛异常也要擦干净：这两个文件躺在 game/ 里，留着会被打包、也会被 git 看见。 */
   if (fs.existsSync(TMP)) fs.unlinkSync(TMP);
+  if (fs.existsSync(AI_TMP)) fs.unlinkSync(AI_TMP);
 }
 
+if (fromAi) console.log('\n（其中 ' + fromAi + ' 条变异改的是 game/ai.js，其余改 campaign.html）');
 console.log(bad ? '\n变异自检：' + bad + ' 条断言是假防线' : '\n变异自检：全部断言真会红');
 process.exit(bad ? 1 : 0);

@@ -18,7 +18,11 @@ const path = require('path');
 const { JSDOM } = require('jsdom');
 
 const file = path.join(__dirname, '..', 'game', 'campaign.html');
-const html = fs.readFileSync(file, 'utf8');
+/* v4.21 起引擎是「外链（ai.js、notes.js）+ 内联本体」，jsdom 不替你去取外链，
+   不内联就会在 AI 那段报 "AI_STYLES is not defined"，然后一路炸到 __WAR__ 未导出。
+   实现在 load.js，与 briefcheck 共用一份。 */
+const { inlineLocalScripts } = require('./load');
+const html = inlineLocalScripts(fs.readFileSync(file, 'utf8'), path.dirname(file));
 
 const dom = new JSDOM(html, {
   runScripts: 'dangerously',

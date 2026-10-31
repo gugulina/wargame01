@@ -78,6 +78,60 @@ try {
   fail += cssBad;
 }
 
+/* ── AI 外链（v4.21 起 game/ai.js）──
+   抽成独立文件之后多出三件会**静默出错**的事：
+   ① `?v=` 忘了跟着版本走：玩家吃到旧脚本，表现是"改了脾气但打起来还是老样子"。
+      比样式缓存难查得多——样式旧了看得见，AI 旧了只像是"这关本来就这样"。
+   ② 文件没进 www / 忘了 git add：线上 404，而 `<script src>` 加载失败**不报错**，
+      页面照常打开，只是红方一动不动（runAI 未定义）。
+   ③ **文件里出现闭合标签的字面量**：HTML 解析器在脚本内容里看到它就当场截断，
+      selftest 走纯文本拼接看不出来，briefcheck 走 jsdom 才会报
+      "Invalid or unexpected token"。这个坑踩过两次（引擎注释、ai.js 头部各一次），
+      所以写成检查。 */
+{
+  const aiPath = path.join(path.dirname(file), 'ai.js');
+  const aiTag = html.match(/<script src="ai\.js\?v=([^"]+)"/);
+  const verM = html.match(/id="verTag">v([0-9]+)\.([0-9]+)/);
+  let aiBad = 0;
+  if (!aiTag) {
+    console.error('[1e/4] 引擎里没有 <script src="ai.js?v=…">——红方 AI 不会加载，runAI 未定义');
+    aiBad++;
+  } else if (verM) {
+    const want = verM[1] + '.' + verM[2];
+    if (aiTag[1] !== want) {
+      console.error('[1e/4] ai.js 的 ?v=' + aiTag[1] + ' 与顶栏版本 v' + want +
+        ' 不一致——改了 AI 但没改 query，玩家会吃到旧脚本，表现是"改了脾气却没变"');
+      aiBad++;
+    }
+  }
+  let aiSize = 0;
+  try { aiSize = fs.statSync(aiPath).size; } catch (e) {}
+  if (!aiSize) {
+    console.error('[1e/4] 找不到 ' + aiPath + '（<script> 指过去是空的）');
+    aiBad++;
+  } else if (aiSize < 8192) {
+    /* 800 多行的决策逻辑压到 8 KB 以下，只可能是搬的时候截断了 */
+    console.error('[1e/4] ' + aiPath + ' 只有 ' + aiSize + ' 字节，看着像搬的时候截断了');
+    aiBad++;
+  }
+  if (aiSize) {
+    const aiSrc = fs.readFileSync(aiPath, 'utf8');
+    /* 判据用字符串拼接，避免这一行自己又成为那个字面量 */
+    const closer = '</' + 'script>';
+    const hits = aiSrc.split(closer).length - 1;
+    if (hits) {
+      console.error('[1e/4] ai.js 里出现 ' + hits + ' 处闭合标签字面量：' +
+        'HTML 解析器会在那里截断内联副本，briefcheck 会报 Invalid or unexpected token');
+      aiBad++;
+    }
+  }
+  if (!aiBad) {
+    console.log('[1e/4] AI 外链正常：ai.js?v=' + aiTag[1] + '，' +
+      Math.round(aiSize / 1024) + ' KB');
+  }
+  fail += aiBad;
+}
+
 const { api } = loadGame(file);
 
 /* ── 素材引用 ──
