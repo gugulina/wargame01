@@ -529,12 +529,12 @@ const MUTANTS = [
    '空弹的炮在 doAttack 也被拒'],
 
   ['无效接触兜底闸失效（ratio 0.01 照样结算）',
-   '  if (pv.ratio < INVALID_RATIO && pv.counter && !objectivePush(att, def, opts, pv)) return false;',
+   '  if (pv.ratio < INVALID_RATIO && pv.counter && !objectivePush(att, def, opts, pv) &&\n      !huntContact(att, def, opts)) return false;',
    '  if (false) return false;',
    '无效接触在 doAttack 也被拒'],
 
   ['无效接触不再从目标列表剔除（面板与 AI 又看得见了）',
-   '    return !invalidContact(u, t, fields, pv) || objectivePush(u, t, opts, pv);',
+   '    return !invalidContact(u, t, fields, pv) || objectivePush(u, t, opts, pv) ||\n           huntContact(u, t, opts);',
    '    return true;',
    '无效接触不进目标列表'],
 
@@ -777,13 +777,13 @@ const MUTANTS = [
 
   /* 列表层把攻坚令丢掉：夺取型的 all-in 门槛还在，但目标进不了列表 */
   ['攻坚令进不了目标列表（夺回要点变成一句空话）',
-   '    return !invalidContact(u, t, fields, pv) || objectivePush(u, t, opts, pv);',
+   '    return !invalidContact(u, t, fields, pv) || objectivePush(u, t, opts, pv) ||\n           huntContact(u, t, opts);',
    '    return !invalidContact(u, t, fields, pv);',
    '攻坚令生效时目标进列表'],
 
   /* 结算层把攻坚令丢掉：列表放行了，doAttack 的兜底闸照样拒 */
   ['攻坚令不进 doAttack（列表放行、结算仍拒）',
-   '  if (pv.ratio < INVALID_RATIO && pv.counter && !objectivePush(att, def, opts, pv)) return false;',
+   '  if (pv.ratio < INVALID_RATIO && pv.counter && !objectivePush(att, def, opts, pv) &&\n      !huntContact(att, def, opts)) return false;',
    '  if (pv.ratio < INVALID_RATIO && pv.counter) return false;',
    'doAttack 带攻坚令才真的打进去'],
 
@@ -819,7 +819,7 @@ const MUTANTS = [
 
   /* runAI 没把 opts 传下去：目标列表与结算都回到原样，C1 又不开火 */
   ['runAI 不把攻坚令传进开火流程',
-   '  const pushOpts = aiTargetOpts(style);',
+   '  const pushOpts = aiTargetOpts(style, hunt);',
    '  const pushOpts = undefined;',
    '端到端：夺取型 runAI 把攻坚令带进开火流程'],
 
@@ -919,11 +919,237 @@ const MUTANTS = [
    '  return 0;',
    '威胁加分看目标离要点多远：要点上 0.48'],
 
-  /* 加分没接进 scoreTarget：公式对，排序不用 */
-  ['威胁加分没接进 scoreTarget（公式对、排序不用）',
-   '  if (style && style.defensive) s += holdThreatBonus(t);',
-   '  /* 变异：防守型不加威胁分 */',
-   'scoreTarget 的防守型加分跟着目标离要点走'],
+  /* ── v4.21 追击：兵力 2 倍 + 士气闸 + 高价值目标 ──
+     这一批的形状是"少判一件事"：少算一波援军、少看一眼士气、少追一个人。
+     外面看起来都只是"这版 AI 又变温了"，不会有任何异常。 */
+
+  /* 2 倍窗口写死成 3 倍：追击永远不触发 */
+  ['HUNT_RATIO 改成 3（2 倍窗口推迟）',
+   'const HUNT_RATIO = 2;',
+   'const HUNT_RATIO = 3;',
+   'HUNT_RATIO = 2'],
+
+  /* 判据放宽到"等于也追"：正好 2 倍时本该收着打 */
+  ['2 倍判据从严格大于改成大于等于',
+   "  if (!(aiSidePoints('red') > HUNT_RATIO * sideFieldPoints('blue'))) return false;",
+   "  if (!(aiSidePoints('red') >= HUNT_RATIO * sideFieldPoints('blue'))) return false;",
+   '恰好 2 倍（80 vs 40）不追击'],
+
+  /* 波次标记不看：援军已经到场，编制账还按"在路上的"算 */
+  ['已登场波次仍计入未登场点数（全关卡点数虚高）',
+   "    if (w > 1 && !(state.flags && state.flags['wave' + w])) s += defStr(def);",
+   '    if (w > 1) s += defStr(def);',
+   '波次入场后不再重复计入'],
+
+  /* 绿方接口闭死：实装友军那天 AI 会当没看见 */
+  ['友军接口闭死（绿方点数不上账）',
+   '  const list = (state && Array.isArray(state.allies)) ? state.allies : [];',
+   '  const list = [];',
+   '绿方友军计入蓝方场上点数'],
+
+  /* 友军不分阵营：红方也吃到绿方点数 */
+  ['友军不看阵营（红方也吃到绿方点数）',
+   "  if (side !== 'blue') return [];",
+   '',
+   'alliedUnits 只认蓝方一侧的友军'],
+
+  /* 士气 60 整不追：边界从 >= 变 > */
+  ['士气闸改成严格大于（60 整不追）',
+   "  return aiAvgOrg('red') >= HUNT_MIN_ORG;",
+   "  return aiAvgOrg('red') > HUNT_MIN_ORG;",
+   '士气刚好 60 仍追击'],
+
+  /* 士气闸失效：打散了还追 */
+  ['士气闸失效（打散了还追）',
+   "  return aiAvgOrg('red') >= HUNT_MIN_ORG;",
+   '  return true;',
+   '士气跌破 HUNT_MIN_ORG 收兵'],
+
+  /* 夺取型配置回退：整批机制永远进不了门 */
+  ['夺取型不再开启追击（配置回退）',
+   '    hunt: true\n  }\n};',
+   '    hunt: false\n  }\n};',
+   '夺取型 / 进攻型开启追击'],
+
+  /* 状态不落账：每回合重复播报，且 runAI 读到旧状态 */
+  ['追击状态不落账（每回合重复播报）',
+   '  state.huntOn = on;',
+   '  /* 变异：状态不落账 */',
+   'aiHuntTick 进入追击并记录状态'],
+
+  /* 接敌闸的两条：一条测"没接敌也播"，一条测"接敌了也不播"。
+     只写一条的话，把整个播报删掉也能过其中一条。 */
+  ['追击播报不等接敌（开局就喊敌军追击）',
+   '    if (!state.huntSaid && huntContacted()) {',
+   '    if (!state.huntSaid) {',
+   '未接敌时只记账不播报'],
+  ['接敌判定永远不成立（接敌后也不补播）',
+   '    if (hexDist(b.pos, r.pos) <= 1) return true;',
+   '    if (hexDist(b.pos, r.pos) <= 0) return true;',
+   '推到相邻一格后补播追击战报'],
+
+  /* 状态变化不判：同一句话每回合刷一遍。
+     锚点跟着实现走——早退改成 huntSaid 记账 + changed 之后，
+     原来的 `if (!!state.huntOn === on) return on;` 已经不存在了，
+     改成去掉 huntSaid 这道记账闸。 */
+  ['同一状态也播报（战报刷屏）',
+   '    if (!state.huntSaid && huntContacted()) {',
+   '    if (huntContacted()) {',
+   '同一状态不重复播报'],
+
+  /* 指挥部不值钱：围歼时先去咬步兵 */
+  ['指挥部不再加权（高价值目标退化成看吨位）',
+   '  if (isHQ(t)) v += 1.0;',
+   '',
+   '指挥部的价值高于同点数步兵'],
+
+  /* 炮兵不值钱：绕两格摘炮不如就近咬步兵 */
+  ['炮兵不再加权（绕两格摘炮不如就近咬步兵）',
+   '  if (isArty(t)) v += 0.7;',
+   '',
+   '炮兵的价值高于同点数步兵'],
+
+  /* 崩溃目标不加分：不优先补刀，留着残部继续占点 */
+  ['崩溃目标不再加分（不优先补刀）',
+   '  if (isBroken(t)) v += 0.2;',
+   '',
+   '崩溃目标额外加分'],
+
+  /* 目标只按距离挑：追击退化成"谁近打谁" */
+  ['追击目标只看距离（谁近打谁）',
+   '    const s = huntValue(t) - hexDist(u.pos, t.pos) * 0.12;',
+   '    const s = -hexDist(u.pos, t.pos);',
+   '高价值优先：3 格外的炮兵'],
+
+  /* 目标轴不换：眼里只有要点，高价值单位路过也不追 */
+  ['追击不换目标轴（眼里只有要点）',
+   '  if (hunt) {\n    const ht = aiHuntTarget(u);\n    if (ht) return ht.pos.slice();\n  }',
+   '  if (false) {\n    const ht = aiHuntTarget(u);\n    if (ht) return ht.pos.slice();\n  }',
+   '追击时目标轴指向高价值敌军'],
+
+  /* 走位不压：目标轴对了，路过的人还是视而不见 */
+  ['追击走位不往敌军压（沿途遭遇变成路过）',
+   '  if (hunt) {\n    let mind = Infinity;\n    for (const f of alive(other(u.side))) mind = Math.min(mind, hexDist(p, f.pos));\n    if (mind < Infinity) s -= Math.min(mind, 8) * HUNT_PULL;\n  }',
+   '  if (false) {\n    let mind = Infinity;\n    for (const f of alive(other(u.side))) mind = Math.min(mind, hexDist(p, f.pos));\n    if (mind < Infinity) s -= Math.min(mind, 8) * HUNT_PULL;\n  }',
+   '追击给贴近敌军的落点加分'],
+
+  /* 开火门槛不归零：兵力 2 倍还在挑性价比 */
+  ['追击不放开开火门槛（只多走两步）',
+   '  if (hunt) return 0;',
+   '  if (false) return 0;',
+   '追击把开火门槛压到 0'],
+
+  /* 列表层不放行：目标列表照旧是空的，人就在眼前也点不着 */
+  ['追击目标进不了列表（看得见打不着）',
+   '           huntContact(u, t, opts);',
+   '           false;',
+   '追击目标列表放行'],
+
+  /* 结算层不放行：列表看得见，doAttack 兜底闸照样拒 */
+  ['追击放不进 doAttack 兜底闸（列表放行、结算仍拒）',
+   '      !huntContact(att, def, opts)) return false;',
+   '      false) return false;',
+   '不带追击令时 doAttack 兜底闸拒绝'],
+
+  /* ── v4.21 反坦克连：4 点编制 / 0.30 防御 / 设伏 ── */
+
+  /* 编制 +1 失效：场上回到 3 点，设伏换一炮还是亏 */
+  ['反坦克连编制 +1 失效（回到 3 点）',
+   "function typeStrBonus(type) { return type === 'at' ? 1 : 0; }",
+   'function typeStrBonus(type) { return 0; }',
+   '开局反坦克连按 4 点进场'],
+
+  /* defStr 不叠：面板/账本认 4 点，场上还是 3 点 */
+  ['defStr 不叠编制加成（只有面板认 4 点）',
+   '  return (Number.isFinite(n) ? n : 0) + typeStrBonus(def.type);',
+   '  return Number.isFinite(n) ? n : 0;',
+   'defStr：反坦克连定义 3 点按 4 点计'],
+
+  /* 防御加成缩水：坦克对策卡的正面互换又回到吃亏 */
+  ['反坦克连的防御加成掉到 0.20',
+   "  if (def.type === 'at' && (isArmor(att) || att.type === 'mech')) defMod += 0.30;",
+   "  if (def.type === 'at' && (isArmor(att) || att.type === 'mech')) defMod += 0.20;",
+   '反坦克连被装甲攻击时防御 +0.30'],
+
+  /* 对步兵也吃加成：反坦克连变成万能守军 */
+  ['反坦克连对步兵也吃防御加成',
+   "  if (def.type === 'at' && (isArmor(att) || att.type === 'mech')) defMod += 0.30;",
+   "  if (def.type === 'at') defMod += 0.30;",
+   '步兵攻击反坦克连没有这份加成'],
+
+  /* 自筑阵地不算掩体：开阔地上的设伏永远点不亮 */
+  ['自筑阵地不算掩体（设伏永远点不亮）',
+   '  if (u.fortify > 0) return true;',
+   '  if (false) return true;',
+   '设伏成立：静止 + 掩体 + 未被发现 + 目标装甲'],
+
+  /* 观察哨瞎了：蹲坑连打变成无解 */
+  ['观察哨发现不了炮位（设伏永远成立）',
+   '  return alive(other(u.side)).some(f => !isAir(f) && !isNaval(f) && !isBroken(f) &&',
+   '  return false && alive(other(u.side)).some(f => !isAir(f) && !isNaval(f) && !isBroken(f) &&',
+   '相邻敌军步兵发现炮位'],
+
+  /* 暴露不进判定：打完还能原地再伏，转移阵地失去意义 */
+  ['暴露状态不进设伏判定（打完还能原地再伏）',
+   '  const still = !u.moved && !u.exposed;',
+   '  const still = !u.moved;',
+   '已暴露 → 要先转移阵地'],
+
+  /* atAmbush 不看 ready：任何状态都算设伏 */
+  ['atAmbush 不看 ready（条件不齐也能设伏）',
+   '  return !!(st && st.ready);',
+   '  return !!st;',
+   '本回合动过 → 不能设伏'],
+
+  /* 自筑速度减半：两回合才攒出掩体，节奏对不上 */
+  ['自筑阵地每回合只加 10%',
+   '  u.fortify = Math.min(0.30, u.fortify + 0.15);',
+   '  u.fortify = Math.min(0.30, u.fortify + 0.10);',
+   '静止一回合自动 +15% 发射阵地'],
+
+  /* 上限放宽：蹲三回合攒出 45%，与设计不符。
+     守卫与 Math.min 是双保险，单独改哪一处都会被另一处兜住，
+     所以这条变异同时改两处——改完就是"上限真的变成 45%"。 */
+  ['自筑阵地上限放到 45%',
+   '  if (!canSelfFortify(u) || u.moved || u.fired || u.fortify >= 0.30) return 0;\n  const before = u.fortify;\n  u.fortify = Math.min(0.30, u.fortify + 0.15);',
+   '  if (!canSelfFortify(u) || u.moved || u.fired || u.fortify >= 0.45) return 0;\n  const before = u.fortify;\n  u.fortify = Math.min(0.45, u.fortify + 0.15);',
+   '自筑阵地上限 30%'],
+
+  /* 开火不暴露：反坦克连可以蹲在同一个坑里连打 */
+  ['反坦克连开火不暴露（蹲坑连打）',
+   '  if (AT_LIKE.includes(att.type)) att.exposed = true;',
+   '  if (false) att.exposed = true;',
+   '反坦克连开火后位置暴露'],
+
+  /* 原地“移动”也清暴露：同一格重新隐身 */
+  ['原地移动也清除暴露（同一格重新隐身）',
+   '  if (relocated) u.exposed = false;',
+   '  u.exposed = false;',
+   '原地“移动”不算转移阵地'],
+
+  /* 转移不清暴露：打完再也伏不了 */
+  ['转移阵地不清暴露（打完再也伏不了）',
+   '  if (relocated) u.exposed = false;',
+   '  if (false) u.exposed = false;',
+   '真正转移到新格才重新隐蔽'],
+
+  /* 满编账绕过 defStr：满编 3、场上 4 对不上 */
+  ['blueInitialStr 绕过 defStr（满编账对不上）',
+   "  return LEVEL.units.filter(u => u.side === 'blue' && u.wave === 1)\n    .reduce((s, u) => s + defStr(u), 0);",
+   "  return LEVEL.units.filter(u => u.side === 'blue' && u.wave === 1)\n    .reduce((s, u) => s + (Number(u.str) || 0), 0);",
+   'blueInitialStr 与 defStr 同一份基准'],
+
+  /* makeUnit 不走 defStr：开局只有 3 点 */
+  ['makeUnit 不走 defStr（场上只有 3 点）',
+   '  if (u.str !== undefined) unit.str = defStr(u);',
+   '  if (u.str !== undefined) unit.str = u.str;',
+   'makeUnit 把反坦克连按 4 点布置'],
+
+  /* 回合末不调用：机制写在函数里、结算不执行 */
+  ['回合结算不调用自筑阵地 tick（机制不接线）',
+   '    selfFortifyTick(u);',
+   '    void 0;',
+   '回合结算会自动调用自筑阵地 tick'],
 
 ];
 

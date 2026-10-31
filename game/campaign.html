@@ -58,7 +58,7 @@
      <link> 不会——跟 data/levels.js 必须用 <script src> 是同一个原因。
      ?v= 跟着顶栏版本走（tools/check.js 校验），否则改完样式玩家可能还在吃
      GitHub Pages 的十分钟缓存，看到的是一半新一半旧的页面。 -->
-<link rel="stylesheet" href="campaign.css?v=4.18">
+<link rel="stylesheet" href="campaign.css?v=4.21">
 <!-- 版本公告数据与菜单页共用一份（HQ 的「版本公告」页签读它）。
      放在 <head> 里同步加载：页签是玩家点了才渲染的，但真读不到时那一页要能
      说清"文件缺了"，而不是显示一片空白——异步加载失败是静默的。 -->
@@ -76,7 +76,7 @@
       <span class="pill" id="phasePill">我方阶段</span>
       <!-- 全项目唯一的版本标记：tools/export-levels.js 按这个 span 的原样文本抓版本号，
            开始页撤掉之后它挪到了顶栏，标签必须保持 <span id="verTag"> 这个形状 -->
-      <span id="verTag">v4.18</span>
+      <span id="verTag">v4.21</span>
       <!-- 存档异常：只在真的写失败时出现（隐私模式 / 配额满 / 被清理）。
            默认 display:none，别让它平时占位——一排胶囊里突然多一个红字，
            玩家第一反应是"我是不是哪里点坏了"。 -->
@@ -542,14 +542,16 @@ const TYPE = {
            '战力 2，只能跟在步兵后面作业'] },
   at:  { name: '反坦克连', role: '反装甲', am: 4,
     abil: ['反坦克炮，射程 1 格（0.8–1.5 km）——必须放到敌人坦克的必经之路上',
-           '攻击坦克营、装步营时 ×1.8（+0.80）', '攻击步兵、守备营时 ×0.6（-0.40）',
-           '防御战中被装甲攻击时防御 +0.15', '没有它，装甲部队在平原上近乎无解'] },
+           '攻击坦克营、装步营时 ×1.8（+0.80）；攻击步兵、守备营时 ×0.6（−0.40）',
+           '**设伏**：整回合未移动、处在掩体（地形 / 工事 / 自筑阵地）里，目标为装甲或装步，且未被相邻敌军步兵 / 侦察发现时，守方无法反击。开火后位置暴露，必须转移阵地才能再次设伏',
+           '可自筑发射阵地：原地不动每回合 +15% 工事（上限 +30%）——开阔地上的必经之路也能设伏',
+           '被装甲攻击时防御 +0.30；编制 4 点，换一炮之后还留有残部转移'] },
   td:  { name: '坦克歼击车连', role: '反装甲（自行）', am: 4,
     abil: ['坦克歼击车，射程 1 格（0.8–1.5 km），与反坦克炮同档',
            '攻击坦克营、装步营时 ×1.8（+0.80），打步兵 ×0.6（−0.40）',
-           '自行底盘：机动 7，被装甲攻击时防御 +0.30（反坦克炮是 +0.15）',
-           '不需要展开 / 收起，可以跟着装甲部队一起转移阵地',
-           '代价是编制稀少——它是反坦克炮的机动化替代，不是补充'] },
+           '自行底盘：机动 7，被装甲攻击时防御 +0.30',
+           '**设伏**：与反坦克炮同一套条件（静止 + 掩体 + 未被发现），打装甲时对方无法反击',
+           '不需要展开 / 收起，可以跟着装甲部队一起转移阵地；代价是编制稀少'] },
   aac: { name: '防空连', role: '对空掩护', am: 4, aa: 1, aaRange: 2, aaPen: 0.30,
     abil: ['半径 2 内敌方航空攻击 -0.30', '唯一能直接对空开火的地面单位之一（对空目标不设近界）',
            '对地面目标只有微弱火力'] },
@@ -767,9 +769,9 @@ const UNIT_INFO = {
 
   /* ── 反装甲 ── */
   at: { cat: '反装甲单位',
-    intro: '专门打坦克的牵引炮组，打装甲目标伤害翻倍级别，打步兵只剩六成。放对位置是防线的钉子，放错位置等于没带。它自己走得很慢，所以要在开打前就摆好。' },
+    intro: '专门打坦克的牵引炮组，打装甲目标伤害翻倍级别，打步兵只剩六成。放对位置是防线的钉子，放错位置等于没带。它自己走得很慢，所以要在开打前就摆好。停稳、藏好、别让步兵摸到跟前，第一炮就能在对方还不了手的情况下打出去。' },
   td: { cat: '反装甲单位',
-    intro: '把反坦克炮装上底盘的自行版本：同样的穿甲能力，但能自己挪到敌人坦克要来的方向。防御战里它是"哪儿要塌就往哪儿补"的机动塞子，缺点是照样怕步兵贴脸。' },
+    intro: '把反坦克炮装上底盘的自行版本：同样的穿甲能力，但能自己挪到敌人坦克要来的方向。防御战里它是"哪儿要塌就往哪儿补"的机动塞子，缺点是照样怕步兵贴脸；停稳并藏好后，它和反坦克炮一样能打出无法反击的第一炮。' },
 
   /* ── 防空 ── */
   aac: { cat: '防空单位',
@@ -4833,6 +4835,18 @@ const ARMOR_TYPES = ['larm', 'marm', 'harm'];
 function isArmor(u) { return !!u && ARMOR_TYPES.includes(u.type); }
 /* 反坦克火力对三种坦克的穿深修正。重坦最难打穿，这是它贵的地方 */
 const AT_VS_ARMOR = { larm: 0.90, marm: 0.80, harm: 0.55 };
+/* 编制战力的唯一基准（v4.21）。
+   反坦克连的定义战力是 3，但它在场上按 4 点算：多出来的那 1 点是
+   "炮组 + 弹药 + 牵引车"的完整编制，不是临时加成。加成不能只写在 makeUnit 里——
+   blueInitialStr / escapedStr / sideBelow / unitBelow / 结算页 / 兵牌面板读的
+   都是 LEVEL.units 里的定义值，只改场上会导致"满编 3、场上 4"的对不上账。
+   凡是拿"定义战力"做分母或合计的地方，一律走这个函数。 */
+function typeStrBonus(type) { return type === 'at' ? 1 : 0; }
+function defStr(def) {
+  if (!def) return 0;
+  const n = Number(def.str);
+  return (Number.isFinite(n) ? n : 0) + typeStrBonus(def.type);
+}
 /* 坦克互殴：吨位就是硬道理，但重坦追不上轻坦 */
 const ARM_VS = {
   harm: { larm: 0.25, marm: 0.10 },
@@ -4873,6 +4887,66 @@ const ARMOR_PROFILE = {
   marm: { open: 0.15, town: 0.10 },
   harm: { open: 0.20, town: 0.15 }
 };
+
+/* ───────────────── 反坦克连的设伏（v4.21） ─────────────────
+   反坦克连的困境：它打装甲的修正是全表最高的，但编制只有 3 战力，
+   正面互换一炮就没了。于是"坦克对策卡"在实战里根本不敢开火——
+   玩家宁可拿它当占位符，也不愿用它换一次 1:1。
+   本版先把它按 4 点编制算（见 defStr），再加下面这套设伏机制：
+   不改变"它很脆"这件事，改变的是"开第一炮的代价"。
+
+   设伏把"编制劣势"换成"位置与时机的功课"：
+     · 整回合没移动（moved=false），处在掩体里
+     · 目标是装甲 / 装步
+     · 没有被相邻的敌军步兵或侦察发现
+   满足时守方无法反击，第一炮只赚不赔。开火后 exposed=true，
+   位置暴露，必须转移阵地才能重新隐藏——所以正确用法是
+   "进掩体 → 设伏 → 转移 → 再设伏"，而不是蹲在同一个坑里打完四发。
+
+   掩体不要求天然地形：反坦克连可以自筑发射阵地（见 canSelfFortify），
+   平原上停一回合也能获得设伏资格。这条是给"必经之路在开阔地"的关卡留的。 */
+const SELF_FORTIFY_TYPES = ['inf', 'gdn', 'at'];
+function canSelfFortify(u) {
+  return !!u && SELF_FORTIFY_TYPES.includes(u.type);
+}
+/* 整回合静止的部队自筑工事 +15%，上限 30%。抽出来是为了让"反坦克连
+   停在开阔地也能攒出设伏掩体"这条能单独被断言驱动——埋在 settlePhase 里
+   的话，验证它得打完一整回合，还会被补弹、波次、事件一起搅进来。 */
+function selfFortifyTick(u) {
+  if (!canSelfFortify(u) || u.moved || u.fired || u.fortify >= 0.30) return 0;
+  const before = u.fortify;
+  u.fortify = Math.min(0.30, u.fortify + 0.15);
+  return u.fortify - before;
+}
+function atCover(u) {
+  if (!u || !u.pos || isAir(u)) return false;
+  if (u.fortify > 0) return true;
+  const f = fortSelf(u);
+  if (f && fortWorking(f)) return true;
+  return terrainAt(u.pos[0], u.pos[1]).def > 0;
+}
+function atSpotted(u) {
+  if (!u || !u.pos) return false;
+  return alive(other(u.side)).some(f => !isAir(f) && !isNaval(f) && !isBroken(f) &&
+    (FOOT_TYPES.includes(f.type) || f.type === 'rec') &&
+    hexDist(f.pos, u.pos) <= 1);
+}
+/* 设伏资格拆成"静止 / 有掩体 / 未被发现"三项。
+   兵牌面板要逐项告诉玩家差在哪一条，否则只会看到"设伏"两个字是灰的，
+   却不知道怎么才能变亮。atAmbush 只认最终结果，target 类型另外判。 */
+function atAmbushState(u) {
+  if (!u || !AT_LIKE.includes(u.type)) return null;
+  const still = !u.moved && !u.exposed;
+  const cover = atCover(u);
+  const spotted = atSpotted(u);
+  return { still, cover, spotted, ready: still && cover && !spotted };
+}
+function atAmbush(att, def) {
+  if (!att || !def) return false;
+  if (!isArmor(def) && def.type !== 'mech') return false;
+  const st = atAmbushState(att);
+  return !!(st && st.ready);
+}
 
 /* ═════════════════════════ 战术卡 ═════════════════════════
    局内的一次性资源：每张卡整局只能用一次，开局从卡池里带 3 张。
@@ -5763,7 +5837,9 @@ function previewAttack(att, def, fields) {
   attMod += (att.cardAtk || 0);
 
   let defMod = 0;
-  if (def.type === 'at' && (isArmor(att) || att.type === 'mech')) defMod += 0.15;
+  /* 反坦克连据守时的防御（v4.21）：0.15 → 0.30。它仍然是全场最脆的地面单位之一，
+     但装甲正面撞上来至少要付出一轮代价——"坦克看到它就绕"这件事才立得住。 */
+  if (def.type === 'at' && (isArmor(att) || att.type === 'mech')) defMod += 0.30;
   if (def.type === 'td' && (isArmor(att) || att.type === 'mech')) defMod += 0.30;
   defMod += modDef(def);
   defMod += (def.cardDef || 0);      // 战术卡：坚守
@@ -5785,11 +5861,15 @@ function previewAttack(att, def, fields) {
       defHelp.reduce((s, a) => s + effStr(a.u, fields) * a.w, 0)) * defMul;
 
   const ratio = attSum / Math.max(defSum, 0.1);
+  /* 设伏的结算口只有一个：pv.counter 为假，attLoss 就为 0。
+     UI、AI、doAttack 都读这同一个字段，不另开一条"免伤"分支。 */
+  const ambush = atAmbush(att, def);
+  const counter = canCounter(att, def) && !ambush;
   return {
     ratio, tier: ratioTier(ratio), attSum, defSum, attHelp, defHelp, flanked,
-    counter: canCounter(att, def),
-    counterSoft: canCounter(att, def) && isDirectArty(def),   // 直瞄炮仓促应战，反击火力减半
-    attMod, defMod
+    counter,
+    counterSoft: counter && isDirectArty(def),   // 直瞄炮仓促应战，反击火力减半
+    ambush, attMod, defMod
   };
 }
 
@@ -5812,7 +5892,8 @@ function inRangeTargets(u, fields, opts) {
        （invalidContact，v4.18 热修）。
        夺取型的攻坚令另开一个口子（objectivePush，v4.20 第 2 批）。 */
     const pv = previewAttack(u, t, fields);
-    return !invalidContact(u, t, fields, pv) || objectivePush(u, t, opts, pv);
+    return !invalidContact(u, t, fields, pv) || objectivePush(u, t, opts, pv) ||
+           huntContact(u, t, opts);
   });
 }
 /* "这一门炮现在能不能响"：弹药与展开状态。
@@ -6048,8 +6129,9 @@ function triggerMet(w) {
   if (w.kind === 'unitBelow') {
     const u = state.units.find(x => x.id === w.id);
     const def = LEVEL.units.find(x => x.id === w.id);
-    if (!u || !def || !def.str) return false;
-    return u.str / def.str <= w.ratio;
+    const base = defStr(def);
+    if (!u || !def || base <= 0) return false;
+    return u.str / base <= w.ratio;
   }
 
   /* 整条战线被打残。用于"损失过半就该考虑撤了"这种全局提示。 */
@@ -6057,7 +6139,7 @@ function triggerMet(w) {
     let init = 0, now = 0;
     for (const def of LEVEL.units) {
       if (def.side !== w.side || def.wave !== 1) continue;
-      init += def.str;
+      init += defStr(def);
       const u = state.units.find(x => x.id === def.id);
       if (u) now += Math.max(0, u.str);
     }
@@ -6180,7 +6262,7 @@ function checkEvents() {
 function makeUnit(u, spent) {
   const am = TYPE[u.type].am || 0;
   if (state.everSeen) state.everSeen[u.id] = 1;
-  return {
+  const unit = {
     ...u, pos: [u.r, u.c], org: 100,
     moved: !!spent, fired: !!spent, fortify: 0,
     /* packed = 收炮/行军状态。拖曳炮进场即行军状态，必须先展开。
@@ -6188,6 +6270,11 @@ function makeUnit(u, spent) {
     packed: u.packed === undefined ? false : !!u.packed,
     ammo: am || undefined, maxAmmo: am || undefined
   };
+  /* 定义里写了战力的，统一走 defStr（反坦克连 +1）。
+     没写战力的（空降伞兵由 doDrop 现造）保持原样——这里补一个 0
+     会把一支本来能打仗的伞兵连当场变成 0 战力。 */
+  if (u.str !== undefined) unit.str = defStr(u);
+  return unit;
 }
 
 /* ───────────────────────── 存档 ─────────────────────────
@@ -6924,7 +7011,7 @@ function newGame(opt) {
   state.units = LEVEL.units.filter(u => u.wave === 1).map(u => makeUnit(u, false));
   for (const u of LEVEL.units) {
     if (u.wave !== 1) continue;
-    state.initStr[u.corps] = (state.initStr[u.corps] || 0) + u.str;
+    state.initStr[u.corps] = (state.initStr[u.corps] || 0) + defStr(u);
   }
   clearUndo();
   refreshFields();
@@ -7093,9 +7180,15 @@ function doMove(u, pos) {
     return false;
   }
   pushUndo();
+  /* 原地"移动"不算转移阵地：把 pos 设成自己脚下也能走完 doMove，
+     如果照样清 exposed，反坦克连就能一枪不挪地重新设伏，
+     "开火 → 转移 → 再设伏"的代价整条失效。 */
+  const relocated = pos[0] !== u.pos[0] || pos[1] !== u.pos[1];
   u.pos = pos;
   u.moved = true;
   u.fortify = 0;
+  /* 转移阵地 = 重新隐蔽。反坦克连的"开火 → 转移 → 再设伏"就靠这一行闭合。 */
+  if (relocated) u.exposed = false;
   noteAct(u, 'move');
 
   /* 岸防炮封锁：进入敌方岸防炮相邻的渡口格要挨一轮炮 */
@@ -7179,7 +7272,8 @@ function doAttack(att, def, opts) {
      previewAttack 是纯函数，放在 pushUndo 之前：被拒绝的攻击
      不能在撤销栈里留一条假记录。 */
   const pv = previewAttack(att, def, state.fields);
-  if (pv.ratio < INVALID_RATIO && pv.counter && !objectivePush(att, def, opts, pv)) return false;
+  if (pv.ratio < INVALID_RATIO && pv.counter && !objectivePush(att, def, opts, pv) &&
+      !huntContact(att, def, opts)) return false;
   pushUndo();
   const die = Math.floor(rng() * 6);
   const row = CRT[pv.tier][die];
@@ -7199,6 +7293,9 @@ function doAttack(att, def, opts) {
 
   if (att.ammo !== undefined) att.ammo = Math.max(0, att.ammo - 1);
   att.fired = true;
+  /* 反坦克连只要开火就暴露：炮口焰、扬尘、反冲击的弹道都会把位置交出去。
+     暴露状态由 doMove 清除——转移阵地才能重新设伏。 */
+  if (AT_LIKE.includes(att.type)) att.exposed = true;
   noteAct(att, 'fire');
   /* 全场第一次交火。事件里用 when:{kind:'firstBlood'} 就能写"打响了"那句，
      不用去猜玩家第几回合才开第一枪。 */
@@ -7250,7 +7347,8 @@ function doAttack(att, def, opts) {
   if (pv.flanked) msg += ' · 多面进攻（防御 −' + FLANK_PENALTY + '）';
   if (fortAbsorb) msg += '（工事吸收 ' + fortAbsorb + '）';
   if (pressOrg) msg += '（履带压制 组织度 −' + pressOrg + '）';
-  if (!pv.counter) msg += ' · 对方无法反击';
+  if (pv.ambush) msg += ' · 设伏（对方无法反击）';
+  else if (!pv.counter) msg += ' · 对方无法反击';
   log(msg, att.side === 'blue' ? 'b' : 'r');
 
   /* 击退：比值 3:1 以上、目标可退，且进攻方要有那个吨位（轻坦不行）。
@@ -8034,10 +8132,10 @@ function settlePhase() {
        玩家会以为是自己哪里点错了。 */
     const at = ammoTick(u);
     if (at && at.ok) u.ammo = Math.min(u.maxAmmo, u.ammo + 1);
-    /* 工事：整回合静止的步兵 / 守备营自动加固 */
-    if ((u.type === 'inf' || u.type === 'gdn') && !u.moved && !u.fired && u.fortify < 0.30) {
-      u.fortify = Math.min(0.30, u.fortify + 0.15);
-    }
+    /* 工事：整回合静止的步兵 / 守备营 / 反坦克连自动加固。
+       反坦克连那一档是 v4.21 加的：设伏需要掩体，而"必经之路"经常在开阔地，
+       没有自筑阵地它就永远等不到设伏条件。 */
+    selfFortifyTick(u);
   }
 
   /* 防空压制的战报。逐支报，不合并成一行计数：
@@ -8185,12 +8283,12 @@ function escapedStr() {
   const ids = (state && state.escapedIds) || [];
   if (!ids.length) return 0;
   let s = 0;
-  for (const u of LEVEL.units) if (ids.indexOf(u.id) >= 0) s += u.str;
+  for (const u of LEVEL.units) if (ids.indexOf(u.id) >= 0) s += defStr(u);
   return s;
 }
 function blueInitialStr() {
   return LEVEL.units.filter(u => u.side === 'blue' && u.wave === 1)
-    .reduce((s, u) => s + u.str, 0);
+    .reduce((s, u) => s + defStr(u), 0);
 }
 
 /* 教学关判据：序章（ch 0）与 type 里带"教学"的关。
@@ -8337,7 +8435,7 @@ function showOverlay() {
   document.getElementById('mTitle').textContent = m[0];
   document.getElementById('mDesc').textContent = m[1];
   const lost = LEVEL.units.filter(u => u.side === 'blue')
-    .reduce((s, u) => s + u.str, 0);
+    .reduce((s, u) => s + defStr(u), 0);
   const now = alive('blue').reduce((s, u) => s + u.str, 0);
   const row = (k, v) => '<div class="stat"><span>' + k + '</span><b>' + v + '</b></div>';
   let stats = '';
@@ -8421,8 +8519,11 @@ function showOverlay() {
 
    ⚠ 一条历史教训写在这里：v4.17 试过"没有要抢的要点时向最近敌军推进"，
    C2 突围关的达成率从 45% 掉到 **0%**——红方离开封锁线去追人，逃生部队被逐个咬死。
-   所以三种脾气都**共用同一个推进轴（要点）**，"进攻型"改的是
-   "贴多近、打多狠、挑谁打"，不是"要不要守自己的阵地"。 */
+   所以三种脾气平时都**共用同一个推进轴（要点）**，"进攻型"改的是
+   "贴多近、打多狠、挑谁打"，不是"要不要守自己的阵地"。
+   v4.21 的追击是这条教训的**有条件的例外**：只有总点数压过对手 2 倍、
+   且全军士气还在线时才允许离开要点轴（见 aiHuntMode），
+   不是"AI 更凶了"，而是"胜负已分时不该再演排队枪毙"。 */
 const AI_STYLES = {
   /* 进攻型：优先消灭有生力量，高进攻欲望。
      开火门槛压到 0.55 / 0.30，挑目标偏"好打的"（残血、低战力），
@@ -8435,7 +8536,10 @@ const AI_STYLES = {
     preferKill: true, defensive: false,
     /* 破口（v4.20 第 2 批）：被比自己更靠近目标的敌人卡住时，
        这一枪是清路，门槛降到无效接触线以上最低的一档。 */
-    breakthrough: true, breakGate: 0.40
+    breakthrough: true, breakGate: 0.40,
+    /* 追击（v4.21）：总点数压过对手 2 倍且士气还在时，暂时离开要点轴，
+       见 aiHuntMode / aiHuntTarget。 */
+    hunt: true
   },
   /* 防守型：依托要点与工事据守，低进攻欲望。
      目标要点**包括已经在我手里的**（守方要待在自己阵地上），
@@ -8456,7 +8560,10 @@ const AI_STYLES = {
     fireOther: 0.85, fireArty: 0.55,
     objPull: 1.2, foePull: 0.0, terrainWeight: 2.0,
     guard: true, allInOnObjective: true,
-    preferKill: false, defensive: false
+    preferKill: false, defensive: false,
+    /* 追击（v4.21）：与进攻型同一套判定。防守型没有这一条——
+       hold 的职责是钉在阵地上，离开要点去追人正是它最不该做的事。 */
+    hunt: true
   }
 };
 
@@ -8491,10 +8598,140 @@ function aiStyleKey(lv) {
 }
 function aiStyle(lv) { return AI_STYLES[aiStyleKey(lv)]; }
 /* 夺取型才带攻坚令：目标列表保留"敌方要点上的低比值目标"，
-   doAttack 也放行同一批。别的脾气没有这个口子。 */
-function aiTargetOpts(style) {
+   doAttack 也放行同一批。别的脾气没有这个口子。
+   追击期间再叠一层 hunt：目标列表与兜底闸都放开无效接触限制。 */
+function aiTargetOpts(style, hunt) {
   const st = style || aiStyle();
+  if (hunt) return { pushObjective: true, hunt: true };
   return st && st.allInOnObjective ? { pushObjective: true } : undefined;
+}
+
+/* ───────────────── 追击（v4.21）─────────────────
+   兵力占优时，夺取型 / 进攻型不再只盯着要点：沿途遇到的敌人都可以是目标，
+   优先高价值单位，并且主动往敌人身上压。三条同时成立才进入：
+     · 比例：本方全关卡点数 > 2 × 对方场上点数
+     · 士气：本方在场部队的加权平均组织度 ≥ HUNT_MIN_ORG
+     · 脾气：AI_STYLES.hunt（防守型永远不追）
+   **全关卡点数包含未登场的波次**。这不是战力评估，是编制账：后续梯队
+   写在关卡数据里，敌方指挥官知道自己手里还有多少牌；先头部队把人打崩、
+   增援还在路上时，正是追击的窗口。已被歼灭的兵牌不计，未登场的计满编。
+
+   士气是第二条闸，而且必须独立于兵力比：一支点数占优但组织度已经打散的
+   部队追出去只会被反杀。掉到 HUNT_MIN_ORG 以下就立刻收兵，
+   恢复原来的"目标轴"打法（state.huntOn 记录当前状态，只负责播报切换）。
+
+   绿方（友军）是预留接口：alliedUnits('blue') 目前恒为空。
+   实装时把友军兵牌放进 state.allies（结构与 state.units 相同，side 写 'green'），
+   点数比较会自动把绿方算进蓝方一侧；不要在别处硬写 state.allies。 */
+const HUNT_RATIO = 2;
+const HUNT_MIN_ORG = 60;
+const HUNT_PULL = 1.2;
+
+function alliedUnits(side) {
+  if (side !== 'blue') return [];
+  const list = (state && Array.isArray(state.allies)) ? state.allies : [];
+  return list.filter(u => u && u.side === 'green' && !(u.str <= 0));
+}
+/* 场上点数：活着的部队。友军按蓝方一侧合计。 */
+function sideFieldPoints(side) {
+  let s = 0;
+  for (const u of alive(side)) if (u.str > 0) s += Math.max(0, Number(u.str) || 0);
+  for (const u of alliedUnits(side)) s += Math.max(0, Number(u.str) || 0);
+  return s;
+}
+/* 还没入场的波次点数。以 LEVEL.waves 的登场标记为准，
+   没有声明的 wave>1 兵牌不会入场，也不该被算成"我手里的牌"。 */
+function pendingWavePoints(side) {
+  let s = 0;
+  for (const def of (LEVEL.units || [])) {
+    if (def.side !== side) continue;
+    const w = def.wave || 1;
+    if (w > 1 && !(state.flags && state.flags['wave' + w])) s += defStr(def);
+  }
+  return s;
+}
+function aiSidePoints(side) { return sideFieldPoints(side) + pendingWavePoints(side); }
+/* 全军士气：按战力加权。一支残编小队崩了不该把主力的士气一起拉下水。 */
+function aiAvgOrg(side) {
+  let sum = 0, w = 0;
+  for (const u of alive(side)) {
+    if (!(u.str > 0)) continue;
+    const k = Math.max(1, Number(u.str) || 0);
+    sum += (Number(u.org) || 0) * k;
+    w += k;
+  }
+  return w > 0 ? sum / w : 0;
+}
+function aiHuntMode() {
+  const st = aiStyle();
+  if (!st || !st.hunt || st.defensive) return false;
+  if (!(aiSidePoints('red') > HUNT_RATIO * sideFieldPoints('blue'))) return false;
+  return aiAvgOrg('red') >= HUNT_MIN_ORG;
+}
+/* 每回合红方阶段开始调一次：算当前该不该追，状态变了才播报。
+   返回这一回合的实际状态，runAI 直接用它，避免读到一个过期的 state.huntOn。 */
+/* 两军有没有真的照面：任意一对红蓝地面单位距离 ≤ 1。
+   追击播报要等这个条件——兵力比是**编制账**，开局就成立（C1 红 140 vs 蓝 68 = 2.06），
+   可那时候双方还隔着半个地图。第 1 回合就弹「敌军追击」，读着像敌人开挂。 */
+function huntContacted() {
+  const live = s => state.units.filter(u => u.side === s && u.str > 0 && !isAir(u));
+  const blue = live('blue'), red = live('red');
+  for (const b of blue) for (const r of red) {
+    if (hexDist(b.pos, r.pos) <= 1) return true;
+  }
+  return false;
+}
+function aiHuntTick() {
+  if (!state) return false;
+  const on = aiHuntMode();
+  const changed = !!state.huntOn !== on;
+  state.huntOn = on;
+  if (on) {
+    /* 状态照常切换（AI 行为一点不变），只把播报压到接敌那一回合补播。
+       `huntSaid` 和 `huntOn` 一样是纯播报记账，不进存档——读档后最多多播一次，
+       比"整局看不到追击提示"好。 */
+    if (!state.huntSaid && huntContacted()) {
+      state.huntSaid = true;
+      log('◆ 敌军判定兵力占优，转入追击：沿途遭遇即打，优先高价值目标。', 'r');
+      if (typeof FX !== 'undefined' && FX.banner) FX.banner('敌 军 追 击', 'r', 2400);
+    }
+  } else if (changed) {
+    state.huntSaid = false;
+    log('敌军停止追击，收拢队形，恢复既定作战节奏。', 'sys');
+    if (typeof FX !== 'undefined' && FX.banner) FX.banner('敌 军 收 拢', 'sys', 2200);
+  }
+  return on;
+}
+/* 追击时"这个目标值多少分"。编制越大越值钱，指挥、炮兵、辎重、
+   装甲、工兵与侦察这些"打掉就瘫一片"的单位再额外加权。 */
+function huntValue(t) {
+  if (!t) return 0;
+  let v = Math.max(0, Number(t.str) || 0) * 0.12;
+  if (isHQ(t)) v += 1.0;
+  if (isArty(t)) v += 0.7;
+  if (t.type === 'sup') v += 0.5;
+  if (isArmor(t)) v += 0.35;
+  if (t.type === 'eng' || t.type === 'engc' || t.type === 'rec') v += 0.3;
+  if (isBroken(t)) v += 0.2;
+  return v;
+}
+/* 往谁身上追。价值优先、距离只做轻罚：2 倍兵力下，
+   绕两格去摘炮比就近咬一个步兵营值。 */
+function aiHuntTarget(u) {
+  if (!u || !u.pos) return null;
+  let best = null, bs = -Infinity;
+  for (const t of alive(other(u.side))) {
+    if (!t || !t.pos || !(t.str > 0)) continue;
+    const s = huntValue(t) - hexDist(u.pos, t.pos) * 0.12;
+    if (s > bs) { bs = s; best = t; }
+  }
+  return best;
+}
+/* 追击期间放开"无效接触"闸：比值再难看也允许开火。
+   与 objectivePush 分开写，因为它们回答的是两个问题——
+   那条是"要点必须抢"，这条是"胜负已分，该收割了"。 */
+function huntContact(att, def, opts) {
+  return !!(opts && opts.hunt && att && def && !isBroken(att));
 }
 
 /* 目标价值（v4.20 第 1 批）：排序与开火门槛共用同一份判断。
@@ -8541,7 +8778,7 @@ function holdThreatBonus(t) {
   return Math.max(0, 4 - nearestObjectiveDist(t.pos)) * 0.12;
 }
 
-function scoreTarget(att, t, fields, style) {
+function scoreTarget(att, t, fields, style, hunt) {
   const pv = previewAttack(att, t, fields);
   let s = pv.ratio;
   /* 多面进攻过的格子值更多分：防御已经被第一波攻击拉开，
@@ -8558,6 +8795,9 @@ function scoreTarget(att, t, fields, style) {
   /* 防守型：谁离要点最近谁最危险。守方要守的是这块地，不是杀敌数；
      旧口径看"离我多近"，守军往哪站哪里就成了威胁榜，换防一次排序全乱。 */
   if (style && style.defensive) s += holdThreatBonus(t);
+  /* 追击：高价值单位排序整体上浮。分值不按"好打"算，按"打掉最疼"算——
+     指挥部、炮兵、辎重、装甲、工兵和侦察是优先收割对象。 */
+  if (hunt) s += huntValue(t);
   return s;
 }
 
@@ -8623,9 +8863,15 @@ function aiHoldGoal(u) {
      · 夺取型：**还没归我**的要点，核心要点另有 2 格加权
      · 防守型：守军留在原地，预备队补受威胁的空缺口（见 aiHoldGoal）
    进攻型沿用夺取型的目标点：它靠 foePull 把走位往敌人身上拽，而不是换目标。 */
-function aiGoalFor(u, style) {
+function aiGoalFor(u, style, hunt) {
   const st = style || aiStyle();
   if (st === AI_STYLES.hold) return aiHoldGoal(u);
+  /* 追击：暂时离开要点轴。目标是敌军里最值钱的那一支，
+     没有敌人时才落回原来的要点推进。 */
+  if (hunt) {
+    const ht = aiHuntTarget(u);
+    if (ht) return ht.pos.slice();
+  }
   let list = LEVEL.objectives.filter(o => objectiveControl(o) !== 'red');
   if (!list.length) list = LEVEL.objectives.slice();
   if (!list.length) return null;
@@ -8642,7 +8888,7 @@ function aiGoalFor(u, style) {
 
 /* 落脚格打分。三种脾气的唯一差别都在这几个系数里（见 AI_STYLES）：
    地形防御权重（防守型 3.0 vs 进攻型 0.5）、朝最近敌军的吸引（进攻型 1.0）。 */
-function aiMoveScore(u, p, goal, style) {
+function aiMoveScore(u, p, goal, style, hunt) {
   const st = style || aiStyle();
   const t = terrainAt(p[0], p[1]);
   let s = -hexDist(p, goal) * st.objPull + t.def * st.terrainWeight;
@@ -8650,6 +8896,14 @@ function aiMoveScore(u, p, goal, style) {
     let mind = Infinity;
     for (const f of alive(other(u.side))) mind = Math.min(mind, hexDist(p, f.pos));
     if (mind < Infinity) s -= Math.min(mind, 6) * st.foePull;
+  }
+  /* 追击：夺取型平时 foePull=0（只认要点），追击期间额外往最近敌军压。
+     目标轴已经指向高价值单位，这一项保证"沿途遇到谁都贴上去"，
+     而不是眼里只有那一个目标、路过残部不闻不问。 */
+  if (hunt) {
+    let mind = Infinity;
+    for (const f of alive(other(u.side))) mind = Math.min(mind, hexDist(p, f.pos));
+    if (mind < Infinity) s -= Math.min(mind, 8) * HUNT_PULL;
   }
   /* 防守型把己方工事当成家：一格碉堡/要塞炮比多两格的空地值钱。 */
   if (st.digIn) {
@@ -8675,8 +8929,11 @@ function aiMoveScore(u, p, goal, style) {
    目标价值也往下拉（targetValue.discount，封顶 0.15）。
    breakthrough 为真时按破口价（st.breakGate，进攻型 0.40）封顶。
    两条硬规则：打不还手的一律放行；任何门槛都不低于 0。 */
-function aiFireGate(u, def, pv, style, afterMove, massed, breakthrough) {
+function aiFireGate(u, def, pv, style, afterMove, massed, breakthrough, hunt) {
   const st = style || aiStyle();
+  /* 追击：本钱已经不是问题了——点数压过对手 2 倍、士气还在线，
+     这时候还按平时的性价比挑仗打，等于把围歼拖成消耗。门槛归零。 */
+  if (hunt) return 0;
   /* 零风险火力（v4.20）：对方没有还手之力时，这一炮的本钱是白赚的。
      以前这里只看比值，炮兵于是经常放过"贴着残部打"的白打机会——
      玩家看到的就是"敌人不补刀"。 */
@@ -8836,10 +9093,14 @@ async function runAI() {
   /* 这一关红方的脾气（v4.19 热补丁）。整场只取一次：
      关卡中途不会换类别，每支部队各查一遍只是白算。 */
   const style = aiStyle();
+  /* 追击判定每回合算一次：兵力比 + 士气。返回的是本回合的实际状态，
+     不能读 state.huntOn——那可能是上一回合留下的值。 */
+  const hunt = aiHuntTick();
   /* 夺取型带攻坚令：敌方要点上的低比值目标也进列表、也放行。
-     另外两种脾气这里是 undefined，targetsFor / doAttack 走原来的闸。 */
-  const pushOpts = aiTargetOpts(style);
-  const goalOf = u => aiGoalFor(u, style);
+     另外两种脾气这里是 undefined，targetsFor / doAttack 走原来的闸。
+     追击期间再叠加 hunt 口子（见 aiTargetOpts）。 */
+  const pushOpts = aiTargetOpts(style, hunt);
+  const goalOf = u => aiGoalFor(u, style, hunt);
   const acts = alive('red').slice();
   for (const u of acts) {
     if (!state.units.includes(u) || state.result) break;
@@ -8950,10 +9211,10 @@ async function runAI() {
         }
       }
       if (!u.fired && u.rng > 0) {
-        const tg = targetsFor(u, state.fields);
+        const tg = targetsFor(u, state.fields, pushOpts);
         if (tg.length) {
-          tg.sort((a, b) => scoreTarget(u, b, state.fields, style) - scoreTarget(u, a, state.fields, style));
-          doAttack(u, tg[0]);
+          tg.sort((a, b) => scoreTarget(u, b, state.fields, style, hunt) - scoreTarget(u, a, state.fields, style, hunt));
+          doAttack(u, tg[0], pushOpts);
           await sleep(220);
         }
       }
@@ -8976,7 +9237,7 @@ async function runAI() {
     if (u.rng > 0 && !u.fired) {
       const tg = targetsFor(u, state.fields, pushOpts);
       if (tg.length) {
-        tg.sort((a, b) => scoreTarget(u, b, state.fields, style) - scoreTarget(u, a, state.fields, style));
+        tg.sort((a, b) => scoreTarget(u, b, state.fields, style, hunt) - scoreTarget(u, a, state.fields, style, hunt));
         let best = tg[0];
         /* 贴身护卫（v4.17 第 2 条）：有人摸到自己炮兵/指挥部一格内，
            这一炮先打他。**只改打谁，不改往哪走**——
@@ -8993,7 +9254,7 @@ async function runAI() {
            夺取型另有"不惜代价"：目标站在敌方要点上时门槛归零（见 aiFireGate）。
            进攻型卡住时，挡路的目标按破口价 0.40 打（v4.20 第 2 批）。 */
         const bt = aiBreakthroughTarget(u, style, state.fields);
-        if (pv.ratio >= aiFireGate(u, best, pv, style, false, massed, best === bt)) {
+        if (pv.ratio >= aiFireGate(u, best, pv, style, false, massed, best === bt, hunt)) {
           doAttack(u, best, pushOpts);
           await sleep(240);
           continue;
@@ -9059,7 +9320,7 @@ async function runAI() {
         const p = key.split(',').map(Number);
         /* 落点打分收进 aiMoveScore：三种脾气的系数差异全在 AI_STYLES 里，
            runAI 这边只负责"遍历可达格、取最高分"。 */
-        const s = aiMoveScore(u, p, goal, style);
+        const s = aiMoveScore(u, p, goal, style, hunt);
         if (s > bs) { bs = s; best = p; }
       }
       if (best) {
@@ -9071,14 +9332,14 @@ async function runAI() {
         if (u.rng > 0 && !u.fired) {
           const tg = targetsFor(u, state.fields, pushOpts);
           if (tg.length) {
-            tg.sort((a, b) => scoreTarget(u, b, state.fields, style) - scoreTarget(u, a, state.fields, style));
+            tg.sort((a, b) => scoreTarget(u, b, state.fields, style, hunt) - scoreTarget(u, a, state.fields, style, hunt));
             let bestT = tg[0];
             const guard2 = style.guard ? aiGuardSituation(u) : null;
             if (guard2 && hexDist(u.pos, guard2.mate.pos) <= 1 && tg.indexOf(guard2.foe) >= 0) bestT = guard2.foe;
             const pv = previewAttack(u, bestT, state.fields);
             const massed = aiMassedAttack(u, bestT);
             /* 走完再打比原地打难一档（+0.05）：阵型没展开。 */
-            if (pv.ratio >= aiFireGate(u, bestT, pv, style, true, massed, bestT === bt)) {
+            if (pv.ratio >= aiFireGate(u, bestT, pv, style, true, massed, bestT === bt, hunt)) {
               doAttack(u, bestT, pushOpts);
               await sleep(220);
             }
@@ -10058,7 +10319,8 @@ function renderUnitBox() {
     : '再点一次该兵牌 / Esc / 右键 = 取消选中') + '</div>';
 
   const hbNow = homeBonus(u);
-  const fullStr = (LEVEL.units.find(x => x.id === u.id) || {}).str || u.str;
+  const defOf = LEVEL.units.find(x => x.id === u.id);
+  const fullStr = defOf ? defStr(defOf) : u.str;
   /* 类别放在战力之前：玩家点开一支兵，第一个要判断的是"这是步兵还是装甲"，
      因为它决定"能不能派它上"。番号和战力排在后面。 */
   h += '<div class="kv"><span>类别</span><b>' + unitInfo(u.type).cat + '</b></div>';
@@ -10116,6 +10378,17 @@ function renderUnitBox() {
        (sup.label === '充足' ? 'ok' : sup.label === '紧张' ? 'warn' : 'bad') + '">' +
        sup.label + ' ×' + sup.mod.toFixed(2) + (sup.dist !== null ? '（' + sup.dist + ' 格）' : '') + '</b></div>';
   if (u.fortify) h += '<div class="kv"><span>自筑工事</span><b class="ok">+' + Math.round(u.fortify * 100) + '%</b></div>';
+  /* 反坦克炮 / 歼击车的设伏状态：逐项告诉玩家差哪一条，
+     否则只知道"没就绪"，不知道是没掩体还是被步兵看见了。 */
+  const amb = atAmbushState(u);
+  if (amb) {
+    const miss = [];
+    if (!amb.still) miss.push(u.exposed ? '位置已暴露，需转移阵地' : '本回合已移动');
+    if (!amb.cover) miss.push('没有掩体');
+    if (amb.spotted) miss.push('被相邻敌军步兵 / 侦察发现');
+    h += '<div class="kv"><span>设伏</span><b class="' + (amb.ready ? 'ok' : 'warn') + '">' +
+         (amb.ready ? '就绪 · 打装甲时对方无法反击' : '未就绪（' + miss.join('、') + '）') + '</b></div>';
+  }
   const fself = fortSelf(u);
   if (fself) h += '<div class="kv"><span>工事</span><b class="ok">' + FORT[fself.kind].name +
                    ' ' + FORT[fself.kind].code + ' +' + Math.round(fself.def * 100) + '%' +
@@ -10190,7 +10463,9 @@ function renderUnitBox() {
         h += '<div class="tgt ' + (pv.tier <= 3 ? '' : 'bad') + '">' + esc(tg.abbr) + ' ' + esc(tg.name) +
              '<br><span style="color:var(--ink3)">' + tg.str + ' 战力 · ' + tt.name +
              ' · 距离 ' + hexDist(u.pos, tg.pos) + '</span>' + fortTag + '<br><b>' + TIER_LABEL[pv.tier] +
-             '</b>' + (pv.counter ? (pv.counterSoft ? ' · <span class="warn">对方反击减半</span>' : '') : ' · <span class="ok">对方无法反击</span>') + '</div>';
+             '</b>' + (pv.ambush ? ' · <span class="ok">设伏：对方无法反击</span>'
+                        : pv.counter ? (pv.counterSoft ? ' · <span class="warn">对方反击减半</span>' : '')
+                        : ' · <span class="ok">对方无法反击</span>') + '</div>';
       }
       h += '</div>';
     } else if (u.fired) {
@@ -11846,6 +12121,11 @@ window.__WAR__ = {
   TOWED_TYPES, AT_LIKE, isTowed, minRange, inRangeTargets, doPack, doUnpack,
   /* 坦克三型 */
   ARMOR_TYPES, isArmor, AT_VS_ARMOR, ARM_VS, ARMOR_PROFILE, canPushBack,
+  /* v4.21 反坦克连：编制基准 defStr（定义战力 +1）与设伏三条件。
+     断言要能分别问"这支炮为什么不能设伏"（动过 / 没掩体 / 被发现），
+     只看最终 atAmbush 的真假分不出是哪一条坏了。 */
+  defStr, typeStrBonus, SELF_FORTIFY_TYPES, canSelfFortify, selfFortifyTick,
+  atCover, atSpotted, atAmbushState, atAmbush,
   /* v4.16 的两条装甲动词：履带压制（额外掉组织度）与突破跟进（推进缺口）。
      两条都单独导出——它们的效果全在"组织度差"和"位置差"上，
      只靠整局打完看结果，验不出"该扣 6 分的时候扣了 0 分"。 */
@@ -11879,6 +12159,12 @@ window.__WAR__ = {
   objectivePush, aiTargetOpts, aiStuck, aiBreakthroughTarget,
   nearestObjectiveDist, holdThreatBonus,
   aiHoldGarrison, aiObjectiveThreatened, aiObjectiveHeld, aiHoldGoal,
+  /* v4.21 追击：点数账（含未登场波次与绿方友军）、士气闸、目标价值、
+     追击目标与放开无效接触的入口。每一项单独导出，断言才能问
+     "是哪一条不满足"，而不是只看到"AI 没追"。 */
+  HUNT_RATIO, HUNT_MIN_ORG, HUNT_PULL,
+  alliedUnits, sideFieldPoints, pendingWavePoints, aiSidePoints, aiAvgOrg,
+  aiHuntMode, aiHuntTick, huntValue, aiHuntTarget, huntContact,
   /* 存档文件 */
   buildSaveFile, applySaveFile, importSaveText, exportSave, SAVE_FILE_APP,
   validateSave, cleanProgress, readSave, clearSave,

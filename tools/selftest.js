@@ -4532,6 +4532,340 @@ console.log('\n[54] 端到端：夺取型 runAI 把攻坚令带进开火流程�
   ok('端到端：这一枪记入了战场首血', api.getState().firstBlood === 1,
      String(api.getState().firstBlood));
 
+  /* ═════════════════ v4.21 ═════════════════ */
+  console.log('\n[55] 追击模式：全关卡点数 / 士气闸 / 高价值目标（v4.21）');
+  {
+    ok('HUNT_RATIO = 2', api.HUNT_RATIO === 2, String(api.HUNT_RATIO));
+    ok('HUNT_MIN_ORG = 60', api.HUNT_MIN_ORG === 60, String(api.HUNT_MIN_ORG));
+    ok('HUNT_PULL = 1.2', Math.abs(api.HUNT_PULL - 1.2) < 1e-9, String(api.HUNT_PULL));
+    ok('夺取型 / 进攻型开启追击，防守型不参与',
+       api.AI_STYLES.seize.hunt === true &&
+       api.AI_STYLES.assault.hunt === true &&
+       !api.AI_STYLES.hold.hunt);
+
+    /* 点数账：未登场波次必须算进本方，否则"先头部队打崩、援军在路上"
+       这段窗口永远触发不了追击。C2B 有明确的两波增援。 */
+    api.newGame({ level: 'C2B', noSave: true });
+    let st = api.getState();
+    const pend = api.pendingWavePoints('red');
+    ok('未登场波次计入本方全关卡点数', pend > 0, String(pend));
+    ok('全关卡点数 = 场上 + 未登场',
+       Math.abs(api.aiSidePoints('red') - (api.sideFieldPoints('red') + pend)) < 1e-9,
+       api.aiSidePoints('red') + ' / ' + (api.sideFieldPoints('red') + pend));
+    ok('防守型（C2B）即使兵力占优也不进入追击', api.aiHuntMode() === false);
+    for (const def of api.LEVEL.units) {
+      if ((def.wave || 1) > 1) st.flags['wave' + def.wave] = true;
+    }
+    ok('波次入场后不再重复计入', api.pendingWavePoints('red') === 0);
+
+    const blank = level => {
+      api.newGame({ level, noSave: true });
+      const s = api.getState();
+      s.units.length = 0;
+      s.forts = []; s.mods = []; s.flanges = {}; s.ctrl = {};
+      for (const def of api.LEVEL.units) {
+        if ((def.wave || 1) > 1) s.flags['wave' + def.wave] = true;
+      }
+      s.log.length = 0;
+      return s;
+    };
+    const openPlainPair = () => {
+      for (let r = 0; r < api.LEVEL.rows; r++) {
+        for (let c = 0; c < api.LEVEL.cols; c++) {
+          if (api.LEVEL.map[r][c] !== '.') continue;
+          for (const q of api.neighbors(r, c)) {
+            if (api.LEVEL.map[q[0]][q[1]] === '.') return [[r, c], q];
+          }
+        }
+      }
+      return null;
+    };
+
+    st = blank('C1');
+    let seq = 0;
+    const spawn = (side, type, r, c, str) => {
+      const T = api.TYPE[type];
+      const u = api.makeUnit({ id: (side === 'blue' ? 'B' : 'R') + (++seq), side, type,
+        abbr: 'T' + seq, name: '测试' + T.name, r, c, corps: 'T', str,
+        mov: T.mv || 8, rng: T.rg === undefined ? 1 : T.rg }, false);
+      st.units.push(u);
+      return u;
+    };
+    const red = spawn('red', 'inf', 6, 5, 100);
+    const blue = spawn('blue', 'inf', 6, 7, 40);
+    ok('100 点 vs 40 点 → 超过 2 倍，进入追击', api.aiHuntMode() === true);
+    red.str = 80;
+    ok('恰好 2 倍（80 vs 40）不追击：判据是严格大于', api.aiHuntMode() === false);
+    red.str = 81;
+    ok('超过 2 倍即追击', api.aiHuntMode() === true);
+
+    /* 绿方（友军）预留接口：目前 state.allies 恒空，但点数口径必须先接好，
+       否则实装友军那天，AI 会把"蓝方+绿方"的兵力当成没看见。 */
+    st.allies = [{ id: 'G1', side: 'green', type: 'inf', abbr: '绿',
+      name: '友军测试营', str: 50, org: 100, pos: [5, 5] }];
+    ok('绿方友军计入蓝方场上点数', api.sideFieldPoints('blue') === 90,
+       String(api.sideFieldPoints('blue')));
+    ok('alliedUnits 只认蓝方一侧的友军',
+       api.alliedUnits('blue').length === 1 && api.alliedUnits('red').length === 0);
+    ok('友军点数能把 2 倍判定顶掉（81 vs 180）', api.aiHuntMode() === false);
+    st.allies = [];
+
+    red.str = 100; red.org = 59;
+    ok('士气跌破 HUNT_MIN_ORG 收兵', api.aiHuntMode() === false);
+    red.org = 60;
+    ok('士气刚好 60 仍追击（>=）', api.aiHuntMode() === true);
+    red.org = 100;
+    ok('aiHuntTick 进入追击并记录状态', api.aiHuntTick() === true && st.huntOn === true);
+    /* 播报要等接敌（v4.21 P3-4）：兵力比是**编制账**，开局就成立（C1 是 2.06），
+       可那时候两军还隔着半个地图，第 1 回合就弹「敌军追击」读着像敌人开挂。
+       状态照常切换、AI 行为一点不变，只把这句话压到真正接敌那一回合补播。
+       这两条必须成对：只看"接敌后播了"挡不住"没接敌也播"，
+       只看"没接敌没播"挡不住"永远不播"。 */
+    ok('未接敌时只记账不播报',
+       !st.huntSaid && !st.log.some(l => l.text.indexOf('转入追击') >= 0),
+       'said=' + st.huntSaid);
+    blue.pos = api.neighbors(red.pos[0], red.pos[1])[0];
+    ok('推到相邻一格后补播追击战报',
+       api.aiHuntTick() === true && st.huntSaid === true &&
+       st.log.some(l => l.text.indexOf('转入追击') >= 0));
+    const nLog = st.log.length;
+    ok('同一状态不重复播报', api.aiHuntTick() === true && st.log.length === nLog);
+    red.org = 40;
+    ok('士气掉线后 aiHuntTick 恢复原模式',
+       api.aiHuntTick() === false && st.huntOn === false && st.huntSaid === false);
+    ok('收兵有战报', st.log.some(l => l.text.indexOf('停止追击') >= 0));
+    red.org = 100;
+
+    const mk = (type, str) => ({ pos: [0, 0], side: 'blue', type, str, org: 100 });
+    ok('炮兵的价值高于同点数步兵', api.huntValue(mk('art', 5)) > api.huntValue(mk('inf', 5)));
+    ok('指挥部的价值高于同点数步兵', api.huntValue(mk('hqd', 2)) > api.huntValue(mk('inf', 2)));
+    ok('重坦的价值高于同点数步兵', api.huntValue(mk('harm', 12)) > api.huntValue(mk('inf', 12)));
+    ok('崩溃目标额外加分（补刀优先）',
+       api.huntValue({ ...mk('inf', 8), org: 20 }) > api.huntValue(mk('inf', 8)));
+
+    /* 贴脸的这支压到 5 点：价值分的编制项要同量级才比得出"高价值优先"，
+       40 点步兵光靠吨位就能压过任何 3 格外的炮兵。 */
+    blue.str = 5;
+    blue.pos = [6, 6];
+    let p3 = null;
+    for (let r = 0; r < api.LEVEL.rows && !p3; r++) {
+      for (let c = 0; c < api.LEVEL.cols && !p3; c++) {
+        if (api.hexDist(red.pos, [r, c]) === 3) p3 = [r, c];
+      }
+    }
+    const arty = spawn('blue', 'art', p3[0], p3[1], 5);
+    ok('高价值优先：3 格外的炮兵压过贴脸的步兵',
+       api.aiHuntTarget(red) === arty,
+       api.aiHuntTarget(red) ? api.aiHuntTarget(red).name : '无');
+    const hq = spawn('blue', 'hqd', 6, 4, 2);
+    ok('指挥部优先于更远的炮兵', api.aiHuntTarget(red) === hq);
+
+    ok('追击时目标轴指向高价值敌军',
+       JSON.stringify(api.aiGoalFor(red, api.AI_STYLES.seize, true)) === JSON.stringify(hq.pos),
+       JSON.stringify(api.aiGoalFor(red, api.AI_STYLES.seize, true)));
+    const goal0 = api.aiGoalFor(red, api.AI_STYLES.seize, false);
+    const goalOnObj = !!goal0 && api.LEVEL.objectives.some(o =>
+      o.cells.some(c => c[0] === goal0[0] && c[1] === goal0[1]));
+    ok('不追击时目标轴仍是要点', goalOnObj, JSON.stringify(goal0));
+
+    const foeDist = p => Math.min.apply(null, st.units.filter(u => u.side === 'blue')
+      .map(u => api.hexDist(p, u.pos)));
+    let nearP = null, farP = null, farMind = -1;
+    for (let r = 0; r < api.LEVEL.rows; r++) {
+      for (let c = 0; c < api.LEVEL.cols; c++) {
+        if (api.TERRAIN[api.LEVEL.map[r][c]].cost >= 99) continue;
+        const mind = foeDist([r, c]);
+        if (mind === 1 && !nearP) nearP = [r, c];
+        if (mind > farMind) { farMind = mind; farP = [r, c]; }
+      }
+    }
+    ok('前提：找到贴近敌军与远离敌军的两个落点',
+       !!nearP && !!farP && farMind >= 4, JSON.stringify({ nearP, farP, farMind }));
+    if (nearP && farP) {
+      const dNear = api.aiMoveScore(red, nearP, hq.pos, api.AI_STYLES.seize, true) -
+                    api.aiMoveScore(red, nearP, hq.pos, api.AI_STYLES.seize, false);
+      const dFar = api.aiMoveScore(red, farP, hq.pos, api.AI_STYLES.seize, true) -
+                   api.aiMoveScore(red, farP, hq.pos, api.AI_STYLES.seize, false);
+      ok('追击给贴近敌军的落点加分（远离敌军扣得更多）',
+         Math.abs(dNear + api.HUNT_PULL) < 1e-9 &&
+         Math.abs(dFar + Math.min(farMind, 8) * api.HUNT_PULL) < 1e-9 &&
+         dNear > dFar,
+         dNear.toFixed(2) + ' / ' + dFar.toFixed(2));
+    } else {
+      ok('追击给贴近敌军的落点加分（远离敌军扣得更多）', false, '没有取样格');
+    }
+
+    const pvB = api.previewAttack(red, blue, st.fields);
+    ok('追击把开火门槛压到 0',
+       api.aiFireGate(red, blue, pvB, api.AI_STYLES.seize, true, false, false, true) === 0);
+    ok('不追击时同一枪仍受常规门槛约束',
+       api.aiFireGate(red, blue, pvB, api.AI_STYLES.seize, true, false, false, false) > 0,
+       String(api.aiFireGate(red, blue, pvB, api.AI_STYLES.seize, true, false, false, false)));
+
+    /* 无效接触闸：目标列表与 doAttack 兜底闸必须**同时**放开。
+       只放列表会变成"看得见、点不动"；只放兜底闸则 AI 永远列不出目标。 */
+    const pair = openPlainPair();
+    ok('前提：找到一对相邻的空旷平原格', !!pair, JSON.stringify(pair));
+    if (pair) {
+      const st2 = blank('C1');
+      let seq2 = 0;
+      const spawn2 = (side, type, r, c, str) => {
+        const T = api.TYPE[type];
+        const u = api.makeUnit({ id: (side === 'blue' ? 'B' : 'R') + (++seq2), side, type,
+          abbr: 'U' + seq2, name: '测试' + T.name, r, c, corps: 'U', str,
+          mov: T.mv || 8, rng: T.rg === undefined ? 1 : T.rg }, false);
+        st2.units.push(u);
+        return u;
+      };
+      const weak = spawn2('red', 'inf', pair[0][0], pair[0][1], 10);
+      const strong = spawn2('blue', 'gdn', pair[1][0], pair[1][1], 80);
+      const pv = api.previewAttack(weak, strong, st2.fields);
+      ok('前提：比值低于无效接触线且守方能还手',
+         pv.ratio < api.INVALID_RATIO && pv.counter === true, pv.ratio.toFixed(3));
+      ok('常规目标列表里没有它', !api.targetsFor(weak, st2.fields).includes(strong));
+      ok('追击目标列表放行', api.targetsFor(weak, st2.fields, { hunt: true }).includes(strong));
+      ok('不带追击令时 doAttack 兜底闸拒绝', api.doAttack(weak, strong) === false);
+      api.setRng(() => 0.9);
+      const before = strong.str;
+      ok('带追击令时 doAttack 放行', api.doAttack(weak, strong, { hunt: true }) !== false);
+      ok('追击伤害真的落地', strong.str < before, before + '→' + strong.str);
+      ok('带追击令的攻击仍然允许对方反击',
+         api.getState().log.some(l => l.text.indexOf('攻击') >= 0));
+    }
+  }
+
+  console.log('\n[56] 反坦克连：4 点编制 / 设伏 / 防御 0.30（v4.21）');
+  {
+    ok('defStr：反坦克连定义 3 点按 4 点计', api.defStr({ type: 'at', str: 3 }) === 4);
+    ok('defStr：其他兵种不额外加', api.defStr({ type: 'inf', str: 8 }) === 8);
+    ok('typeStrBonus 只认 at',
+       api.typeStrBonus('at') === 1 && api.typeStrBonus('td') === 0);
+
+    api.newGame({ level: 'C1', noSave: true });
+    let st = api.getState();
+    const defAt = api.LEVEL.units.find(u => u.side === 'blue' && u.type === 'at');
+    const liveAt = st.units.find(u => u.id === defAt.id);
+    ok('开局反坦克连按 4 点进场', !!liveAt && liveAt.str === 4,
+       liveAt ? String(liveAt.str) : '无');
+    const expInit = api.LEVEL.units.filter(u => u.side === 'blue' && u.wave === 1)
+      .reduce((s, u) => s + api.defStr(u), 0);
+    ok('blueInitialStr 与 defStr 同一份基准', api.blueInitialStr() === expInit,
+       api.blueInitialStr() + ' / ' + expInit);
+    const byCorps = {};
+    for (const u of api.LEVEL.units.filter(x => x.side === 'blue' && x.wave === 1)) {
+      byCorps[u.corps] = (byCorps[u.corps] || 0) + api.defStr(u);
+    }
+    ok('initStr 各编制合计也按 defStr 记',
+       Object.keys(byCorps).every(k => st.initStr[k] === byCorps[k]));
+
+    const openPlainPair = () => {
+      for (let r = 0; r < api.LEVEL.rows; r++) {
+        for (let c = 0; c < api.LEVEL.cols; c++) {
+          if (api.LEVEL.map[r][c] !== '.') continue;
+          for (const q of api.neighbors(r, c)) {
+            if (api.LEVEL.map[q[0]][q[1]] === '.') return [[r, c], q];
+          }
+        }
+      }
+      return null;
+    };
+    const pair = openPlainPair();
+    ok('前提：找到一对相邻的平原格', !!pair, JSON.stringify(pair));
+    if (pair) {
+      st.units.length = 0;
+      st.forts = []; st.mods = []; st.flanges = {}; st.ctrl = {};
+      let seq = 0;
+      const spawn = (side, type, r, c, str) => {
+        const T = api.TYPE[type];
+        const u = api.makeUnit({ id: (side === 'blue' ? 'B' : 'R') + (++seq), side, type,
+          abbr: 'V' + seq, name: '测试' + T.name, r, c, corps: 'V', str,
+          mov: T.mv || 8, rng: T.rg === undefined ? 1 : T.rg }, false);
+        st.units.push(u);
+        return u;
+      };
+      const atU = spawn('blue', 'at', pair[0][0], pair[0][1], 3);
+      const arm = spawn('red', 'marm', pair[1][0], pair[1][1], 8);
+      ok('makeUnit 把反坦克连按 4 点布置', atU.str === 4, String(atU.str));
+
+      const pvDef = api.previewAttack(arm, atU, st.fields);
+      ok('反坦克连被装甲攻击时防御 +0.30',
+         Math.abs(pvDef.defMod - 0.30) < 1e-9, pvDef.defMod.toFixed(2));
+      ok('装步攻击反坦克连同样 +0.30',
+         Math.abs(api.previewAttack({ ...arm, type: 'mech', str: 8 }, atU, st.fields).defMod - 0.30) < 1e-9);
+      ok('步兵攻击反坦克连没有这份加成',
+         Math.abs(api.previewAttack({ ...arm, type: 'inf', str: 8 }, atU, st.fields).defMod) < 1e-9);
+      ok('坦克歼击车的防御加成仍是 +0.30',
+         Math.abs(api.previewAttack(arm, { ...atU, type: 'td' }, st.fields).defMod - 0.30) < 1e-9);
+
+      atU.fortify = 0.15;
+      const pvAmb = api.previewAttack(atU, arm, st.fields);
+      ok('设伏成立：静止 + 掩体 + 未被发现 + 目标装甲',
+         pvAmb.ambush === true && pvAmb.counter === false);
+      ok('atAmbushState 三项都满足',
+         JSON.stringify(api.atAmbushState(atU)) === '{"still":true,"cover":true,"spotted":false,"ready":true}',
+         JSON.stringify(api.atAmbushState(atU)));
+
+      const spotCell = api.neighbors(pair[0][0], pair[0][1]).find(q =>
+        !(q[0] === pair[1][0] && q[1] === pair[1][1]) &&
+        api.LEVEL.map[q[0]][q[1]] === '.' &&
+        !st.units.some(u => u.pos[0] === q[0] && u.pos[1] === q[1]));
+      ok('前提：找到第二个相邻格放观察哨', !!spotCell, JSON.stringify(spotCell));
+      if (spotCell) {
+        const spotter = spawn('red', 'inf', spotCell[0], spotCell[1], 8);
+        ok('相邻敌军步兵发现炮位 → 设伏失效',
+           api.atAmbushState(atU).spotted === true && api.previewAttack(atU, arm, st.fields).ambush === false);
+        ok('被发现时装甲能正常反击',
+           api.previewAttack(atU, arm, st.fields).counter === true);
+        st.units = st.units.filter(u => u !== spotter);
+      }
+
+      atU.moved = true;
+      ok('本回合动过 → 不能设伏',
+         api.atAmbushState(atU).still === false && api.previewAttack(atU, arm, st.fields).ambush === false);
+      atU.moved = false; atU.exposed = true;
+      ok('已暴露 → 要先转移阵地', api.atAmbushState(atU).still === false);
+      atU.exposed = false; atU.fortify = 0;
+      ok('平原 + 没有掩体 → 不能设伏',
+         api.atCover(atU) === false && api.atAmbushState(atU).cover === false);
+
+      const gain = api.selfFortifyTick(atU);
+      ok('静止一回合自动 +15% 发射阵地',
+         Math.abs(gain - 0.15) < 1e-9 && Math.abs(atU.fortify - 0.15) < 1e-9,
+         atU.fortify.toFixed(2));
+      api.selfFortifyTick(atU);
+      const capped = api.selfFortifyTick(atU);
+      ok('自筑阵地上限 30%', Math.abs(atU.fortify - 0.30) < 1e-9 && capped === 0,
+         atU.fortify.toFixed(2));
+      ok('有了自筑阵地，平原上也能设伏', api.atAmbushState(atU).ready === true);
+
+      atU.str = 10; atU.org = 100; atU.moved = false; atU.fired = false; atU.exposed = false;
+      api.setRng(() => 0.5);
+      ok('前提：设伏状态可以开火', api.atAmbushState(atU).ready === true);
+      const fired = api.doAttack(atU, arm);
+      ok('反坦克连开火后位置暴露', fired !== false && atU.exposed === true);
+      atU.moved = false;
+      api.doMove(atU, atU.pos.slice());
+      ok('原地“移动”不算转移阵地，暴露状态保留', atU.exposed === true);
+      const moveCell = api.neighbors(pair[0][0], pair[0][1]).find(q =>
+        !(q[0] === pair[1][0] && q[1] === pair[1][1]) &&
+        api.LEVEL.map[q[0]][q[1]] === '.' &&
+        !st.units.some(u => u.pos[0] === q[0] && u.pos[1] === q[1]));
+      ok('前提：找到一个空的转移格', !!moveCell, JSON.stringify(moveCell));
+      if (moveCell) {
+        api.doMove(atU, moveCell);
+        ok('真正转移到新格才重新隐蔽', atU.exposed === false);
+      }
+
+      /* 机制写在函数里、回合末不执行，等于没有——玩家永远攒不到掩体。 */
+      st.units = [atU];
+      st.mines = [];
+      atU.fortify = 0; atU.moved = false; atU.fired = false; atU.exposed = false;
+      api.settlePhase();
+      ok('回合结算会自动调用自筑阵地 tick',
+         Math.abs(atU.fortify - 0.15) < 1e-9, atU.fortify.toFixed(2));
+    }
+  }
+
   console.log('\n通过 ' + pass + ' 项，失败 ' + fail + ' 项');
   process.exit(fail ? 1 : 0);
 })().catch(e => {
