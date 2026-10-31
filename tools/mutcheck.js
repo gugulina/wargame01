@@ -1033,8 +1033,11 @@ const MUTANTS = [
    '追击时目标轴指向高价值敌军'],
 
   /* 走位不压：目标轴对了，路过的人还是视而不见 */
+  /* v4.24：这一项多了个"没被战术指派"的前置条件（堵口的人不许被拽走），
+     锚点跟着改。只改前半句会**找不到**——失效的锚点报的是 "?" 不是 "✗"，
+     跑全量时很容易被当成"零假防线"放过去（MEMORY 里记着这条）。 */
   ['追击走位不往敌军压（沿途遭遇变成路过）',
-   '  if (hunt) {\n    let mind = Infinity;\n    for (const f of alive(other(u.side))) mind = Math.min(mind, hexDist(p, f.pos));\n    if (mind < Infinity) s -= Math.min(mind, 8) * HUNT_PULL;\n  }',
+   '  if (hunt && !aiTacticAssign(u)) {\n    let mind = Infinity;\n    for (const f of alive(other(u.side))) mind = Math.min(mind, hexDist(p, f.pos));\n    if (mind < Infinity) s -= Math.min(mind, 8) * HUNT_PULL;\n  }',
    '  if (false) {\n    let mind = Infinity;\n    for (const f of alive(other(u.side))) mind = Math.min(mind, hexDist(p, f.pos));\n    if (mind < Infinity) s -= Math.min(mind, 8) * HUNT_PULL;\n  }',
    '追击给贴近敌军的落点加分'],
 
@@ -1272,6 +1275,64 @@ const MUTANTS = [
    '    stopLoss: 1.05, pickSoft: 0, schwerpunkt: false',
    '    stopLoss: 1.05, pickSoft: 0, schwerpunkt: false, contact: 0.20',
    '防守型不参与'],
+
+  /* ── v4.24 战术调度器（docs/23）──
+     每一条盯**一个**约束。认输那两条不要合成一条：一个是"该撤没撤"，
+     一个是"撤了又立刻回来"，坏的地方不同，修法也不同。 */
+  /* 门控整段一起改。只删 `win !== 'reach'` 那一行**不会红**：
+     escapeCells() 在非撤离关本来就返回空，`chokes.length` 那条闸会顶上来。
+     两个守卫互为冗余，单改一个在棋盘上什么也没变——这正是"变异要连早退
+     守卫一起改"那条规矩（MEMORY 里写着，这里又踩了一次）。 */
+  ['断退路的门控整段失效（任何关、任何局面都去堵口）',
+   "  if (!ctx || ctx.win !== 'reach') return false;\n" +
+   "  if (!ctx.chokes || !ctx.chokes.length) return false;\n" +
+   '  if ((ctx.escaped || 0) < CHOKE_AFTER_ESCAPE) return false;\n' +
+   '  return chokeCandidates().length >= CHOKE_GUARDS;',
+   '  return chokeCandidates().length >= CHOKE_GUARDS;',
+   '不是撤离关就绝不开断退路'],
+
+  ['断退路不等玩家过江（开局就提前堵口，C2 直接 15% → 0%）',
+   '  if ((ctx.escaped || 0) < CHOKE_AFTER_ESCAPE) return false;',
+   '  if (false) return false;',
+   '一个人都还没突出去时不开断退路'],
+
+  ['aiGoalFor 不认战术指派（调度器算完没人听）',
+   '  const tac = aiTacticAssign(u);\n  if (tac) return tac;',
+   '  const tac = null;\n  if (tac) return tac;',
+   '目标真的换到了口子'],
+
+  /* 直接拿撤离格当目标——第一版很容易写成这样（"口子就是撤离区那几格"）。
+     它不是笔误：红方站进撤离区什么也不会发生，那两个人等于白跑。
+     这条变异替的是整个"选外沿"逻辑，包括 inZone 那道过滤。 */
+  ['口子不选外沿，直接拿撤离格当目标（AI 走进去什么也不发生）',
+   '    const mouth = chokeMouth(cl);',
+   '    const mouth = cl[0];',
+   '口子在撤离区**外面**'],
+
+  ['堵口只派一个人（docs/23 的风险栏：一个人上去等于送人头）',
+   '    const pick = near.slice(0, CHOKE_GUARDS);',
+   '    const pick = near.slice(0, 1);',
+   '一个口子放两个人'],
+
+  ['跑不动的部队也派去堵口（步兵营还没走到，仗已经打完了）',
+   '    (u.mov || 0) >= TACTIC_CHOKE_MIN_MOV && (u.org || 0) >= TACTIC_CHOKE_MIN_ORG);',
+   '    true);',
+   '只派跑得动的部队'],
+
+  ['追击的引力把堵口的部队拽走（路过一支残部就跟着跑了）',
+   '  if (hunt && !aiTacticAssign(u)) {',
+   '  if (hunt) {',
+   '追击的引力拽不走堵口的部队'],
+
+  ['认输不计数（卡住的战术永远不撤，屏幕上一直挂着"敌军断退路"）',
+   '    if (cur.fail >= AI_TACTICS[cur.id].maxFail) {',
+   '    if (false) {',
+   '连着三个回合没堵住就撤'],
+
+  ['认输不进冷却（下一回合立刻重挑同一个，"放弃"只是句战报）',
+   '  return ctx.turn - ban[id] < TACTIC_GIVEUP_CD;',
+   '  return false;',
+   '冷却期内不许回来'],
 
 ];
 

@@ -5262,6 +5262,91 @@ console.log('\n[58] 接触交火：步兵贴到一格就必须开火（v4.23）'
      fire.length > 0, String(fire.length));
 }
 
+console.log('\n[59] 战术调度器与 T3 断退路（v4.24）');
+{
+  /* 设计稿 docs/23 §四：脾气管"多凶"，机制管"这一枪值不值"，中间那层
+     "这一仗怎么组织"一直是空的。这一节守四件事，缺一件就是白做：
+       ① 门控成对——该开的局面开、不该开的局面不开。只测一边等于永远为真。
+       ② 指派**真的换了目标格**。而且必须挑"基线目标 ≠ 口子"的那个兵：
+          C2 的守备营本来就站在口子上（那格同时是要点），拿它断言的话，
+          把 aiGoalFor 里的战术分支整个删掉，断言照样绿——设计稿 §六 点名的坑。
+       ③ 认输之后进冷却，不会下一回合立刻重挑（否则"放弃"只是句战报）。
+       ④ 它只改目标，不碰开火门槛（M5 那条线不许被战术压低）。 */
+  api.newGame({ level: 'C2', noSave: true });
+  const S2 = api.getState();
+  const ctx0 = api.aiTacticCtx();
+  ok('前提：C2 是撤离关，撤离区聚成一个口子',
+     ctx0.win === 'reach' && ctx0.chokes.length === 1,
+     ctx0.win + ' / ' + ctx0.chokes.length);
+  const mouth = ctx0.chokes[0].mouth;
+  ok('前提：口子在撤离区**外面**，且贴着撤离区',
+     !api.inEscapeZone(mouth) && api.neighbors(mouth[0], mouth[1]).some(n => api.inEscapeZone(n)),
+     JSON.stringify(mouth));
+
+  /* ── 一、门控 ── */
+  S2.escapedCount = 0;
+  ok('门控：一个人都还没突出去时不开断退路（断退路是反应，不是预判）',
+     api.aiTacticTick() === null);
+  S2.escapedCount = api.CHOKE_AFTER_ESCAPE;
+  const tac = api.aiTacticTick();
+  ok('门控：有人过江之后才把机动兵力派去堵口', !!tac && tac.id === 'choke', tac && tac.id);
+
+  /* ── 二、指派 ── */
+  const ids = Object.keys(tac.assign);
+  ok('指派：一个口子放两个人（一个人守不住，多了是浪费）',
+     ids.length === api.CHOKE_GUARDS, String(ids.length));
+  ok('指派：每个人都落在口子上或口子旁边一格',
+     ids.every(id => api.hexDist(tac.assign[id], mouth) <= 1),
+     JSON.stringify(tac.assign));
+  ok('指派：只派跑得动的部队（机动 ≥ 8），步兵营不参与',
+     api.chokeCandidates().every(u => u.mov >= api.TACTIC_CHOKE_MIN_MOV) &&
+     api.chokeCandidates().length >= 2);
+  const moved = ids.map(id => S2.units.find(u => u.id === id)).find(u => {
+    const saved = S2.tactic; S2.tactic = null;
+    const base = api.aiGoalFor(u);
+    S2.tactic = saved;
+    return JSON.stringify(base) !== JSON.stringify(tac.assign[u.id]);
+  });
+  ok('前提：至少有一个被指派单位的基线目标不是口子（否则下面那条测不出东西）', !!moved);
+  ok('指派：被派去堵口的部队，目标真的换到了口子',
+     !!moved && JSON.stringify(api.aiGoalFor(moved)) === JSON.stringify(tac.assign[moved.id]),
+     moved ? JSON.stringify(api.aiGoalFor(moved)) : '无');
+  const bystander = S2.units.find(u => u.side === 'red' && !tac.assign[u.id] &&
+    u.str > 0 && !api.isHQ(u) && !api.isArty(u));
+  const savedT = S2.tactic; S2.tactic = null;
+  const baseOfB = api.aiGoalFor(bystander);
+  S2.tactic = savedT;
+  ok('指派：没被派到的部队照旧走要点（一次只有一个主轴，不是全军改道）',
+     !!bystander && JSON.stringify(api.aiGoalFor(bystander)) === JSON.stringify(baseOfB));
+
+  /* 追击的引力是"路过谁都贴上去"，堵口的人被它拽走等于没去堵口。 */
+  const A5 = api.AI_STYLES.assault;
+  const g5 = api.aiGoalFor(moved);
+  ok('指派：追击的引力拽不走堵口的部队',
+     api.aiMoveScore(moved, moved.pos, g5, A5, true) ===
+     api.aiMoveScore(moved, moved.pos, g5, A5, false));
+
+  /* ── 三、认输与冷却 ── */
+  for (let i = 0; i < 3; i++) { S2.escapedCount++; api.aiTacticTick(); }
+  ok('认输：连着三个回合没堵住就撤（不会一直挂在战报上）', S2.tactic === null);
+  ok('认输：冷却写进去了', !!(S2.tacBan && typeof S2.tacBan.choke === 'number'));
+  S2.turn += 1;
+  ok('认输：下一回合立刻重挑同一个不算"放弃"（冷却期内不许回来）',
+     api.aiTacticTick() === null);
+  S2.turn += api.TACTIC_GIVEUP_CD;
+  ok('冷却过了会重新收口（不是永久放弃）',
+     (api.aiTacticTick() || {}).id === 'choke');
+
+  /* ── 四、边界：非撤离关一枪不放 ── */
+  api.newGame({ level: 'C1', noSave: true });
+  const S1 = api.getState();
+  S1.escapedCount = 3;
+  ok('门控：不是撤离关就绝不开断退路（C1 的围城感不许被它带走）',
+     api.chokeReady(api.aiTacticCtx()) === false && api.aiTacticTick() === null);
+  ok('规矩：战术表里没有开火钩子（它只能改目标，碰不到 M5 那条线）',
+     api.AI_TACTICS.choke.fire === undefined);
+}
+
 console.log('\n通过 ' + pass + ' 项，失败 ' + fail + ' 项');
   process.exit(fail ? 1 : 0);
 })().catch(e => {

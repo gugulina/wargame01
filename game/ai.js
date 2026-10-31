@@ -14,12 +14,12 @@
    在导出那一刻报 ReferenceError。反过来 AI 引用引擎的 state / LEVEL / TYPE /
    rng / sleep / FX 全在函数体内，调用时才解析，所以先加载没关系。
 
-   依赖引擎的 41 个函数（都在调用期才解析，按类别）：
-     查询类  hexDist neighbors alive other isAir isArmor isArty isHQ isTowed
+   依赖引擎的 47 个函数（都在调用期才解析，按类别）：
+     查询类  hexDist neighbors inBounds alive other isAir isArmor isArty isHQ isTowed
              isDirectArty isBroken isGround attackRange minRange inRangeTargets
              targetsFor canTarget canFire canCapture terrainAt fortAt ctrlState
              objectiveControl objectivePush levelTypeText defStr hqRadius aaPenalty
-             coordName disengaged
+             coordName disengaged winSpec escapeCells inEscapeZone
      计算类  computeReach previewAttack
      执行类  doMove doAttack doPack doUnpack doBridge fortSelf fortWorking
              updateControl log
@@ -483,6 +483,301 @@ function huntContact(att, def, opts) {
   return !!(opts && opts.hunt && att && def && !isBroken(att));
 }
 
+/* ───────────────── 战术调度器（v4.24，docs/23 §四）─────────────────
+
+   脾气说"这支部队多凶"，机制说"这一枪值不值"，中间还缺一层：
+   **这一仗怎么组织**。少了它，十关的敌人就是同一支军队换三档强度——
+   玩家学会"敌人会往要点上压"之后，后面每一关都没有新东西可学。
+
+   战术是**活几回合**的状态（`state.tactic`），不是逐关手写：
+     · 一次只有一个主轴；`partial: true` 的战术只改几支部队，不接管全军
+     · 门控 `when(ctx)` 是布尔的：不满足直接排除，不打分、不掷骰子
+     · 保护期 `minTurns` + 滞回 `TACTIC_SWITCH_MARGIN`：新战术要明显更好
+       才换，否则两个都满足条件时会每回合来回横跳（M2 的重心就是这么学来的）
+     · 连续 `maxFail` 回合没进展就认输，并**进冷却**——认输之后下一回合
+       立刻重挑同一个，等于"放弃"只是一句战报
+
+   三条硬规矩（docs/23 §4.3），在代码里就是三处约束：
+     1. 战术只能**抬高**开火门槛，不能压低（想更敢打只能改编制）。
+        所以战术表里干脆没有 fire 钩子——将来要加，也只许返回 Math.max。
+     2. 核心要点不许被任何战术绕过：`when` 里必须自带这条门（见 choke）。
+     3. 一回合只有一个主轴。 */
+const TACTIC_GIVEUP_CD = 8;      // 认输之后多少回合内不许重挑
+const TACTIC_SWITCH_MARGIN = 15; // 滞回：新战术要比现在高这么多分才换
+
+/* T3 断退路（三所里，1950）：玩家在撤离关，红方不去追，而是抢到出口外面
+   把口子堵上。**只在 reach 关开**——那一关的胜负不在要点上，
+   "堵住出口"就是那一关的"守住阵地"，所以它不违反上面第 2 条：
+   核心要点在这个局面里本来就不换分（`winSpec().kind === 'reach'` 时
+   胜负只看撤出几支）。 */
+const TACTIC_CHOKE_MIN_MOV = 8;  // 只有真正跑得动的部队才去堵口
+const TACTIC_CHOKE_MIN_ORG = 60; // 组织度掉下来的部队走不到，走到了也守不住
+const CHOKE_GUARDS = 2;          // 一个口子放两个人：一个人守不住（docs/23 风险栏）
+
+const AI_TACTICS = {
+  choke: {
+    id: 'choke', name: '断退路', family: 'A', prio: 60,
+    minTurns: 3, maxFail: 3, partial: true,
+    when: ctx => chokeReady(ctx),
+    plan: ctx => chokeAssign(ctx),
+    tell: '敌军不追了：两股纵队直插撤离区侧后，想先把口子堵上。',
+    banner: '敌 军 断 退 路'
+  }
+};
+
+/* 撤离区按连通性聚成"口子"，每个口子给一个外沿落脚点。
+   C2 的撤离区是一整块（8 格里 6 格能走、连成一片）→ 一个口子；
+   以后写"两处渡口"的关卡自然会聚成两个。 */
+function escapeChokes() {
+  const cells = escapeCells();
+  if (!cells.length) return [];
+  const key = p => p[0] + ',' + p[1];
+  const seen = new Set();
+  const out = [];
+  for (const start of cells) {
+    if (seen.has(key(start))) continue;
+    seen.add(key(start));
+    const q = [start], cl = [];
+    while (q.length) {
+      const p = q.pop();
+      cl.push(p);
+      for (const n of neighbors(p[0], p[1])) {
+        const k = key(n);
+        if (seen.has(k)) continue;
+        /* 只沿撤离区自己走：出了区的格子是"外面"，不能把两个口子连起来。 */
+        if (!cells.some(c => c[0] === n[0] && c[1] === n[1])) continue;
+        seen.add(k);
+        q.push(n);
+      }
+    }
+    const mouth = chokeMouth(cl);
+    if (mouth) out.push({ cells: cl, mouth });
+  }
+  return out;
+}
+
+/* 口子的"嘴"：撤离区**外面**、贴着它、能站人的那一格。
+   目标不能直接设成撤离格——玩家走进去是"离场"，红方走进去什么也不发生，
+   AI 也不该靠站进撤离区来封堵（那块格子在规则里对红方是空地）。
+   候选里取**离蓝方重心最近**的一格：堵的是整条退路，不是某一支兵。 */
+function chokeMouth(cluster) {
+  const inZone = p => cluster.some(c => c[0] === p[0] && c[1] === p[1]);
+  const cand = [];
+  for (const c of cluster) {
+    for (const n of neighbors(c[0], c[1])) {
+      if (!inBounds(n[0], n[1]) || inZone(n)) continue;
+      const t = terrainAt(n[0], n[1]);
+      if (!t || t.cost >= 99) continue;
+      cand.push(n);
+    }
+  }
+  if (!cand.length) return null;
+  let br = 0, bc = 0, n = 0;
+  for (const u of alive('blue')) {
+    if (!u.pos || !(u.str > 0)) continue;
+    br += u.pos[0]; bc += u.pos[1]; n++;
+  }
+  if (!n) return cand[0];
+  br /= n; bc /= n;
+  let best = cand[0], bd = Infinity;
+  for (const p of cand) {
+    /* 用行列绝对差而不是 hexDist：重心通常不在格上，hexDist 要整数。 */
+    const d = Math.abs(p[0] - br) + Math.abs(p[1] - bc);
+    if (d < bd) { bd = d; best = p; }
+  }
+  return best;
+}
+
+/* 谁去堵口：跑得动、还没散、不是炮、不是指挥所的地面部队。
+   按"到达时间"（距离 ÷ 机动）排，不是按机动值排——
+   一支机动 8 却在十格外的部队，不如四格外那支机动 6 的先到。 */
+function chokeCandidates() {
+  return alive('red').filter(u =>
+    u && u.pos && u.str > 0 && !isHQ(u) && !isArty(u) && !isAir(u) &&
+    (u.mov || 0) >= TACTIC_CHOKE_MIN_MOV && (u.org || 0) >= TACTIC_CHOKE_MIN_ORG);
+}
+
+function chokeAssign(ctx) {
+  const chokes = (ctx && ctx.chokes) || [];
+  const out = {};
+  if (!chokes.length) return out;
+  const pool = chokeCandidates();
+  if (!pool.length) return out;
+  const eta = (u, p) => hexDist(u.pos, p) / Math.max(1, u.mov || 1);
+  for (const ch of chokes) {
+    const at = ch.mouth;
+    const near = pool.filter(u => !out[u.id]).sort((a, b) => eta(a, at) - eta(b, at));
+    const pick = near.slice(0, CHOKE_GUARDS);
+    if (!pick.length) continue;
+    out[pick[0].id] = at;
+    if (pick.length < 2) continue;
+    /* 第二个人站口子旁边，别叠在同一格：既是掩护，也不会让一格挤满人。
+       邻格必须能站、且不在撤离区里（那里对红方没有意义）。 */
+    const mate = neighbors(at[0], at[1]).filter(nn => {
+      if (!inBounds(nn[0], nn[1])) return false;
+      const t = terrainAt(nn[0], nn[1]);
+      if (!t || t.cost >= 99) return false;
+      return !inEscapeZone(nn);
+    });
+    if (mate.length) out[pick[1].id] = mate[0];
+  }
+  return out;
+}
+
+/* T3 的门：撤离关 + 有口子 + 至少两个人跑得动 + **玩家已经有人过江**。
+   **至少两个人**不是排版问题：一个人堵口等于送人头（docs/23 的风险栏）。
+
+   最后那条门槛是**测出来的**，失败版本记在这里：
+     · 开局就堵：C2 达成率 18% → 0%（200 局）。出口是渡口村那一格的死胡同，
+       两个摩步营往那儿一站，12 个回合连门都摸不到。
+     · "只差一支就赢才收口"：**一次都不触发**（60 局 0.00 次/局）——
+       蓝方经常一个回合里把最后两支一起送进撤离区，红方根本没有
+       "escaped = 3" 的那一回合可看。门槛按局面数字写，赶不上局面的速度。
+   所以门槛落在"已经有人过江"：三所里也不是一开打就去堵，
+   是发现对方真的在跑，才抢到前头去。 */
+const CHOKE_AFTER_ESCAPE = 1;   // 已经有几支过江之后开始收口
+
+function chokeReady(ctx) {
+  /* 第 1、2 条互为冗余：`escapeCells()` 在非撤离关本来就返回空。
+     写出来是为了"这条规矩看得见"——将来谁改了 escapeCells 的语义，
+     这里也不会跟着在别的关里悄悄开出断退路（变异自检里那条
+     "门控整段失效"就是按整段改的，单删一行不会红）。 */
+  if (!ctx || ctx.win !== 'reach') return false;
+  if (!ctx.chokes || !ctx.chokes.length) return false;
+  if ((ctx.escaped || 0) < CHOKE_AFTER_ESCAPE) return false;
+  return chokeCandidates().length >= CHOKE_GUARDS;
+}
+
+/* 这一回合的战场读数。只算一次，别让每支兵牌各算一遍。 */
+function aiTacticCtx() {
+  const esc = escapeCells();
+  return {
+    turn: state.turn,
+    win: winSpec().kind,
+    esc,
+    escaped: state.escapedCount || 0,
+    goal: esc.length ? escapeGoal() : 0,
+    chokes: esc.length ? escapeChokes() : [],
+    bluePts: sideFieldPoints('blue'),
+    ratio: aiSidePoints('red') / Math.max(1, sideFieldPoints('blue'))
+  };
+}
+
+/* 被战术指派的部队 → 它这一回合的目标格。没有指派返回 null。
+   每支兵牌每次算目标都会问一次，所以这里只做一次查表。 */
+function aiTacticAssign(u) {
+  const t = state && state.tactic;
+  if (!t || !t.assign || !u || !u.id) return null;
+  const cell = t.assign[u.id];
+  return Array.isArray(cell) ? cell.slice() : null;
+}
+
+/* 有没有进展。**每回合都算**，不受保护期影响——
+   minTurns=3 与 maxFail=3 叠在一起会变成"九回合才认输"，
+   那九回合里部队在屏幕上是真的什么都不干。
+
+   断退路的"进展"有两条，**都不能用"有人站在口子上"当指标**：
+   守备营本来就在口子那一格（它同时是要点），拿它当进展等于这个战术
+   永远不认输。所以判的是：
+     · 有人过江了 → 没堵住，算**失败**（并且把基线推到现在）
+     · 派出去的人里，原本不在位置上的那个到位了 → 算进展（只算一次）
+     · 把对方磨掉 2 点以上 → 算进展 */
+function tacticProgress(cur, ctx) {
+  if (!cur) return false;
+  if (cur.id === 'choke') {
+    if ((ctx.escaped || 0) > (cur.escAt || 0)) {
+      cur.escAt = ctx.escaped;
+      return false;
+    }
+    const a = cur.assign || {};
+    const pend = cur.pending || [];
+    for (let i = pend.length - 1; i >= 0; i--) {
+      const u = state.units.find(x => x.id === pend[i] && x.str > 0);
+      if (!u) { pend.splice(i, 1); continue; }
+      const cell = a[u.id];
+      if (cell && u.pos && u.pos[0] === cell[0] && u.pos[1] === cell[1]) {
+        pend.splice(i, 1);
+        return true;
+      }
+    }
+  }
+  /* 通用口径：把对方打掉 2 点以上也算有进展（在磨，只是还没到位）。 */
+  if (ctx.bluePts <= (cur.at || 0) - 2) { cur.at = ctx.bluePts; return true; }
+  return false;
+}
+
+function tacticBanned(id, ctx) {
+  const ban = state && state.tacBan;
+  if (!ban || typeof ban[id] !== 'number') return false;
+  return ctx.turn - ban[id] < TACTIC_GIVEUP_CD;
+}
+
+function tacticGiveUp(cur, ctx) {
+  state.tacBan = state.tacBan || {};
+  state.tacBan[cur.id] = ctx.turn;
+  state.tactic = null;
+  const t = AI_TACTICS[cur.id];
+  log('敌军放弃' + (t ? t.name : '这一套打法') + '，收拢兵力回到正面。', 'sys');
+  if (typeof FX !== 'undefined' && FX.banner) FX.banner('敌 军 收 拢', 'sys', 1800);
+}
+
+function switchTactic(id, ctx) {
+  const t = AI_TACTICS[id];
+  if (!t) { state.tactic = null; return null; }
+  const assign = t.plan(ctx);
+  /* 计划落空（没人可派）就当没切过：否则战报上会不断出现
+     "敌军断退路"，而棋盘上一个人都没动。 */
+  if (!assign || !Object.keys(assign).length) { state.tactic = null; return null; }
+  /* pending：一开始就不在位置上的那几个人。他们到位算一次进展；
+     本来就在位置上的（守备营）不算——那是原地不动，不是成果。 */
+  const pending = Object.keys(assign).filter(id => {
+    const u = state.units.find(x => x.id === id && x.str > 0);
+    if (!u || !u.pos) return false;
+    return !(u.pos[0] === assign[id][0] && u.pos[1] === assign[id][1]);
+  });
+  state.tactic = {
+    id, turn: ctx.turn, fail: 0, at: ctx.bluePts, assign, pending,
+    escAt: ctx.escaped || 0
+  };
+  log('◆ ' + t.tell, 'r');
+  if (typeof FX !== 'undefined' && FX.banner) FX.banner(t.banner || t.name, 'r', 2200);
+  return state.tactic;
+}
+
+/* 每回合红方阶段开始调一次（runAI 里，紧跟 aiHuntTick）。
+   返回这一回合生效的战术，没战术返回 null。 */
+function aiTacticTick() {
+  if (!state) return null;
+  const ctx = aiTacticCtx();
+  let cur = (state.tactic && AI_TACTICS[state.tactic.id]) ? state.tactic : null;
+
+  /* 1. 失败计数与认输 */
+  if (cur) {
+    if (tacticProgress(cur, ctx)) cur.fail = 0;
+    else cur.fail = (cur.fail || 0) + 1;
+    if (cur.fail >= AI_TACTICS[cur.id].maxFail) {
+      tacticGiveUp(cur, ctx);
+      cur = null;
+    }
+  }
+  /* 2. 保护期与滞回期内都**不重派**：断退路是一次决定。
+     每回合按"谁最近"重算，会让两个人在两个邻格之间来回挪——
+     那正是 M2 重心当初学到的教训（见上面 minTurns 那段）。 */
+  if (cur && ctx.turn - cur.turn < AI_TACTICS[cur.id].minTurns) return cur;
+  /* 3. 打分（门控是布尔的，不满足直接排除） */
+  let best = null, bs = 0;
+  for (const id in AI_TACTICS) {
+    const t = AI_TACTICS[id];
+    if (tacticBanned(id, ctx)) continue;
+    if (!t.when(ctx)) continue;
+    if (!best || t.prio > bs) { best = id; bs = t.prio; }
+  }
+  /* 4. 滞回：新战术要明显更好才换 */
+  if (cur && (!best || bs < AI_TACTICS[cur.id].prio + TACTIC_SWITCH_MARGIN)) return cur;
+  if (!best) { state.tactic = null; return null; }
+  return switchTactic(best, ctx);
+}
+
 /* 目标价值（v4.20 第 1 批）：排序与开火门槛共用同一份判断。
    以前 scoreTarget 给要点、工事、残部各加各的分，aiFireGate 却只看一个常数——
    排在前面的目标可能因为比值差 0.01 被门槛拦下，AI 于是"看到好目标但不打"。
@@ -614,6 +909,11 @@ function aiHoldGoal(u) {
    进攻型沿用夺取型的目标点：它靠 foePull 把走位往敌人身上拽，而不是换目标。 */
 function aiGoalFor(u, style, hunt) {
   const st = style || aiStyle();
+  /* 战术指派优先于脾气与追击：断退路的两个人这一回合归调度器管。
+     放在 hold 之前是**故意的**——reach 关的胜负不在要点上，
+     守备型在那一关死抱要点，等于眼看着人从渡口过江。 */
+  const tac = aiTacticAssign(u);
+  if (tac) return tac;
   if (st === AI_STYLES.hold) return aiHoldGoal(u);
   /* 追击：暂时离开要点轴。目标是敌军里最值钱的那一支，
      没有敌人时才落回原来的要点推进。 */
@@ -663,8 +963,10 @@ function aiMoveScore(u, p, goal, style, hunt) {
   }
   /* 追击：夺取型平时 foePull=0（只认要点），追击期间额外往最近敌军压。
      目标轴已经指向高价值单位，这一项保证"沿途遇到谁都贴上去"，
-     而不是眼里只有那一个目标、路过残部不闻不问。 */
-  if (hunt) {
+     而不是眼里只有那一个目标、路过残部不闻不问。
+     被战术指派的部队**不吃这一项**：堵口的人被路过的残部拽走，
+     等于没去堵口（T3 断退路，v4.24）。 */
+  if (hunt && !aiTacticAssign(u)) {
     let mind = Infinity;
     for (const f of alive(other(u.side))) mind = Math.min(mind, hexDist(p, f.pos));
     if (mind < Infinity) s -= Math.min(mind, 8) * HUNT_PULL;
@@ -892,6 +1194,10 @@ async function runAI() {
   /* 追击判定每回合算一次：兵力比 + 士气。返回的是本回合的实际状态，
      不能读 state.huntOn——那可能是上一回合留下的值。 */
   const hunt = aiHuntTick();
+  /* 战术调度（v4.24，docs/23）：每回合算一次，结果缓存在 state.tactic。
+     排在追击**之后**：追击是"脾气"层的例外，战术是"打法"层——
+     被派去堵口的部队不该再被追击逻辑拽回去。 */
+  aiTacticTick();
   /* 夺取型带攻坚令：敌方要点上的低比值目标也进列表、也放行。
      另外两种脾气这里是 undefined，targetsFor / doAttack 走原来的闸。
      追击期间再叠加 hunt 口子（见 aiTargetOpts）。 */

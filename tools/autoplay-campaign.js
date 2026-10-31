@@ -404,7 +404,7 @@ async function playOne(idx) {
 
   /* --diag：规则触发计数只能从战报文本捞——这些规则（击退/跟进/崩溃）
      不在任何数值报表里，不扫日志的话"规则从没成立过"这种事只有翻代码才知道。 */
-  const logCounts = { push: 0, follow: 0, blocked: 0, broken: 0 };
+  const logCounts = { push: 0, follow: 0, blocked: 0, broken: 0, tactic: 0, tacticOff: 0 };
   for (const l of st.log) {
     const t = l.text || '';
     if (t.includes('被击退至')) logCounts.push++;
@@ -412,6 +412,10 @@ async function playOne(idx) {
     if (t.includes('退路被堵死')) logCounts.blocked++;
     /* 第二道闸那句（"建制崩溃，组织不起进攻"）是同一事件的重复计费，剔掉 */
     if (t.includes('建制崩溃') && !t.includes('组织不起进攻')) logCounts.broken++;
+    /* v4.24 战术调度器：切了几次、认输了几次。九条战术里有八条是"开不出来
+       也看不出来"的，不在这里数，就只能靠翻代码猜它到底跑没跑。 */
+    if (t.includes('敌军不追了')) logCounts.tactic++;
+    if (t.includes('敌军放弃')) logCounts.tacticOff++;
   }
   /* --diag：工事落位矩阵（类型 × 要点内外），终局快照 */
   const fortPlace = { core: {}, out: {} };
@@ -480,7 +484,7 @@ async function playOne(idx) {
   let fortAccSum = 0, coreAccSum = 0, aliveAccSum = 0, sampleSum = 0;
   /* --diag 汇总 */
   let brokenAccSum = 0, brokenGames = 0, minOrgSum = 0;
-  const ruleSum = { push: 0, follow: 0, blocked: 0, broken: 0 };
+  const ruleSum = { push: 0, follow: 0, blocked: 0, broken: 0, tactic: 0, tacticOff: 0 };
   const fortCoreSum = {}, fortOutSum = {}, candSum = {};
   const scores = [];
 
@@ -566,7 +570,9 @@ async function playOne(idx) {
     console.log('规则触发/局 击退 ' + (ruleSum.push / ROUNDS).toFixed(2) +
                 ' · 突破跟进 ' + (ruleSum.follow / ROUNDS).toFixed(2) +
                 ' · 退路堵死 ' + (ruleSum.blocked / ROUNDS).toFixed(2) +
-                ' · 进入崩溃（双方）' + (ruleSum.broken / ROUNDS).toFixed(2));
+                ' · 进入崩溃（双方）' + (ruleSum.broken / ROUNDS).toFixed(2) +
+                ' · 战术切换 ' + (ruleSum.tactic / ROUNDS).toFixed(2) +
+                ' · 战术认输 ' + (ruleSum.tacticOff / ROUNDS).toFixed(2));
     if (kind === 'score') {
       const cap = Math.max(L.winScore || 0, ...scores, 1);
       const NB = 10, bins = new Array(NB).fill(0);
