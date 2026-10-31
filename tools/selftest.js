@@ -4535,7 +4535,7 @@ console.log('\n[54] 端到端：夺取型 runAI 把攻坚令带进开火流程�
   /* ═════════════════ v4.21 ═════════════════ */
   console.log('\n[55] 追击模式：全关卡点数 / 士气闸 / 高价值目标（v4.21）');
   {
-    ok('HUNT_RATIO = 2', api.HUNT_RATIO === 2, String(api.HUNT_RATIO));
+    ok('HUNT_RATIO = 1.5', Math.abs(api.HUNT_RATIO - 1.5) < 1e-9, String(api.HUNT_RATIO));
     ok('HUNT_MIN_ORG = 60', api.HUNT_MIN_ORG === 60, String(api.HUNT_MIN_ORG));
     ok('HUNT_PULL = 1.2', Math.abs(api.HUNT_PULL - 1.2) < 1e-9, String(api.HUNT_PULL));
     ok('夺取型 / 进攻型开启追击，防守型不参与',
@@ -4593,11 +4593,13 @@ console.log('\n[54] 端到端：夺取型 runAI 把攻坚令带进开火流程�
     };
     const red = spawn('red', 'inf', 6, 5, 100);
     const blue = spawn('blue', 'inf', 6, 7, 40);
-    ok('100 点 vs 40 点 → 超过 2 倍，进入追击', api.aiHuntMode() === true);
-    red.str = 80;
-    ok('恰好 2 倍（80 vs 40）不追击：判据是严格大于', api.aiHuntMode() === false);
-    red.str = 81;
-    ok('超过 2 倍即追击', api.aiHuntMode() === true);
+    ok('100 点 vs 40 点 → 超过 1.5 倍，进入追击', api.aiHuntMode() === true);
+    /* 40 × 1.5 = 60：判据是**严格大于**，所以 60 不追、61 才追。
+       这条卡的是"倍数写成 >= 就早一档开追"，差一点也是差。 */
+    red.str = 60;
+    ok('恰好 1.5 倍（60 vs 40）不追击：判据是严格大于', api.aiHuntMode() === false);
+    red.str = 61;
+    ok('超过 1.5 倍即追击', api.aiHuntMode() === true);
 
     /* 绿方（友军）预留接口：目前 state.allies 恒空，但点数口径必须先接好，
        否则实装友军那天，AI 会把"蓝方+绿方"的兵力当成没看见。 */
@@ -4607,7 +4609,7 @@ console.log('\n[54] 端到端：夺取型 runAI 把攻坚令带进开火流程�
        String(api.sideFieldPoints('blue')));
     ok('alliedUnits 只认蓝方一侧的友军',
        api.alliedUnits('blue').length === 1 && api.alliedUnits('red').length === 0);
-    ok('友军点数能把 2 倍判定顶掉（81 vs 180）', api.aiHuntMode() === false);
+    ok('友军点数能把 1.5 倍判定顶掉（61 vs 135）', api.aiHuntMode() === false);
     st.allies = [];
 
     red.str = 100; red.org = 59;
@@ -4616,7 +4618,7 @@ console.log('\n[54] 端到端：夺取型 runAI 把攻坚令带进开火流程�
     ok('士气刚好 60 仍追击（>=）', api.aiHuntMode() === true);
     red.org = 100;
     ok('aiHuntTick 进入追击并记录状态', api.aiHuntTick() === true && st.huntOn === true);
-    /* 播报要等接敌（v4.21 P3-4）：兵力比是**编制账**，开局就成立（C1 是 2.06），
+    /* 播报要等接敌（v4.21 P3-4）：兵力比是**编制账**，开局就成立（C1 是 2.06，1.5 的线更早过），
        可那时候两军还隔着半个地图，第 1 回合就弹「敌军追击」读着像敌人开挂。
        状态照常切换、AI 行为一点不变，只把这句话压到真正接敌那一回合补播。
        这两条必须成对：只看"接敌后播了"挡不住"没接敌也播"，

@@ -926,17 +926,17 @@ const MUTANTS = [
      这一批的形状是"少判一件事"：少算一波援军、少看一眼士气、少追一个人。
      外面看起来都只是"这版 AI 又变温了"，不会有任何异常。 */
 
-  /* 2 倍窗口写死成 3 倍：追击永远不触发 */
-  ['HUNT_RATIO 改成 3（2 倍窗口推迟）',
-   'const HUNT_RATIO = 2;',
-   'const HUNT_RATIO = 3;',
-   'HUNT_RATIO = 2'],
+  /* 1.5 倍窗口写死成 2.5 倍：追击退回到"只有 C1 开局够得上"的摆设 */
+  ['HUNT_RATIO 改成 2.5（追击窗口推迟）',
+   'const HUNT_RATIO = 1.5;',
+   'const HUNT_RATIO = 2.5;',
+   'HUNT_RATIO = 1.5'],
 
-  /* 判据放宽到"等于也追"：正好 2 倍时本该收着打 */
-  ['2 倍判据从严格大于改成大于等于',
+  /* 判据放宽到"等于也追"：正好 1.5 倍时本该收着打 */
+  ['1.5 倍判据从严格大于改成大于等于',
    "  if (!(aiSidePoints('red') > HUNT_RATIO * sideFieldPoints('blue'))) return false;",
    "  if (!(aiSidePoints('red') >= HUNT_RATIO * sideFieldPoints('blue'))) return false;",
-   '恰好 2 倍（80 vs 40）不追击'],
+   '恰好 1.5 倍（60 vs 40）不追击'],
 
   /* 波次标记不看：援军已经到场，编制账还按"在路上的"算 */
   ['已登场波次仍计入未登场点数（全关卡点数虚高）',
