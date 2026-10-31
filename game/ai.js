@@ -80,7 +80,12 @@ const AI_STYLES = {
     breakthrough: true, breakGate: 0.40,
     /* 追击（v4.21）：总点数压过对手 1.5 倍且士气还在时，暂时离开要点轴，
        见 aiHuntMode / aiHuntTarget。 */
-    hunt: true
+    hunt: true,
+    /* v4.22 三条决策机制（docs/22）：
+       stopLoss    M5 止损线（ratio 口径）：比这更亏的一枪不打
+       pickSoft    M1 挑软要点的力度，0 = 不挑（谁近打谁）
+       schwerpunkt M2 有没有"主攻方向"这个概念 */
+    stopLoss: 0.75, pickSoft: 0.6, schwerpunkt: true
   },
   /* 防守型：依托要点与工事据守，低进攻欲望。
      目标要点**包括已经在我手里的**（守方要待在自己阵地上），
@@ -92,7 +97,12 @@ const AI_STYLES = {
     objPull: 1.2, foePull: 0.0, terrainWeight: 3.0,
     guard: true, allInOnObjective: false,
     preferKill: false, defensive: true,
-    digIn: true
+    digIn: true,
+    /* v4.22：止损线等于它现在的开火门槛（1.05）——守方本来就只在划得来时打，
+       M5 对 hold 基本是恒等变换，写出来只是让三条脾气在同一张表里可读。
+       挑软 / 重心对 hold 没有意义：它不选目标，只补缺口（见 aiHoldGoal），
+       aiGoalFor 在 hold 分支就返回了，走不到 M1 / M2 的判据。 */
+    stopLoss: 1.05, pickSoft: 0, schwerpunkt: false
   },
   /* 夺取型：抢关键点。要点被蓝方据守时**不惜代价**（开火门槛归零），
      这是它与前两种最本质的区别——为了那 20 分，赔掉编制也认。 */
@@ -102,10 +112,14 @@ const AI_STYLES = {
     objPull: 1.2, foePull: 0.0, terrainWeight: 2.0,
     guard: true, allInOnObjective: true,
     preferKill: false, defensive: false,
+    /* v4.22：夺取型的止损线最高（0.90）——它是"为了要点赔编制"的那种脾气，
+       再往上压就成了现在的样子：站在城下的营一个接一个往 1:3 里填。
+       0.90 的含义是"至少打到 1:1 才值得上"，两个营凑一发就够得着（见文档）。 */
+    stopLoss: 0.90, pickSoft: 1, schwerpunkt: true,
     /* 追击（v4.21）：与进攻型同一套判定。防守型没有这一条——
        hold 的职责是钉在阵地上，离开要点去追人正是它最不该做的事。 */
     hunt: true
-  }
+  },
 };
 
 /* 类别 → 脾气。键是 levelTypeText() 之后的样子（附属前缀已经剥掉）。
@@ -114,6 +128,169 @@ const AI_STYLES = {
      · 玩家跑（突围 / 撤离 / 追击）或抢时间（迟滞 / 阻击 / 歼灭）→ 红方追着打 → assault
      · 玩家去攻（进攻 / 特种 / 破袭 / 夜战 / 防空 / 清剿 / 斩首 / 突袭 / 空降）→ 红方是守备队 → hold
    表里没有的类别会让红方静默退回夺取型，所以 `check.js` 逐个关卡对表点名。 */
+/* ───────────────── v4.22 三条决策机制（docs/22）─────────────────
+   M5 不打的仗不打 / M1 攻其必救 / M2 重心转移。
+   三条都绕开同一条硬闸，而且这条闸是**用户明确要求的**：
+
+     **核心要点（core）必须打。**
+     要塞、机场、防线枢纽是这一关的分；绕开它等于不打这一关。
+     第一关"北岭要塞"的全部压力就来自这里——玩家把兵全堆在要塞上，
+     敌人也必须压上来，而不是绕去啃后面的空要点、或者因为伤亡比不划算就不打了。
+
+   于是三条机制都在"能不能省这一仗"上做了区分：
+     · 打边角要点：可以挑软的、可以不打（省下来去打别处）
+     · 打核心要点：一定要打，只是**不在 1:3 上填人**（M5 的核心闸仍比平时松）
+
+   历史上这三条都是有出处的，见 docs/22 第二节；这里只留判定与数值。
+   ───────────────────────────────────────────────────────────── */
+
+/* M5 的止损线口径是 `previewAttack().ratio`（attSum/defSum），
+   换算成战损比大约是这样（CRT 七档的期望值）：
+     ratio 1.4 → 1.5:1 档 → 守方掉 4 / 攻方掉 2 ≈ 2.0
+     ratio 0.9 → 1:1   档 → 3 / 3        ≈ 1.0
+     ratio 0.65→ 1:1.5 档 → 2.3 / 4      ≈ 0.58
+     ratio 0.4 → 1:2   档 → 1.8 / 5      ≈ 0.37
+   **不能用"战损比"直接当门槛**：doAttack 里 defLoss/attLoss 要等骰子落定才知道，
+   拿期望值当门槛会与实战错位一档。用 ratio 是因为它和开火门槛本来就是同一把尺子，
+   两条判据能直接比大小。 */
+const CORE_STOP = 0.55;     // 目标站在核心要点上：还是要压，但不打 1:2 以下的仗
+/* 关于"要不要给核心要点额外引力"——**试过，撤了**（v4.22 实测记录见 docs/22 §7.3）。
+   曾经加过 `CORE_PULL = 3`：核心要点额外值 3 格，理由是"等距的空边角会把整支军队引走"。
+   结果 C3 从 49% 掉到 32%（红方全挤到城市和机场两个核心上，蓝方拿不下来），
+   而 C1 一点没变——那一关只有一个要点，谁去都是去。
+   所以这条引力只买到"多要点关卡更僵"，没买到"要塞更受重视"。
+   核心要点的三条保障改由别处承担，各有一条断言盯着：
+     ① aiObjPull 对 core 直接返回 0 —— 不吃"挑软的"的倒扣（要塞不会被绕过）；
+     ② aiSchwerpunkt 的候选段只保留含核心的那些 —— 主攻方向必然是核心；
+     ③ aiFireGate 对核心目标把止损线下调到 CORE_STOP —— 打要塞的门槛比打野外低。
+   三条合起来已经覆盖"重点一定要打"，再叠引力的边际收益是负的。 */
+/* M1：守备强度的两个刻度。空要点最多值 4 格，守备达到"我全场兵力"的 100%
+   就倒扣 3 格——不是永远不去，而是"等条件成熟"（十大军事原则第八条）。 */
+const SOFT_MAX = 4;
+const SOFT_HARD = 1.0;
+const SOFT_HARD_PENALTY = 3;
+/* M2：重心的引力。文档写的是 ×1.35 / ×0.85 的倍率，这里换成**格数**加减，
+   两个原因：① 引擎里所有"往哪走"的判据都是加法的（core 加权就是 −2 格），
+   倍率混进来会让"距离为负时把核心反罚一遍"；② 格数可以直接写进断言。
+   10 格处 ×1.35 ≈ −2.6 格，与 SP_BONUS 同量级。 */
+const SP_BONUS = 2.5;
+const SP_PENALTY = 1.5;
+const SP_PERIOD = 2;        // 每两回合重算一次
+
+/* 目标是不是站在「我还没拿下的核心要点」上。M1 / M5 的共同豁免口。 */
+function onCoreObjective(t) {
+  if (!t || !t.pos) return false;
+  return (LEVEL.objectives || []).some(o => o.core &&
+    o.cells.some(c => c[0] === t.pos[0] && c[1] === t.pos[1]) &&
+    objectiveControl(o) !== 'red');
+}
+/* 我这一格是不是要点（不论归谁、不论核心）。站在要点上就得守，不吃 M5。 */
+function onAnyObjective(u) {
+  if (!u || !u.pos) return false;
+  return (LEVEL.objectives || []).some(o =>
+    o.cells.some(c => c[0] === u.pos[0] && c[1] === u.pos[1]));
+}
+/* 止损线：这一仗值不值得打。脾气没写就按夺取型的口径（宁可保守）。 */
+function stopLossOf(st) {
+  return (st && typeof st.stopLoss === 'number') ? st.stopLoss : 0.90;
+}
+
+/* M1 的守备强度：要点格内与相邻一格内的敌军战力，按地形加成放大。
+   相邻格只算 0.45 —— 贴着要点站的部队能补位，但不是"在阵地上"。
+   飞机不算（占不了点，也拦不住步兵）。 */
+function objectiveGarrison(o, side) {
+  if (!o || !o.cells) return 0;
+  let s = 0;
+  for (const u of alive(side)) {
+    if (isAir(u) || !(u.str > 0)) continue;
+    let d = Infinity;
+    for (const c of o.cells) d = Math.min(d, hexDist(u.pos, c));
+    if (d > 1) continue;
+    const t = terrainAt(u.pos[0], u.pos[1]);
+    s += u.str * (d === 0 ? 1 : 0.45) * (1 + (t.def || 0));
+  }
+  return s;
+}
+/* M1 攻其必救：这个要点"软"到什么程度。返回相当于少走几格（负数=绕着走）。
+   **核心要点直接返回 0**：不吃软硬判据——要塞必须打，见文件头那段。 */
+function aiObjPull(o, u, st) {
+  if (!o || o.core) return 0;
+  if (!st || !st.pickSoft) return 0;
+  const g = objectiveGarrison(o, other(u.side));
+  const mine = Math.max(1, sideFieldPoints(u.side));
+  const r = g / mine;
+  if (r >= SOFT_HARD) return -SOFT_HARD_PENALTY * st.pickSoft;
+  return SOFT_MAX * st.pickSoft * (1 - r / SOFT_HARD);
+}
+/* 要点的"列号"（重心分段用）。多格要点取平均，单格就是它自己。 */
+function objCol(o) {
+  if (!o || !o.cells || !o.cells.length) return 0;
+  let s = 0;
+  for (const c of o.cells) s += c[1];
+  return s / o.cells.length;
+}
+/* 一段防线的有效防御值：段内各要点 2 格内的敌军，按组织度与地形折算后
+   除以要点数。除以要点数是**故意的**——三个要点只有一支营守着，这一段
+   就是虚的，重心该往这里压（这是"集中优势兵力"的判据，不是算术游戏）。 */
+function bandDefense(objs, side) {
+  let s = 0;
+  for (const u of alive(side)) {
+    if (isAir(u) || !(u.str > 0)) continue;
+    let hit = false;
+    for (const o of objs) {
+      if (o.cells.some(c => hexDist(u.pos, c) <= 2)) { hit = true; break; }
+    }
+    if (!hit) continue;
+    s += u.str * (Math.max(0, Math.min(100, u.org)) / 100) *
+         (1 + (terrainAt(u.pos[0], u.pos[1]).def || 0));
+  }
+  return s / Math.max(1, objs.length);
+}
+/* M2 重心转移：每两回合在候选要点里挑一段最薄弱的当主攻方向。
+   返回 { lo, hi, turn }：列号落在 [lo, hi] 的要点吃 SP_BONUS，其余吃 SP_PENALTY。
+
+   两处与 docs/22 原文不同的收紧，都是为了让"要塞"这件事不被 M2 冲掉：
+     ① 候选段只保留**含核心要点**的那些（有核心未拿下时）。否则重心一转，
+        全军跑去打边角，要塞前面空了——玩家看到的不是"敌人在试探"，是"敌人走了"。
+     ② 段数不够 2 就返回 null（不加权）。只有一段时"选重心"没有意义，
+        硬加权会让同一批部队互相抵消。
+   与 docs 的第二处不同：原文写"夺取型要已控制 ≥2 个要点才开重心"。这里不这么判——
+   十关里六个是 seize，等它站稳才开等于这条机制永远不生效。 */
+function aiSchwerpunkt(st, force) {
+  if (!st || !st.schwerpunkt) return null;
+  if (typeof state === 'undefined' || !state) return null;
+  const cand = (LEVEL.objectives || []).filter(o => objectiveControl(o) !== 'red');
+  if (!cand.length) { state.schwerpunkt = null; return null; }
+  const turn = state.turn || 0;
+  const cur = state.schwerpunkt;
+  if (!force && cur && cur.turn <= turn && (turn - cur.turn) < SP_PERIOD) return cur;
+  let lo = Infinity, hi = -Infinity;
+  for (const o of cand) { const c = objCol(o); if (c < lo) lo = c; if (c > hi) hi = c; }
+  const span = Math.max(1, hi - lo);
+  const bands = [[], [], []];
+  for (const o of cand) {
+    const k = Math.min(2, Math.max(0, Math.floor((objCol(o) - lo) / span * 3)));
+    bands[k].push(o);
+  }
+  let use = bands.filter(b => b.length);
+  const cores = cand.filter(o => o.core);
+  if (cores.length) use = use.filter(b => b.some(o => o.core));
+  /* 只剩一段就返回 null：没有第二个选择，"重心"这个词就没有意义，
+     硬加权只会让同一批部队互相抵消。单要点关卡（C1）走的就是这一条，
+     注：这里不再单独判 `cand.length < 2` —— 一个要点只落一段，
+     同一个 `use.length < 2` 已经覆盖了，多一道闸就多一处可能不同步的口径。 */
+  if (use.length < 2) { state.schwerpunkt = null; return null; }
+  let pick = null, best = Infinity;
+  for (const b of use) {
+    const d = bandDefense(b, other('red'));
+    if (d < best) { best = d; pick = b; }
+  }
+  const cols = pick.map(objCol);
+  const sp = { lo: Math.min(...cols), hi: Math.max(...cols), turn };
+  state.schwerpunkt = sp;
+  return sp;
+}
+
 const AI_STYLE_BY_TYPE = {
   /* 夺取型：来抢要点 */
   '防御': 'seize', '坚守': 'seize', '争夺': 'seize', '会战': 'seize', '巷战': 'seize',
@@ -428,11 +605,26 @@ function aiGoalFor(u, style, hunt) {
   let list = LEVEL.objectives.filter(o => objectiveControl(o) !== 'red');
   if (!list.length) list = LEVEL.objectives.slice();
   if (!list.length) return null;
+  /* M2 重心：列号落在主攻段上的要点少走几格，其余多走几格。
+     只算一次、缓存在 state.schwerpunkt（每两回合重算），
+     否则每支兵牌每次调用都重新聚一遍类，一回合几十次纯浪费。 */
+  const sp = aiSchwerpunkt(st, false);
   let best = null, bd = Infinity;
   for (const o of list) {
+    /* M1 挑软：空要点 / 守备薄弱的少走几格；硬壳倒扣几格。
+       核心要点在 aiObjPull 里直接返回 0，所以要塞不吃这一条。 */
+    const soft = aiObjPull(o, u, st);
+    const inSp = sp && objCol(o) >= sp.lo && objCol(o) <= sp.hi;
+    const spAdj = sp ? (inSp ? -SP_BONUS : SP_PENALTY) : 0;
     for (const cell of o.cells) {
-      /* 夺取型：核心要点优先（那 20 分比边角值钱）。 */
-      const d = hexDist(u.pos, cell) - (st.allInOnObjective && o.core ? 2 : 0);
+      /* 夺取型：核心要点优先（那 20 分比边角值钱）。
+         v4.22 起这条对**所有**脾气生效（原来只有夺取型有）——
+         核心要点是这一关的分，进攻型也不该绕开它。
+         注意这里**没有**额外的 CORE_PULL：试过，C3 因此掉 17 个点，
+         原因写在 CORE_STOP 上面那段注释里。 */
+      const d = hexDist(u.pos, cell)
+        - (st.allInOnObjective && o.core ? 2 : 0)
+        - soft + spAdj;
       if (d < bd) { bd = d; best = cell; }
     }
   }
@@ -484,23 +676,51 @@ function aiMoveScore(u, p, goal, style, hunt) {
    两条硬规则：打不还手的一律放行；任何门槛都不低于 0。 */
 function aiFireGate(u, def, pv, style, afterMove, massed, breakthrough, hunt) {
   const st = style || aiStyle();
-  /* 追击：本钱已经不是问题了——点数压过对手 1.5 倍、士气还在线，
-     这时候还按平时的性价比挑仗打，等于把围歼拖成消耗。门槛归零。 */
-  if (hunt) return 0;
   /* 零风险火力（v4.20）：对方没有还手之力时，这一炮的本钱是白赚的。
      以前这里只看比值，炮兵于是经常放过"贴着残部打"的白打机会——
      玩家看到的就是"敌人不补刀"。 */
   if (pv && pv.counter === false) return 0;
-  let g = (isArty(u) ? st.fireArty : st.fireOther) - (pv.flanked ? 0.15 : 0);
-  if (afterMove) g += 0.05;
+  /* 追击（v4.21）：不再"挑肥拣瘦"——不按这一关的脾气打折，门槛基线取 0。
+     **但止损线照旧**（见下面的 floor）。v4.21 这里原本是 `return 0`，
+     等于"追击期间连生死都不挑"：C1 从第 1 回合就满足追击条件（兵力比 2.06），
+     红方于是在要塞城下一个营一个营往 1:3 里填——打掉对方 2 点、自己掉 7 点，
+     8 个回合把自己磨光。玩家看到的不是"被围强攻"，是"敌人排队送死"。 */
+  let g = hunt ? 0 : (isArty(u) ? st.fireArty : st.fireOther) - (pv.flanked ? 0.15 : 0);
+  if (!hunt && afterMove) g += 0.05;
   /* 集火预支：本回合还有第二支能打到同一目标的部队没开火，
      这一炮是在替它拆防御，亏一点也值。
      防守型不参与——出坑反击不是守方该干的事（v4.17 已证明守方离坑会丢要点）。 */
-  if (massed && !st.defensive && !pv.flanked) g -= 0.15;
-  /* 夺取型的不惜代价：目标站在**敌方控制的要点**上，这一仗赔本也得打。 */
-  if (st.allInOnObjective && def && onEnemyObjective(def)) g = Math.min(g, 0);
+  if (massed && !st.defensive && !pv.flanked && !hunt) g -= 0.15;
+  /* ── M5 不打的仗不打（v4.22，docs/22 §三·M5）──
+     史：十大军事原则第五条"不打无准备无把握之仗"；十六字诀"敌进我退"。
+     判的是"这一仗该不该打"，与上面那些"这一枪值不值"是两把尺子，
+     所以它是**保底**：把门槛往上抬，抬到"打得动"为止。
+
+     **与 allInOnObjective 的关系改了**：那条原来把门槛压到 0
+     （"为了要点赔本也认"），结果就是红方站在城下，一个营一个营往 1:3 里填——
+     C1 实测打掉对方 2 点、自己掉 7 点，8 个回合双方各损失 76%，
+     全靠"蓝方先手守核心"才没输。现在 allIn 只能把线压到 CORE_STOP（0.55），
+     压不到 0：**要塞必须打，但不在 1:2 以下填人**。
+     压上去的时机应该是"炮火准备完、两个营凑齐"，这也是历史上攻城的样子。
+
+     三条豁免，缺一条就会把该打的仗也拦掉：
+       · 自己在要点格上 → 完全不吃 M5。站在要点上就得守，为了省编制把旗子
+         让出去是另一种输法（`floor` 保持 −1 就是这个意思）。
+       · 目标是核心要点 / 站在敌方要点上 → 线降到 CORE_STOP。
+       · 破口那一枪（breakthrough）→ 不吃 M5。它是"路被堵住"的清路价，
+         明码写在 AI_STYLES.breakGate 里，比这条线更有针对性。 */
+  let floor = -1;
+  if (def && !onAnyObjective(u)) {
+    floor = onCoreObjective(def) ? CORE_STOP : stopLossOf(st);
+  }
+  if (floor >= 0 && st.allInOnObjective && def && onEnemyObjective(def)) {
+    floor = Math.min(floor, CORE_STOP);
+  }
+  if (floor >= 0 && !breakthrough) g = Math.max(g, floor);
   /* 进攻型的破口：被卡在路上的那一枪按清路价打（见 aiBreakthroughTarget）。 */
   if (breakthrough && st.breakGate) g = Math.min(g, st.breakGate);
+  /* 夺取型的不惜代价（v4.22 起只剩"列表放开"这一半，
+     门槛那一半交给上面的 floor —— 0 门槛等于不设防地送死）。 */
   g -= targetValue(def, pv).discount;
   return Math.max(0, g);
 }

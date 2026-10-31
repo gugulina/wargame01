@@ -3699,13 +3699,22 @@ console.log('\n[48] 三种 AI 脾气 / 炮兵打堆叠格 / 撤销返还战术�
      Math.abs(api.aiFireGate(inf, null, pv0, A.seize, true) - 0.90) < 1e-9);
   ok('多面进攻过放松 0.15',
      Math.abs(api.aiFireGate(inf, null, { ratio: 0.7, flanked: true }, A.seize, false) - 0.70) < 1e-9);
-  /* 夺取型的"不惜代价"：目标站在敌方要点上，门槛归零；防守型同格仍然挑。
-     v4.20 起要点守军另吃 targetValue 的 0.15 价值折扣（点数已按新口径写）。 */
+  /* 夺取型的"不惜代价"在 v4.22 换了口径：**门槛不再是 0**。
+     原来的 0 等于"哪怕 1:3 也上"——C1 实测就是它把红方在城下磨光的：
+     打掉对方 2 点、自己掉 7 点，8 个回合双方各损失 76%，全靠蓝方先手守核心才没输。
+     现在 allIn 只能把**止损线**从 0.90 压到 CORE_STOP（0.55），压不到 0：
+     "要塞必须打"是说不许绕开，不是说不许等炮火准备。
+     攻击方特意用**不在要点上**的那一支：站在要点上的完全不吃 M5（下下条）。 */
   const anyObj = api.LEVEL.objectives[0];
   const objCell = anyObj.cells[0];
   const defOnObj = { pos: objCell.slice(), side: 'red', type: 'inf', str: 10, org: 100 };
-  ok('夺取型：攻打敌方要点上的守军不计代价（门槛 0）',
-     api.aiFireGate(gun, defOnObj, { ratio: 0.05, flanked: false }, A.seize, false) === 0);
+  ok('前提：这支进攻部队不在要点格上（否则 M5 整条豁免，测不到）',
+     api.onAnyObjective(inf) === false);
+  ok('夺取型：攻打要点守军，门槛 0.85 不再被压到 0（0.85 − 0.15 = 0.70）',
+     Math.abs(api.aiFireGate(inf, defOnObj, { ratio: 0.05, flanked: false }, A.seize, false) - 0.70) < 1e-9,
+     String(api.aiFireGate(inf, defOnObj, { ratio: 0.05, flanked: false }, A.seize, false)));
+  ok('夺取型：1:3 的仗不再往坑里填人（门槛高于 0.65 那一档）',
+     api.aiFireGate(inf, defOnObj, { ratio: 0.05, flanked: false }, A.seize, false) > 0.65);
   ok('防守型：要点目标本身值 0.15 折扣（0.75 → 0.60）',
      Math.abs(api.aiFireGate(gun, defOnObj, { ratio: 0.05, flanked: false }, A.hold, false) - 0.60) < 1e-9);
   ok('进攻型：同样吃价值折扣（0.30 → 0.15）',
@@ -4255,9 +4264,12 @@ console.log('\n[53] 进攻型破口 / 防守型威胁排序与预备队（v4.20 
   const gateBreak = api.aiFireGate(red, front, pv, api.AI_STYLES.assault, false, false, true);
   ok('前提：按常规门槛打不出去（比值低于进攻型 0.55 那一档）',
      pv.ratio < gatePlain, pv.ratio.toFixed(3) + ' < ' + gatePlain.toFixed(3));
+  /* 只断言"破口价比常规价低、且过了这条线就能打"——
+     别再顺手把 gatePlain 钉死在某个数上：它是"目标站在要点上 + 进攻型"的
+     组合价，v4.22 加了 M5 的止损线之后，那个数字由两套判据共同决定，
+     钉死它等于让这条断言的成败取决于 M5，而不是它要验的破口。 */
   ok('破口价把门槛压到 0.40（价值折扣后 0.25），这一枪才打得出去',
-     Math.abs(gatePlain - 0.40) < 1e-9 && Math.abs(gateBreak - 0.25) < 1e-9 &&
-     pv.ratio >= gateBreak,
+     Math.abs(gateBreak - 0.25) < 1e-9 && pv.ratio >= gateBreak && gateBreak < gatePlain,
      gatePlain.toFixed(2) + ' / ' + gateBreak.toFixed(2));
   ok('破口只认挡在目标前面的那一支（后方友军不算）',
      api.aiBreakthroughTarget(red, api.AI_STYLES.assault, S.fields) === front,
@@ -4272,6 +4284,12 @@ console.log('\n[53] 进攻型破口 / 防守型威胁排序与预备队（v4.20 
      `bt null` 会被误当成"卡住判定生效"，其实只是够不着。 */
   rear.pos = [0, 0];
   front.pos = R.slice();
+  /* v4.22 的 M1/M2 会按"软硬 / 重心"重排要点，目标会飘到渡口上。
+     这一节验的是**几何**（能不能绕过去），不是"挑了哪个要点"，
+     所以先把其它要点暂时摘掉，让城市要点成为唯一候选，测完还原。
+     不这么做的话，下面 aiGoalFor 返回的是渡口格，`aiStuck` 判的就不是同一条路。 */
+  const savedObjs = api.LEVEL.objectives;
+  api.LEVEL.objectives = [city];
   let flank = null;
   for (const P of api.neighbors(R[0], R[1])) {
     if (!passable(P[0], P[1]) || onObj(P, city)) continue;
@@ -4291,6 +4309,7 @@ console.log('\n[53] 进攻型破口 / 防守型威胁排序与预备队（v4.20 
   ok('能绕过去时不再触发破口（清路价只给真的卡住的那一枪）',
      api.aiStuck(red, goal2) === false &&
      api.aiBreakthroughTarget(red, api.AI_STYLES.assault, S.fields) === null);
+  api.LEVEL.objectives = savedObjs;
 
   /* ── 二、防守型：守军不动，预备队补缺口 ── */
   const holdGame = () => {
@@ -4698,8 +4717,16 @@ console.log('\n[54] 端到端：夺取型 runAI 把攻坚令带进开火流程�
     }
 
     const pvB = api.previewAttack(red, blue, st.fields);
-    ok('追击把开火门槛压到 0',
-       api.aiFireGate(red, blue, pvB, api.AI_STYLES.seize, true, false, false, true) === 0);
+    /* v4.22 起追击不再把门槛压到 0，只压到**止损线**：
+       追击的意思是"不再挑肥拣瘦"，不是"连生死都不挑"。
+       原来那句话在 C1 上是有代价的——第 1 回合兵力比就 2.06，
+       红方从开局就在城下往 1:3 里填营（详见 aiFireGate 的注释）。 */
+    const huntGate = api.aiFireGate(red, blue, pvB, api.AI_STYLES.seize, true, false, false, true);
+    ok('追击不再把门槛压到 0（1:3 的仗在追击里也不打）', huntGate > 0.3,
+       huntGate.toFixed(3));
+    ok('不追击时同一枪仍受常规门槛约束',
+       api.aiFireGate(red, blue, pvB, api.AI_STYLES.seize, true, false, false, false) > 0,
+       String(api.aiFireGate(red, blue, pvB, api.AI_STYLES.seize, true, false, false, false)));
     ok('不追击时同一枪仍受常规门槛约束',
        api.aiFireGate(red, blue, pvB, api.AI_STYLES.seize, true, false, false, false) > 0,
        String(api.aiFireGate(red, blue, pvB, api.AI_STYLES.seize, true, false, false, false)));
@@ -4868,7 +4895,222 @@ console.log('\n[54] 端到端：夺取型 runAI 把攻坚令带进开火流程�
     }
   }
 
-  console.log('\n通过 ' + pass + ' 项，失败 ' + fail + ' 项');
+  console.log('\n[57] 三条决策机制：M5 不打赔本仗 / M1 攻其必救 / M2 重心转移（v4.22）');
+{
+  const A = api.AI_STYLES;
+  const T = api.TYPE;
+  const isObj = p => (api.LEVEL.objectives || []).some(o =>
+    o.cells.some(c => c[0] === p[0] && c[1] === p[1]));
+
+  /* ── 一、M5 止损线：三种脾气三条线 ──
+     这三条线的口径是 previewAttack().ratio，不是战损比（原因写在 ai.js 注释里）。 */
+  ok('M5：三种脾气的止损线（进攻 0.75 / 夺取 0.90 / 防守 1.05）',
+     api.stopLossOf(A.assault) === 0.75 && api.stopLossOf(A.seize) === 0.90 &&
+     api.stopLossOf(A.hold) === 1.05,
+     [api.stopLossOf(A.assault), api.stopLossOf(A.seize), api.stopLossOf(A.hold)].join('/'));
+
+  api.newGame({ level: 'C1', noSave: true });
+  const S = api.getState();
+  const core = api.LEVEL.objectives.find(o => o.core);
+  ok('前提：C1 有且只有一个核心要点（要塞）', !!core && core.cells.length >= 1);
+  /* 挑一格不在要点上的可通行格当"野外"。 */
+  let off = null;
+  for (let r = 0; r < api.LEVEL.rows && !off; r++) {
+    for (let c = 0; c < api.LEVEL.cols; c++) {
+      if (isObj([r, c])) continue;
+      if (api.LEVEL.map[r][c] === '~') continue;
+      off = [r, c]; break;
+    }
+  }
+  ok('前提：找到一格不在任何要点上的野外格', !!off, JSON.stringify(off));
+  const coreCell = core.cells[0].slice();
+  const atk = { pos: off.slice(), side: 'red', type: 'inf', str: 10, org: 100 };
+  const defOff = { pos: off.slice(), side: 'blue', type: 'inf', str: 8, org: 100 };
+  const defCore = { pos: coreCell.slice(), side: 'blue', type: 'inf', str: 8, org: 100 };
+  const pvLow = { ratio: 0.2, flanked: false, counter: true };
+
+  const gOff = api.aiFireGate(atk, defOff, pvLow, A.seize, false);
+  const gCore = api.aiFireGate(atk, defCore, pvLow, A.seize, false);
+  ok('M5：野外 1:2 以下的仗不再打（门槛抬到止损线 0.90）',
+     gOff >= 0.90 - 1e-9, gOff.toFixed(2));
+  ok('M5：打要塞守军时止损线放宽到 0.55 档（0.85 − 0.15 = 0.70）',
+     Math.abs(gCore - 0.70) < 1e-9, gCore.toFixed(2));
+  /* 这一条就是"要塞必须打"的技术含义：同一支兵、同一个比值，
+     打要塞比打野外更容易放行。少了它，M5 会把红方变成一个只敢打野战的对手。 */
+  ok('M5：要塞比同等野外目标更好打（核心要点豁免）', gCore < gOff - 0.1,
+     gCore.toFixed(2) + ' / ' + gOff.toFixed(2));
+
+  /* 进攻型没有 allIn（不会把门槛压到 0），核心豁免在它身上看得最清楚。 */
+  const aOff = api.aiFireGate(atk, defOff, pvLow, A.assault, false);
+  const aCore = api.aiFireGate(atk, defCore, pvLow, A.assault, false);
+  ok('M5：进攻型打要塞 0.40 / 打野外 0.75（差距全在核心豁免上）',
+     Math.abs(aCore - 0.40) < 1e-9 && Math.abs(aOff - 0.75) < 1e-9,
+     aCore.toFixed(2) + ' / ' + aOff.toFixed(2));
+
+  /* 站在要点上的部队不吃 M5：守土有责。
+     少了这条豁免，守军会为了"省编制"把旗子让出去，那是另一种输法。 */
+  const atkOnObj = { pos: coreCell.slice(), side: 'red', type: 'inf', str: 10, org: 100 };
+  const gHold = api.aiFireGate(atkOnObj, defOff, pvLow, A.seize, false);
+  ok('M5：站在要点上的部队不吃止损线（0.85 原样）',
+     Math.abs(gHold - 0.85) < 1e-9, gHold.toFixed(2));
+  /* 追击的另一半：不再"挑肥拣瘦"。站在要点上（止损线整条豁免）时看得最清楚——
+     平时 0.85，追击时 0。它与"不再归零"是同一枚硬币的两面：
+     追击放开的是"这一枪值不值"，不是"这一仗打不打得动"。 */
+  ok('追击：站在要点上时不再按性价比打折（0.85 → 0）',
+     api.aiFireGate(atkOnObj, defOff, pvLow, A.seize, false, false, false, true) === 0,
+     String(api.aiFireGate(atkOnObj, defOff, pvLow, A.seize, false, false, false, true)));
+
+  /* ── 二、M1 攻其必救：挑软要点，但核心不参与 ── */
+  let seq = 0;
+  /* 注意：`put` 必须往**当前** state 里塞。这一节中途会 newGame 换关，
+     闭包住开局那个 S 会让"造出来的兵"进不到新局里——断言于是看着绿，
+     其实测的是一个空战场（这轮就踩了：重心断言拿到的是上一关的缓存值）。 */
+  const put = (side, t, r, c, str) => {
+    const u = api.makeUnit({ id: (side === 'blue' ? 'B' : 'R') + (++seq), side, type: t,
+      abbr: 'T' + seq, name: '测试' + T[t].name, r, c, corps: 'T',
+      str: str === undefined ? 10 : str,
+      mov: T[t].mv || 8, rng: T[t].rg === undefined ? 1 : T[t].rg }, false);
+    api.getState().units.push(u);
+    return u;
+  };
+  const clearUnits = () => { const x = api.getState(); x.units.length = 0; x.forts = []; };
+  clearUnits();
+  const scout = put('red', 'inf', off[0], off[1], 10);
+  const emptyObj = { id: '_t_empty', core: false, cells: [[off[0], off[1]]] };
+  ok('M1：空要点的守备强度为 0', api.objectiveGarrison(emptyObj, 'blue') === 0);
+  ok('M1：空要点是正引力（愿意去）', api.aiObjPull(emptyObj, scout, A.seize) > 0,
+     api.aiObjPull(emptyObj, scout, A.seize).toFixed(2));
+
+  put('blue', 'inf', off[0], off[1], 40);
+  const heldObj = { id: '_t_held', core: false, cells: [[off[0], off[1]]] };
+  ok('M1：守备强度按战力 × 地形算（不是数人头）',
+     api.objectiveGarrison(heldObj, 'blue') >= 40,
+     api.objectiveGarrison(heldObj, 'blue').toFixed(1));
+  ok('M1：守备远超我方兵力时变成负引力（绕着走）',
+     api.aiObjPull(heldObj, scout, A.seize) < 0,
+     api.aiObjPull(heldObj, scout, A.seize).toFixed(2));
+  /* 这一条是整个 v4.22 的核心：核心要点不吃"挑软的"。
+     少了它，玩家把兵往要塞一堆，AI 就转去啃边角，第一关的围城感当场消失。 */
+  ok('M1：核心要点不吃软硬判据（引力恒为 0，不倒扣）',
+     api.aiObjPull({ ...heldObj, core: true }, scout, A.seize) === 0);
+  ok('M1：防守型没有挑软这条（pickSoft = 0）',
+     api.aiObjPull(emptyObj, scout, A.hold) === 0);
+
+  /* 目标选择：两个等距要点，一个空、一个堆着守军 → 去空的。
+     再换成"核心堆兵 / 边角空着" → 仍然去核心。这一对必须成对存在：
+     只测前者会把"核心优先"改坏，只测后者会把 M1 整条删掉也看不出来。 */
+  let row = null;
+  for (let r = 0; r < api.LEVEL.rows && row === null; r++) {
+    let run = true;
+    for (let c = 2; c <= 8; c++) if (api.LEVEL.map[r][c] === '~') { run = false; break; }
+    if (run) row = r;
+  }
+  ok('前提：地图上有一行 2..8 列全可通行', row !== null, String(row));
+  const savedObjs = api.LEVEL.objectives;
+  /* 先把 M2 的重心钉到一个不存在的段上，让两个要点吃同样的惩罚。
+     不这么做的话，M2 会替 M1 把"空的那个"选出来——实测把 M1 整条删掉，
+     断言照样绿（这轮就踩了）。两个机制共用同一个落点，必须一次只让一个说话。 */
+  const muteSp = () => {
+    const x = api.getState();
+    x.schwerpunkt = { lo: -9999, hi: -9999, turn: x.turn };
+  };
+  /* 堆着守军的那个**排在前面**：M1 失效时两边同分，平手取先会选中它，
+     断言才会红。顺序反过来的话，删掉 M1 也能过。 */
+  api.LEVEL.objectives = [
+    { id: '_g_hard', core: false, cells: [[row, 2]] },
+    { id: '_g_soft', core: false, cells: [[row, 8]] }
+  ];
+  clearUnits();
+  muteSp();
+  const scout2 = put('red', 'inf', row, 5, 10);
+  put('blue', 'inf', row, 2, 40);            // 左边的要点堆着守军
+  const gA = api.aiGoalFor(scout2, A.seize);
+  ok('M1：两个等距要点，挑空的那个（左边堆着守军，而且排在前面）',
+     !!gA && gA[0] === row && gA[1] === 8, JSON.stringify(gA));
+
+  api.LEVEL.objectives = [
+    { id: '_g_core', core: true, cells: [[row, 2]] },
+    { id: '_g_soft2', core: false, cells: [[row, 8]] }
+  ];
+  clearUnits();
+  muteSp();
+  /* 侦察兵放在 col 3：核心 1 格、空软点 5 格。
+     核心吃夺取型的 allIn −2 与"不吃倒扣"，软点吃 M1 的 +4——
+     0 vs 1，核心险胜。软点若摆在等距上，这里选的就是软点：
+     等距时"挑软的"本来就该赢（那才是先打孤立之敌），
+     所以这条断言要验的是"核心近、软点也不是不能去"，两条判据都还活着。 */
+  const scout3 = put('red', 'inf', row, 3, 10);
+  put('blue', 'inf', row, 2, 40);            // 核心上堆着守军，边角空着
+  const gB = api.aiGoalFor(scout3, A.seize);
+  ok('M1：核心要点堆着兵也照去（不吃"挑软的"倒扣）',
+     !!gB && gB[0] === row && gB[1] === 2, JSON.stringify(gB));
+  api.LEVEL.objectives = savedObjs;
+
+  /* ── 三、M2 重心转移 ── */
+  api.newGame({ level: 'C1', noSave: true });
+  ok('M2：只有一个要点的关卡不给重心（没得选就不加权）',
+     api.aiSchwerpunkt(A.seize, true) === null);
+  api.newGame({ level: 'C3', noSave: true });
+  const spReal = api.aiSchwerpunkt(A.seize, true);
+  ok('M2：多要点关卡给出一个主攻段（lo/hi 是列号范围）',
+     !!spReal && typeof spReal.lo === 'number' && typeof spReal.hi === 'number' &&
+     spReal.hi >= spReal.lo, JSON.stringify(spReal));
+
+  /* 核心段约束用**构造数据**验，不用真关卡：
+     真关卡里最弱的那一段恰好含核心，把约束摘掉也不会变，断言就抓不住变异。
+     这里故意让"最弱的一段"是边角（col 8 无人），核心分别在两端，
+     左边核心堆 40 战力、右边核心只有 10：
+       · 有约束 → 只在两个核心段里挑，选弱的那个（右边 col 14）
+       · 没约束 → 直接选最弱的边角段（col 8），要塞被甩开
+     这一条正是用户要的"重点一定要打"在 M2 上的落点。 */
+  const savedObjs3 = api.LEVEL.objectives;
+  clearUnits();
+  api.LEVEL.objectives = [
+    { id: '_sp_c1', core: true, cells: [[row, 2]] },
+    { id: '_sp_s', core: false, cells: [[row, 8]] },
+    { id: '_sp_c2', core: true, cells: [[row, 14]] }
+  ];
+  put('blue', 'inf', row, 2, 40);
+  put('blue', 'inf', row, 14, 10);
+  const spFab = api.aiSchwerpunkt(A.seize, true);
+  ok('前提：构造局面里最空的段是不含核心的边角（col 8）',
+     api.bandDefense([api.LEVEL.objectives[1]], 'blue') === 0);
+  ok('M2：主攻段必然覆盖一个核心要点（边角再空也不去）',
+     !!spFab && spFab.lo === 14 && spFab.hi === 14, JSON.stringify(spFab));
+  /* 缓存：同一回合里每支兵牌都会问一次，重算一遍就是白烧 CPU。 */
+  const st2 = api.getState();
+  const turn0 = st2.turn;
+  st2.schwerpunkt = { lo: 2, hi: 2, turn: turn0 };
+  const spCached = api.aiSchwerpunkt(A.seize, false);
+  ok('M2：同一回合内复用缓存（不重复聚类）',
+     spCached === st2.schwerpunkt && spCached.lo === 2, JSON.stringify(spCached));
+  st2.turn = turn0 + api.SP_PERIOD - 1;
+  ok('M2：周期没到不重算', api.aiSchwerpunkt(A.seize, false) === spCached);
+  st2.turn = turn0 + api.SP_PERIOD;
+  ok('M2：满两回合重算一次（重心要在进攻中变）',
+     api.aiSchwerpunkt(A.seize, false) !== spCached,
+     JSON.stringify(api.aiSchwerpunkt(A.seize, false)));
+  st2.turn = turn0;
+
+  /* 段内 / 段外的引力差：两个都不设防的等距要点，重心段里的那个更受青睐。
+     故意把**段外**那个排在数组前面：两个都要吃 M1 的 +4 引力，
+     距离与引力全相等，唯一能分开它们的就是重心那 2.5 格。
+     顺序反过来的话，即使把 SP 加权整个删掉，第一个也会因为"平手取先"而赢——
+     断言就成了一条永远绿的假防线。 */
+  api.LEVEL.objectives = [
+    { id: '_sp_out', core: false, cells: [[row, 8]] },
+    { id: '_sp_in', core: false, cells: [[row, 2]] }
+  ];
+  st2.schwerpunkt = { lo: 2, hi: 2, turn: st2.turn };
+  clearUnits();
+  const scout4 = put('red', 'inf', row, 5, 10);
+  const gS = api.aiGoalFor(scout4, A.seize);
+  ok('M2：两个要点都不设防时，重心段里的那个更受青睐',
+     !!gS && gS[0] === row && gS[1] === 2, JSON.stringify(gS));
+  api.LEVEL.objectives = savedObjs3;
+}
+
+console.log('\n通过 ' + pass + ' 项，失败 ' + fail + ' 项');
   process.exit(fail ? 1 : 0);
 })().catch(e => {
   console.error(e && e.stack ? e.stack : e);

@@ -5,8 +5,8 @@
    为什么是 .js 而不是 .json：项目要能双击直接打开，
    file:// 下 fetch 会被同源策略拦掉，<script src> 不会。 */
 window.CANGYU = {
-  "ver": "v4.21",
-  "srcSig": "447416:1hpmuu1",
+  "ver": "v4.22",
+  "srcSig": "447720:uq3wzw",
   "storage": {
     "save": "wargame.lankou.save",
     "saveVer": 3,

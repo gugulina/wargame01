@@ -728,7 +728,7 @@ const MUTANTS = [
 
   /* 集火折扣被删：第二支接不上时仍然按高门槛挑，协同火力等于没写 */
   ['集火预支被移除（第二支能接上也不放松门槛）',
-   '  if (massed && !st.defensive && !pv.flanked) g -= 0.15;',
+   '  if (massed && !st.defensive && !pv.flanked && !hunt) g -= 0.15;',
    '  /* 变异：集火折扣被移除 */',
    '集火：夺取型门槛再放松'],
 
@@ -970,8 +970,8 @@ const MUTANTS = [
 
   /* 夺取型配置回退：整批机制永远进不了门 */
   ['夺取型不再开启追击（配置回退）',
-   '    hunt: true\n  }\n};',
-   '    hunt: false\n  }\n};',
+   '    hunt: true\n  },\n};',
+   '    hunt: false\n  },\n};',
    '夺取型 / 进攻型开启追击'],
 
   /* 状态不落账：每回合重复播报，且 runAI 读到旧状态 */
@@ -1037,10 +1037,14 @@ const MUTANTS = [
    '追击给贴近敌军的落点加分'],
 
   /* 开火门槛不归零：兵力 2 倍还在挑性价比 */
-  ['追击不放开开火门槛（只多走两步）',
-   '  if (hunt) return 0;',
-   '  if (false) return 0;',
-   '追击把开火门槛压到 0'],
+  /* v4.22：追击不再把门槛归零（那是 C1 在城下送死的直接原因），
+     但它仍然**取消"性价比"这一层**。这两件事现在分开验：
+     · 归零 → 已经删掉，改由止损线兜底（见 [57] 的"追击不再压到 0"）；
+     · 不打折 → 站在要点上时看得最清楚：平时 0.85、追击时 0。 */
+  ['追击仍按性价比打折（等于什么都没放开）',
+   '  let g = hunt ? 0 : (isArty(u) ? st.fireArty : st.fireOther) - (pv.flanked ? 0.15 : 0);',
+   '  let g = (isArty(u) ? st.fireArty : st.fireOther) - (pv.flanked ? 0.15 : 0);',
+   '追击：站在要点上时不再按性价比打折'],
 
   /* 列表层不放行：目标列表照旧是空的，人就在眼前也点不着 */
   ['追击目标进不了列表（看得见打不着）',
@@ -1153,6 +1157,73 @@ const MUTANTS = [
    '    selfFortifyTick(u);',
    '    void 0;',
    '回合结算会自动调用自筑阵地 tick'],
+
+  /* ── v4.22 三条决策机制（docs/22）──
+     每条机制至少一条变异。M5 / M1 / M2 都有一个"豁免口"，
+     那些口子最容易在后续改动里被顺手删掉，而删掉之后游戏照常能跑，
+     只是第一关的围城感没了——所以豁免也要各有一条。 */
+
+  /* M5 整条失效：赔本仗照打（红方会在城下把营一个个填进去） */
+  ['M5 止损线被摘掉（赔本仗照打）',
+   '  let floor = -1;\n  if (def && !onAnyObjective(u)) {',
+   '  let floor = -1;\n  if (false) {',
+   'M5：野外 1:2 以下的仗不再打'],
+
+  /* M5 核心豁免被摘掉：要塞按野外的线判，等于"不敢打要塞"。
+     用进攻型验——夺取型的 allIn 本来就把任何要点压到 CORE_STOP，
+     在它身上摘掉这条豁免看不出差别（这本身就是个值得记的事实）。 */
+  ['M5 核心豁免被摘掉（要塞按野外的线判）',
+   '    floor = onCoreObjective(def) ? CORE_STOP : stopLossOf(st);',
+   '    floor = stopLossOf(st);',
+   'M5：进攻型打要塞 0.40 / 打野外 0.75'],
+
+  /* M5 守要点豁免被摘掉：守军为了省编制把旗子让出去 */
+  ['M5 站在要点上也吃止损线（守军让出要点）',
+   '  if (def && !onAnyObjective(u)) {',
+   '  if (def) {',
+   'M5：站在要点上的部队不吃止损线'],
+
+  /* M1 核心也吃挑软：玩家把兵堆在要塞上，AI 就转去啃边角 */
+  ['M1 核心要点也吃挑软（要塞被倒扣引力）',
+   '  if (!o || o.core) return 0;',
+   '  if (!o) return 0;',
+   'M1：核心要点不吃软硬判据'],
+
+  /* M1 硬壳不倒扣：照样往重兵堆里撞，"攻其必救"退化成"谁近打谁" */
+  ['M1 硬壳不倒扣（照样往重兵堆里撞）',
+   '  if (r >= SOFT_HARD) return -SOFT_HARD_PENALTY * st.pickSoft;',
+   '  if (r >= SOFT_HARD) return 0;',
+   'M1：守备远超我方兵力时变成负引力'],
+
+  /* M1 算了引力却没用上：函数有、目标选择不读，典型"机制不接线" */
+  ['M1 挑了软要点但目标选择不读它',
+   '        - soft + spAdj;',
+   '         + spAdj;',
+   'M1：两个等距要点，挑空的那个'],
+
+  /* M2 重心可以甩开核心：全军转去最空虚的边角，要塞前面空了 */
+  ['M2 重心可以甩开核心要点（全军转去边角）',
+   '  if (cores.length) use = use.filter(b => b.some(o => o.core));',
+   '  if (cores.length) use = use.filter(b => true);',
+   'M2：主攻段必然覆盖一个核心要点'],
+
+  /* M2 段内不加权：重心算了但目标选择不读，机制等于没做 */
+  ['M2 重心算了但目标选择不读',
+   '    const spAdj = sp ? (inSp ? -SP_BONUS : SP_PENALTY) : 0;',
+   '    const spAdj = 0;',
+   'M2：两个要点都不设防时，重心段里的那个更受青睐'],
+
+  /* M2 周期失效：重心一回合换一次，玩家看到的是一支来回摆的部队 */
+  ['M2 每回合都重算（重心来回摆）',
+   '  if (!force && cur && cur.turn <= turn && (turn - cur.turn) < SP_PERIOD) return cur;',
+   '  if (!force && cur && cur.turn <= turn && (turn - cur.turn) < 0) return cur;',
+   'M2：周期没到不重算'],
+
+  /* M2 单段也给重心：C1 只有一个要塞，硬加权让同一批部队互相抵消 */
+  ['M2 只剩一段也给重心（单要点关卡被硬加权）',
+   '  if (use.length < 2) { state.schwerpunkt = null; return null; }',
+   '  if (false) { state.schwerpunkt = null; return null; }',
+   'M2：只有一个要点的关卡不给重心'],
 
 ];
 

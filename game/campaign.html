@@ -58,7 +58,7 @@
      <link> 不会——跟 data/levels.js 必须用 <script src> 是同一个原因。
      ?v= 跟着顶栏版本走（tools/check.js 校验），否则改完样式玩家可能还在吃
      GitHub Pages 的十分钟缓存，看到的是一半新一半旧的页面。 -->
-<link rel="stylesheet" href="campaign.css?v=4.21">
+<link rel="stylesheet" href="campaign.css?v=4.22">
 <!-- 版本公告数据与菜单页共用一份（HQ 的「版本公告」页签读它）。
      放在 <head> 里同步加载：页签是玩家点了才渲染的，但真读不到时那一页要能
      说清"文件缺了"，而不是显示一片空白——异步加载失败是静默的。 -->
@@ -76,7 +76,7 @@
       <span class="pill" id="phasePill">我方阶段</span>
       <!-- 全项目唯一的版本标记：tools/export-levels.js 按这个 span 的原样文本抓版本号，
            开始页撤掉之后它挪到了顶栏，标签必须保持 <span id="verTag"> 这个形状 -->
-      <span id="verTag">v4.21</span>
+      <span id="verTag">v4.22</span>
       <!-- 存档异常：只在真的写失败时出现（隐私模式 / 配额满 / 被清理）。
            默认 display:none，别让它平时占位——一排胶囊里突然多一个红字，
            玩家第一反应是"我是不是哪里点坏了"。 -->
@@ -341,7 +341,7 @@
      引擎顶层的 window.__WAR__ 导出表直接引用 runAI / huntContact 等 38 个符号，
      那些是 function 声明，AI 后加载就会在导出那一刻报 ReferenceError；
      反过来 AI 引用引擎的 state / LEVEL / TYPE 全在函数体内，调用时才解析。 -->
-<script src="ai.js?v=4.21"></script>
+<script src="ai.js?v=4.22"></script>
 
 <script>
 /* ───────────────────────── 地形 ───────────────────────── */
@@ -8510,7 +8510,7 @@ function showOverlay() {
 
 /* ───────────────────────── 红方 AI ─────────────────────────
    **已抽到同目录的 ai.js**（v4.21），在 campaign.html 里以
-   <script src="ai.js?v=4.21"> 的形式**排在引擎脚本之前**加载。
+   <script src="ai.js?v=4.22"> 的形式**排在引擎脚本之前**加载。
    （这行故意不写闭合标签：HTML 解析器只要在脚本里看到那个字面量就会
      当场把脚本截断，后面全部代码变成非法 token——踩过一次。）
    要改敌方脾气、追击条件、开火门槛、目标价值——直接改 ai.js，不用在这个文件里翻。
@@ -11317,6 +11317,12 @@ window.__WAR__ = {
      断言直接问这一关用哪种、这一格走不走、这一炮打不打，不用整局跑完猜。 */
   AI_STYLES, AI_STYLE_BY_TYPE, aiStyleKey, aiStyle, aiGoalFor, aiMoveScore, aiFireGate,
   onEnemyObjective, scoreTarget,
+  /* v4.22 三条决策机制（docs/22）：M5 不打的仗不打 / M1 攻其必救 / M2 重心转移。
+     三个机制各导一份判据 + 两个豁免口（核心要点 / 站在要点上），
+     断言才能分开问"这条规则生没生效"和"豁免有没有把它盖掉"——只测前者会假绿。 */
+  stopLossOf, onCoreObjective, onAnyObjective,
+  objectiveGarrison, aiObjPull, objCol, bandDefense, aiSchwerpunkt,
+  CORE_STOP, SOFT_MAX, SP_BONUS, SP_PERIOD,
   /* v4.20 第 1 批：目标价值 / 零风险火力 / 集火预支 / 崩溃收拢。
      每条都单独导出——"门槛算得对不对""第二支接不接得上""往哪退"
      都是坏了不报错、只是手感发木的规则，只能靠断言守。 */
