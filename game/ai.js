@@ -55,8 +55,10 @@
    关卡里仍可写 `aiStyle: 'assault'` 硬改（少数关需要例外时用），
    但那是例外，不是常规入口——`check.js` 会把写了但拼错的值报出来。
 
-   三种性格只在**四处**分岔，全部收在下面这四个函数里，别散进 runAI：
+   三种性格只在**五处**分岔，全部收在下面这几个函数里，别散进 runAI：
      aiGoalFor()  往哪走 · aiMoveScore() 落脚在哪 · aiFireGate() 打不打 · scoreTarget() 打谁
+     AI_STYLES[].contact  贴到一格还要不要问交换比（v4.23 接触交火，见 campaign.html
+     里的 contactFire——判据在引擎侧，这里只放底价）
 
    ⚠ 一条历史教训写在这里：v4.17 试过"没有要抢的要点时向最近敌军推进"，
    C2 突围关的达成率从 45% 掉到 **0%**——红方离开封锁线去追人，逃生部队被逐个咬死。
@@ -84,8 +86,9 @@ const AI_STYLES = {
     /* v4.22 三条决策机制（docs/22）：
        stopLoss    M5 止损线（ratio 口径）：比这更亏的一枪不打
        pickSoft    M1 挑软要点的力度，0 = 不挑（谁近打谁）
-       schwerpunkt M2 有没有"主攻方向"这个概念 */
-    stopLoss: 0.75, pickSoft: 0.6, schwerpunkt: true
+       schwerpunkt M2 有没有"主攻方向"这个概念
+       v4.23 contact M9 接触交火底价：步兵贴到一格就不再问交换比（见 contactFire） */
+    stopLoss: 0.75, pickSoft: 0.6, schwerpunkt: true, contact: 0.20
   },
   /* 防守型：依托要点与工事据守，低进攻欲望。
      目标要点**包括已经在我手里的**（守方要待在自己阵地上），
@@ -116,6 +119,10 @@ const AI_STYLES = {
        再往上压就成了现在的样子：站在城下的营一个接一个往 1:3 里填。
        0.90 的含义是"至少打到 1:1 才值得上"，两个营凑一发就够得着（见文档）。 */
     stopLoss: 0.90, pickSoft: 1, schwerpunkt: true,
+    /* v4.23 接触交火：夺取型是围城的一方，步兵贴上去就必须开火。
+       底价 0.20 与攻坚令同档——低于这条线的单次交火在 CRT 上与 0.20 是
+       同一档（1:3），底价只决定"几个营一起上"，不改变单次交换比。 */
+    contact: 0.20,
     /* 追击（v4.21）：与进攻型同一套判定。防守型没有这一条——
        hold 的职责是钉在阵地上，离开要点去追人正是它最不该做的事。 */
     hunt: true
@@ -193,6 +200,13 @@ function onAnyObjective(u) {
 /* 止损线：这一仗值不值得打。脾气没写就按夺取型的口径（宁可保守）。 */
 function stopLossOf(st) {
   return (st && typeof st.stopLoss === 'number') ? st.stopLoss : 0.90;
+}
+/* M9 接触交火的"这一支脾气开不开这个口子"。
+   contactFire 的第四个参数不给时会退到 CONTACT_RATIO，那是给断言用的默认值；
+   AI 这边必须显式读 AI_STYLES[].contact —— 少这一层，防守型也会跟着出坑对射。 */
+function aiContactFire(u, def, pv, st) {
+  if (!st || typeof st.contact !== 'number') return false;
+  return contactFire(u, def, pv, st.contact);
 }
 
 /* M1 的守备强度：要点格内与相邻一格内的敌军战力，按地形加成放大。
@@ -317,11 +331,16 @@ function aiStyleKey(lv) {
 function aiStyle(lv) { return AI_STYLES[aiStyleKey(lv)]; }
 /* 夺取型才带攻坚令：目标列表保留"敌方要点上的低比值目标"，
    doAttack 也放行同一批。别的脾气没有这个口子。
-   追击期间再叠一层 hunt：目标列表与兜底闸都放开无效接触限制。 */
+   追击期间再叠一层 hunt：目标列表与兜底闸都放开无效接触限制。
+   v4.23 再加一层 contact：步兵贴到一格就交火（底价写在 AI_STYLES 里）。
+   三层口子都走同一个 opts，所以 targetsFor 与 doAttack 不可能分家。 */
 function aiTargetOpts(style, hunt) {
   const st = style || aiStyle();
-  if (hunt) return { pushObjective: true, hunt: true };
-  return st && st.allInOnObjective ? { pushObjective: true } : undefined;
+  const o = {};
+  if (st && st.allInOnObjective) o.pushObjective = true;
+  if (hunt) { o.pushObjective = true; o.hunt = true; }
+  if (st && typeof st.contact === 'number') o.contact = st.contact;
+  return Object.keys(o).length ? o : undefined;
 }
 
 /* ───────────────── 追击（v4.21）─────────────────
@@ -680,6 +699,10 @@ function aiFireGate(u, def, pv, style, afterMove, massed, breakthrough, hunt) {
      以前这里只看比值，炮兵于是经常放过"贴着残部打"的白打机会——
      玩家看到的就是"敌人不补刀"。 */
   if (pv && pv.counter === false) return 0;
+  /* M9 接触交火（v4.23）：步兵已经贴到一格，这一枪不再按性价比打折。
+     三层闸（目标列表 / 这里 / doAttack 兜底）必须放同一个判据——
+     列表放行了、这里再卡一次，屏幕上还是"敌人贴着我站着不动"。 */
+  if (aiContactFire(u, def, pv, st)) return 0;
   /* 追击（v4.21）：不再"挑肥拣瘦"——不按这一关的脾气打折，门槛基线取 0。
      **但止损线照旧**（见下面的 floor）。v4.21 这里原本是 `return 0`，
      等于"追击期间连生死都不挑"：C1 从第 1 回合就满足追击条件（兵力比 2.06），

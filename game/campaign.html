@@ -58,7 +58,7 @@
      <link> 不会——跟 data/levels.js 必须用 <script src> 是同一个原因。
      ?v= 跟着顶栏版本走（tools/check.js 校验），否则改完样式玩家可能还在吃
      GitHub Pages 的十分钟缓存，看到的是一半新一半旧的页面。 -->
-<link rel="stylesheet" href="campaign.css?v=4.22">
+<link rel="stylesheet" href="campaign.css?v=4.23">
 <!-- 版本公告数据与菜单页共用一份（HQ 的「版本公告」页签读它）。
      放在 <head> 里同步加载：页签是玩家点了才渲染的，但真读不到时那一页要能
      说清"文件缺了"，而不是显示一片空白——异步加载失败是静默的。 -->
@@ -76,7 +76,7 @@
       <span class="pill" id="phasePill">我方阶段</span>
       <!-- 全项目唯一的版本标记：tools/export-levels.js 按这个 span 的原样文本抓版本号，
            开始页撤掉之后它挪到了顶栏，标签必须保持 <span id="verTag"> 这个形状 -->
-      <span id="verTag">v4.22</span>
+      <span id="verTag">v4.23</span>
       <!-- 存档异常：只在真的写失败时出现（隐私模式 / 配额满 / 被清理）。
            默认 display:none，别让它平时占位——一排胶囊里突然多一个红字，
            玩家第一反应是"我是不是哪里点坏了"。 -->
@@ -341,7 +341,7 @@
      引擎顶层的 window.__WAR__ 导出表直接引用 runAI / huntContact 等 38 个符号，
      那些是 function 声明，AI 后加载就会在导出那一刻报 ReferenceError；
      反过来 AI 引用引擎的 state / LEVEL / TYPE 全在函数体内，调用时才解析。 -->
-<script src="ai.js?v=4.22"></script>
+<script src="ai.js?v=4.23"></script>
 
 <script>
 /* ───────────────────────── 地形 ───────────────────────── */
@@ -5673,6 +5673,50 @@ function objectivePush(att, def, opts, pv) {
   const r = pv ? pv.ratio : previewAttack(att, def, state.fields).ratio;
   return r >= PUSH_RATIO;
 }
+/* ───────── 接触交火（v4.23）─────────
+   反馈：玩家围出一条防线，敌步兵就站着不动了。而步兵本来就是进攻的主力——
+   贴上了不打，屏幕上看到的不是"敌人在盘算"，是"敌人卡住了"。
+
+   原因不在一条闸上，而在三层同时生效：
+     ① 目标列表：比值 < 0.35 且对方能还手 → 目标根本不列出来（invalidContact）
+     ② AI 开火门槛：v4.22 的 M5 止损线把它抬到 0.75 / 0.90（aiFireGate）
+     ③ doAttack 兜底闸：和 ① 同一条判据，绕过列表也打不出去
+   三层都开同一个口子，缺一层就是"改了个看不见的地方"。
+
+   条件四条，少一条就会退化成"排队送死"（那正是 v4.22 要治的病）：
+     · 徒步编制（FOOT_TYPES）：坦克不适用，它的活是绕后与突破，不是贴脸换血
+     · 与目标**相邻一格**：轻武器射程，已经接上火了；隔着两格那是"进攻"，不是"交火"
+     · 打一枪不会把自己打光：战力 ≤ CONTACT_LOSS 的残部不上——它上去只会整支消失，
+       那不叫交火。**工兵连是被编制那一条挡掉的**，不是这一条（它不在 FOOT_TYPES 里）
+     · 比值过底价（0.20，与攻坚令同档）
+
+   开不开放由**调用方**决定：三处闸都读 `opts.contact`（AI 由 AI_STYLES[].contact
+   经 aiTargetOpts 给），与 objectivePush 同一个写法。玩家面板不传——
+   面板上多一个"必亏的攻击"按钮，等于让玩家替 AI 试错。
+   `contactFire` 的第四个参数不给时会退到默认底价，那是给断言用的，不是给 AI 用的。
+
+   代价必须封顶，否则这条规则就是 M5 的反向回滚：
+   交火是**对射**，不是冲锋。**比值低于无效接触线的那一枪**，攻方损失封顶
+   CONTACT_LOSS 点，守方照常掉战力与组织度——这一枪买到的是压制与消耗，
+   不是突破。比值够 0.35 的正常攻击照旧按 CRT 结算，一点不变。
+
+   ⚠ 判据**不能**挂"无效接触"（v4.23 第一版就是这么写的，被自测当场打红）：
+   碉堡被打掉之后同一支守军比值从 0.30 升到 0.36，那一枪就"不算交火"，
+   于是开火门槛又跳回 0.90，同一支步兵在同一个位置忽然不打了。
+   玩家看到的是"打着打着停了"——比一开始不打更难解释。
+   所以判据只看"步兵 + 相邻 + 打得动"，无效接触只决定**损失封不封顶**。 */
+const CONTACT_LOSS = 2;      // 交火中攻方单次损失上限（点）
+const CONTACT_RATIO = 0.20;  // 底价：低于攻坚令就没有"打"的意义，那是白送
+function contactFire(att, def, pv, minRatio) {
+  if (!att || !def || !att.pos || !def.pos) return false;
+  if (!FOOT_TYPES.includes(att.type)) return false;
+  if (!canFire(att)) return false;
+  if (hexDist(att.pos, def.pos) !== 1) return false;
+  if (!(att.str > CONTACT_LOSS)) return false;
+  const floor = (typeof minRatio === 'number') ? minRatio : CONTACT_RATIO;
+  pv = (pv && typeof pv.ratio === 'number') ? pv : previewAttack(att, def, state.fields);
+  return pv.ratio >= floor;
+}
 
 /* 多面进攻的记账：state.flanges[目标格] = 第一支进攻方的位置串。
    只记"位置串"不记单位——判的是"从不同格打过来"，不是"几个人打"。
@@ -5899,7 +5943,10 @@ function inRangeTargets(u, fields, opts) {
        夺取型的攻坚令另开一个口子（objectivePush，v4.20 第 2 批）。 */
     const pv = previewAttack(u, t, fields);
     return !invalidContact(u, t, fields, pv) || objectivePush(u, t, opts, pv) ||
-           huntContact(u, t, opts);
+           huntContact(u, t, opts) ||
+           /* 接触交火（v4.23）：步兵贴身必打，见 contactFire 上面那段。
+             启用与否由调用方给不给 opts.contact 决定，不给就走老路。 */
+           (!!opts && typeof opts.contact === 'number' && contactFire(u, t, pv, opts.contact));
   });
 }
 /* "这一门炮现在能不能响"：弹药与展开状态。
@@ -7278,13 +7325,17 @@ function doAttack(att, def, opts) {
      previewAttack 是纯函数，放在 pushUndo 之前：被拒绝的攻击
      不能在撤销栈里留一条假记录。 */
   const pv = previewAttack(att, def, state.fields);
+  const contact = (!!opts && typeof opts.contact === 'number') && contactFire(att, def, pv, opts.contact);
   if (pv.ratio < INVALID_RATIO && pv.counter && !objectivePush(att, def, opts, pv) &&
-      !huntContact(att, def, opts)) return false;
+      !huntContact(att, def, opts) && !contact) return false;
   pushUndo();
   const die = Math.floor(rng() * 6);
   const row = CRT[pv.tier][die];
   const flanks = pv.attHelp.length;
   let attLoss = pv.counter ? row[0] : 0;
+  /* 接触交火按"对射"结算：攻方损失封顶（见 contactFire 的注释）。
+     只封"本来会被无效接触闸拦掉"的那一档——比值够的攻击照旧按 CRT 走。 */
+  if (contact && pv.ratio < INVALID_RATIO) attLoss = Math.min(attLoss, CONTACT_LOSS);
   if (pv.counterSoft) attLoss = Math.round(attLoss * 0.5);   // 炮组无步兵掩护，反击打对折
   let defLoss = row[1];
 
@@ -8510,7 +8561,7 @@ function showOverlay() {
 
 /* ───────────────────────── 红方 AI ─────────────────────────
    **已抽到同目录的 ai.js**（v4.21），在 campaign.html 里以
-   <script src="ai.js?v=4.22"> 的形式**排在引擎脚本之前**加载。
+   <script src="ai.js?v=4.23"> 的形式**排在引擎脚本之前**加载。
    （这行故意不写闭合标签：HTML 解析器只要在脚本里看到那个字面量就会
      当场把脚本截断，后面全部代码变成非法 token——踩过一次。）
    要改敌方脾气、追击条件、开火门槛、目标价值——直接改 ai.js，不用在这个文件里翻。
@@ -11263,6 +11314,9 @@ window.__WAR__ = {
   /* 无效接触的判据（v4.18 热修抽出）：比值不够**且**对面够得着还手。
      导出它是为了让断言能问"这条闸到底拦了谁"，而不是只看列表面板。 */
   INVALID_RATIO, PUSH_RATIO, invalidContact,
+  /* 接触交火（v4.23）：步兵贴到一格就必须开火，三层闸共用一个判据。
+     导出是为了让断言能分别问"这一枪算不算交火""交火封顶几点"。 */
+  CONTACT_LOSS, CONTACT_RATIO, contactFire,
   doMove, doAttack, endBluePhase, settlePhase, judgeFinal, render,
   objectiveControl, ctrlState, updateControl, checkEvents, applyEffect, modAtk, modDef, spawnGroup,
   /* 事件触发器：noteAct 写计数器，triggerMet 读它。

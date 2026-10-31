@@ -4165,6 +4165,10 @@ console.log('\n[52] 夺取型攻坚令：敌方要点上的低比值目标不再
     return u;
   };
   const guard = put('blue', 'gdn', site[0], site[1], 6);
+  /* 攻方必须与守方相邻：无效接触的前提是"对面够得着还手"，隔两格就没有反击，
+     那就不是无效接触，整组断言会退化成"目标本来就列得出来"。
+     v4.23 起相邻的徒步部队会被接触交火接管，所以下面两条**只传 pushObjective**
+     ——要验的是攻坚令这条路由，不是"谁最后放行"（变异当场抓出来的）。 */
   const att = put('red', 'inf', adj[0], adj[1], 10);
   api.updateControl(true);
   const pv = api.previewAttack(att, guard, S.fields);
@@ -4187,12 +4191,14 @@ console.log('\n[52] 夺取型攻坚令：敌方要点上的低比值目标不再
   ok('底价卡在 0.20（等于放行）',
      api.objectivePush(att, guard, { pushObjective: true },
        { ratio: api.PUSH_RATIO, counter: true }) === true);
+  /* v4.23 起 opts 里还带接触底价，所以不能再拿整个对象去比字符串——
+     这里要守的是"攻坚令只给夺取型"，就只问这一项。 */
   ok('夺取型自动带攻坚令，另外两种不带',
-     JSON.stringify(api.aiTargetOpts(api.AI_STYLES.seize)) === '{"pushObjective":true}' &&
-     api.aiTargetOpts(api.AI_STYLES.assault) === undefined &&
-     api.aiTargetOpts(api.AI_STYLES.hold) === undefined);
+     (api.aiTargetOpts(api.AI_STYLES.seize) || {}).pushObjective === true &&
+     !(api.aiTargetOpts(api.AI_STYLES.assault) || {}).pushObjective &&
+     !(api.aiTargetOpts(api.AI_STYLES.hold) || {}).pushObjective);
   ok('攻坚令生效时目标进列表',
-     api.targetsFor(att, S.fields, api.aiTargetOpts()).includes(guard));
+     api.targetsFor(att, S.fields, { pushObjective: true }).includes(guard));
 
   att.str = 6;
   const weak = api.previewAttack(att, guard, S.fields);
@@ -4206,7 +4212,7 @@ console.log('\n[52] 夺取型攻坚令：敌方要点上的低比值目标不再
   ok('doAttack 不带攻坚令时仍然拒绝（列表之外的第二道闸）',
      api.doAttack(att, guard) === false && guard.str === hp, '守方 str ' + guard.str);
   api.setRng(() => 0.9);
-  ok('doAttack 带攻坚令才真的打进去', api.doAttack(att, guard, api.aiTargetOpts()) !== false);
+  ok('doAttack 带攻坚令才真的打进去', api.doAttack(att, guard, { pushObjective: true }) !== false);
   ok('伤害真的落在守军身上', guard.str < hp, hp + '→' + guard.str);
   ok('低比值被放行时守方照样还手', att.str < 10, '10→' + att.str);
 }
@@ -4248,7 +4254,11 @@ console.log('\n[53] 进攻型破口 / 防守型威胁排序与预备队（v4.20 
 
   const front = spawn(S, 'blue', 'inf', G[0], G[1], 8);
   const rear = spawn(S, 'blue', 'inf', BACK[0], BACK[1], 3);
-  const red = spawn(S, 'red', 'mob', R[0], R[1], 10);
+  /* 攻方用**重坦**而不是步兵（v4.23）：步兵贴脸之后走接触交火，门槛是 0，
+     破口价 0.40 被它完全盖住，测不出破口还在不在。
+     破口这条机制现在的用户就是装甲——它不在 FOOT_TYPES 里，走不到交火那条路。
+     15 点是为了让比值落在 0.35–0.55 之间：既能过无效接触线，又打不过常规门槛。 */
+  const red = spawn(S, 'red', 'harm', R[0], R[1], 11);
   api.updateControl(true);
   const goal = api.aiGoalFor(red, api.AI_STYLES.assault);
   const pv = api.previewAttack(red, front, S.fields);
@@ -4720,16 +4730,20 @@ console.log('\n[54] 端到端：夺取型 runAI 把攻坚令带进开火流程�
     /* v4.22 起追击不再把门槛压到 0，只压到**止损线**：
        追击的意思是"不再挑肥拣瘦"，不是"连生死都不挑"。
        原来那句话在 C1 上是有代价的——第 1 回合兵力比就 2.06，
-       红方从开局就在城下往 1:3 里填营（详见 aiFireGate 的注释）。 */
-    const huntGate = api.aiFireGate(red, blue, pvB, api.AI_STYLES.seize, true, false, false, true);
+       红方从开局就在城下往 1:3 里填营（详见 aiFireGate 的注释）。
+       v4.23：这两条要验的是**追击的止损线**，不能让接触交火抢答——
+       步兵贴着目标时门槛本来就是 0，看不出追击有没有把 0.90 拉下来。
+       所以目标另造一个隔两格的：位置变了、判据还是同一条。 */
+    const farDef = Object.assign({}, blue, { pos: [red.pos[0], red.pos[1] + 2] });
+    const huntGate = api.aiFireGate(red, farDef, pvB, api.AI_STYLES.seize, true, false, false, true);
     ok('追击不再把门槛压到 0（1:3 的仗在追击里也不打）', huntGate > 0.3,
        huntGate.toFixed(3));
     ok('不追击时同一枪仍受常规门槛约束',
-       api.aiFireGate(red, blue, pvB, api.AI_STYLES.seize, true, false, false, false) > 0,
-       String(api.aiFireGate(red, blue, pvB, api.AI_STYLES.seize, true, false, false, false)));
+       api.aiFireGate(red, farDef, pvB, api.AI_STYLES.seize, true, false, false, false) > 0,
+       String(api.aiFireGate(red, farDef, pvB, api.AI_STYLES.seize, true, false, false, false)));
     ok('不追击时同一枪仍受常规门槛约束',
-       api.aiFireGate(red, blue, pvB, api.AI_STYLES.seize, true, false, false, false) > 0,
-       String(api.aiFireGate(red, blue, pvB, api.AI_STYLES.seize, true, false, false, false)));
+       api.aiFireGate(red, farDef, pvB, api.AI_STYLES.seize, true, false, false, false) > 0,
+       String(api.aiFireGate(red, farDef, pvB, api.AI_STYLES.seize, true, false, false, false)));
 
     /* 无效接触闸：目标列表与 doAttack 兜底闸必须**同时**放开。
        只放列表会变成"看得见、点不动"；只放兜底闸则 AI 永远列不出目标。 */
@@ -5108,6 +5122,144 @@ console.log('\n[54] 端到端：夺取型 runAI 把攻坚令带进开火流程�
   ok('M2：两个要点都不设防时，重心段里的那个更受青睐',
      !!gS && gS[0] === row && gS[1] === 2, JSON.stringify(gS));
   api.LEVEL.objectives = savedObjs3;
+}
+
+console.log('\n[58] 接触交火：步兵贴到一格就必须开火（v4.23）');
+{
+  /* 用户反馈：围出一条防线，敌步兵就站着不动了。
+     根因是三层闸同时生效（目标列表 / AI 开火门槛 / doAttack 兜底），
+     所以这一节必须**三层各打一条**——只测其中一层，"另两层还在拦"的时候
+     断言照样绿，而屏幕上什么都没变。
+     反向对照同样重要：不传 opts.contact 的老路径（玩家面板）不能跟着放开。 */
+  const A = api.AI_STYLES;
+  api.newGame({ level: 'C3', noSave: true });
+  const S = api.getState();
+  S.units.length = 0;
+  S.forts = [];
+  S.mods = [];
+
+  let seq = 0;
+  const put = (side, t, r, c, str) => {
+    const u = api.makeUnit({ id: (side === 'blue' ? 'B' : 'R') + (++seq), side, type: t,
+      abbr: 'T' + seq, name: '测试', r, c, corps: 'T',
+      str: str === undefined ? 10 : str,
+      mov: 8, rng: 1 }, false);
+    api.getState().units.push(u);
+    return u;
+  };
+  const passable = (r, c) => api.inBounds(r, c) && api.TERRAIN[api.LEVEL.map[r][c]].cost < 99;
+  let city = null, beside = null;
+  outer:
+  for (let r = 0; r < api.LEVEL.rows; r++) {
+    for (let c = 0; c < api.LEVEL.cols; c++) {
+      if (api.terrainAt(r, c).cls !== 't-town' || !passable(r, c)) continue;
+      for (const n of api.neighbors(r, c)) {
+        if (passable(n[0], n[1])) { city = [r, c]; beside = n; break outer; }
+      }
+    }
+  }
+  ok('前提：找到城区与相邻格', !!city && !!beside, JSON.stringify([city, beside]));
+  S.forts.push({ r: city[0], c: city[1], side: 'blue', kind: 'B', def: 0.28, hp: 3, maxHp: 3 });
+  const turtle = put('blue', 'gdn', city[0], city[1], 10);
+  turtle.fortify = 0.30;
+  const att = put('red', 'inf', beside[0], beside[1], 4);
+  att.moved = true;                       // 别让"行进间射击"再叠一层修正
+  const pv = api.previewAttack(att, turtle, S.fields);
+  ok('前提：这一枪本来是"无效接触"（比值 0.2–0.35，对面能还手）',
+     api.invalidContact(att, turtle, S.fields, pv) && pv.ratio >= api.CONTACT_RATIO,
+     pv.ratio.toFixed(3));
+  ok('前提：攻方不在要点格上（站在要点上不吃 M5，测不到开火门槛那层）',
+     !api.onAnyObjective(att));
+
+  /* ── 一、判据本身 ── */
+  ok('交火：步兵贴脸 + 无效接触 + 比值过底价 → 算交火',
+     api.contactFire(att, turtle, pv, 0.20) === true);
+  ok('交火：底价按传入值走（0.30 时同一枪不算）',
+     api.contactFire(att, turtle, pv, 0.30) === false, pv.ratio.toFixed(3));
+  /* 下面几条都靠合成 pv 驱动（判据只看位置与比值），
+     造出来的兵**用完立刻撤掉**：同格的友军会给 helpers 加"协同"，
+     留在场上会把后面几条的比值一起改掉，断言就测不到它要测的东西了。 */
+  const armor = put('red', 'marm', beside[0], beside[1], 4);
+  ok('交火只管徒步编制：坦克贴脸不算交火（它的活是绕后与突破）',
+     api.contactFire(armor, turtle, { ratio: 0.30, counter: true }, 0.20) === false);
+  S.units.pop();
+  /* 必须是**步兵**、战力 ≤ 封顶值：拿工兵连来试会撞在编制那一条上，
+     `!FOOT_TYPES.includes('engc')` 先把它挡了，战力那条根本没被问到——
+     变异测试当场抓出这是假防线（删掉战力判据它也照样绿）。 */
+  const squad = put('red', 'inf', beside[0], beside[1], 2);
+  ok('交火不上"打一枪就打光"的支队（战力 2 的残营不拿自己去撞）',
+     api.contactFire(squad, turtle, { ratio: 0.30, counter: true }, 0.20) === false);
+  S.units.pop();
+  const far = api.neighbors(beside[0], beside[1]).find(n => passable(n[0], n[1]) &&
+    api.hexDist(n, turtle.pos) === 2);
+  ok('前提：贴脸格旁边还有一格能站（用来验"隔一格不算交火"）', !!far, JSON.stringify(far));
+  const distant = put('red', 'inf', far[0], far[1], 10);
+  ok('交火只管相邻一格：隔一格那是进攻，不是交火',
+     api.contactFire(distant, turtle, { ratio: 0.30, counter: true }, 0.20) === false);
+  S.units.pop();
+  ok('判据不挂"无效接触"：比值够的攻击同样算交火（只影响封不封顶）',
+     api.contactFire(att, turtle, { ratio: 0.60, counter: true }, 0.20) === true);
+  ok('底价是硬线：0.19 的比值不算交火（打不动就是打不动）',
+     api.contactFire(att, turtle, { ratio: 0.19, counter: true }, 0.20) === false);
+  ok('对方打不着我时也不算交火（那是白打，走原来的零风险火力）',
+     api.contactFire(att, turtle, { ratio: 0.10, counter: false }, 0.20) === false);
+
+  /* ── 二、第 ① 层：目标列表 ── */
+  const aiOpts = api.aiTargetOpts(A.seize, false);
+  ok('交火：AI 的 opts 里带上了接触底价（0.20）',
+     !!aiOpts && aiOpts.contact === A.seize.contact, JSON.stringify(aiOpts));
+  ok('交火：防守型不参与（守方的抵抗是反击，不是出坑反冲）',
+     !(api.aiTargetOpts(A.hold, false) || {}).contact);
+  const listAI = api.targetsFor(att, S.fields, aiOpts).includes(turtle);
+  ok('交火：贴脸的步兵在 AI 眼里有目标了（列表不再剔除）', listAI);
+  ok('反向对照：不传 opts 的老路径（玩家面板）照旧列不出来',
+     !api.targetsFor(att, S.fields).includes(turtle));
+
+  /* ── 三、第 ③ 层：doAttack 兜底闸 + 损失封顶 ── */
+  S.units.pop();                      // 撤掉 att：同格友军会给 helpers 加协同，把比值抬过 0.35
+  const att2 = put('red', 'inf', beside[0], beside[1], 4);
+  att2.moved = true;
+  ok('反向对照：没有 opts 时 doAttack 照旧拒绝（绕过列表也打不出去）',
+     api.doAttack(att2, turtle) === false && turtle.str === 10);
+  S.units.pop();
+  const att3 = put('red', 'inf', beside[0], beside[1], 4);
+  att3.moved = true;
+  const defStr0 = turtle.str, attStr0 = att3.str;
+  const fort0 = S.forts[0].hp;
+  const hit = api.doAttack(att3, turtle, aiOpts);
+  /* 伤害先扣工事耐久（攻坚），所以"守方掉血"要连工事一起看——
+     只断言 turtle.str 变小的话，碉堡吃饱的那一枪会被判成"没打出去"。 */
+  const dealt = (defStr0 - turtle.str) + (fort0 - S.forts[0].hp);
+  ok('交火：带 opts 时打得出去（守方或工事掉血）',
+     hit !== false && att3.fired === true && dealt > 0,
+     '守 ' + defStr0 + '→' + turtle.str + ' 工事 ' + fort0 + '→' + S.forts[0].hp);
+  ok('交火按"对射"结算：攻方单次损失不超过 ' + api.CONTACT_LOSS + ' 点',
+     attStr0 - att3.str <= api.CONTACT_LOSS && attStr0 - att3.str > 0,
+     '攻 ' + attStr0 + '→' + att3.str);
+  S.units.pop();
+
+  /* ── 四、第 ② 层：AI 开火门槛 ── */
+  const att4 = put('red', 'inf', beside[0], beside[1], 4);
+  ok('交火：开火门槛归零（M5 的止损线不再拦住贴脸的这一枪）',
+     api.aiFireGate(att4, turtle, pv, A.seize, false) === 0,
+     String(api.aiFireGate(att4, turtle, pv, A.seize, false)));
+  ok('反向对照：防守型照旧按它的门槛算（交火是进攻方的口子）',
+     api.aiFireGate(att4, turtle, pv, A.hold, false) > 0,
+     String(api.aiFireGate(att4, turtle, pv, A.hold, false)));
+  S.units.pop();
+  /* 这一条是"整条规则真的接上了"的收口：
+     三层任何一层漏开，它都会红——而它红的时候，玩家看到的正是
+     "敌人贴着我站了八个回合，一枪不放"。 */
+  /* 战力 6：前面那一枪把碉堡打掉一截，补给场重算之后同一格的比值会掉到 0.17
+     （supplyOf 走的是 refreshFields 之后的新场），4 点在这里会被底价挡住，
+     挡住的还是"兵太弱"而不是"规则没接上"——那就测不到这一层了。 */
+  const fresh = put('red', 'inf', beside[0], beside[1], 6);
+  fresh.moved = true;
+  const fire = api.targetsFor(fresh, S.fields, api.aiTargetOpts(A.seize, false))
+    .map(t => ({ t, pv: api.previewAttack(fresh, t, S.fields) }))
+    .filter(x => x.pv.ratio >= api.aiFireGate(fresh, x.t, x.pv, A.seize, false));
+  ok('收口：贴脸的步兵这一回合打得响（列表 → 门槛 → 结算三层全通）',
+     fire.length > 0, String(fire.length));
 }
 
 console.log('\n通过 ' + pass + ' 项，失败 ' + fail + ' 项');

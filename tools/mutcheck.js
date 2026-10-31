@@ -526,18 +526,20 @@ const MUTANTS = [
    '    if (false) return false;',
    '超距 doAttack 被拒'],
 
+  /* 锚点必须带下半行：v4.23 的 contactFire 里也有同一句，
+     只写这一行会让 replace 改到那个函数去——doAttack 的闸没动，断言当然不红。 */
   ['canFire 闸门失效（空弹与未展开照常开火）',
-   '  if (!canFire(att)) return false;',
-   '  if (false) return false;',
+   '  if (!canFire(att)) return false;\n  {\n    const d = hexDist(att.pos, def.pos);',
+   '  if (false) return false;\n  {\n    const d = hexDist(att.pos, def.pos);',
    '空弹的炮在 doAttack 也被拒'],
 
   ['无效接触兜底闸失效（ratio 0.01 照样结算）',
-   '  if (pv.ratio < INVALID_RATIO && pv.counter && !objectivePush(att, def, opts, pv) &&\n      !huntContact(att, def, opts)) return false;',
+   '  if (pv.ratio < INVALID_RATIO && pv.counter && !objectivePush(att, def, opts, pv) &&\n      !huntContact(att, def, opts) && !contact) return false;',
    '  if (false) return false;',
    '无效接触在 doAttack 也被拒'],
 
   ['无效接触不再从目标列表剔除（面板与 AI 又看得见了）',
-   '    return !invalidContact(u, t, fields, pv) || objectivePush(u, t, opts, pv) ||\n           huntContact(u, t, opts);',
+   '    return !invalidContact(u, t, fields, pv) || objectivePush(u, t, opts, pv) ||\n           huntContact(u, t, opts) ||\n           /* 接触交火（v4.23）：步兵贴身必打，见 contactFire 上面那段。\n             启用与否由调用方给不给 opts.contact 决定，不给就走老路。 */\n           (!!opts && typeof opts.contact === \'number\' && contactFire(u, t, pv, opts.contact));',
    '    return true;',
    '无效接触不进目标列表'],
 
@@ -780,14 +782,14 @@ const MUTANTS = [
 
   /* 列表层把攻坚令丢掉：夺取型的 all-in 门槛还在，但目标进不了列表 */
   ['攻坚令进不了目标列表（夺回要点变成一句空话）',
-   '    return !invalidContact(u, t, fields, pv) || objectivePush(u, t, opts, pv) ||\n           huntContact(u, t, opts);',
-   '    return !invalidContact(u, t, fields, pv);',
+   '    return !invalidContact(u, t, fields, pv) || objectivePush(u, t, opts, pv) ||\n           huntContact(u, t, opts) ||',
+   '    return !invalidContact(u, t, fields, pv) ||\n           huntContact(u, t, opts) ||',
    '攻坚令生效时目标进列表'],
 
   /* 结算层把攻坚令丢掉：列表放行了，doAttack 的兜底闸照样拒 */
   ['攻坚令不进 doAttack（列表放行、结算仍拒）',
-   '  if (pv.ratio < INVALID_RATIO && pv.counter && !objectivePush(att, def, opts, pv) &&\n      !huntContact(att, def, opts)) return false;',
-   '  if (pv.ratio < INVALID_RATIO && pv.counter) return false;',
+   '  if (pv.ratio < INVALID_RATIO && pv.counter && !objectivePush(att, def, opts, pv) &&\n      !huntContact(att, def, opts) && !contact) return false;',
+   '  if (pv.ratio < INVALID_RATIO && pv.counter &&\n      !huntContact(att, def, opts) && !contact) return false;',
    'doAttack 带攻坚令才真的打进去'],
 
   /* 开口不看调用方：玩家面板与另外两种脾气也一起放行 */
@@ -816,8 +818,8 @@ const MUTANTS = [
 
   /* 三种脾气共用一个 opts：进攻型/防守型也带攻坚令，火力被撒到低比值目标上 */
   ['aiTargetOpts 不分脾气（三种脾气都带攻坚令）',
-   '  return st && st.allInOnObjective ? { pushObjective: true } : undefined;',
-   '  return { pushObjective: true };',
+   '  if (st && st.allInOnObjective) o.pushObjective = true;',
+   '  o.pushObjective = true;',
    '夺取型自动带攻坚令，另外两种不带'],
 
   /* runAI 没把 opts 传下去：目标列表与结算都回到原样，C1 又不开火 */
@@ -1048,14 +1050,16 @@ const MUTANTS = [
 
   /* 列表层不放行：目标列表照旧是空的，人就在眼前也点不着 */
   ['追击目标进不了列表（看得见打不着）',
-   '           huntContact(u, t, opts);',
-   '           false;',
+   '           huntContact(u, t, opts) ||',
+   '           false ||',
    '追击目标列表放行'],
 
   /* 结算层不放行：列表看得见，doAttack 兜底闸照样拒 */
+  /* 整条 if 打掉（而不是只删 huntContact）：只删那一项，contact 那一项还在，
+     闸门照旧会拒，负向断言仍是绿的——变异就白挂了。 */
   ['追击放不进 doAttack 兜底闸（列表放行、结算仍拒）',
-   '      !huntContact(att, def, opts)) return false;',
-   '      false) return false;',
+   '  if (pv.ratio < INVALID_RATIO && pv.counter && !objectivePush(att, def, opts, pv) &&\n      !huntContact(att, def, opts) && !contact) return false;',
+   '  if (false) return false;',
    '不带追击令时 doAttack 兜底闸拒绝'],
 
   /* ── v4.21 反坦克连：4 点编制 / 0.30 防御 / 设伏 ── */
@@ -1224,6 +1228,50 @@ const MUTANTS = [
    '  if (use.length < 2) { state.schwerpunkt = null; return null; }',
    '  if (false) { state.schwerpunkt = null; return null; }',
    'M2：只有一个要点的关卡不给重心'],
+
+  /* ── v4.23 接触交火（M9）──
+     这一条的病灶是"三层闸各拦一半"，所以每条变异都要打中**它自己那一层**：
+     距离 / 编制 / 战力是判据，损失封顶是结算，opts 是接线，
+     aiFireGate 那一行是 AI 的门槛。少一条，改坏了就只剩"敌人又不打了"。 */
+  ['交火不限相邻（隔着一格也算交火，炮队被当成步兵）',
+   '  if (hexDist(att.pos, def.pos) !== 1) return false;',
+   '  if (false) return false;',
+   '交火只管相邻一格'],
+
+  ['交火不限编制（坦克贴脸也按对射结算，装甲的损失被白封顶）',
+   '  if (!FOOT_TYPES.includes(att.type)) return false;',
+   '  if (false) return false;',
+   '交火只管徒步编制'],
+
+  ['交火不管兵力（战力 2 的工兵连也拿自己去撞）',
+   '  if (!(att.str > CONTACT_LOSS)) return false;',
+   '  if (false) return false;',
+   '打一枪就打光'],
+
+  ['交火不封顶（低比值那一枪又变成整营蒸发，等于回滚 M5）',
+   '  if (contact && pv.ratio < INVALID_RATIO) attLoss = Math.min(attLoss, CONTACT_LOSS);',
+   '  if (false) attLoss = Math.min(attLoss, CONTACT_LOSS);',
+   '交火按"对射"结算'],
+
+  ['AI 的门槛不认交火（列表放行了，门槛又把它拦回去）',
+   '  if (aiContactFire(u, def, pv, st)) return 0;',
+   '  if (false) return 0;',
+   '开火门槛归零'],
+
+  ['目标列表不认交火（步兵贴脸仍然一个目标都列不出来）',
+   '           (!!opts && typeof opts.contact === \'number\' && contactFire(u, t, pv, opts.contact));',
+   '           false;',
+   '贴脸的步兵在 AI 眼里有目标了'],
+
+  ['opts 漏传接触底价（AI 自己把自己锁在门外）',
+   '  if (st && typeof st.contact === \'number\') o.contact = st.contact;',
+   '  if (false) o.contact = st.contact;',
+   'AI 的 opts 里带上了接触底价'],
+
+  ['防守型也开了交火（守备队出坑对射，等于把要点让人）',
+   '    stopLoss: 1.05, pickSoft: 0, schwerpunkt: false',
+   '    stopLoss: 1.05, pickSoft: 0, schwerpunkt: false, contact: 0.20',
+   '防守型不参与'],
 
 ];
 
