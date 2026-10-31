@@ -765,6 +765,12 @@ const MUTANTS = [
    '  let s = Math.min(mind, 6) * -10;',
    'aiRetreatScore：离敌越远分越高'],
 
+  /* 要点格缓存不随换关重置：下一关的染色/悬停名沿用上一关的要点表 */
+  ['要点格缓存不随换关重置（下一关沿用上一关的要点）',
+   '  _objAt = null;\n  state = {',
+   '  state = {',
+   '换关后新关的要点格查得到'],
+
 ];
 
 /* 锚点按 LF 写，但 campaign.html 是 CRLF（7356 行全是）。

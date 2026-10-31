@@ -4095,6 +4095,30 @@ console.log('\n[50] 目标价值 / 零风险火力 / 集火预支 / 崩溃收拢
   }
 }
 
+console.log('\n[51] 要点格缓存不跨关（结算页"下一关"是同页切关）');
+{
+  /* objAt 为了少扫一遍 objectives 建了张按坐标查要点的表，但这张表只认
+     第一次建它时的那一关。结算页"下一关"走 enterLevel → newGame，不刷新页面，
+     于是新关的要点格查不到、上一关的要点格反而还在命中——染色和悬停名全错。
+     这里先让 C1 的表建起来，再同页切到 C2B：新格必须命中，旧格必须落空。 */
+  api.newGame({ level: 'C1', noSave: true });
+  const core = api.LEVEL.objectives.find(o => o.id === 'core');
+  ok('前提：C1 有核心要点', !!core, core && core.id);
+  const oldCell = core.cells[0];
+  api.objAt(oldCell[0], oldCell[1]);   // 先把 C1 的表建起来
+
+  api.newGame({ level: 'C2B', noSave: true });
+  const ford = api.LEVEL.objectives.find(o => o.id === 'ford');
+  ok('前提：C2B 有渡口要点', !!ford, ford && ford.id);
+  const newCell = ford.cells[0];
+  ok('换关后新关的要点格查得到（缓存按新关重建）',
+     api.objAt(newCell[0], newCell[1]) === ford,
+     JSON.stringify(newCell));
+  ok('换关后上一关的要点格不再命中',
+     api.objAt(oldCell[0], oldCell[1]) === null,
+     JSON.stringify(oldCell));
+}
+
 console.log('\n通过 ' + pass + ' 项，失败 ' + fail + ' 项');
 process.exit(fail ? 1 : 0);
 
