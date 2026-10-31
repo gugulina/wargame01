@@ -5563,11 +5563,35 @@ function ratioTier(k) {
    面板上只剩"移动 / 收炮"两项，玩家看到的就是"炮兵射程坏了"。
    直瞄炮（近界 1、贴脸开火）照样吃这条闸，因为它是会被反击的。 */
 const INVALID_RATIO = 0.35;
+/* 攻坚令的底价（v4.20 第 2 批）。夺取型可以打"无效接触"的目标，
+   但不是无条件送死：比值太低的部队贴上去只会白掉编制，那不叫进攻，叫送礼。
+   0.20 是拿 C1 的固定种子自战量出来的刻度。第一版写 0.25，自战 60% 看着正好，
+   但 C1 的真实比值是 0.08–0.23：要塞核心在城市里，守军 1-3 吃满地形加成，
+   六个红方营一个都进不来——"敌人不进攻"的观感原封不动。
+   ratio 低于 0.4 在 CRT 里全是同一档（1:3，攻方掉 5–7、守方掉 1–2），
+   底价在这个区间里只是在调"几个人一起上"，不改变单次交换比：
+   0.30 太少（第 8 回合才开第一枪）、0.15/0.10 太多（最弱的侦察/工兵也去撞，
+   80% 以上，观感与 0.20 相同）。0.20 让核心在第 3 回合开始挨打，
+   自战 72.5%——自战胜率不作为回滚标准，行为对才是。 */
+const PUSH_RATIO = 0.20;
 /* 这一炮是不是"白打"：比值不够，而且对面够得着还手。
    列表与战斗闸共用，省得两处判据再次分家。 */
-function invalidContact(att, def, fields) {
-  const pv = previewAttack(att, def, fields);
+function invalidContact(att, def, fields, pv) {
+  pv = pv || previewAttack(att, def, fields);
   return pv.ratio < INVALID_RATIO && pv.counter;
+}
+/* 攻坚令（v4.20 第 2 批）：无效接触闸把"要点上的守军"也一起藏了。
+   C1 的 1-3 营站在要塞核心，周围六个红方营的比值只有 0.06–0.28，
+   于是每一个的目标列表都是空的——夺取型的 all-in 门槛归零，
+   但目标根本没进列表，整关的红方贴着核心站了八个回合没开几枪。
+   这里只开一个口子：**能占领的部队打敌方（或争夺中）要点上的目标**，
+   且必须由调用方显式传入 {pushObjective:true}。AI 只在夺取型里传，
+   玩家面板与另外两种脾气照旧——它们没有把整关押在一个点上的理由。 */
+function objectivePush(att, def, opts, pv) {
+  if (!(opts && opts.pushObjective && att && def)) return false;
+  if (!canCapture(att) || !onEnemyObjective(def)) return false;
+  const r = pv ? pv.ratio : previewAttack(att, def, state.fields).ratio;
+  return r >= PUSH_RATIO;
 }
 
 /* 多面进攻的记账：state.flanges[目标格] = 第一支进攻方的位置串。
@@ -5770,7 +5794,7 @@ function previewAttack(att, def, fields) {
 }
 
 /* 仅在射程内，不看展开状态与弹药。AI 靠它判断"这一炮位值不值得守"。 */
-function inRangeTargets(u, fields) {
+function inRangeTargets(u, fields, opts) {
   if (u.rng === 0) return [];
   const foe = other(u.side);
   const lo = minRange(u), hi = attackRange(u);
@@ -5785,8 +5809,10 @@ function inRangeTargets(u, fields) {
        面板与 AI 共用这份列表，所以两边同时不再浪费动作；
        doAttack 里有同一判据的兜底闸（见 doAttack 开头），列表绕不过去。
        **判据不是纯粹的比值**：守方打不着我时不掉编制，白赚的炮不该被藏起来
-       （invalidContact，v4.18 热修）。 */
-    return !invalidContact(u, t, fields);
+       （invalidContact，v4.18 热修）。
+       夺取型的攻坚令另开一个口子（objectivePush，v4.20 第 2 批）。 */
+    const pv = previewAttack(u, t, fields);
+    return !invalidContact(u, t, fields, pv) || objectivePush(u, t, opts, pv);
   });
 }
 /* "这一门炮现在能不能响"：弹药与展开状态。
@@ -5806,14 +5832,14 @@ function canFire(u) {
   if (isTowed(u) && (u.packed || u.moved)) return false;
   return true;
 }
-function targetsFor(u, fields) {
+function targetsFor(u, fields, opts) {
   if (u.rng === 0) return [];
   /* 建制崩溃的部队组织不起进攻：列不出任何目标。
      只拦**主动攻击**——被咬住时的反击照常（见 canCounter），
      否则一支被压住的营会同时失去进攻和自卫，那是"阵亡"不是"崩溃"。 */
   if (isBroken(u)) return [];
   if (!canFire(u)) return [];
-  return inRangeTargets(u, fields);
+  return inRangeTargets(u, fields, opts);
 }
 
 /* ── 要点控制权：持久化状态 ──────────────────────────────
@@ -7129,7 +7155,7 @@ function doUnpack(u) {
   return true;
 }
 
-function doAttack(att, def) {
+function doAttack(att, def, opts) {
   /* 最后一道闸：界面上列不出来是一回事，真打进去是另一回事。
      AI、战术卡、测试都能绕过 targetsFor 直接调这里，所以白名单要在这里也验一次。 */
   if (!canTarget(att, def)) return false;
@@ -7153,7 +7179,7 @@ function doAttack(att, def) {
      previewAttack 是纯函数，放在 pushUndo 之前：被拒绝的攻击
      不能在撤销栈里留一条假记录。 */
   const pv = previewAttack(att, def, state.fields);
-  if (pv.ratio < INVALID_RATIO && pv.counter) return false;
+  if (pv.ratio < INVALID_RATIO && pv.counter && !objectivePush(att, def, opts, pv)) return false;
   pushUndo();
   const die = Math.floor(rng() * 6);
   const row = CRT[pv.tier][die];
@@ -8406,7 +8432,10 @@ const AI_STYLES = {
     fireOther: 0.55, fireArty: 0.30,
     objPull: 1.2, foePull: 1.0, terrainWeight: 0.5,
     guard: false, allInOnObjective: false,
-    preferKill: true, defensive: false
+    preferKill: true, defensive: false,
+    /* 破口（v4.20 第 2 批）：被比自己更靠近目标的敌人卡住时，
+       这一枪是清路，门槛降到无效接触线以上最低的一档。 */
+    breakthrough: true, breakGate: 0.40
   },
   /* 防守型：依托要点与工事据守，低进攻欲望。
      目标要点**包括已经在我手里的**（守方要待在自己阵地上），
@@ -8461,6 +8490,12 @@ function aiStyleKey(lv) {
   return AI_STYLE_BY_TYPE[t] || 'seize';
 }
 function aiStyle(lv) { return AI_STYLES[aiStyleKey(lv)]; }
+/* 夺取型才带攻坚令：目标列表保留"敌方要点上的低比值目标"，
+   doAttack 也放行同一批。别的脾气没有这个口子。 */
+function aiTargetOpts(style) {
+  const st = style || aiStyle();
+  return st && st.allInOnObjective ? { pushObjective: true } : undefined;
+}
 
 /* 目标价值（v4.20 第 1 批）：排序与开火门槛共用同一份判断。
    以前 scoreTarget 给要点、工事、残部各加各的分，aiFireGate 却只看一个常数——
@@ -8488,6 +8523,24 @@ function targetValue(t, pv) {
   return { score, discount: Math.min(0.15, discount) };
 }
 
+/* 目标离最近的要点多远（v4.20 第 2 批）。
+   防守型要判"谁在威胁我守的阵地"，而不是"谁离我这个兵牌最近"——
+   守军站在哪是次要的，敌人往哪块阵地压才是主要的。 */
+function nearestObjectiveDist(pos) {
+  let d = Infinity;
+  for (const o of LEVEL.objectives || []) {
+    for (const c of o.cells) {
+      const x = hexDist(pos, c);
+      if (x < d) d = x;
+    }
+  }
+  return d;
+}
+function holdThreatBonus(t) {
+  if (!t || !t.pos) return 0;
+  return Math.max(0, 4 - nearestObjectiveDist(t.pos)) * 0.12;
+}
+
 function scoreTarget(att, t, fields, style) {
   const pv = previewAttack(att, t, fields);
   let s = pv.ratio;
@@ -8502,31 +8555,84 @@ function scoreTarget(att, t, fields, style) {
   /* 进攻型：先吃掉好打的。挑"最硬的"会把主力磨在工事上，
      而歼灭战看的是"这一轮谁先归零"——残血与低战力优先。 */
   if (style && style.preferKill) s += Math.max(0, 8 - t.str) * 0.08;
-  /* 防守型：谁离我最近谁最危险。守方要守的是这块地，不是杀敌数。 */
-  if (style && style.defensive) s += Math.max(0, 4 - hexDist(att.pos, t.pos)) * 0.12;
+  /* 防守型：谁离要点最近谁最危险。守方要守的是这块地，不是杀敌数；
+     旧口径看"离我多近"，守军往哪站哪里就成了威胁榜，换防一次排序全乱。 */
+  if (style && style.defensive) s += holdThreatBonus(t);
   return s;
+}
+
+/* ── 防守型的守军 / 预备队（v4.20 第 2 批）──
+   旧行为：所有守军每回合都朝"离自己最近的要点"挪，于是两个问题——
+   ① 已经站在要点或工事里的部队也跟着挪，坑里的人换来换去；
+   ② 全体被吸到最近的一个点，别的要点没人管。
+   新口径：站在要点或己方仍在工作的工事里的算守军，原地不动；
+   其余算预备队，只去"更需要的要点"。 */
+function aiHoldGarrison(u) {
+  if (!u || !u.pos) return false;
+  if (LEVEL.objectives.some(o =>
+    o.cells.some(c => c[0] === u.pos[0] && c[1] === u.pos[1]))) return true;
+  const f = fortSelf(u);
+  return !!(f && fortWorking(f));
+}
+/* 要点是不是正被威胁：争夺中，或者有能占领、未崩溃的敌军摸到 2 格内。
+   飞机占不了点，崩溃的部队组织不起进攻，两者都不算。 */
+function aiObjectiveThreatened(o, side) {
+  if (!o) return false;
+  if (ctrlState(o) === 'contested') return true;
+  const foe = side === 'blue' ? 'red' : 'blue';
+  return alive(foe).some(f => canCapture(f) && !isBroken(f) &&
+    o.cells.some(c => hexDist(f.pos, c) <= 2));
+}
+/* 要点上有没有己方部队。按 updateControl 的口径只看 canCapture：
+   旗子还挂着，预备队就该先过去，不能因为守军"快崩了"就当成没人。 */
+function aiObjectiveHeld(o, side) {
+  return alive(side).some(u => canCapture(u) &&
+    o.cells.some(c => c[0] === u.pos[0] && c[1] === u.pos[1]));
+}
+/* 预备队去哪。守军不动；预备队按"受威胁且没人守 > 没人守 > 受威胁"排序，
+   同档取离自己近的。没有缺口时去最近的要紧阵地待命，不留在野地里。 */
+function aiHoldGoal(u) {
+  if (!u || !u.pos) return null;
+  if (aiHoldGarrison(u)) return null;
+  const objs = LEVEL.objectives || [];
+  if (!objs.length) return null;
+  let pick = null, best = -Infinity;
+  for (const o of objs) {
+    const held = aiObjectiveHeld(o, u.side);
+    const threat = aiObjectiveThreatened(o, u.side);
+    let s = 0;
+    if (threat && !held) s = 3;
+    else if (!held) s = 2;
+    else if (threat) s = 1;
+    let d = Infinity;
+    for (const c of o.cells) d = Math.min(d, hexDist(u.pos, c));
+    s -= d * 0.01;
+    if (s > best) { best = s; pick = o; }
+  }
+  if (!pick) return null;
+  let cell = null, cd = Infinity;
+  for (const c of pick.cells) {
+    const d = hexDist(u.pos, c);
+    if (d < cd) { cd = d; cell = c; }
+  }
+  return cell;
 }
 
 /* 往哪走。三种脾气共用同一条推进轴（要点），差别只在"要不要顺手吃人"：
    目标点的取法分两类——
      · 夺取型：**还没归我**的要点，核心要点另有 2 格加权
-     · 防守型：离自己最近的要点（包括已经在手里的，守方就该待在阵地上）
+     · 防守型：守军留在原地，预备队补受威胁的空缺口（见 aiHoldGoal）
    进攻型沿用夺取型的目标点：它靠 foePull 把走位往敌人身上拽，而不是换目标。 */
 function aiGoalFor(u, style) {
   const st = style || aiStyle();
-  let list;
-  if (st === AI_STYLES.hold) {
-    list = LEVEL.objectives.slice();
-  } else {
-    list = LEVEL.objectives.filter(o => objectiveControl(o) !== 'red');
-    if (!list.length) list = LEVEL.objectives.slice();
-  }
+  if (st === AI_STYLES.hold) return aiHoldGoal(u);
+  let list = LEVEL.objectives.filter(o => objectiveControl(o) !== 'red');
+  if (!list.length) list = LEVEL.objectives.slice();
   if (!list.length) return null;
   let best = null, bd = Infinity;
   for (const o of list) {
     for (const cell of o.cells) {
-      /* 夺取型：核心要点优先（那 20 分比边角值钱）。
-         守方反过来——不加权，守的是"我这片阵地"，加权会把守军都吸到一个点。 */
+      /* 夺取型：核心要点优先（那 20 分比边角值钱）。 */
       const d = hexDist(u.pos, cell) - (st.allInOnObjective && o.core ? 2 : 0);
       if (d < bd) { bd = d; best = cell; }
     }
@@ -8567,8 +8673,9 @@ function aiMoveScore(u, p, goal, style) {
    多面进攻过的格子放松 0.15（第一波已经把防御拉开），
    移动之后再打另加 0.05（阵型没展开），集火再放松 0.15（下一炮有人接）。
    目标价值也往下拉（targetValue.discount，封顶 0.15）。
+   breakthrough 为真时按破口价（st.breakGate，进攻型 0.40）封顶。
    两条硬规则：打不还手的一律放行；任何门槛都不低于 0。 */
-function aiFireGate(u, def, pv, style, afterMove, massed) {
+function aiFireGate(u, def, pv, style, afterMove, massed, breakthrough) {
   const st = style || aiStyle();
   /* 零风险火力（v4.20）：对方没有还手之力时，这一炮的本钱是白赚的。
      以前这里只看比值，炮兵于是经常放过"贴着残部打"的白打机会——
@@ -8582,6 +8689,8 @@ function aiFireGate(u, def, pv, style, afterMove, massed) {
   if (massed && !st.defensive && !pv.flanked) g -= 0.15;
   /* 夺取型的不惜代价：目标站在**敌方控制的要点**上，这一仗赔本也得打。 */
   if (st.allInOnObjective && def && onEnemyObjective(def)) g = Math.min(g, 0);
+  /* 进攻型的破口：被卡在路上的那一枪按清路价打（见 aiBreakthroughTarget）。 */
+  if (breakthrough && st.breakGate) g = Math.min(g, st.breakGate);
   g -= targetValue(def, pv).discount;
   return Math.max(0, g);
 }
@@ -8602,6 +8711,38 @@ function onEnemyObjective(def) {
   return LEVEL.objectives.some(o =>
     o.cells.some(x => x[0] === def.pos[0] && x[1] === def.pos[1]) &&
     objectiveControl(o) !== 'red');
+}
+
+/* 卡住了没有：这一回合所有能停的格子都不比现在更靠近目标。
+   目标格被敌军占着时永远差一步——AI 会年复一年地贴着它站，
+   却因为开火门槛差 0.1 一枪不放。 */
+function aiStuck(u, goal) {
+  if (!u || !goal) return false;
+  const d0 = hexDist(u.pos, goal);
+  const reach = computeReach(u);
+  for (const key in reach.stop) {
+    const p = key.split(',').map(Number);
+    if (hexDist(p, goal) < d0) return false;
+  }
+  return true;
+}
+/* 破口（v4.20 第 2 批）：进攻型被一个"比我更靠近目标"的敌人卡住时，
+   这一枪是清路，不是挑好打的。只认挡在前进方向上的目标；
+   炮与飞机不参与——炮是支援火力，飞机不走这条路。 */
+function aiBreakthroughTarget(u, style, fields) {
+  const st = style || aiStyle();
+  if (!st || !st.breakthrough || st.defensive) return null;
+  if (!u || isArty(u) || isAir(u)) return null;
+  const goal = aiGoalFor(u, st);
+  if (!goal || !aiStuck(u, goal)) return null;
+  const d0 = hexDist(u.pos, goal);
+  let best = null, bs = -Infinity;
+  for (const t of targetsFor(u, fields)) {
+    if (hexDist(t.pos, goal) >= d0) continue;
+    const s = scoreTarget(u, t, fields, st);
+    if (s > bs) { bs = s; best = t; }
+  }
+  return best;
 }
 
 
@@ -8695,6 +8836,9 @@ async function runAI() {
   /* 这一关红方的脾气（v4.19 热补丁）。整场只取一次：
      关卡中途不会换类别，每支部队各查一遍只是白算。 */
   const style = aiStyle();
+  /* 夺取型带攻坚令：敌方要点上的低比值目标也进列表、也放行。
+     另外两种脾气这里是 undefined，targetsFor / doAttack 走原来的闸。 */
+  const pushOpts = aiTargetOpts(style);
   const goalOf = u => aiGoalFor(u, style);
   const acts = alive('red').slice();
   for (const u of acts) {
@@ -8830,7 +8974,7 @@ async function runAI() {
 
     /* 炮兵 / 直射单位：优先开火 */
     if (u.rng > 0 && !u.fired) {
-      const tg = targetsFor(u, state.fields);
+      const tg = targetsFor(u, state.fields, pushOpts);
       if (tg.length) {
         tg.sort((a, b) => scoreTarget(u, b, state.fields, style) - scoreTarget(u, a, state.fields, style));
         let best = tg[0];
@@ -8846,9 +8990,11 @@ async function runAI() {
            进攻型 0.55 / 防守型 1.05 / 夺取型 0.85，火炮各降一档。
            已经吃过第一轮攻击的格子例外：防御被拉开了 0.30，阈值跟着放松，
            这一炮很可能值回票价（多面进攻的 AI 侧）。
-           夺取型另有"不惜代价"：目标站在敌方要点上时门槛归零（见 aiFireGate）。 */
-        if (pv.ratio >= aiFireGate(u, best, pv, style, false, massed)) {
-          doAttack(u, best);
+           夺取型另有"不惜代价"：目标站在敌方要点上时门槛归零（见 aiFireGate）。
+           进攻型卡住时，挡路的目标按破口价 0.40 打（v4.20 第 2 批）。 */
+        const bt = aiBreakthroughTarget(u, style, state.fields);
+        if (pv.ratio >= aiFireGate(u, best, pv, style, false, massed, best === bt)) {
+          doAttack(u, best, pushOpts);
           await sleep(240);
           continue;
         }
@@ -8917,10 +9063,13 @@ async function runAI() {
         if (s > bs) { bs = s; best = p; }
       }
       if (best) {
+        /* 破口要在挪窝之前判：走完再算，computeReach 会把刚用掉的机动力
+           又算回来，"卡住"就不再是事实了。 */
+        const bt = aiBreakthroughTarget(u, style, state.fields);
         doMove(u, best);
         await sleep(200);
         if (u.rng > 0 && !u.fired) {
-          const tg = targetsFor(u, state.fields);
+          const tg = targetsFor(u, state.fields, pushOpts);
           if (tg.length) {
             tg.sort((a, b) => scoreTarget(u, b, state.fields, style) - scoreTarget(u, a, state.fields, style));
             let bestT = tg[0];
@@ -8929,8 +9078,8 @@ async function runAI() {
             const pv = previewAttack(u, bestT, state.fields);
             const massed = aiMassedAttack(u, bestT);
             /* 走完再打比原地打难一档（+0.05）：阵型没展开。 */
-            if (pv.ratio >= aiFireGate(u, bestT, pv, style, true, massed)) {
-              doAttack(u, bestT);
+            if (pv.ratio >= aiFireGate(u, bestT, pv, style, true, massed, bestT === bt)) {
+              doAttack(u, bestT, pushOpts);
               await sleep(220);
             }
           }
@@ -11671,7 +11820,7 @@ window.__WAR__ = {
   computeReach, previewAttack, targetsFor, supplyOf, effStr, terrainDefFor,
   /* 无效接触的判据（v4.18 热修抽出）：比值不够**且**对面够得着还手。
      导出它是为了让断言能问"这条闸到底拦了谁"，而不是只看列表面板。 */
-  INVALID_RATIO, invalidContact,
+  INVALID_RATIO, PUSH_RATIO, invalidContact,
   doMove, doAttack, endBluePhase, settlePhase, judgeFinal, render,
   objectiveControl, ctrlState, updateControl, checkEvents, applyEffect, modAtk, modDef, spawnGroup,
   /* 事件触发器：noteAct 写计数器，triggerMet 读它。
@@ -11725,6 +11874,11 @@ window.__WAR__ = {
      每条都单独导出——"门槛算得对不对""第二支接不接得上""往哪退"
      都是坏了不报错、只是手感发木的规则，只能靠断言守。 */
   targetValue, aiMassedAttack, aiBrokenHoldObjective, aiBrokenAction, aiRetreatScore, aiRetreat,
+  /* v4.20 第 2 批：夺取型攻坚令 / 进攻型破口 / 防守型威胁排序与预备队。
+     攻坚令要同时验"列表放开"与"兜底闸放行"，破口与预备队则各有独立判据。 */
+  objectivePush, aiTargetOpts, aiStuck, aiBreakthroughTarget,
+  nearestObjectiveDist, holdThreatBonus,
+  aiHoldGarrison, aiObjectiveThreatened, aiObjectiveHeld, aiHoldGoal,
   /* 存档文件 */
   buildSaveFile, applySaveFile, importSaveText, exportSave, SAVE_FILE_APP,
   validateSave, cleanProgress, readSave, clearSave,

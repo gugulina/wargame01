@@ -529,12 +529,12 @@ const MUTANTS = [
    '空弹的炮在 doAttack 也被拒'],
 
   ['无效接触兜底闸失效（ratio 0.01 照样结算）',
-   '  if (pv.ratio < INVALID_RATIO && pv.counter) return false;',
+   '  if (pv.ratio < INVALID_RATIO && pv.counter && !objectivePush(att, def, opts, pv)) return false;',
    '  if (false) return false;',
    '无效接触在 doAttack 也被拒'],
 
   ['无效接触不再从目标列表剔除（面板与 AI 又看得见了）',
-   '    return !invalidContact(u, t, fields);',
+   '    return !invalidContact(u, t, fields, pv) || objectivePush(u, t, opts, pv);',
    '    return true;',
    '无效接触不进目标列表'],
 
@@ -770,6 +770,160 @@ const MUTANTS = [
    '  _objAt = null;\n  state = {',
    '  state = {',
    '换关后新关的要点格查得到'],
+
+  /* ── v4.20 第 2 批：攻坚令 / 破口 / 防守型预备队 ──
+     这一批全是"AI 少做一件事"的形状：不开火、不补缺口、守着坑乱挪。
+     没有断言的话，表现只是"这版看起来又变呆了"，不会有任何异常。 */
+
+  /* 列表层把攻坚令丢掉：夺取型的 all-in 门槛还在，但目标进不了列表 */
+  ['攻坚令进不了目标列表（夺回要点变成一句空话）',
+   '    return !invalidContact(u, t, fields, pv) || objectivePush(u, t, opts, pv);',
+   '    return !invalidContact(u, t, fields, pv);',
+   '攻坚令生效时目标进列表'],
+
+  /* 结算层把攻坚令丢掉：列表放行了，doAttack 的兜底闸照样拒 */
+  ['攻坚令不进 doAttack（列表放行、结算仍拒）',
+   '  if (pv.ratio < INVALID_RATIO && pv.counter && !objectivePush(att, def, opts, pv)) return false;',
+   '  if (pv.ratio < INVALID_RATIO && pv.counter) return false;',
+   'doAttack 带攻坚令才真的打进去'],
+
+  /* 开口不看调用方：玩家面板与另外两种脾气也一起放行 */
+  ['攻坚令不看调用方（谁都拿到这个口子）',
+   '  if (!(opts && opts.pushObjective && att && def)) return false;',
+   '  if (!(att && def)) return false;',
+   '没有攻坚令时目标仍被无效接触闸挡住'],
+
+  /* 开口不看兵种：炮兵/舰炮也能对着要点硬啃 */
+  ['攻坚令不判能不能占领（炮兵也去啃要点）',
+   '  if (!canCapture(att) || !onEnemyObjective(def)) return false;',
+   '  if (!onEnemyObjective(def)) return false;',
+   '攻坚令只开给能占领的部队'],
+
+  /* 开口不看要点归属：野地里的低比值目标也放行 */
+  ['攻坚令不认要点归属（野地目标也放行）',
+   '  if (!canCapture(att) || !onEnemyObjective(def)) return false;',
+   '  if (!canCapture(att)) return false;',
+   '攻坚令只认敌方/争夺中的要点'],
+
+  /* 底价失效：1 点战力也往 12 点守军上撞 */
+  ['攻坚底价失效（比值再低也放行）',
+   '  return r >= PUSH_RATIO;',
+   '  return true;',
+   '比值低于底价 0.20 不放行'],
+
+  /* 三种脾气共用一个 opts：进攻型/防守型也带攻坚令，火力被撒到低比值目标上 */
+  ['aiTargetOpts 不分脾气（三种脾气都带攻坚令）',
+   '  return st && st.allInOnObjective ? { pushObjective: true } : undefined;',
+   '  return { pushObjective: true };',
+   '夺取型自动带攻坚令，另外两种不带'],
+
+  /* runAI 没把 opts 传下去：目标列表与结算都回到原样，C1 又不开火 */
+  ['runAI 不把攻坚令传进开火流程',
+   '  const pushOpts = aiTargetOpts(style);',
+   '  const pushOpts = undefined;',
+   '端到端：夺取型 runAI 把攻坚令带进开火流程'],
+
+  /* targetsFor 带了 opts、doAttack 没带：列表看得见，结算仍拒 */
+  ['开火时只传列表不传结算（看得见打不出去）',
+   '          doAttack(u, best, pushOpts);',
+   '          doAttack(u, best);',
+   '端到端：夺取型 runAI 把攻坚令带进开火流程'],
+
+  /* aiStuck 永远判"卡住"：任何一枪都能按清路价打，破口变成无条件折扣 */
+  ['aiStuck 永远判卡住（破口变成无条件折扣）',
+   '    if (hexDist(p, goal) < d0) return false;',
+   '    if (false) return false;',
+   '能绕过去时不再触发破口'],
+
+  /* 破口不查卡住：能绕过去也按清路价硬撞 */
+  ['破口不查"卡住了没有"（绕得过去也按清路价打）',
+   '  if (!goal || !aiStuck(u, goal)) return null;',
+   '  if (!goal) return null;',
+   '能绕过去时不再触发破口'],
+
+  /* 破口价不封顶：0.55 的原门槛还在，等于白改 */
+  ['破口价不封顶（清路那一枪仍按 0.55 挑）',
+   '  if (breakthrough && st.breakGate) g = Math.min(g, st.breakGate);',
+   '  /* 变异：破口价不封顶 */',
+   '破口价把门槛压到 0.40'],
+
+  /* 破口不排除炮兵：炮支援火力被拉去贴脸清路 */
+  ['破口不排除炮兵 / 飞机',
+   '  if (!u || isArty(u) || isAir(u)) return null;',
+   '  if (!u) return null;',
+   '夺取型 / 炮兵不参与破口'],
+
+  /* 破口不排除夺取型：夺取型的 targetValue 已经够凶，再叠一层清路价 */
+  ['破口不排除夺取型（两层进攻规则叠在一起）',
+   '  if (!st || !st.breakthrough || st.defensive) return null;',
+   '  if (!st) return null;',
+   '夺取型 / 炮兵不参与破口'],
+
+  /* 防守型不走 aiHoldGoal：守军又回到"全体被吸到最近要点"的老样子 */
+  ['防守型不委托 aiHoldGoal（守军全体挪向最近要点）',
+   '  if (st === AI_STYLES.hold) return aiHoldGoal(u);',
+   '  if (false) return aiHoldGoal(u);',
+   'aiGoalFor 的防守型分支就是 aiHoldGoal'],
+
+  /* 占格就算守军：预备队永远不补缺口 */
+  ['站要点上不算守军（预备队被叫去换防）',
+   '    o.cells.some(c => c[0] === u.pos[0] && c[1] === u.pos[1]))) return true;',
+   '    o.cells.some(c => c[0] === u.pos[0] && c[1] === u.pos[1]))) return false;',
+   '站在要点上的部队：算守军，不换防'],
+
+  /* 工事不算家：挖好的坑没人守，全体预备队化 */
+  ['工事里不算守军（堑壕里的部队被拽出来）',
+   '  return !!(f && fortWorking(f));',
+   '  return false;',
+   '站在己方仍在工作的工事里：算守军，原地不动'],
+
+  /* 守军判定不看能不能占领：炮兵占着格也算"有人守" */
+  ['炮兵占格也算守军（预备队不来补缺口）',
+   '  return alive(side).some(u => canCapture(u) &&',
+   '  return alive(side).some(u =>',
+   '炮兵占格不算守（占不了点）'],
+
+  /* 威胁不看崩溃：已经崩溃的敌军被当成下一波进攻 */
+  ['崩溃的敌军也算威胁（预备队被崩了的残部牵着走）',
+   '  return alive(foe).some(f => canCapture(f) && !isBroken(f) &&',
+   '  return alive(foe).some(f => canCapture(f) &&',
+   '崩溃的敌军组织不起进攻'],
+
+  /* 威胁半径 2 → 3：预备队提前一回合被拉走，别的缺口更空 */
+  ['威胁半径扩到 3 格（预备队被远处的敌人牵着走）',
+   '    o.cells.some(c => hexDist(f.pos, c) <= 2));',
+   '    o.cells.some(c => hexDist(f.pos, c) <= 3));',
+   '敌军退到 3 格外'],
+
+  /* 争夺判定用 objectiveControl：它把 contested 折成 null，这一条永远不成立 */
+  ['争夺中了还要看 objectiveControl（永远判不出来）',
+   '  if (ctrlState(o) === \'contested\') return true;',
+   '  if (objectiveControl(o) === \'contested\') return true;',
+   '争夺中的要点算受威胁'],
+
+  /* 预备队不看要点有没有守军：永远挤最近的那个，别的点空着 */
+  ['预备队不看要点有没有守军（永远去最近的点）',
+   '    const held = aiObjectiveHeld(o, u.side);',
+   '    const held = false;',
+   '最近的要点已经有守军 → 预备队转去没人守的村子'],
+
+  /* 威胁优先级失效：受威胁的缺口和没人守的点同分，只比距离 */
+  ['受威胁的空缺口不再优先（只比距离）',
+   '    if (threat && !held) s = 3;',
+   '    if (false) s = 3;',
+   '受威胁的空渡口优先于没人守的村子（哪怕更远）'],
+
+  /* 加分公式恒 0：防守型与夺取型的排序彻底一样 */
+  ['威胁加分恒 0（守方的排序退回夺取型）',
+   '  return Math.max(0, 4 - nearestObjectiveDist(t.pos)) * 0.12;',
+   '  return 0;',
+   '威胁加分看目标离要点多远：要点上 0.48'],
+
+  /* 加分没接进 scoreTarget：公式对，排序不用 */
+  ['威胁加分没接进 scoreTarget（公式对、排序不用）',
+   '  if (style && style.defensive) s += holdThreatBonus(t);',
+   '  /* 变异：防守型不加威胁分 */',
+   'scoreTarget 的防守型加分跟着目标离要点走'],
 
 ];
 

@@ -3712,7 +3712,10 @@ console.log('\n[48] 三种 AI 脾气 / 炮兵打堆叠格 / 撤销返还战术�
      Math.abs(api.aiFireGate(gun, defOnObj, { ratio: 0.05, flanked: false }, A.assault, false) - 0.15) < 1e-9);
 
   /* ── 三、落脚格打分：防守型钻掩体、进攻型贴人 ── */
-  const goal = api.aiGoalFor(inf, A.hold);
+  /* 防守型改成"守军不动、预备队补缺口"之后，这支兵牌如果是守军会返回 null。
+     这个用例要的只是"一个真实落点"来比落脚分，不是 hold 的目标语义，
+     所以守军情况退回夺取型的目标点；hold 的语义在 [53] 单独验。 */
+  const goal = api.aiGoalFor(inf, A.hold) || api.aiGoalFor(inf, A.assault);
   ok('aiGoalFor 给出一个真实落点', Array.isArray(goal) && goal.length === 2, JSON.stringify(goal));
   const passable = (r, c) => api.inBounds(r, c) && api.TERRAIN[api.LEVEL.map[r][c]].cost < 99;
   /* 找一对"离目标点一样远、离敌军也一样远、地形防御却差得多"的格子：
@@ -3790,12 +3793,12 @@ console.log('\n[48] 三种 AI 脾气 / 炮兵打堆叠格 / 撤销返还战术�
        (sAss - sSeize).toFixed(2));
     const sHold = api.scoreTarget(inf, redInf, S.fields, A.hold);
     const sSeize2 = api.scoreTarget(inf, redInf, S.fields, A.seize);
-    ok('防守型的加分只跟"离我多近"有关（0–0.48 之间）',
-       sHold - sSeize2 >= 0 && sHold - sSeize2 <= 0.49,
-       (sHold - sSeize2).toFixed(2));
+    ok('防守型的加分按"目标离要点多远"算（v4.20 第 2 批）',
+       Math.abs((sHold - sSeize2) - api.holdThreatBonus(redInf)) < 1e-9,
+       (sHold - sSeize2).toFixed(2) + ' vs ' + api.holdThreatBonus(redInf).toFixed(2));
   } else {
     ok('进攻型对残血目标额外感兴趣（+0.4）', false, 'C1 没有红方步兵');
-    ok('防守型的加分只跟"离我多近"有关（0–0.48 之间）', false, 'C1 没有红方步兵');
+    ok('防守型的加分按"目标离要点多远"算（v4.20 第 2 批）', false, 'C1 没有红方步兵');
   }
 
   /* ── 五、炮兵打堆叠格：选"兵力最强的一支"当基准 ── */
@@ -4119,7 +4122,421 @@ console.log('\n[51] 要点格缓存不跨关（结算页"下一关"是同页切�
      JSON.stringify(oldCell));
 }
 
-console.log('\n通过 ' + pass + ' 项，失败 ' + fail + ' 项');
-process.exit(fail ? 1 : 0);
+console.log('\n[52] 夺取型攻坚令：敌方要点上的低比值目标不再被藏（v4.20 第 2 批）');
+{
+  /* 用户报的现场：C1 要塞核心上的守军，红方贴脸的营一个可打目标都没有。
+     invalidContact 只看比值（守军蹲城 + 工事，比值 0.06–0.28），而夺取型
+     的 allInOnObjective 永远等不到执行——目标根本没进列表，门槛再低也没用。
+     攻坚令是唯一的例外：能占领的部队打敌方/争夺中要点上的目标，
+     比值低到 PUSH_RATIO（0.20）为止；别的脾气、别的目标一概不放。 */
+  api.newGame({ level: 'C3', noSave: true });
+  const S = api.getState();
+  const T = api.TYPE;
+  S.units.length = 0;
+  S.forts = [];
+  S.mods = [];
+  S.flanges = {};
+  S.ctrl = {};
+
+  const city = api.LEVEL.objectives.find(o => o.id === 'city');
+  ok('前提：C3 有城市要点', !!city, city && city.id);
+  const site = city.cells[0];
+  const adj = api.neighbors(site[0], site[1]).find(p => {
+    const t = api.TERRAIN[api.LEVEL.map[p[0]][p[1]]];
+    return t && t.cost < 99;
+  });
+  ok('前提：城市要点旁有可通行格', !!adj, JSON.stringify(site));
+
+  let seq = 0;
+  const put = (side, type, r, c, str) => {
+    const u = api.makeUnit({ id: (side === 'blue' ? 'B' : 'R') + (++seq), side, type,
+      abbr: 'T' + seq, name: '测试' + T[type].name, r, c, corps: 'T', str,
+      mov: T[type].mv || 8, rng: T[type].rg === undefined ? 1 : T[type].rg }, false);
+    S.units.push(u);
+    return u;
+  };
+  const guard = put('blue', 'gdn', site[0], site[1], 6);
+  const att = put('red', 'inf', adj[0], adj[1], 10);
+  api.updateControl(true);
+  const pv = api.previewAttack(att, guard, S.fields);
+
+  ok('前提：比值落在攻坚区间（PUSH_RATIO ≤ 比值 < 无效接触线）',
+     pv.ratio >= api.PUSH_RATIO && pv.ratio < api.INVALID_RATIO, pv.ratio.toFixed(3));
+  ok('前提：守方够得着还手（不是白打）', pv.counter === true);
+  ok('前提：这一格是敌方要点', api.onEnemyObjective(guard) === true);
+
+  ok('没有攻坚令时目标仍被无效接触闸挡住',
+     api.objectivePush(att, guard, undefined, pv) === false &&
+     !api.targetsFor(att, S.fields).includes(guard));
+  ok('攻坚令只开给能占领的部队（炮兵打不了这一炮）',
+     api.objectivePush({ type: 'art' }, guard, { pushObjective: true }, pv) === false);
+  ok('攻坚令只认敌方/争夺中的要点',
+     api.objectivePush(att, { pos: [0, 0], side: 'blue' }, { pushObjective: true }, pv) === false);
+  ok('比值低于底价 0.20 不放行',
+     api.objectivePush(att, guard, { pushObjective: true },
+       { ratio: 0.19, counter: true }) === false);
+  ok('底价卡在 0.20（等于放行）',
+     api.objectivePush(att, guard, { pushObjective: true },
+       { ratio: api.PUSH_RATIO, counter: true }) === true);
+  ok('夺取型自动带攻坚令，另外两种不带',
+     JSON.stringify(api.aiTargetOpts(api.AI_STYLES.seize)) === '{"pushObjective":true}' &&
+     api.aiTargetOpts(api.AI_STYLES.assault) === undefined &&
+     api.aiTargetOpts(api.AI_STYLES.hold) === undefined);
+  ok('攻坚令生效时目标进列表',
+     api.targetsFor(att, S.fields, api.aiTargetOpts()).includes(guard));
+
+  att.str = 6;
+  const weak = api.previewAttack(att, guard, S.fields);
+  ok('比值跌破底价后列表重新关掉',
+     weak.ratio < api.PUSH_RATIO &&
+     !api.targetsFor(att, S.fields, api.aiTargetOpts()).includes(guard),
+     weak.ratio.toFixed(3));
+  att.str = 10;
+
+  const hp = guard.str;
+  ok('doAttack 不带攻坚令时仍然拒绝（列表之外的第二道闸）',
+     api.doAttack(att, guard) === false && guard.str === hp, '守方 str ' + guard.str);
+  api.setRng(() => 0.9);
+  ok('doAttack 带攻坚令才真的打进去', api.doAttack(att, guard, api.aiTargetOpts()) !== false);
+  ok('伤害真的落在守军身上', guard.str < hp, hp + '→' + guard.str);
+  ok('低比值被放行时守方照样还手', att.str < 10, '10→' + att.str);
+}
+
+console.log('\n[53] 进攻型破口 / 防守型威胁排序与预备队（v4.20 第 2 批）');
+{
+  /* ── 一、破口：进攻型被一个"挡在目标前面的敌人"卡住时，按清路价打 ── */
+  api.newGame({ level: 'C3', noSave: true });
+  const S = api.getState();
+  const T = api.TYPE;
+  S.units.length = 0;
+  S.forts = [];
+  S.mods = [];
+  S.flanges = {};
+  S.ctrl = {};
+
+  let seq = 0;
+  const spawn = (st, side, type, r, c, str, mov) => {
+    const u = api.makeUnit({ id: (side === 'blue' ? 'B' : 'R') + (++seq), side, type,
+      abbr: 'T' + seq, name: '测试' + T[type].name, r, c, corps: 'T', str,
+      mov: mov === undefined ? (T[type].mv || 8) : mov,
+      rng: T[type].rg === undefined ? 1 : T[type].rg }, false);
+    st.units.push(u);
+    return u;
+  };
+  const passable = (r, c) => {
+    const t = api.TERRAIN[api.LEVEL.map[r][c]];
+    return !!t && t.cost < 99;
+  };
+  const onObj = (p, o) => o.cells.some(c => c[0] === p[0] && c[1] === p[1]);
+
+  const city = api.LEVEL.objectives.find(o => o.id === 'city');
+  const G = city.cells[0];
+  const R = api.neighbors(G[0], G[1]).find(p => passable(p[0], p[1]));
+  const BACK = api.neighbors(R[0], R[1]).find(p =>
+    passable(p[0], p[1]) && api.hexDist(p, G) === 2 && !onObj(p, city));
+  ok('前提：目标格旁有相邻的进攻位与后方格', !!R && !!BACK,
+     JSON.stringify([G, R, BACK]));
+
+  const front = spawn(S, 'blue', 'inf', G[0], G[1], 8);
+  const rear = spawn(S, 'blue', 'inf', BACK[0], BACK[1], 3);
+  const red = spawn(S, 'red', 'mob', R[0], R[1], 10);
+  api.updateControl(true);
+  const goal = api.aiGoalFor(red, api.AI_STYLES.assault);
+  const pv = api.previewAttack(red, front, S.fields);
+
+  ok('前提：进攻型的目标格就是被守军占住的那一格',
+     !!goal && goal[0] === G[0] && goal[1] === G[1], JSON.stringify(goal));
+  ok('前提：攻方被卡住（没有更靠近目标的落脚格）', api.aiStuck(red, goal) === true);
+  ok('前提：这一枪不算无效接触（比值在 0.35 以上）',
+     pv.ratio >= api.INVALID_RATIO && !api.invalidContact(red, front, S.fields),
+     pv.ratio.toFixed(3));
+
+  const gatePlain = api.aiFireGate(red, front, pv, api.AI_STYLES.assault, false, false, false);
+  const gateBreak = api.aiFireGate(red, front, pv, api.AI_STYLES.assault, false, false, true);
+  ok('前提：按常规门槛打不出去（比值低于进攻型 0.55 那一档）',
+     pv.ratio < gatePlain, pv.ratio.toFixed(3) + ' < ' + gatePlain.toFixed(3));
+  ok('破口价把门槛压到 0.40（价值折扣后 0.25），这一枪才打得出去',
+     Math.abs(gatePlain - 0.40) < 1e-9 && Math.abs(gateBreak - 0.25) < 1e-9 &&
+     pv.ratio >= gateBreak,
+     gatePlain.toFixed(2) + ' / ' + gateBreak.toFixed(2));
+  ok('破口只认挡在目标前面的那一支（后方友军不算）',
+     api.aiBreakthroughTarget(red, api.AI_STYLES.assault, S.fields) === front,
+     '后方的蓝军离目标 ' + api.hexDist(rear.pos, goal));
+  ok('夺取型 / 炮兵不参与破口',
+     api.aiBreakthroughTarget(red, api.AI_STYLES.seize, S.fields) === null &&
+     api.aiBreakthroughTarget({ ...red, type: 'sha', rng: 4 }, api.AI_STYLES.assault, S.fields) === null);
+
+  /* 换一个能绕过去的场景：守军不在目标格上，红方有一步能走到更靠近目标的位置。
+     这时不该按清路价硬撞——破口只给真的被挡住的那一枪。
+     落脚点要挑"贴得住目标、又确实有更近的及格"：隔远了 targetsFor 本来就是空的，
+     `bt null` 会被误当成"卡住判定生效"，其实只是够不着。 */
+  rear.pos = [0, 0];
+  front.pos = R.slice();
+  let flank = null;
+  for (const P of api.neighbors(R[0], R[1])) {
+    if (!passable(P[0], P[1]) || onObj(P, city)) continue;
+    if (api.hexDist(P, G) !== 2) continue;
+    const closer = api.neighbors(P[0], P[1]).find(p =>
+      passable(p[0], p[1]) && api.hexDist(p, G) === 1 &&
+      !(p[0] === R[0] && p[1] === R[1]) && !onObj(p, city) &&
+      !S.units.some(u => u !== red && u.pos[0] === p[0] && u.pos[1] === p[1]));
+    if (closer) { flank = P; break; }
+  }
+  ok('前提：找到一处能绕过去、且有一格更近落脚点的进攻位', !!flank, JSON.stringify(flank));
+  red.pos = flank.slice();
+  api.updateControl(true);
+  const goal2 = api.aiGoalFor(red, api.AI_STYLES.assault);
+  ok('前提：绕行路线的目标仍是城市要点',
+     !!goal2 && onObj(goal2, city), JSON.stringify(goal2));
+  ok('能绕过去时不再触发破口（清路价只给真的卡住的那一枪）',
+     api.aiStuck(red, goal2) === false &&
+     api.aiBreakthroughTarget(red, api.AI_STYLES.assault, S.fields) === null);
+
+  /* ── 二、防守型：守军不动，预备队补缺口 ── */
+  const holdGame = () => {
+    api.newGame({ level: 'C2B', noSave: true });
+    const st = api.getState();
+    st.units.length = 0;
+    st.forts = [];
+    st.mods = [];
+    st.flanges = {};
+    st.ctrl = {};
+    return st;
+  };
+  const C2B = api.levelById('C2B');
+  const ford = C2B.objectives.find(o => o.id === 'ford');
+  const beach = C2B.objectives.find(o => o.id === 'beach');
+  const village = C2B.objectives.find(o => o.id === 'village');
+  ok('前提：C2B 有渡口 / 滩头 / 村子三个要点',
+     !!ford && !!beach && !!village);
+  const holdPassable = (r, c) => {
+    const t = api.TERRAIN[C2B.map[r][c]];
+    return !!t && t.cost < 99;
+  };
+  const distTo = (p, o) => Math.min(...o.cells.map(c => api.hexDist(p, c)));
+  let reserveAt = null;
+  for (let r = 0; r < C2B.rows && !reserveAt; r++) {
+    for (let c = 0; c < C2B.cols && !reserveAt; c++) {
+      if (!holdPassable(r, c)) continue;
+      if (C2B.objectives.some(o => onObj([r, c], o))) continue;
+      const db = distTo([r, c], beach), dv = distTo([r, c], village), df = distTo([r, c], ford);
+      if (db <= 2 && db < dv && dv < df) reserveAt = [r, c];
+    }
+  }
+  ok('前提：找到一处离滩头最近、离村子次之、离渡口最远的空地',
+     !!reserveAt, JSON.stringify(reserveAt));
+
+  {
+    const st = holdGame();
+    const reserve = spawn(st, 'blue', 'inf', reserveAt[0], reserveAt[1], 10);
+    ok('防守型：野地里的预备队不算守军', api.aiHoldGarrison(reserve) === false);
+    st.forts.push({ r: reserveAt[0], c: reserveAt[1], kind: 'H', side: 'blue',
+      def: 0.15, hp: 0, maxHp: 0 });
+    ok('站在己方仍在工作的工事里：算守军，原地不动',
+       api.aiHoldGarrison(reserve) === true && api.aiHoldGoal(reserve) === null);
+    st.forts = [];
+    const dug = spawn(st, 'blue', 'inf', village.cells[0][0], village.cells[0][1], 8);
+    ok('站在要点上的部队：算守军，不换防',
+       api.aiHoldGarrison(dug) === true && api.aiHoldGoal(dug) === null);
+  }
+
+  {
+    const st = holdGame();
+    const inf = spawn(st, 'blue', 'inf', beach.cells[0][0], beach.cells[0][1], 8);
+    ok('要点上有能占领的己方部队 → 算有人守',
+       api.aiObjectiveHeld(beach, 'blue') === true);
+    ok('敌方不在这个要点上 → 不算敌方控制',
+       api.aiObjectiveHeld(beach, 'red') === false);
+    inf.broken = true;
+    inf.org = 0;
+    ok('崩溃但还站在要点上的守军，旗子还挂着（先派预备队是浪费）',
+       api.aiObjectiveHeld(beach, 'blue') === true);
+    inf.broken = false;
+    inf.org = 100;
+    inf.pos = [0, 0];
+    spawn(st, 'blue', 'art', beach.cells[1][0], beach.cells[1][1], 8);
+    ok('炮兵占格不算守（占不了点）', api.aiObjectiveHeld(beach, 'blue') === false);
+
+    ok('没有敌军靠近时要点不受威胁', api.aiObjectiveThreatened(beach, 'blue') === false);
+    st.ctrl[beach.id] = 'contested';
+    ok('争夺中的要点算受威胁', api.aiObjectiveThreatened(beach, 'blue') === true);
+    delete st.ctrl[beach.id];
+
+    const cells2 = [], cells3 = [];
+    for (let r = 0; r < C2B.rows; r++) {
+      for (let c = 0; c < C2B.cols; c++) {
+        if (!holdPassable(r, c)) continue;
+        if (C2B.objectives.some(o => onObj([r, c], o))) continue;
+        const d = distTo([r, c], beach);
+        if (d === 2) cells2.push([r, c]);
+        if (d === 3) cells3.push([r, c]);
+      }
+    }
+    ok('前提：找到离滩头正好 2 格与 3 格的位置', !!cells2.length && !!cells3.length,
+       cells2.length + ' / ' + cells3.length);
+    const foe = spawn(st, 'red', 'inf', cells2[0][0], cells2[0][1], 8);
+    ok('能占领的敌军摸到 2 格内 → 受威胁',
+       api.aiObjectiveThreatened(beach, 'blue') === true);
+    foe.pos = cells3[0].slice();
+    ok('敌军退到 3 格外 → 不再受威胁',
+       api.aiObjectiveThreatened(beach, 'blue') === false);
+    foe.pos = cells2[0].slice();
+    foe.broken = true;
+    foe.org = 0;
+    ok('崩溃的敌军组织不起进攻 → 不算威胁',
+       api.aiObjectiveThreatened(beach, 'blue') === false);
+    foe.broken = false;
+    foe.org = 100;
+    foe.type = 'fgt';
+    ok('飞机占不了点 → 不算威胁',
+       api.aiObjectiveThreatened(beach, 'blue') === false);
+  }
+
+  {
+    const st = holdGame();
+    const reserve = spawn(st, 'blue', 'inf', reserveAt[0], reserveAt[1], 10);
+    let goal = api.aiHoldGoal(reserve);
+    ok('没有缺口时去最近的要点（滩头）', !!goal && onObj(goal, beach), JSON.stringify(goal));
+    spawn(st, 'blue', 'gdn', beach.cells[0][0], beach.cells[0][1], 8);
+    goal = api.aiHoldGoal(reserve);
+    ok('最近的要点已经有守军 → 预备队转去没人守的村子',
+       !!goal && onObj(goal, village), JSON.stringify(goal));
+    ok('aiGoalFor 的防守型分支就是 aiHoldGoal',
+       JSON.stringify(api.aiGoalFor(reserve, api.AI_STYLES.hold)) === JSON.stringify(goal));
+
+    let redSpot = null;
+    for (const cell of ford.cells) {
+      for (const p of api.neighbors(cell[0], cell[1])) {
+        if (!holdPassable(p[0], p[1])) continue;
+        if (C2B.objectives.some(o => onObj(p, o))) continue;
+        if (st.units.some(u => u.pos[0] === p[0] && u.pos[1] === p[1])) continue;
+        redSpot = p; break;
+      }
+      if (redSpot) break;
+    }
+    ok('前提：找到一处靠渡口、不在要点上的威胁位', !!redSpot, JSON.stringify(redSpot));
+    const foe = spawn(st, 'red', 'inf', redSpot[0], redSpot[1], 8);
+    ok('前提：威胁源不在要点上（靠的是 2 格判定，不是争夺）',
+       api.ctrlState(ford) !== 'contested' &&
+       api.aiObjectiveThreatened(ford, 'blue') === true);
+    goal = api.aiHoldGoal(reserve);
+    ok('受威胁的空渡口优先于没人守的村子（哪怕更远）',
+       !!goal && onObj(goal, ford), JSON.stringify(goal));
+
+    foe.pos = [0, 0];
+    spawn(st, 'blue', 'inf', ford.cells[0][0], ford.cells[0][1], 8);
+    spawn(st, 'blue', 'inf', village.cells[0][0], village.cells[0][1], 8);
+    goal = api.aiHoldGoal(reserve);
+    ok('所有要点都有人守时，预备队去最近的要点待命（滩头）',
+       !!goal && onObj(goal, beach), JSON.stringify(goal));
+  }
+
+  {
+    const st = holdGame();
+    const reserve = spawn(st, 'blue', 'inf', reserveAt[0], reserveAt[1], 10);
+    const onPoint = { pos: beach.cells[0].slice(), side: 'red', type: 'inf', str: 8, org: 100 };
+    ok('威胁加分看目标离要点多远：要点上 0.48',
+       Math.abs(api.holdThreatBonus(onPoint) - 0.48) < 1e-9,
+       api.holdThreatBonus(onPoint).toFixed(2));
+    let p2 = null, p4 = null;
+    for (let r = 0; r < C2B.rows && (!p2 || !p4); r++) {
+      for (let c = 0; c < C2B.cols && (!p2 || !p4); c++) {
+        if (!holdPassable(r, c)) continue;
+        const d = api.nearestObjectiveDist([r, c]);
+        if (d === 2 && !p2) p2 = [r, c];
+        if (d >= 4 && !p4) p4 = [r, c];
+      }
+    }
+    ok('离要点 2 格 → 0.24',
+       !!p2 && Math.abs(api.holdThreatBonus({ pos: p2 }) - 0.24) < 1e-9,
+       p2 ? api.holdThreatBonus({ pos: p2 }).toFixed(2) : '无');
+    ok('离要点 4 格以上 → 0',
+       !!p4 && api.holdThreatBonus({ pos: p4 }) === 0,
+       p4 ? api.holdThreatBonus({ pos: p4 }).toFixed(2) : '无');
+
+    let farPair = null;
+    for (let r = 0; r < C2B.rows && !farPair; r++) {
+      for (let c = 0; c < C2B.cols && !farPair; c++) {
+        if (!holdPassable(r, c) || api.nearestObjectiveDist([r, c]) < 4) continue;
+        for (const q of api.neighbors(r, c)) {
+          if (holdPassable(q[0], q[1]) && api.nearestObjectiveDist(q) >= 4) {
+            farPair = { att: [r, c], tgt: q };
+            break;
+          }
+        }
+      }
+    }
+    ok('前提：找到一对离要点都 ≥4 格、彼此相邻的空地', !!farPair, JSON.stringify(farPair));
+    if (farPair) {
+      const onFar = { pos: farPair.tgt.slice(), side: 'red', type: 'inf', str: 8, org: 100 };
+      reserve.pos = farPair.att.slice();
+      const dOn = api.scoreTarget(reserve, onPoint, st.fields, api.AI_STYLES.hold) -
+                  api.scoreTarget(reserve, onPoint, st.fields, api.AI_STYLES.seize);
+      const dFar = api.scoreTarget(reserve, onFar, st.fields, api.AI_STYLES.hold) -
+                   api.scoreTarget(reserve, onFar, st.fields, api.AI_STYLES.seize);
+      ok('scoreTarget 的防守型加分跟着目标离要点走（不是离攻方）',
+         Math.abs(dOn - api.holdThreatBonus(onPoint)) < 1e-9 &&
+         Math.abs(dFar - api.holdThreatBonus(onFar)) < 1e-9 &&
+         Math.abs(dOn - 0.48) < 1e-9 && dFar === 0,
+         dOn.toFixed(2) + ' / ' + dFar.toFixed(2));
+    } else {
+      ok('scoreTarget 的防守型加分跟着目标离要点走（不是离攻方）', false, '没有取样格');
+    }
+  }
+}
+
+console.log('\n[54] 端到端：夺取型 runAI 把攻坚令带进开火流程（v4.20 第 2 批）');
+(async () => {
+  /* [52] 证明闸门本身是对的，[54] 证明 runAI 真的把这份 opts 传了下去——
+     两处都漏过：目标列表放行了但 doAttack 没带 opts（结算仍拒），
+     或者 runAI 根本没把 aiTargetOpts 传进 targetsFor（列表仍是空的）。
+     C1 只留一支守军与一支贴脸直射营，机动力设 0，让这一枪是原地开火。 */
+  api.newGame({ level: 'C1', noSave: true });
+  const S = api.getState();
+  const T = api.TYPE;
+  S.units.length = 0;
+  S.forts = [];
+  S.mods = [];
+  S.flanges = {};
+  S.ctrl = {};
+  const core = api.LEVEL.objectives.find(o => o.id === 'core');
+  const G = core.cells[0];
+  const R = api.neighbors(G[0], G[1]).find(p => {
+    const t = api.TERRAIN[api.LEVEL.map[p[0]][p[1]]];
+    return t && t.cost < 99;
+  });
+  const blue = api.makeUnit({ id: 'B1', side: 'blue', type: 'gdn', abbr: '守',
+    name: '测试守军', r: G[0], c: G[1], corps: 'T', str: 9,
+    mov: T.gdn.mv || 8, rng: T.gdn.rg === undefined ? 1 : T.gdn.rg }, false);
+  const red = api.makeUnit({ id: 'R1', side: 'red', type: 'inf', abbr: '攻',
+    name: '测试攻军', r: R[0], c: R[1], corps: 'T', str: 10, mov: 0, rng: 1 }, false);
+  S.units.push(blue, red);
+  api.updateControl(true);
+  const pv = api.previewAttack(red, blue, S.fields);
+  const push = api.aiTargetOpts();
+  ok('前提：直射营贴着核心守军，但比值低于无效接触线',
+     pv.ratio >= api.PUSH_RATIO && pv.ratio < api.INVALID_RATIO && pv.counter === true,
+     pv.ratio.toFixed(3));
+  ok('前提：常规目标列表里没有这支守军',
+     !api.targetsFor(red, S.fields).includes(blue));
+  ok('前提：带攻坚令的列表里有它',
+     api.targetsFor(red, S.fields, push).includes(blue));
+
+  const before = blue.str;
+  api.setRng(() => 0.9);
+  await api.endBluePhase();
+  const attacked = api.getState().log.some(l => l.text.indexOf('攻击') >= 0);
+  ok('端到端：夺取型 runAI 把攻坚令带进开火流程',
+     blue.str < before && attacked,
+     '守军 ' + before + '→' + blue.str + ' / 战报 ' + attacked);
+  ok('端到端：这一枪记入了战场首血', api.getState().firstBlood === 1,
+     String(api.getState().firstBlood));
+
+  console.log('\n通过 ' + pass + ' 项，失败 ' + fail + ' 项');
+  process.exit(fail ? 1 : 0);
+})().catch(e => {
+  console.error(e && e.stack ? e.stack : e);
+  process.exit(1);
+});
 
 
