@@ -72,23 +72,47 @@ function readCoverage() {
 
    坑③：**同一个 url 下有两个 <script> 块**（<head> 里的兜底脚本 + 引擎本体），
    各自有自己的 offset 空间。不加区分地合起来，函数数会翻倍、行号全错、
-   覆盖率被那 30 行没跑过的兜底代码拉低十几点。区分不了脚本 id，
-   就用 functions.length 分组——引擎四百多个函数，兜底三个，差得很开。 */
+   覆盖率被那 30 行没跑过的兜底代码拉低十几点。
+
+   分组键必须用**脚本块的字节跨度**（`max(endOffset)`），不能用 `functions.length`。
+   后者看着能分（引擎四百多个函数、兜底三个），实际分不了：**V8 是惰性编译**，
+   没执行到的函数压根不进 `functions` 数组，所以同一个脚本块在不同运行里
+   函数数会变——实测 selftest 597 个、briefcheck 562 个。拿函数数当键，
+   等于"按运行顺序给脚本切片"，`取最大那组`就把另一支整个丢了（v4.21 体检
+   发现的 P2-4：`--only=selftest` 与三支全跑的输出逐字节相同，94.3% 其实是
+   单支的数字，`openHQ` / `showBriefPage` 这些明明测过的函数全成了假阳性）。
+
+   跨度跨运行稳定（源码不变就不变），且兜底脚本几百字节 vs 引擎本体几十万字节，
+   差三个数量级，不可能混。 */
 function collect(reports) {
-  const groups = new Map();        // functions.length -> [script…]
+  const spanOf = s => (s.functions || []).reduce((m, f) => {
+    const r = f.ranges && f.ranges[0];
+    return r ? Math.max(m, r.endOffset) : m;
+  }, 0);
+
+  const groups = new Map();        // span -> [script…]
   for (const rep of reports) {
     for (const s of rep.result || []) {
       /* 坑①：url 带 query，必须用 includes */
       if (!String(s.url || '').includes('campaign.html')) continue;
-      const k = (s.functions || []).length;
+      const k = spanOf(s);
       if (!k) continue;
       if (!groups.has(k)) groups.set(k, []);
       groups.get(k).push(s);
     }
   }
-  if (!groups.size) return { script: null, fnCount: 0, deadCount: 0, bytes: 0, covered: 0, pct: 0, dead: [] };
+  if (!groups.size) return { script: null, fnCount: 0, deadCount: 0, bytes: 0, covered: 0, pct: 0, dead: [], dropped: 0 };
+
+  /* 取跨度最大的那组 = 引擎本体 */
   let bestKey = 0;
   for (const k of groups.keys()) if (k > bestKey) bestKey = k;
+
+  /* 被丢掉的组里，如果也有接近引擎体量的（跨度 ≥ 保留组的一半），
+     说明同属引擎本体却没合进来——那这次的百分比就是残的，必须报出来。 */
+  let dropped = 0;
+  for (const [k, arr] of groups) {
+    if (k !== bestKey && k >= bestKey * 0.5) dropped += arr.length;
+  }
 
   const byFn = new Map();
   for (const s of groups.get(bestKey)) {
@@ -123,7 +147,9 @@ function collect(reports) {
     bytes,
     covered,
     pct: bytes ? (covered / bytes * 100) : 0,
-    dead: dead.sort((a, b) => a.start - b.start)
+    dead: dead.sort((a, b) => a.start - b.start),
+    dropped,
+    groups: groups.size
   };
 }
 
@@ -179,7 +205,10 @@ function lineOf(src, offset) {
   const pct = stat.pct.toFixed(1);
   console.log('');
   console.log('引擎脚本 ' + scriptLines + ' 行 · 函数块 ' + stat.fnCount +
-              ' 个，执行过 ' + (stat.fnCount - stat.deadCount) + ' 个');
+              ' 个，执行过 ' + (stat.fnCount - stat.deadCount) + ' 个' +
+              (stat.dropped
+                ? '（⚠ 另有 ' + stat.dropped + ' 份引擎覆盖没合进来，数字偏残）'
+                : ''));
   console.log('字节覆盖 ' + pct + '%' + (MIN === null ? '' : '（门槛 ' + MIN + '%）'));
 
   if (stat.dead.length) {

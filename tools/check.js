@@ -112,6 +112,46 @@ const { api } = loadGame(file);
   fail += bad;
 }
 
+/* ── 孤儿音效：磁盘上有、两边都不引用 ──
+   2026-10-27 清过 712 KB 真死素材，判据是"既不在 `ASSETS` 里、也不在试听页的对照行里"。
+   但那条判据只写在 CREDITS 的注释里，没有工具执行它——v4.21 体检就把它算错了一次：
+   `alarm-synth` / `ui-move` / `event` / `shell-take1` 等 10 个被列成"死音效 119 KB，
+   建议删"，实际全是 `audio-lab/sfx-demo.html` 的 A/B 对照素材（`old` 列是现役版、
+   `syn` 列是合成对照版），删了试听页的那些行直接断链。
+   所以把判据固化成检查：**两边都不提的才是孤儿**。只扫 sfx 顶层，不递归
+   （`prev/` 之类的归档子目录不参与，它们本来就是留档的）。 */
+{
+  const sfxDir = path.join(path.dirname(file), 'assets', 'sfx');
+  const demoFile = path.join(path.dirname(file), 'audio-lab', 'sfx-demo.html');
+  if (fs.existsSync(sfxDir)) {
+    const used = new Set();
+    const collect = obj => {
+      for (const k of Object.keys(obj || {})) {
+        const v = obj[k];
+        if (v && typeof v === 'object') { collect(v); continue; }
+        if (typeof v === 'string' && v) used.add(path.basename(v));
+      }
+    };
+    collect(api.ASSETS.sfx);
+    if (fs.existsSync(demoFile)) {
+      const html = fs.readFileSync(demoFile, 'utf8');
+      /* 试听页的对照表里文件名是直接写进 HTML 的（old: 'event.ogg' / syn: 'event-synth.ogg'） */
+      for (const m of html.matchAll(/[A-Za-z0-9_-]+\.(?:ogg|mp3|wav)/g)) used.add(m[0]);
+    }
+    const orphans = fs.readdirSync(sfxDir)
+      .filter(f => /\.(ogg|mp3|wav)$/i.test(f) && !used.has(f));
+    if (orphans.length) {
+      console.error('[1d/4] 孤儿音效（ASSETS 与试听页都没提，删或补引用二选一）：' +
+        orphans.join(', '));
+      fail += orphans.length;
+    } else {
+      console.log('[1d/4] 无孤儿音效：sfx 目录 ' +
+        fs.readdirSync(sfxDir).filter(f => /\.(ogg|mp3|wav)$/i.test(f)).length +
+        ' 个文件，每个都在 ASSETS 或试听页里');
+    }
+  }
+}
+
 /* 引擎有多关（LEVELS）；单关的老页面已经删了，但这里仍按数组取，兼容单关形态 */
 const all = Array.isArray(api.LEVELS) ? api.LEVELS : [api.LEVEL];
 const ready = all.filter(l => l.ready);

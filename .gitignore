@@ -29,3 +29,8 @@ game/_cand/
 # （npm run sfx:embed）。入库的代价是每改一次音效就整体重写一遍，
 # diff 里看不出任何东西。
 game/audio-lab/*.embed.html
+
+# 音效备选毛料（v4.21 出库）：15 个 mp3 共 332 KB，没有任何页面引用，
+# 只是当初挑素材时的 A/B 备选。判据见 docs/17 P2-2——毛料不进库，
+# 要听的话本地留着就行（仓库里只剩 README 说明）。
+game/audio-lab/cand/*.mp3
