@@ -696,6 +696,75 @@ const MUTANTS = [
    "'>' + esc(p.t) + '</p>').join('');",
    '简报正文的重点标记渲染成加粗', 'brief'],
 
+  /* ── v4.20 第 1 批：目标价值 / 零风险火力 / 集火预支 / 崩溃收拢 ── */
+
+  /* 零风险放行被删：炮兵又会对"打不还手"的目标挑比值，
+     玩家看到的就是残部在射程里晃、敌人不补刀。 */
+  ['零风险火力被移除（打不还手也要挑比值）',
+   '  if (pv && pv.counter === false) return 0;',
+   '  if (false) return 0;',
+   '零风险：对方不能反击时门槛归零'],
+
+  /* 价值折扣只算分、不进门槛：排序与开火又分家，好目标照样被门槛拦下 */
+  ['目标价值只进排序不进门槛（看到好目标也不打）',
+   '  g -= targetValue(def, pv).discount;',
+   '  /* 变异：价值折扣被移除 */',
+   '进攻型：同样吃价值折扣'],
+
+  /* 折扣恒为 0：targetValue 的分数还在，门槛这一侧整条规则失效 */
+  ['targetValue 折扣恒为 0（价值判断只影响排序）',
+   '  return { score, discount: Math.min(0.15, discount) };',
+   '  return { score, discount: 0 };',
+   'targetValue：敌方要点守军'],
+
+  /* 要点加分被短路：优先级退回"谁比值高打谁"，守要点变成一句空话 */
+  ['targetValue 不再给要点守军加分（要点优先级失效）',
+   '  if (onEnemyObjective(t)) { score += 0.6; discount += 0.15; }',
+   '  if (false) { score += 0.6; discount += 0.15; }',
+   'targetValue：敌方要点守军'],
+
+  /* 集火折扣被删：第二支接不上时仍然按高门槛挑，协同火力等于没写 */
+  ['集火预支被移除（第二支能接上也不放松门槛）',
+   '  if (massed && !st.defensive && !pv.flanked) g -= 0.15;',
+   '  /* 变异：集火折扣被移除 */',
+   '集火：夺取型门槛再放松'],
+
+  /* 集火把"已开火"也算进来：每一炮都指望下一炮，门槛永久偏低 */
+  ['集火把已开火的友军也算第二支（门槛永久偏低）',
+   '    if (a === u || isBroken(a) || a.fired) return false;',
+   '    if (a === u || isBroken(a)) return false;',
+   '集火：已经开过火的不算第二支'],
+
+  /* 崩了的友军不能开火，不能拿来当"有人接"的理由 */
+  ['集火把崩溃友军也算第二支（根本开不了火）',
+   '    if (a === u || isBroken(a) || a.fired) return false;',
+   '    if (a === u || a.fired) return false;',
+   '集火：崩了的友军接不上'],
+
+  /* 射程闸被删：隔着半个地图的友军也算"能接上" */
+  ['集火不判射程（够不着也算有人接）',
+   '    return d >= minRange(a) && d <= attackRange(a);',
+   '    return true;',
+   '集火：够不着的友军不算第二支'],
+
+  /* 已脱离接触还硬要挪：崩溃部队每回合白丢阵地，却不会恢复得更快 */
+  ['崩溃部队脱离接触后仍强行挪窝（白丢阵地）',
+   '  if (disengaged(u)) return false;',
+   '  /* 变异：脱离接触仍要挪 */',
+   '已经脱离接触的崩溃部队就地收拢'],
+
+  /* 非关键要点也当"最后防线"：崩溃守军钉死在边角，不再收拢 */
+  ['非关键要点也被当成"最后防线"（崩溃守军不撤）',
+   '    const vital = o.core || (LEVEL.win && LEVEL.win.keep && LEVEL.win.keep.includes(o.id));',
+   '    const vital = true;',
+   'aiBrokenHoldObjective：非关键要点上的崩溃守军照样撤'],
+
+  /* 后撤评分方向写反：崩溃部队反而往敌人怀里钻 */
+  ['后撤评分方向写反（往敌人怀里钻）',
+   '  let s = Math.min(mind, 6) * 10;',
+   '  let s = Math.min(mind, 6) * -10;',
+   'aiRetreatScore：离敌越远分越高'],
+
 ];
 
 /* 锚点按 LF 写，但 campaign.html 是 CRLF（7356 行全是）。

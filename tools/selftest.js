@@ -3699,16 +3699,17 @@ console.log('\n[48] 三种 AI 脾气 / 炮兵打堆叠格 / 撤销返还战术�
      Math.abs(api.aiFireGate(inf, null, pv0, A.seize, true) - 0.90) < 1e-9);
   ok('多面进攻过放松 0.15',
      Math.abs(api.aiFireGate(inf, null, { ratio: 0.7, flanked: true }, A.seize, false) - 0.70) < 1e-9);
-  /* 夺取型的"不惜代价"：目标站在敌方要点上，门槛归零；防守型同格仍然挑 */
+  /* 夺取型的"不惜代价"：目标站在敌方要点上，门槛归零；防守型同格仍然挑。
+     v4.20 起要点守军另吃 targetValue 的 0.15 价值折扣（点数已按新口径写）。 */
   const anyObj = api.LEVEL.objectives[0];
   const objCell = anyObj.cells[0];
   const defOnObj = { pos: objCell.slice(), side: 'red', type: 'inf', str: 10, org: 100 };
   ok('夺取型：攻打敌方要点上的守军不计代价（门槛 0）',
      api.aiFireGate(gun, defOnObj, { ratio: 0.05, flanked: false }, A.seize, false) === 0);
-  ok('防守型：同样的目标仍然按 0.75 挑',
-     Math.abs(api.aiFireGate(gun, defOnObj, { ratio: 0.05, flanked: false }, A.hold, false) - 0.75) < 1e-9);
-  ok('进攻型：也不为要点破例',
-     Math.abs(api.aiFireGate(gun, defOnObj, { ratio: 0.05, flanked: false }, A.assault, false) - 0.30) < 1e-9);
+  ok('防守型：要点目标本身值 0.15 折扣（0.75 → 0.60）',
+     Math.abs(api.aiFireGate(gun, defOnObj, { ratio: 0.05, flanked: false }, A.hold, false) - 0.60) < 1e-9);
+  ok('进攻型：同样吃价值折扣（0.30 → 0.15）',
+     Math.abs(api.aiFireGate(gun, defOnObj, { ratio: 0.05, flanked: false }, A.assault, false) - 0.15) < 1e-9);
 
   /* ── 三、落脚格打分：防守型钻掩体、进攻型贴人 ── */
   const goal = api.aiGoalFor(inf, A.hold);
@@ -3910,6 +3911,188 @@ console.log('\n[49] 炮兵分摊取整：按战力比例 + 最大余数 + 2 点�
      JSON.stringify([S(7, [3, 9, 5]), S(7, [3, 9, 5])]));
   ok('余数平手时给战力高的那支（不是按格内顺序）',
      same(S(3, [1, 5]), [0, 3]), JSON.stringify(S(3, [1, 5])));
+}
+
+console.log('\n[50] 目标价值 / 零风险火力 / 集火预支 / 崩溃收拢（v4.20 第 1 批）');
+{
+  api.newGame({ level: 'C1', noSave: true });
+  const S = api.getState();
+  const A = api.AI_STYLES;
+  const inf = api.alive('blue').find(u => u.type === 'inf');
+  const gun = api.alive('blue').find(u => u.type === 'art');
+  const pv0 = { ratio: 0.7, flanked: false };
+
+  /* ── 一、targetValue：同一份判断同时喂排序与门槛 ── */
+  const coreObj = api.LEVEL.objectives.find(o => o.core);
+  const objCell = coreObj.cells[0];
+  const onObj = { pos: objCell.slice(), side: 'red', type: 'inf', str: 10, org: 100 };
+  const tvObj = api.targetValue(onObj, null);
+  ok('targetValue：敌方要点守军 0.6 分 / 0.15 折扣',
+     Math.abs(tvObj.score - 0.6) < 1e-9 && Math.abs(tvObj.discount - 0.15) < 1e-9,
+     JSON.stringify(tvObj));
+  const offObj = { pos: [0, 0], side: 'red', type: 'inf', str: 10, org: 100 };
+  const tvOff = api.targetValue(offObj, { defHelp: [{}] });
+  ok('targetValue：普通满编目标不加分也不打折',
+     tvOff.score === 0 && tvOff.discount === 0, JSON.stringify(tvOff));
+  const lowOrg = { pos: [0, 0], side: 'red', type: 'inf', str: 10, org: api.orgBreakLine() + 5 };
+  const tvLow = api.targetValue(lowOrg, { defHelp: [{}] });
+  ok('targetValue：低组织度（未崩溃）+0.2 / −0.05',
+     Math.abs(tvLow.score - 0.2) < 1e-9 && Math.abs(tvLow.discount - 0.05) < 1e-9,
+     JSON.stringify(tvLow));
+  const brokenT = { pos: [0, 0], side: 'red', type: 'inf', str: 5, org: 0 };
+  const tvBroken = api.targetValue(brokenT, { defHelp: [{}] });
+  ok('targetValue：崩了的残部 +0.4 / −0.10',
+     Math.abs(tvBroken.score - 0.4) < 1e-9 && Math.abs(tvBroken.discount - 0.10) < 1e-9,
+     JSON.stringify(tvBroken));
+  const tvLone = api.targetValue(offObj, { defHelp: [] });
+  ok('targetValue：孤立目标额外 +0.2 / −0.05',
+     Math.abs(tvLone.score - 0.2) < 1e-9 && Math.abs(tvLone.discount - 0.05) < 1e-9,
+     JSON.stringify(tvLone));
+  /* 折扣封顶：同时满足要点 + 残部 + 孤立，也不能把门槛拉穿 */
+  const tvCap = api.targetValue({ pos: objCell.slice(), side: 'red', type: 'inf', str: 5, org: 0 },
+    { defHelp: [] });
+  ok('targetValue：折扣封顶 0.15（价值再高也只挪一档）',
+     Math.abs(tvCap.discount - 0.15) < 1e-9, JSON.stringify(tvCap));
+
+  /* ── 二、零风险火力：打不还手就放行 ── */
+  ok('零风险：对方不能反击时门槛归零（比值 0.01 也打）',
+     api.aiFireGate(gun, null, { ratio: 0.01, flanked: false, counter: false }, A.hold, false) === 0);
+  ok('对方能反击时仍按原门槛（守方火炮 0.75）',
+     Math.abs(api.aiFireGate(gun, null, { ratio: 0.01, flanked: false, counter: true }, A.hold, false) - 0.75) < 1e-9);
+  ok('零风险判定不区分脾气（进攻型同样归零）',
+     api.aiFireGate(inf, null, { ratio: 0.01, flanked: false, counter: false }, A.assault, false) === 0);
+
+  /* ── 三、集火预支：第二支能接上才放松门槛 ── */
+  ok('集火：夺取型门槛再放松 0.15（0.85 → 0.70）',
+     Math.abs(api.aiFireGate(inf, null, pv0, A.seize, false, true) - 0.70) < 1e-9);
+  ok('集火：进攻型同样放松（0.55 → 0.40）',
+     Math.abs(api.aiFireGate(inf, null, pv0, A.assault, false, true) - 0.40) < 1e-9);
+  ok('集火：防守型不吃折扣（仍然 1.05，守方不出坑）',
+     Math.abs(api.aiFireGate(inf, null, pv0, A.hold, false, true) - 1.05) < 1e-9);
+  ok('已经多面进攻过的格子不再叠集火折扣',
+     Math.abs(api.aiFireGate(inf, null, { ratio: 0.7, flanked: true }, A.seize, false, true) - 0.70) < 1e-9);
+
+  /* aiMassedAttack 直接驱动：造两支能打到同一格的友军，第三支放到够不着的远处。
+     场上原有的蓝军也可能够得着这一格，先把它们标成"已开火"隔离掉，测完恢复。 */
+  const base = api.alive('blue').find(u => !api.isAir(u) && !api.isNaval(u)).pos;
+  const tpos = api.neighbors(base[0], base[1])[0];
+  const spots = api.neighbors(tpos[0], tpos[1]);
+  const savedFired = api.alive('blue').map(a => a.fired);
+  api.alive('blue').forEach(a => { a.fired = true; });
+  const mk = (id, p) => api.makeUnit({ id, side: 'blue', type: 'inf', abbr: '测', name: '探针',
+    r: p[0], c: p[1], corps: 'Z', str: 8, mov: 3, rng: 1 }, false);
+  const ua = mk('T_MA', spots[0]);
+  const ub = mk('T_MB', spots[1] || spots[0]);
+  S.units.push(ua, ub);
+  const probeTgt = () => ({ side: 'red', type: 'inf', pos: tpos.map(Number), str: 5, org: 50 });
+  ok('集火：另一支能打到同一目标的友军 → 判定成立',
+     api.aiMassedAttack(ua, probeTgt()) === true);
+  ub.fired = true;
+  ok('集火：已经开过火的不算第二支',
+     api.aiMassedAttack(ua, probeTgt()) === false);
+  ub.fired = false;
+  ub.org = 0;
+  ok('集火：崩了的友军接不上（它本来就不能开火）',
+     api.aiMassedAttack(ua, probeTgt()) === false);
+  ub.org = 100;
+  ub.pos = api.LEVEL.redSource.slice();
+  ok('集火：够不着的友军不算第二支',
+     api.aiMassedAttack(ua, probeTgt()) === false);
+  S.units.splice(S.units.indexOf(ua), 1);
+  S.units.splice(S.units.indexOf(ub), 1);
+  api.alive('blue').forEach((a, i) => { a.fired = savedFired[i]; });
+
+  /* ── 四、崩溃收拢：离敌越远分越高，并且真的会挪窝 ── */
+  const blueCells = api.alive('blue').map(u => u.pos);
+  const passable = (r, c) => api.inBounds(r, c) && api.TERRAIN[api.LEVEL.map[r][c]].cost < 99;
+  const minFoe = p => blueCells.reduce((m, b) => Math.min(m, api.hexDist(p, b)), 99);
+  let farCell = null, nearCell = null;
+  for (let r = 0; r < api.LEVEL.rows; r++) {
+    for (let c = 0; c < api.LEVEL.cols; c++) {
+      if (!passable(r, c)) continue;
+      const d = minFoe([r, c]);
+      /* 分数里距离封顶 6 格；远格取封顶值，近格取 ≤1 格，
+         距离项至少差 10×5 = 50，地形与工事最多差 5 分，方向写反必然红。 */
+      if (!farCell && d >= 6) farCell = [r, c];
+      if (!nearCell && d <= 1) nearCell = [r, c];
+    }
+  }
+  ok('前提：找到一远一近两个可通行格', !!farCell && !!nearCell,
+     JSON.stringify([farCell, nearCell]));
+  if (farCell && nearCell) {
+    const probe = { side: 'red', type: 'inf', pos: [0, 0], str: 5, org: 0 };
+    ok('aiRetreatScore：离敌越远分越高',
+       api.aiRetreatScore(probe, farCell) > api.aiRetreatScore(probe, nearCell),
+       api.aiRetreatScore(probe, farCell).toFixed(1) + ' vs ' + api.aiRetreatScore(probe, nearCell).toFixed(1));
+  }
+
+  /* 崩溃后撤只在"还贴着敌人"时发生：找一处离最近蓝军正好 2 格、
+     且旁边有一格能退到 3 格外的空地，把探针部队放上去。
+     已经脱离接触的崩溃部队不该为了挪而挪（那会白丢阵地）。 */
+  const reds = api.alive('red').filter(u => !api.isAir(u) && !api.isNaval(u) && u.mov > 0);
+  const runner = reds[0];
+  ok('前提：C1 有可用的红方地面兵牌', !!runner, String(runner && runner.abbr));
+  const occupied = new Set(api.getState().units.map(x => x.pos[0] + ',' + x.pos[1]));
+  const objCells = new Set();
+  api.LEVEL.objectives.forEach(o => o.cells.forEach(c => objCells.add(c[0] + ',' + c[1])));
+  let trap = null;
+  for (let r = 0; r < api.LEVEL.rows && !trap; r++) {
+    for (let c = 0; c < api.LEVEL.cols && !trap; c++) {
+      if (!passable(r, c) || occupied.has(r + ',' + c) || objCells.has(r + ',' + c)) continue;
+      if (minFoe([r, c]) !== 2) continue;
+      for (const q of api.neighbors(r, c)) {
+        if (!passable(q[0], q[1]) || occupied.has(q[0] + ',' + q[1])) continue;
+        if (minFoe(q) >= 3) { trap = { at: [r, c], to: q }; break; }
+      }
+    }
+  }
+  ok('前提：找到一处贴敌 2 格、旁边有退路的落点', !!trap, JSON.stringify(trap));
+  if (trap && runner) {
+    runner.pos = trap.at.slice();
+    runner.org = 0;
+    runner.broken = true;
+    runner.moved = false;
+    ok('aiBrokenAction：贴着敌人的崩溃部队会后撤',
+       api.aiBrokenAction(runner) === true);
+    ok('后撤后脱离接触（2 格内无敌军）',
+       api.disengaged(runner) === true,
+       'pos ' + JSON.stringify(runner.pos) + ' / minFoe ' + minFoe(runner.pos));
+    runner.moved = false;
+    ok('已经脱离接触的崩溃部队就地收拢（不再挪窝）',
+       api.aiBrokenAction(runner) === false);
+  }
+
+  /* 关键要点上的最后一支守军不许撤——它一走旗子就换色。 */
+  const holder = reds[1] || reds[0];
+  holder.pos = objCell.slice();
+  holder.org = 0;
+  holder.broken = true;
+  holder.moved = false;
+  ok('aiBrokenAction：核心要点上的最后一支守军不动',
+     api.aiBrokenAction(holder) === false &&
+     holder.pos[0] === objCell[0] && holder.pos[1] === objCell[1]);
+  const mateCell = (coreObj.cells[1] || coreObj.cells[0]).slice();
+  const mate = api.makeUnit({ id: 'T_MATE', side: 'red', type: 'inf', abbr: '测', name: '探针',
+    r: mateCell[0], c: mateCell[1], corps: 'Z', str: 8, mov: 3, rng: 1 }, false);
+  S.units.push(mate);
+  ok('aiBrokenHoldObjective：要点上还有别的未崩溃友军 → 可以撤',
+     api.aiBrokenHoldObjective(holder) === false);
+  S.units.splice(S.units.indexOf(mate), 1);
+
+  /* 非关键要点不在"死守"清单里：C3 的青溪镇 core:false。 */
+  api.newGame({ level: 'C3', noSave: true });
+  const r3 = api.alive('red').find(u => !api.isAir(u) && !api.isNaval(u));
+  const town = api.LEVEL.objectives.find(o => !o.core &&
+    !(api.LEVEL.win && api.LEVEL.win.keep && api.LEVEL.win.keep.includes(o.id)));
+  ok('前提：C3 有非核心要点与红方地面兵牌', !!r3 && !!town,
+     (r3 && r3.abbr) + ' / ' + (town && town.id));
+  if (r3 && town) {
+    r3.pos = town.cells[0].slice();
+    r3.org = 0;
+    r3.broken = true;
+    ok('aiBrokenHoldObjective：非关键要点上的崩溃守军照样撤',
+       api.aiBrokenHoldObjective(r3) === false);
+  }
 }
 
 console.log('\n通过 ' + pass + ' 项，失败 ' + fail + ' 项');

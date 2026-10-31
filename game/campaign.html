@@ -8459,6 +8459,32 @@ function aiStyleKey(lv) {
 }
 function aiStyle(lv) { return AI_STYLES[aiStyleKey(lv)]; }
 
+/* 目标价值（v4.20 第 1 批）：排序与开火门槛共用同一份判断。
+   以前 scoreTarget 给要点、工事、残部各加各的分，aiFireGate 却只看一个常数——
+   排在前面的目标可能因为比值差 0.01 被门槛拦下，AI 于是"看到好目标但不打"。
+   现在两边都读 targetValue：分值决定"先打谁"，折扣决定"值不值得为它冒险"。
+   discount 封顶 0.15：价值再高也只是把门槛挪一档，不能变成无条件进攻。 */
+function targetValue(t, pv) {
+  if (!t) return { score: 0, discount: 0 };
+  let score = 0, discount = 0;
+  /* 站在敌方/争夺中要点上的目标：打掉它就可能翻转控制权。 */
+  if (onEnemyObjective(t)) { score += 0.6; discount += 0.15; }
+  /* 工事快破：这一炮可能把掩体掀掉，后续每一炮都跟着变便宜。 */
+  const f = fortSelf(t);
+  if (f && fortWorking(f) && f.maxHp) {
+    if (f.hp <= 1) { score += 0.3; discount += 0.05; }
+    else if (f.hp <= 2) { score += 0.1; }
+  }
+  /* 残部：组织度越低越该补刀——它下回合能恢复，放过就是放虎归山。 */
+  if (isBroken(t)) { score += 0.4; discount += 0.10; }
+  else if (t.org < 40) { score += 0.2; discount += 0.05; }
+  /* 孤立：没有相邻友军分摊防御，打它不会替别人做嫁衣。 */
+  if (pv && pv.defHelp && pv.defHelp.length === 0) {
+    score += 0.2; discount += 0.05;
+  }
+  return { score, discount: Math.min(0.15, discount) };
+}
+
 function scoreTarget(att, t, fields, style) {
   const pv = previewAttack(att, t, fields);
   let s = pv.ratio;
@@ -8469,6 +8495,7 @@ function scoreTarget(att, t, fields, style) {
   if (isArty(t)) s += 0.6;
   if (t.type === 'sup') s += 0.4;
   if (!pv.counter) s += 0.35;
+  s += targetValue(t, pv).score;
   /* 进攻型：先吃掉好打的。挑"最硬的"会把主力磨在工事上，
      而歼灭战看的是"这一轮谁先归零"——残血与低战力优先。 */
   if (style && style.preferKill) s += Math.max(0, 8 - t.str) * 0.08;
@@ -8535,14 +8562,36 @@ function aiMoveScore(u, p, goal, style) {
 
 /* 打不打。门槛是"这一仗值不值得"，三种脾气三套数字；
    多面进攻过的格子放松 0.15（第一波已经把防御拉开），
-   移动之后再打另加 0.05（阵型没展开）。 */
-function aiFireGate(u, def, pv, style, afterMove) {
+   移动之后再打另加 0.05（阵型没展开），集火再放松 0.15（下一炮有人接）。
+   目标价值也往下拉（targetValue.discount，封顶 0.15）。
+   两条硬规则：打不还手的一律放行；任何门槛都不低于 0。 */
+function aiFireGate(u, def, pv, style, afterMove, massed) {
   const st = style || aiStyle();
+  /* 零风险火力（v4.20）：对方没有还手之力时，这一炮的本钱是白赚的。
+     以前这里只看比值，炮兵于是经常放过"贴着残部打"的白打机会——
+     玩家看到的就是"敌人不补刀"。 */
+  if (pv && pv.counter === false) return 0;
   let g = (isArty(u) ? st.fireArty : st.fireOther) - (pv.flanked ? 0.15 : 0);
   if (afterMove) g += 0.05;
+  /* 集火预支：本回合还有第二支能打到同一目标的部队没开火，
+     这一炮是在替它拆防御，亏一点也值。
+     防守型不参与——出坑反击不是守方该干的事（v4.17 已证明守方离坑会丢要点）。 */
+  if (massed && !st.defensive && !pv.flanked) g -= 0.15;
   /* 夺取型的不惜代价：目标站在**敌方控制的要点**上，这一仗赔本也得打。 */
   if (st.allInOnObjective && def && onEnemyObjective(def)) g = Math.min(g, 0);
-  return g;
+  g -= targetValue(def, pv).discount;
+  return Math.max(0, g);
+}
+/* 本回合还有没有第二支能打到同一目标的友军没开火（v4.20 集火预支）。
+   只认"能打到、能开火、还没打过"——已经打过的那支输出已经交了，不能拿它当理由。 */
+function aiMassedAttack(u, def) {
+  if (!u || !def) return false;
+  return alive(u.side).some(a => {
+    if (a === u || isBroken(a) || a.fired) return false;
+    if (a.rng <= 0 || !canTarget(a, def) || !canFire(a)) return false;
+    const d = hexDist(a.pos, def.pos);
+    return d >= minRange(a) && d <= attackRange(a);
+  });
 }
 /* 这一格是不是"敌方（或争夺中的）要点"。用于夺取型的 all-in 判定。 */
 function onEnemyObjective(def) {
@@ -8587,6 +8636,58 @@ function aiGuardSituation(u) {
   return worst;
 }
 
+/* 崩溃收拢（v4.20 第 1 批）：组织度跌破崩溃线的部队已经不能开火、不能占点，
+   留在原地唯一的结果是被补刀，而且贴着敌人永远回不到恢复线。
+   让它往后退——先离敌越远越好，其次挑地形防御与己方工事。
+   这一步只对**已崩溃**的部队生效，不碰任何还能打的部队的推进轴。 */
+function aiRetreatScore(u, p) {
+  let mind = Infinity;
+  for (const f of alive(other(u.side))) mind = Math.min(mind, hexDist(p, f.pos));
+  if (mind === Infinity) mind = 6;
+  let s = Math.min(mind, 6) * 10;
+  if (!isAir(u)) {
+    s += terrainAt(p[0], p[1]).def * 2;
+    const f = fortAt(p[0], p[1]);
+    if (f && f.side === u.side && fortWorking(f)) s += 3;
+  }
+  return s;
+}
+function aiRetreat(u) {
+  const reach = computeReach(u);
+  let best = null, bs = -Infinity;
+  for (const key in reach.stop) {
+    const p = key.split(',').map(Number);
+    if (p[0] === u.pos[0] && p[1] === u.pos[1]) continue;
+    const s = aiRetreatScore(u, p);
+    if (s > bs) { bs = s; best = p; }
+  }
+  if (!best) return false;
+  return doMove(u, best) === true;
+}
+/* 关键要点上的最后一支守军不能撤：它一走后脚旗子就换色，整关直接输。
+   "最后一支"指这一格里除它之外没有别的未崩溃友军。 */
+function aiBrokenHoldObjective(u) {
+  if (!u || !u.pos) return false;
+  for (const o of LEVEL.objectives || []) {
+    if (!o.cells.some(c => c[0] === u.pos[0] && c[1] === u.pos[1])) continue;
+    const vital = o.core || (LEVEL.win && LEVEL.win.keep && LEVEL.win.keep.includes(o.id));
+    if (!vital) return false;
+    return !alive(u.side).some(a => a !== u && !isBroken(a) &&
+      o.cells.some(c => c[0] === a.pos[0] && c[1] === a.pos[1]));
+  }
+  return false;
+}
+/* 崩溃部队这一回合的动作：已经动过就不动；关键要点上的最后一支守军也不动；
+   已经脱离接触（2 格内无敌军）的就地收拢，别为了挪而挪；
+   还贴着敌人的才往后撤。单独成函数是为了让"该撤 / 不该撤"能从测试里直接驱动——
+   挂在 runAI 分支里的话，变异回退不会让任何断言变红。 */
+function aiBrokenAction(u) {
+  if (!u || u.moved) return false;
+  if (aiBrokenHoldObjective(u)) return false;
+  if (disengaged(u)) return false;
+  return aiRetreat(u);
+}
+
 async function runAI() {
   /* 这一关红方的脾气（v4.19 热补丁）。整场只取一次：
      关卡中途不会换类别，每支部队各查一遍只是白算。 */
@@ -8626,6 +8727,14 @@ async function runAI() {
           await sleep(150);
         }
       }
+      continue;
+    }
+
+    /* 崩溃收拢（v4.20）：崩了的部队不能开火也不能占点，留在原地只会被补刀，
+       而且贴着敌人永远回不到恢复线。让它自己后撤找掩体——唯一例外是
+       它正站在关键要点上、且是那格里最后一支没崩的守军。 */
+    if (isBroken(u)) {
+      if (aiBrokenAction(u)) await sleep(140);
       continue;
     }
 
@@ -8729,12 +8838,13 @@ async function runAI() {
         const guard = style.guard ? aiGuardSituation(u) : null;
         if (guard && hexDist(u.pos, guard.mate.pos) <= 1 && tg.indexOf(guard.foe) >= 0) best = guard.foe;
         const pv = previewAttack(u, best, state.fields);
+        const massed = aiMassedAttack(u, best);
         /* 开火底线（v4.18 反馈第 7 条）：按这一关红方的脾气取——
            进攻型 0.55 / 防守型 1.05 / 夺取型 0.85，火炮各降一档。
            已经吃过第一轮攻击的格子例外：防御被拉开了 0.30，阈值跟着放松，
            这一炮很可能值回票价（多面进攻的 AI 侧）。
            夺取型另有"不惜代价"：目标站在敌方要点上时门槛归零（见 aiFireGate）。 */
-        if (pv.ratio >= aiFireGate(u, best, pv, style, false)) {
+        if (pv.ratio >= aiFireGate(u, best, pv, style, false, massed)) {
           doAttack(u, best);
           await sleep(240);
           continue;
@@ -8814,8 +8924,9 @@ async function runAI() {
             const guard2 = style.guard ? aiGuardSituation(u) : null;
             if (guard2 && hexDist(u.pos, guard2.mate.pos) <= 1 && tg.indexOf(guard2.foe) >= 0) bestT = guard2.foe;
             const pv = previewAttack(u, bestT, state.fields);
+            const massed = aiMassedAttack(u, bestT);
             /* 走完再打比原地打难一档（+0.05）：阵型没展开。 */
-            if (pv.ratio >= aiFireGate(u, bestT, pv, style, true)) {
+            if (pv.ratio >= aiFireGate(u, bestT, pv, style, true, massed)) {
               doAttack(u, bestT);
               await sleep(220);
             }
@@ -11607,6 +11718,10 @@ window.__WAR__ = {
      断言直接问这一关用哪种、这一格走不走、这一炮打不打，不用整局跑完猜。 */
   AI_STYLES, AI_STYLE_BY_TYPE, aiStyleKey, aiStyle, aiGoalFor, aiMoveScore, aiFireGate,
   onEnemyObjective, scoreTarget,
+  /* v4.20 第 1 批：目标价值 / 零风险火力 / 集火预支 / 崩溃收拢。
+     每条都单独导出——"门槛算得对不对""第二支接不接得上""往哪退"
+     都是坏了不报错、只是手感发木的规则，只能靠断言守。 */
+  targetValue, aiMassedAttack, aiBrokenHoldObjective, aiBrokenAction, aiRetreatScore, aiRetreat,
   /* 存档文件 */
   buildSaveFile, applySaveFile, importSaveText, exportSave, SAVE_FILE_APP,
   validateSave, cleanProgress, readSave, clearSave,
