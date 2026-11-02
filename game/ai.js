@@ -515,6 +515,16 @@ const TACTIC_CHOKE_MIN_ORG = 60; // 组织度掉下来的部队走不到，走�
 const CHOKE_GUARDS = 2;          // 一个口子放两个人：一个人守不住（docs/23 风险栏）
 
 const AI_TACTICS = {
+  /* 优先于断退路：只要还没人过江，就先按"合围"打。
+     escaped 一旦 > 0，cordonReady 自己变假，调度器随即换到 choke。 */
+  cordon: {
+    id: 'cordon', name: '封锁线', family: 'B', prio: 65,
+    minTurns: 4, maxFail: 4, partial: true,
+    when: ctx => cordonReady(ctx),
+    plan: ctx => cordonAssign(ctx),
+    tell: '敌军没有全线压上：封锁线钉死在阵地上，只放机动部队出来找你。',
+    banner: '敌 军 收 紧 合 围'
+  },
   choke: {
     id: 'choke', name: '断退路', family: 'A', prio: 60,
     minTurns: 3, maxFail: 3, partial: true,
@@ -637,6 +647,52 @@ function chokeAssign(ctx) {
    是发现对方真的在跑，才抢到前头去。 */
 const CHOKE_AFTER_ESCAPE = 1;   // 已经有几支过江之后开始收口
 
+/* ── T13 封锁线（合围）：线不动，机动部队出去找人 ──
+   史：辽沈战役的黑山阻击战（阻击部队钉在阵地上，主力纵队穿插）；
+   孟良崮的外围阻击与内线突击也是同一个分工。
+
+   **怎么分"谁守线、谁机动"**：看它此刻**站不站在要点上**，不看编制、不看脾气。
+   要点就是这一关的封锁线——站在线上的人守线，线外的人出去找。
+   这样不用给关卡加"谁是主力"的字段：同一套代码放到别的合围关，
+   谁先占了要点谁就是那条线。
+
+   **为什么线上一律钉死**：玩家在突围，红方最怕的是"守线的部队被诱出去"。
+   C2 原来的打法（全军压要点）会出现整条封锁线一起西移，
+   等于主动把渡口让开——简报里写的"钳形合围"根本没发生过。
+   钉死之后：线在原地，机动部队从两翼压上来，才是简报里那张图。 */
+const CORDON_MIN_LINE = 2;     // 至少两支部队在线上了，才叫"封锁线"
+const CORDON_MIN_MOBILE = 2;   // 至少两支机动部队才值得开（一支叫送人头）
+const CORDON_MOBILE_MOV = 6;   // 机动 ≥ 6 才算"放出去找人"的那一档
+
+/* 站在要点格上的红方地面部队。指挥所不算（它有自己的一套跟随逻辑）。 */
+function cordonLine() {
+  return alive('red').filter(u => u && u.pos && u.str > 0 && !isHQ(u) && !isAir(u) &&
+    (LEVEL.objectives || []).some(o => o.cells.some(c => c[0] === u.pos[0] && c[1] === u.pos[1])));
+}
+/* 线外的机动部队：不在要点上、不是炮、不是指挥所、跑得动。 */
+function cordonMobile() {
+  return alive('red').filter(u => u && u.pos && u.str > 0 && !isHQ(u) && !isArty(u) && !isAir(u) &&
+    (u.mov || 0) >= CORDON_MOBILE_MOV &&
+    !(LEVEL.objectives || []).some(o => o.cells.some(c => c[0] === u.pos[0] && c[1] === u.pos[1])));
+}
+function cordonReady(ctx) {
+  if (!ctx || ctx.win !== 'reach') return false;
+  /* 已经有人过江就交给断退路：那时候"守住线"已经不是重点，
+     把口子收掉才是。两个战术在这里交接，不需要互斥表。 */
+  if ((ctx.escaped || 0) > 0) return false;
+  return cordonLine().length >= CORDON_MIN_LINE &&
+         cordonMobile().length >= CORDON_MIN_MOBILE;
+}
+/* 线上一律"目标 = 自己脚下"：不挪窝，被推开了也会走回来。
+   线外的交给追击那套挑目标（aiHuntTarget），只是不受兵力比门槛限制——
+   这一条是命令，不是"打赢了才追"。 */
+function cordonAssign(ctx) {
+  const out = {};
+  for (const u of cordonLine()) out[u.id] = u.pos.slice();
+  for (const u of cordonMobile()) out[u.id] = 'hunt';
+  return out;
+}
+
 function chokeReady(ctx) {
   /* 第 1、2 条互为冗余：`escapeCells()` 在非撤离关本来就返回空。
      写出来是为了"这条规矩看得见"——将来谁改了 escapeCells 的语义，
@@ -664,12 +720,14 @@ function aiTacticCtx() {
 }
 
 /* 被战术指派的部队 → 它这一回合的目标格。没有指派返回 null。
+   指派值有两种：坐标（守线 / 堵口）或字符串 'hunt'（出去找人）。
    每支兵牌每次算目标都会问一次，所以这里只做一次查表。 */
 function aiTacticAssign(u) {
   const t = state && state.tactic;
   if (!t || !t.assign || !u || !u.id) return null;
   const cell = t.assign[u.id];
-  return Array.isArray(cell) ? cell.slice() : null;
+  if (Array.isArray(cell)) return cell.slice();
+  return cell || null;
 }
 
 /* 有没有进展。**每回合都算**，不受保护期影响——
@@ -760,7 +818,12 @@ function aiTacticTick() {
       cur = null;
     }
   }
-  /* 2. 保护期与滞回期内都**不重派**：断退路是一次决定。
+  /* 2. 门控失效就下场，**不等滞回**。
+     滞回是为了防"两个战术都成立时来回横跳"，不是把已经失效的战术焊在场上。
+     合围（cordon）的门是"还没人过江"，断退路的门是"已经有人过江"——
+     这一对是接力，不是互斥；靠的就是这一句让前一个当场退场。 */
+  if (cur && !AI_TACTICS[cur.id].when(ctx)) { state.tactic = null; cur = null; }
+  /* 3. 保护期与滞回期内都**不重派**：断退路是一次决定。
      每回合按"谁最近"重算，会让两个人在两个邻格之间来回挪——
      那正是 M2 重心当初学到的教训（见上面 minTurns 那段）。 */
   if (cur && ctx.turn - cur.turn < AI_TACTICS[cur.id].minTurns) return cur;
@@ -913,7 +976,12 @@ function aiGoalFor(u, style, hunt) {
      放在 hold 之前是**故意的**——reach 关的胜负不在要点上，
      守备型在那一关死抱要点，等于眼看着人从渡口过江。 */
   const tac = aiTacticAssign(u);
-  if (tac) return tac;
+  if (tac === 'hunt') {
+    /* 封锁线战术放出去的机动部队：目标是最值钱的那支蓝方单位。
+       找不到人就落回要点轴（下面那些分支照常走）。 */
+    const ht = aiHuntTarget(u);
+    if (ht) return ht.pos.slice();
+  } else if (tac) return tac;
   if (st === AI_STYLES.hold) return aiHoldGoal(u);
   /* 追击：暂时离开要点轴。目标是敌军里最值钱的那一支，
      没有敌人时才落回原来的要点推进。 */
@@ -964,9 +1032,13 @@ function aiMoveScore(u, p, goal, style, hunt) {
   /* 追击：夺取型平时 foePull=0（只认要点），追击期间额外往最近敌军压。
      目标轴已经指向高价值单位，这一项保证"沿途遇到谁都贴上去"，
      而不是眼里只有那一个目标、路过残部不闻不问。
-     被战术指派的部队**不吃这一项**：堵口的人被路过的残部拽走，
-     等于没去堵口（T3 断退路，v4.24）。 */
-  if (hunt && !aiTacticAssign(u)) {
+     **被指派去守线 / 堵口的部队不吃这一项**（坐标指派）：那两种打法要的是
+     "到位"，路过一支残部就跟过去等于没去。
+     反过来，被战术标成 'hunt' 的机动部队**要吃**——它本来就是出去找人的，
+     只是不受兵力比门槛限制（cordon 是一条命令，不是"打赢了才追"）。 */
+  const tacA = aiTacticAssign(u);
+  const chase = tacA === 'hunt' ? true : (hunt && !tacA);
+  if (chase) {
     let mind = Infinity;
     for (const f of alive(other(u.side))) mind = Math.min(mind, hexDist(p, f.pos));
     if (mind < Infinity) s -= Math.min(mind, 8) * HUNT_PULL;

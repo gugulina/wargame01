@@ -414,7 +414,7 @@ async function playOne(idx) {
     if (t.includes('建制崩溃') && !t.includes('组织不起进攻')) logCounts.broken++;
     /* v4.24 战术调度器：切了几次、认输了几次。九条战术里有八条是"开不出来
        也看不出来"的，不在这里数，就只能靠翻代码猜它到底跑没跑。 */
-    if (t.includes('敌军不追了')) logCounts.tactic++;
+    if (t.includes('敌军不追了') || t.includes('敌军没有全线压上')) logCounts.tactic++;
     if (t.includes('敌军放弃')) logCounts.tacticOff++;
   }
   /* --diag：工事落位矩阵（类型 × 要点内外），终局快照 */

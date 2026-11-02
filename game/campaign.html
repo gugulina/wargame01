@@ -58,7 +58,7 @@
      <link> 不会——跟 data/levels.js 必须用 <script src> 是同一个原因。
      ?v= 跟着顶栏版本走（tools/check.js 校验），否则改完样式玩家可能还在吃
      GitHub Pages 的十分钟缓存，看到的是一半新一半旧的页面。 -->
-<link rel="stylesheet" href="campaign.css?v=4.24">
+<link rel="stylesheet" href="campaign.css?v=4.25">
 <!-- 版本公告数据与菜单页共用一份（HQ 的「版本公告」页签读它）。
      放在 <head> 里同步加载：页签是玩家点了才渲染的，但真读不到时那一页要能
      说清"文件缺了"，而不是显示一片空白——异步加载失败是静默的。 -->
@@ -76,7 +76,7 @@
       <span class="pill" id="phasePill">我方阶段</span>
       <!-- 全项目唯一的版本标记：tools/export-levels.js 按这个 span 的原样文本抓版本号，
            开始页撤掉之后它挪到了顶栏，标签必须保持 <span id="verTag"> 这个形状 -->
-      <span id="verTag">v4.24</span>
+      <span id="verTag">v4.25</span>
       <!-- 存档异常：只在真的写失败时出现（隐私模式 / 配额满 / 被清理）。
            默认 display:none，别让它平时占位——一排胶囊里突然多一个红字，
            玩家第一反应是"我是不是哪里点坏了"。 -->
@@ -341,7 +341,7 @@
      引擎顶层的 window.__WAR__ 导出表直接引用 runAI / huntContact 等 38 个符号，
      那些是 function 声明，AI 后加载就会在导出那一刻报 ReferenceError；
      反过来 AI 引用引擎的 state / LEVEL / TYPE 全在函数体内，调用时才解析。 -->
-<script src="ai.js?v=4.24"></script>
+<script src="ai.js?v=4.25"></script>
 
 <script>
 /* ───────────────────────── 地形 ───────────────────────── */
@@ -1385,7 +1385,7 @@ const LEVELS = [
      真人一般会比脚本多撤出半个到一个身位。所以 68.3% 对应真人大概五五开往上。
      撤出数是双峰的——要么撕开了口子撤出 5–6 支，要么被压在滩头一支都过不去，
      所以"平均 3.67"和"68.3% 达成"能同时成立。 */
-  win: { kind: 'reach', count: 4, zone: { r0: 3, r1: 6, c0: 14, c1: 15 } },
+  win: { kind: 'reach', count: 4, perfect: 6, zone: { r0: 3, r1: 6, c0: 14, c1: 15 } },
   prev: {
     win:  '北岭要塞守住了，第 1 边防旅与第 103 步兵师残部趁夜东撤，编入第三方面军。',
     fail: '北岭要塞陷落，第 103 步兵师几乎打光。残部一路东撤，被收编进第三方面军。'
@@ -1394,7 +1394,8 @@ const LEVELS = [
     '初冬 · 阴，江面有雾。敌军自西面突破后一路东推，第三方面军主力被南北两路钳形攻势夹在青溪以西。',
     '第 107 步兵师与第 201 坦克旅位于包围圈靠东一侧，奉命作为突围主力，向青溪渡口方向撕开封锁线。',
     '任务：至少 4 支兵牌抵达地图东侧绿色撤离区（渡口与滩头）。走进撤离区即离场，不再返回。',
-    '全部兵牌被歼、或 12 回合结束仍未凑够 4 支，均判失败。撤离后仍保有六成战力为超额达成。'
+    '够 4 支不算完——突围成功之后回合照旧推进，你还能把剩下的人往外送。最终按撤出的**总支数**记战果。',
+    '全部兵牌被歼、或 12 回合结束仍未凑够 4 支，均判失败。撤出 6 支以上为超额达成。'
   ],
   /* 12 回合。10 回合那一版自战 0%——蓝方从出发点走到渡口要 4 回合，
      中间还得打穿一道封锁线，时间根本不够。 */
@@ -1556,12 +1557,13 @@ const LEVELS = [
           paras: [
             { t: '地图东侧绿色区域是撤离区（渡口滩头）。**至少 4 支兵牌走进去**即达成突围。' },
             { t: '走进撤离区的部队立即离场，不占格、不再参战——所以不要指望它们掩护后面的人。' },
-            { t: '撤离后仍保有全军六成以上战力为超额达成。带不走的装备，就是白送给敌人的。', hl: true }
+            { t: '够 4 支不等于结束：突围成功之后回合继续，能再送出去几支就再送几支。**最后按撤出总数记战果**。', hl: true },
+            { t: '撤出 6 支以上为超额达成。这一关比的不是"活下来几个人"，是"救出去几支"。', hl: true }
           ],
           nums: [
             { k: '回合', v: '12' },
-            { k: '达成', v: '3 支撤出' },
-            { k: '超额', v: '保六成战力' }
+            { k: '达成', v: '4 支撤出' },
+            { k: '超额', v: '6 支撤出' }
           ]
         }
       ],
@@ -7064,7 +7066,10 @@ function newGame(opt) {
        战术是"这个回合怎么打"，读档回到我方阶段后重算一遍即可——
        存下来反而会让读档读到一个按旧局面派的计划。 */
     tactic: null,        // { id, turn, fail, at, assign: { unitId: [r,c] } }
-    tacBan: {}           // 战术认输冷却：id → 认输的回合数
+    tacBan: {},          // 战术认输冷却：id → 认输的回合数
+    /* 撤离关"够数了"的播报只播一次（v4.25）。不进存档，和 huntSaid 一样：
+       读档后最多重播一句，比"整局看不到这句"好。 */
+    escGoalSaid: false,
   };
   state.units = LEVEL.units.filter(u => u.wave === 1).map(u => makeUnit(u, false));
   for (const u of LEVEL.units) {
@@ -8291,7 +8296,9 @@ function perfectHint(lv) {
   if (isTutorial(L)) return { ok: false, text: '教学关不设超额达成' };
   const w = (L.win && L.win.kind) ? L.win : { kind: 'score' };
   if (w.kind === 'reach') {
-    return { ok: true, text: '撤出后保留战力不低于开局的 60%' };
+    const goal = w.count || 1;
+    const top = (typeof w.perfect === 'number' && w.perfect > 0) ? w.perfect : goal + 2;
+    return { ok: true, text: '撤出 ' + top + ' 支以上（达成线 ' + goal + ' 支）' };
   }
   if (w.kind === 'survive') {
     const ids = (w.keep || []).map(id => {
@@ -8360,16 +8367,32 @@ function isTutorial(lv) {
   return !!L && (L.ch === 0 || String(L.type || '').includes('教学'));
 }
 
-/* 撤离类关卡的结算。达标就赢；达标且基本成建制（保住六成战力）算超额。
-   为什么超额不看"撤出更多"：checkEnd 在达标那一刻就结束战斗，
-   "再多撤一支"这条路根本来不及走——旧写法里的 escaped > goal 永远不成立。
-   0.7 → 0.6（v4.18 反馈第 6 条）：撤离关的战力本来就要付买路钱，
-   六成建制同样叫"成建制撤出"。 */
+/* 撤离关的成绩只看一件东西：**最后走出去几支**。
+   v4.25 起超额也按支数算，不再看"撤出后还剩多少战力"——
+   旧的超额口径（保留开局六成战力）奖励的是"苟着不动、一枪不放"，
+   而这一关的戏眼是"还能多救出几个人"。 */
 function reachResult() {
   if (escapedCount() < escapeGoal()) return 'fail';
-  const total = blueInitialStr();
-  const keep = alive('blue').reduce((s, u) => s + u.str, 0) + escapedStr();
-  return (total > 0 && keep >= total * 0.6) ? 'perfect' : 'win';
+  return escapedCount() >= escapePerfect() ? 'perfect' : 'win';
+}
+
+/* 超额线：关卡写了 perfect 就用它，没写按达成线 +2。
+   为什么默认 +2：撤离关的支数是小整数，+1 太便宜、+3 又常做不到。 */
+function escapePerfect() {
+  const w = winSpec();
+  if (w.kind !== 'reach') return 0;
+  if (typeof w.perfect === 'number' && w.perfect > 0) return w.perfect;
+  return (w.count || 1) + 2;
+}
+/* 达成线第一次达标：播一次，别每走一步都播。
+   （checkEnd 在每次移动后都会被调，没有这个开关会刷屏。） */
+function noteEscapeGoalReached() {
+  if (!state || state.escGoalSaid) return;
+  if (escapedCount() < escapeGoal()) return;
+  state.escGoalSaid = true;
+  log('◆ 已够 ' + escapeGoal() + ' 支，突围算成功了——但回合还没打完，' +
+      '能再送出去几支就再送几支，最终按撤出总数记战果。', 'hi');
+  FX.banner('任 务 达 成 · 还 能 再 撤', 'b', 2200);
 }
 
 /* 每回合末与每次移动后调用：走进撤离区的部队立刻离场并计数。
@@ -8388,14 +8411,20 @@ function checkEscape() {
     const i = state.units.indexOf(u);
     if (i >= 0) state.units.splice(i, 1);
     moved++;
-    log(u.abbr + '（' + u.name + '）突破封锁线，撤出战场。已完成 ' +
-        state.escapedCount + ' / ' + escapeGoal() + '。', 'b');
+    /* 达成之后改写播报口径：还在报 "5 / 4" 会让玩家以为进度条坏了。
+       v4.25 起打满回合，数字要往上走，台词也得跟着换。 */
+    log(u.abbr + '（' + u.name + '）突破封锁线，撤出战场。' +
+        (state.escapedCount >= escapeGoal()
+          ? '已撤出 ' + state.escapedCount + ' 支（已达成，超额线 ' + escapePerfect() + '）。'
+          : '已完成 ' + state.escapedCount + ' / ' + escapeGoal() + '。'), 'b');
     FX.sfx('win');
   }
   if (moved) {
     if (state.selected && state.units.indexOf(state.selected) < 0) clearSelection();
     refreshFields();
-    FX.banner('已撤出 ' + state.escapedCount + ' / ' + escapeGoal(), 'b', 1800);
+    FX.banner(state.escapedCount >= escapeGoal()
+      ? '撤 出 ' + state.escapedCount + ' 支'
+      : '已撤出 ' + state.escapedCount + ' / ' + escapeGoal(), 'b', 1800);
   }
   return moved;
 }
@@ -8445,17 +8474,22 @@ function allWavesIn() {
 
 function checkEnd() {
   if (state.result) return;
-  /* 全灭先判：任何目标类型下，打光了都是输 */
-  if (alive('blue').length === 0) {
-    state.result = 'fail'; state.phase = 'over'; showOverlay(); render(); return;
-  }
   const w = winSpec();
+  /* 全灭先判：任何目标类型下，打光了都是输。
+     **撤离关是例外**：人都走出去之后场上也空了，但那叫"全撤出去了"，
+     不叫"打光了"——判据落在撤出数量上，别在这里把胜利判成失败。 */
+  if (alive('blue').length === 0) {
+    state.result = (w.kind === 'reach' && escapedCount() >= escapeGoal())
+      ? reachResult() : 'fail';
+    state.phase = 'over'; showOverlay(); render(); return;
+  }
   if (w.kind === 'reach') {
-    if (escapedCount() >= escapeGoal()) {
-      state.result = reachResult();
-      state.phase = 'over'; showOverlay(); render(); return;
-    }
-    return;                          // 抵达类目标不看积分，等回合耗尽再判
+    /* v4.25：够数也**不再当场结算**。撤离关的战果就是"走出去几支"，
+       达成线只是及格线，超额线还在上面——第 4 支一到就拉幕，
+       玩家永远看不见自己本来还能救出谁。
+       真正结束的时机只有两个：回合耗尽（judgeFinal）或人全走光/打光（上面那条）。 */
+    noteEscapeGoalReached();
+    return;
   }
   if (w.kind === 'survive') {
     /* 坚守类的达成条件通常是"活到最后一回合"，但有些关的简报写的是
@@ -8502,7 +8536,10 @@ function showOverlay() {
   const row = (k, v) => '<div class="stat"><span>' + k + '</span><b>' + v + '</b></div>';
   let stats = '';
   if (w.kind === 'reach') {
-    stats = row('撤出部队', escapedCount() + ' / ' + escapeGoal()) +
+    /* 达成线 / 超额线分开写：v4.25 起撤离关打满回合，成绩是"撤出总数"，
+       只写 "6 / 4" 玩家会以为自己数错了。 */
+    stats = row('撤出部队', escapedCount() + ' 支（达成 ' + escapeGoal() +
+                ' · 超额 ' + escapePerfect() + '）') +
             row('仍在战场', alive('blue').length + ' 支') +
             row('我方剩余战力', now + ' / ' + lost) +
             row('结束回合', state.turn + ' / ' + LEVEL.maxTurns);
@@ -8911,7 +8948,10 @@ function renderBoard() {
       const cc = Math.round(rowC.reduce((s, x) => s + x[1], 0) / rowC.length);
       const p = hexToPixel(minR, cc);
       html += '<div class="oLabel onObj" style="left:' + (p.x + HEX_W / 2) + 'px;top:' +
-              (p.y + 5) + 'px">撤离区 · 撤出 ' + escapedCount() + '/' + escapeGoal() + '</div>';
+              (p.y + 5) + 'px">撤离区 · ' +
+              (escapedCount() >= escapeGoal()
+                ? '已撤出 ' + escapedCount() + '（超额 ' + escapePerfect() + '）'
+                : '撤出 ' + escapedCount() + '/' + escapeGoal()) + '</div>';
     }
   }
 
@@ -8967,6 +9007,15 @@ function renderGoal() {
     html += '<div class="row"><span>撤出部队</span><b class="' +
             (n >= g ? 'ok' : n > 0 ? 'warn' : 'bad') + '">' + n + ' / ' + g + ' 支</b></div>';
     html += '<div class="vpbar"><i style="width:' + Math.min(100, g ? n / g * 100 : 0) + '%"></i></div>';
+    /* 达成之后回合还在走（v4.25）：超额线得单独显示一行，
+       否则 4/4 满了、条子停在 100%，玩家不知道还能往上打。 */
+    if (n >= g) {
+      const top = escapePerfect();
+      if (top > g) {
+        html += '<div class="row"><span>超额线</span><b class="' +
+                (n >= top ? 'ok' : 'warn') + '">' + n + ' / ' + top + ' 支</b></div>';
+      }
+    }
     html += '<div class="row"><span>仍在战场</span><b>' + alive('blue').length + ' 支</b></div>';
     html += '<div class="row" style="font-size:11px"><span>走到绿色区域即撤出</span><b>剩 ' +
             Math.max(0, LEVEL.maxTurns - state.turn + 1) + ' 回合</b></div>';
@@ -11309,6 +11358,9 @@ window.__WAR__ = {
   PROGRESS_KEY,
   /* 三种胜负条件（score / survive / reach） */
   winSpec, perfectHint, isTutorial, objClusters, inEscapeZone, escapeCells, escapeGoal, escapedCount, escapedStr,
+  /* v4.25 撤离关改判：够数不结算、超额按支数。导出超额线与播报函数，
+     断言才能分别问"超额线是多少"和"够数之后有没有提前拉幕"。 */
+  escapePerfect, noteEscapeGoalReached,
   blueInitialStr, reachResult, checkEscape, checkEnd,
   getState: () => state,
   newGame, alive, uid, unitAt, terrainAt, cheb, hexDist, neighbors, inBounds,
@@ -11406,6 +11458,9 @@ window.__WAR__ = {
   TACTIC_CHOKE_MIN_MOV, TACTIC_CHOKE_MIN_ORG,
   aiTacticCtx, aiTacticTick, aiTacticAssign, escapeChokes, chokeMouth,
   chokeCandidates, chokeAssign, chokeReady, tacticProgress, tacticGiveUp, switchTactic,
+  /* v4.25 T13 封锁线：谁守线、谁出去找，是这一条战术的全部内容。 */
+  CORDON_MIN_LINE, CORDON_MIN_MOBILE, CORDON_MOBILE_MOV,
+  cordonLine, cordonMobile, cordonReady, cordonAssign,
   /* 存档文件 */
   buildSaveFile, applySaveFile, importSaveText, exportSave, SAVE_FILE_APP,
   validateSave, cleanProgress, readSave, clearSave,

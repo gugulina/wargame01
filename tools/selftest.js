@@ -1057,24 +1057,39 @@ console.log('\n[22] 三种胜负条件（score / survive / reach）');
      api.alive('blue').length === before - g &&
      movers.every(u => api.alive('blue').indexOf(u) < 0));
   ok('撤出部队的战力算得回来', api.escapedStr() > 0, api.escapedStr());
-  ok('达标且基本成建制 → 超额', api.reachResult() === 'perfect', api.reachResult());
-  api.checkEnd();
-  ok('凑够数量立刻结束', api.getState().result !== null, api.getState().result);
+  ok('刚好够达成线只算达成，不算超额', api.reachResult() === 'win', api.reachResult());
 
-  /* 达标但打残了 → 只是达成，不算超额。
-     旧写法用"撤出数 > 目标数"判超额，而 checkEnd 在达标那一刻就结束，
-     那条路永远走不到，perfect 是死代码。 */
-  api.newGame({ level: 'C2', noSave: true });
-  const z2 = api.escapeCells();
-  for (let i = 0; i < g; i++) {
-    const u = api.alive('blue')[0];
-    u.pos = z2[i].slice();
-    api.checkEscape();
-  }
-  const st2 = api.getState();
-  const survivors = api.alive('blue');
-  survivors.slice(1).forEach(u => { u.str = 1; });     // 剩下的全打残
-  ok('打残之后只能算达成', api.reachResult() === 'win', api.reachResult() + '（剩 ' + survivors.length + ' 支）');
+  /* v4.25：够数**不结算**。这一条是这一版的核心行为——
+     旧写法到这里就 showOverlay 了，玩家永远看不到"还能再送出去几支"。 */
+  api.checkEnd();
+  ok('凑够达成线之后战斗不结束（还能接着撤）',
+     api.getState().result === null, String(api.getState().result));
+
+  const top = api.escapePerfect();
+  ok('超额线高于达成线（否则"超额"没意义）', top > g, g + ' → ' + top);
+
+  /* 继续往外送，到超额线 → 超额 */
+  const more = api.alive('blue').slice(0, top - api.escapedCount());
+  more.forEach((u, i) => { u.pos = zone[i % zone.length].slice(); });
+  api.checkEscape();
+  ok('撤到超额线 → 超额', api.reachResult() === 'perfect',
+     api.escapedCount() + ' / ' + top);
+
+  /* 成绩只看支数，不看保留战力：撤出去的人打残了也一样算。
+     旧判据（保留开局六成战力）奖励的是"苟着不动"，与这一关的戏眼相反。 */
+  api.alive('blue').forEach(u => { u.str = 1; });
+  ok('留在场上的人打残了也不影响超额（成绩只看撤出支数）',
+     api.reachResult() === 'perfect', api.reachResult());
+
+  /* 人全走光：场上没人了，但那是"都撤出去了"，不是"打光了"。
+     checkEnd 的第一条是全灭判负，撤离关必须在这里让路。 */
+  const all = api.alive('blue');
+  all.forEach((u, i) => { u.pos = zone[i % zone.length].slice(); });
+  api.checkEscape();
+  api.checkEnd();
+  ok('人全走光算"全撤出去"，不按"打光了"判负',
+     api.getState().result === 'perfect', String(api.getState().result));
+
   ok('撤离区之外的格子不算撤出', api.inEscapeZone([9, 15]) === false);
 }
 
@@ -3061,8 +3076,11 @@ console.log('\n[43] 超额条件提示（v4.17 第 6 条）');
      "菜单说可超额、打完不给超额"。三路各测一条。 */
   const c2 = api.levelById('C2');
   const h2 = api.perfectHint(c2);
-  ok('突围关：超额条件是战力留存（v4.18 降到 60%）',
-     h2.ok && h2.text.indexOf('60%') >= 0, JSON.stringify(h2));
+  /* v4.25：超额从"保留六成战力"改成"撤出 6 支以上"。
+     断言同时盯两头——含支数、且不再出现 60%，只改一边会留下半句旧文案。 */
+  ok('突围关：超额条件是撤出支数（不再看保留战力）',
+     h2.ok && h2.text.indexOf('6') >= 0 && h2.text.indexOf('60%') < 0,
+     JSON.stringify(h2));
 
   const c1 = api.levelById('C1');
   const h1 = api.perfectHint(c1);
@@ -5262,16 +5280,18 @@ console.log('\n[58] 接触交火：步兵贴到一格就必须开火（v4.23）'
      fire.length > 0, String(fire.length));
 }
 
-console.log('\n[59] 战术调度器与 T3 断退路（v4.24）');
+console.log('\n[59] 战术调度器：封锁线（合围）与断退路（v4.25）');
 {
   /* 设计稿 docs/23 §四：脾气管"多凶"，机制管"这一枪值不值"，中间那层
-     "这一仗怎么组织"一直是空的。这一节守四件事，缺一件就是白做：
+     "这一仗怎么组织"一直是空的。这一节守五件事，缺一件就是白做：
        ① 门控成对——该开的局面开、不该开的局面不开。只测一边等于永远为真。
-       ② 指派**真的换了目标格**。而且必须挑"基线目标 ≠ 口子"的那个兵：
+       ② **两个战术是接力，不是互斥**：还没人过江打合围，有人过江立刻换断退路。
+          这一条最容易写成"两个都开"或"两个都不开"，所以两头都要断言。
+       ③ 指派**真的换了目标格**。而且必须挑"基线目标 ≠ 指派格"的那个兵：
           C2 的守备营本来就站在口子上（那格同时是要点），拿它断言的话，
           把 aiGoalFor 里的战术分支整个删掉，断言照样绿——设计稿 §六 点名的坑。
-       ③ 认输之后进冷却，不会下一回合立刻重挑（否则"放弃"只是句战报）。
-       ④ 它只改目标，不碰开火门槛（M5 那条线不许被战术压低）。 */
+       ④ 认输之后进冷却，不会下一回合立刻重挑（否则"放弃"只是句战报）。
+       ⑤ 它只改目标，不碰开火门槛（M5 那条线不许被战术压低）。 */
   api.newGame({ level: 'C2', noSave: true });
   const S2 = api.getState();
   const ctx0 = api.aiTacticCtx();
@@ -5283,15 +5303,55 @@ console.log('\n[59] 战术调度器与 T3 断退路（v4.24）');
      !api.inEscapeZone(mouth) && api.neighbors(mouth[0], mouth[1]).some(n => api.inEscapeZone(n)),
      JSON.stringify(mouth));
 
-  /* ── 一、门控 ── */
+  /* ── 一、合围：线不动，机动部队出去找人 ── */
   S2.escapedCount = 0;
-  ok('门控：一个人都还没突出去时不开断退路（断退路是反应，不是预判）',
-     api.aiTacticTick() === null);
+  const t1 = api.aiTacticTick();
+  ok('接力：还没人过江时打的是封锁线（合围），不是断退路',
+     !!t1 && t1.id === 'cordon', t1 && t1.id);
+  const lineIds = api.cordonLine().map(u => u.id);
+  const mobIds = api.cordonMobile().map(u => u.id);
+  ok('封锁线：站在要点上的是"线"，至少两支；线外至少两支机动部队',
+     lineIds.length >= 2 && mobIds.length >= 2,
+     '线 ' + lineIds.length + ' / 机动 ' + mobIds.length);
+  ok('封锁线：线上的人目标就是自己脚下（钉死，不挪窝）',
+     lineIds.every(id => {
+       const u = S2.units.find(x => x.id === id);
+       return JSON.stringify(t1.assign[id]) === JSON.stringify(u.pos);
+     }), JSON.stringify(t1.assign));
+  ok('封锁线：线外的人被标成出去找人（hunt）',
+     mobIds.every(id => t1.assign[id] === 'hunt'), JSON.stringify(t1.assign));
+  ok('封锁线：只指派这两类，炮与指挥所照旧走自己的',
+     Object.keys(t1.assign).length === lineIds.length + mobIds.length,
+     String(Object.keys(t1.assign).length));
+  const mob = S2.units.find(u => u.id === mobIds[0]);
+  const gMob = api.aiGoalFor(mob);
+  ok('封锁线：机动部队的目标是蓝方单位所在格（不是要点）',
+     !!gMob && api.alive('blue').some(b => b.pos[0] === gMob[0] && b.pos[1] === gMob[1]),
+     JSON.stringify(gMob));
+  const hold = S2.units.find(u => u.id === lineIds[0]);
+  ok('封锁线：守线部队的目标就是自己脚下',
+     JSON.stringify(api.aiGoalFor(hold)) === JSON.stringify(hold.pos),
+     JSON.stringify(api.aiGoalFor(hold)));
+
+  /* 断退路的"有人过江才收口"这道门槛**被合围挡着，平时看不见**：
+     cordon 优先级更高，只要它开得了，永远轮不到 choke。所以先把线上的部队
+     拿掉（str 归零 → cordonLine 凑不够两个人），再问这一句。
+     少了这一条，把 chokeReady 里的 escaped 门槛整个删掉也不会红。 */
+  S2.escapedCount = 0;
+  const lineBackup = api.cordonLine().map(u => ({ u, str: u.str }));
+  lineBackup.forEach(x => { x.u.str = 0; });
+  const tNone = api.aiTacticTick();
+  ok('门控：没有合围可用、又一个人都没过江时，断退路也不提前开',
+     tNone === null, tNone && tNone.id);
+  lineBackup.forEach(x => { x.u.str = x.str; });
+
+  /* ── 二、接力：有人过江 → 合围下场，断退路上场 ── */
   S2.escapedCount = api.CHOKE_AFTER_ESCAPE;
   const tac = api.aiTacticTick();
-  ok('门控：有人过江之后才把机动兵力派去堵口', !!tac && tac.id === 'choke', tac && tac.id);
+  ok('接力：有人过江之后立刻换成断退路（合围那一套当场下场，不等保护期）',
+     !!tac && tac.id === 'choke', tac && tac.id);
 
-  /* ── 二、指派 ── */
+  /* ── 三、断退路的指派 ── */
   const ids = Object.keys(tac.assign);
   ok('指派：一个口子放两个人（一个人守不住，多了是浪费）',
      ids.length === api.CHOKE_GUARDS, String(ids.length));
@@ -5326,7 +5386,7 @@ console.log('\n[59] 战术调度器与 T3 断退路（v4.24）');
      api.aiMoveScore(moved, moved.pos, g5, A5, true) ===
      api.aiMoveScore(moved, moved.pos, g5, A5, false));
 
-  /* ── 三、认输与冷却 ── */
+  /* ── 四、认输与冷却 ── */
   for (let i = 0; i < 3; i++) { S2.escapedCount++; api.aiTacticTick(); }
   ok('认输：连着三个回合没堵住就撤（不会一直挂在战报上）', S2.tactic === null);
   ok('认输：冷却写进去了', !!(S2.tacBan && typeof S2.tacBan.choke === 'number'));
@@ -5337,14 +5397,16 @@ console.log('\n[59] 战术调度器与 T3 断退路（v4.24）');
   ok('冷却过了会重新收口（不是永久放弃）',
      (api.aiTacticTick() || {}).id === 'choke');
 
-  /* ── 四、边界：非撤离关一枪不放 ── */
+  /* ── 五、边界：非撤离关一枪不放 ── */
   api.newGame({ level: 'C1', noSave: true });
   const S1 = api.getState();
   S1.escapedCount = 3;
   ok('门控：不是撤离关就绝不开断退路（C1 的围城感不许被它带走）',
      api.chokeReady(api.aiTacticCtx()) === false && api.aiTacticTick() === null);
-  ok('规矩：战术表里没有开火钩子（它只能改目标，碰不到 M5 那条线）',
-     api.AI_TACTICS.choke.fire === undefined);
+  ok('门控：合围同理，非撤离关也不开（封锁线是"围住要跑的人"才有的打法）',
+     api.cordonReady(api.aiTacticCtx()) === false);
+  ok('规矩：没有任何战术带开火钩子（它们只能改目标，碰不到 M5 那条线）',
+     Object.keys(api.AI_TACTICS).every(k => api.AI_TACTICS[k].fire === undefined));
 }
 
 console.log('\n通过 ' + pass + ' 项，失败 ' + fail + ' 项');

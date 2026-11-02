@@ -1037,7 +1037,7 @@ const MUTANTS = [
      锚点跟着改。只改前半句会**找不到**——失效的锚点报的是 "?" 不是 "✗"，
      跑全量时很容易被当成"零假防线"放过去（MEMORY 里记着这条）。 */
   ['追击走位不往敌军压（沿途遭遇变成路过）',
-   '  if (hunt && !aiTacticAssign(u)) {\n    let mind = Infinity;\n    for (const f of alive(other(u.side))) mind = Math.min(mind, hexDist(p, f.pos));\n    if (mind < Infinity) s -= Math.min(mind, 8) * HUNT_PULL;\n  }',
+   '  if (chase) {\n    let mind = Infinity;\n    for (const f of alive(other(u.side))) mind = Math.min(mind, hexDist(p, f.pos));\n    if (mind < Infinity) s -= Math.min(mind, 8) * HUNT_PULL;\n  }',
    '  if (false) {\n    let mind = Infinity;\n    for (const f of alive(other(u.side))) mind = Math.min(mind, hexDist(p, f.pos));\n    if (mind < Infinity) s -= Math.min(mind, 8) * HUNT_PULL;\n  }',
    '追击给贴近敌军的落点加分'],
 
@@ -1294,11 +1294,11 @@ const MUTANTS = [
   ['断退路不等玩家过江（开局就提前堵口，C2 直接 15% → 0%）',
    '  if ((ctx.escaped || 0) < CHOKE_AFTER_ESCAPE) return false;',
    '  if (false) return false;',
-   '一个人都还没突出去时不开断退路'],
+   '断退路也不提前开'],
 
-  ['aiGoalFor 不认战术指派（调度器算完没人听）',
-   '  const tac = aiTacticAssign(u);\n  if (tac) return tac;',
-   '  const tac = null;\n  if (tac) return tac;',
+  ['aiGoalFor 不认坐标指派（调度器算完没人听）',
+   '  } else if (tac) return tac;',
+   '  } else if (false) return tac;',
    '目标真的换到了口子'],
 
   /* 直接拿撤离格当目标——第一版很容易写成这样（"口子就是撤离区那几格"）。
@@ -1320,8 +1320,8 @@ const MUTANTS = [
    '只派跑得动的部队'],
 
   ['追击的引力把堵口的部队拽走（路过一支残部就跟着跑了）',
-   '  if (hunt && !aiTacticAssign(u)) {',
-   '  if (hunt) {',
+   '  const chase = tacA === \'hunt\' ? true : (hunt && !tacA);',
+   '  const chase = hunt;',
    '追击的引力拽不走堵口的部队'],
 
   ['认输不计数（卡住的战术永远不撤，屏幕上一直挂着"敌军断退路"）',
@@ -1333,6 +1333,37 @@ const MUTANTS = [
    '  return ctx.turn - ban[id] < TACTIC_GIVEUP_CD;',
    '  return false;',
    '冷却期内不许回来'],
+
+  /* ── v4.25 撤离结算与封锁线 ── */
+  ['够数就拉幕（回到 v4.24 的旧行为，玩家看不到还能救几个人）',
+   '    noteEscapeGoalReached();\n    return;',
+   '    state.result = reachResult(); state.phase = \'over\'; showOverlay(); render(); return;',
+   '凑够达成线之后战斗不结束'],
+
+  ['超额仍按"保留六成战力"（支数到了也不给超额）',
+   '  return escapedCount() >= escapePerfect() ? \'perfect\' : \'win\';',
+   '  return \'win\';',
+   '撤到超额线 → 超额'],
+
+  ['全灭先判不给撤离关让路（全撤出去被判成打光了）',
+   '    state.result = (w.kind === \'reach\' && escapedCount() >= escapeGoal())\n      ? reachResult() : \'fail\';',
+   '    state.result = \'fail\';',
+   '人全走光算'],
+
+  ['封锁线的线不钉在原地（守线部队也跟着出去找人，等于把封锁线让开）',
+   '  for (const u of cordonLine()) out[u.id] = u.pos.slice();',
+   '  for (const u of cordonLine()) out[u.id] = \'hunt\';',
+   '封锁线：线上的人目标就是自己脚下'],
+
+  ['合围的门槛不看有没有人过江（有人跑了还在原地守线）',
+   '  if ((ctx.escaped || 0) > 0) return false;',
+   '  if (false) return false;',
+   '接力：有人过江之后立刻换成断退路'],
+
+  ['门控失效不下场（合围焊在场上，断退路永远等不到）',
+   '  if (cur && !AI_TACTICS[cur.id].when(ctx)) { state.tactic = null; cur = null; }',
+   '  if (false) { state.tactic = null; cur = null; }',
+   '接力：有人过江之后立刻换成断退路'],
 
 ];
 
