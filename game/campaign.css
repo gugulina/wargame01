@@ -310,6 +310,11 @@
   .unit.stk { position: absolute; transform: scale(.72); }
   .unit.stk0 { left: 7px; top: 2px; z-index: 3; }
   .unit.stk1 { left: 7px; top: 20px; z-index: 4; }
+  /* 三支以上：**绿方车队不占位**（友军会让路），所以我军步兵可以和两支车队
+     挤在同一格，最多出现四支。第三、四支缩到 58% 排到右侧，
+     否则它们会盖在前两支的番号上，看起来像"这格只有两支"。 */
+  .unit.stk2 { left: 20px; top: 2px;  z-index: 5; transform: scale(.58); }
+  .unit.stk3 { left: 20px; top: 20px; z-index: 6; transform: scale(.58); }
   /* 堆叠数量角标：放右侧中段。不能放右上角——尖顶六边形的角落在 clip-path
      之外，会被直接裁掉（踩过一次，只露出一条黑边）。 */
   .stackTag {

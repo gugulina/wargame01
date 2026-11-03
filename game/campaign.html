@@ -58,7 +58,7 @@
      <link> 不会——跟 data/levels.js 必须用 <script src> 是同一个原因。
      ?v= 跟着顶栏版本走（tools/check.js 校验），否则改完样式玩家可能还在吃
      GitHub Pages 的十分钟缓存，看到的是一半新一半旧的页面。 -->
-<link rel="stylesheet" href="campaign.css?v=5.0">
+<link rel="stylesheet" href="campaign.css?v=5.1">
 <!-- 版本公告数据与菜单页共用一份（HQ 的「版本公告」页签读它）。
      放在 <head> 里同步加载：页签是玩家点了才渲染的，但真读不到时那一页要能
      说清"文件缺了"，而不是显示一片空白——异步加载失败是静默的。 -->
@@ -76,7 +76,7 @@
       <span class="pill" id="phasePill">我方阶段</span>
       <!-- 全项目唯一的版本标记：tools/export-levels.js 按这个 span 的原样文本抓版本号，
            开始页撤掉之后它挪到了顶栏，标签必须保持 <span id="verTag"> 这个形状 -->
-      <span id="verTag">v5.0</span>
+      <span id="verTag">v5.1</span>
       <!-- 存档异常：只在真的写失败时出现（隐私模式 / 配额满 / 被清理）。
            默认 display:none，别让它平时占位——一排胶囊里突然多一个红字，
            玩家第一反应是"我是不是哪里点坏了"。 -->
@@ -341,7 +341,7 @@
      引擎顶层的 window.__WAR__ 导出表直接引用 runAI / huntContact 等 38 个符号，
      那些是 function 声明，AI 后加载就会在导出那一刻报 ReferenceError；
      反过来 AI 引用引擎的 state / LEVEL / TYPE 全在函数体内，调用时才解析。 -->
-<script src="ai.js?v=5.0"></script>
+<script src="ai.js?v=5.1"></script>
 
 <script>
 /* ───────────────────────── 地形 ───────────────────────── */
@@ -493,6 +493,19 @@ const TYPE = {
           '在港口和城市要点内防御按守备部队算。要塞是它的主场',
           '远征登陆作战尚未编成。现阶段它只出现"守"的场合，不承担抢滩'] },
 
+  /* ── 友军（绿方，v5.1）────────────────────────────────────
+     只出现在护送类关卡里，由关卡脚本按路径推进，**玩家与 AI 都不能指挥**。
+     它们不占指挥链、不产生控制区、不走军事补给场（见 supplyOf）。
+     两个兵种的差别只有一条：护送队有枪，被咬住时能还手；难民不能。 */
+  ref: { name: '难民队伍', role: '护送对象', am: 0, st: 4, mv: 3, rg: 0,
+    abil: ['**没有任何武器**：不会主动攻击，被打了也还不了手',
+          '沿公路按预定路线西撤，不会绕路，被堵住就停在原地等',
+          '一支代表几千人。它掉的不只是战力，是这条公路上的人'] },
+  esc: { name: '护送队', role: '车队护卫', am: 0, st: 5, mv: 6, rg: 1,
+    abil: ['民兵与宪兵编成的车队护卫，有枪，被咬住时能还手',
+          '同样不会主动进攻，也跟着车队走',
+          '战力比难民高一点，但它挡不住正规军——拦住敌人的活是我们的'] },
+
   /* 坦克三分：轻 / 中 / 重。三者是同一个"The 三角"的不同切法——
      轻坦拿机动换火力与装甲，重坦反过来。没有哪一型是"升级版"，
      用错场合都会赔本，这也是玩家要学的东西。 */
@@ -546,6 +559,16 @@ const TYPE = {
           '直瞄攻击修正 −0.15，打城内、林地目标再 −0.10',
           '机动 8，防御优于牵引炮兵',
           '弹药 6 发，数量稀少'] },
+  /* 火箭炮（v5.1）：不是"更远的炮"，是**另一种炮**。
+     它的价值全在覆盖面——一次齐射把一整段阵地同时打薄，代价是弹药只有三发、
+     发射车一停就是半小时、挪窝要一整回合。有人拿它当普通榴弹炮用，
+     三回合之后就没弹了，那正是这条数值想让人学会的事。 */
+  mlrs: { name: '火箭炮营', role: '面压制 · 一次齐射', am: 3, st: 5, mv: 5, rg: 6,
+    abil: ['火箭炮，射程 3–6 格（4.5–9 km），近界 3 格：贴到 4.5 km 内打不着',
+          '**齐射覆盖**：目标格吃全额，相邻六格各吃一半——扎堆的部队会一起挨打',
+          '每次齐射打掉一发，弹药只有 3 发；静止且补给正常才 +1/回合',
+          '行军、展开各占一回合，这期间既不能射击也还不了手',
+          '**一次把某一段防线打薄**，不是用来连着砸同一个点的'] },
   eng: { name: '工兵营', role: '工程作业', am: 0,
     abil: ['五类工事全都能修：堑壕 H / 碉堡 B / 要塞炮 P / 岸防炮 A / 防空阵地 F',
           '布雷：在相邻空格铺雷区，敌人进去掉 3 战力并停下',
@@ -765,6 +788,12 @@ const RESERVED_MECH = {
    （图鉴里一律写"暂未编成"）。selftest 会核"每个兵种都有这一条"，
    漏了会红——否则新加兵种时图鉴上会悄无声息地少一段。 */
 const UNIT_INFO = {
+  /* ── 友军（绿方）── */
+  ref: { cat: '友军单位',
+    intro: '难民车队，一支代表几千人。没有任何武器，被打时还不了手，也不能指挥。它只会沿公路往西走，路被堵住就停在原地等——清路是你的活。' },
+  esc: { cat: '友军单位',
+    intro: '民兵和宪兵编成的车队护卫，有枪但不会主动进攻，跟着车队一起走。被咬住时能还手，挡不住正规军——拦住敌人的活是我们的。' },
+
   /* ── 步兵 ── */
   inf: { cat: '步兵单位',
     intro: '战场上的骨架。走得慢，打得也不狠，可只有它能把旗子插在要点上，也只有它能自己挖工事。进攻让它先占位，防御让它蹲进工事。追坦克不归它管。' },
@@ -798,6 +827,8 @@ const UNIT_INFO = {
     intro: '装在履带底盘上的旅属火炮，能自己跟着部队跑，落地不用架设。火力不如牵引炮，但"能跟上"在进攻里很值钱：它是少数不用停下来等一回合的火炮。' },
   spa: { cat: '炮兵单位',
     intro: '师属自行火炮，射程和威力都在中上，能跟着装甲部队换位置。贵在打完就走。在一个地方连蹲三回合，反炮兵火力找的就是它。' },
+  mlrs: { cat: '炮兵单位',
+    intro: '一次把一整段阵地打薄的炮。目标格连同周围六格一起挨，扎堆守的部队会被一发打散；代价是弹药只有三发、挪窝极慢。它不负责持续压制，负责在进攻发起前那一下。' },
 
   /* ── 反装甲 ── */
   at: { cat: '反装甲单位',
@@ -3734,7 +3765,7 @@ const LEVELS = [
     '九月 · 阴。从北郊防线撤下来十二天，人还没补齐，敌人已经到了。',
     '第 301 预备役步兵师在北郊打光了两个团。撤下来的只有师部和三个不满员的营，一个营不到两百人。',
     '第 102 步兵师剩下一个营、一个反坦克连、一个工兵连。第 204 装甲旅剩一个中坦营和一个侦察营。',
-    '首都卫戍第 1 旅第一次上前线：三个守备营，平时守的是仓库、电台和军械库。他们没挨过炮。',
+    '首都卫戍第 1 旅第一次上前线：三个守备营，兵员是从各师挑出来的，装备与操典全军最好。他们没挨过炮。',
     '军校生旅还剩两个营和一个学员连。这支旅能在阵地上自己恢复组织度，哪一段塌了就往哪一段填。',
     '任务：坚守 12 回合，北郊两座村子必须始终在我方手中。全军被歼即判负。',
     '西北村是主阵地，必须守住；东北村是前哨，丢了不算失守，但主阵地的侧翼会露出来。',
@@ -3785,7 +3816,7 @@ const LEVELS = [
       effects: [
         { kind: 'say', beats: [
           { who: '首都卫戍第 1 旅 · 旅长', side: 'blue', portrait: 'portBlue',
-            text: '我的人守过仓库，守过电台，没守过阵地。\n给我们一段墙，我们就不走。' },
+            text: '我的人站过检阅场，守过电台和军械库，没守过阵地。\n给我们一段墙，我们就不走。' },
           { who: '第 102 步兵师 · 师部', side: 'blue', portrait: 'portHQ',
             text: '从波尔瓦萨退到这儿，一千二百公里。\n再退就是城门了。这一站，站住。' }
         ] }
@@ -3845,7 +3876,7 @@ const LEVELS = [
           title: '城下的十四个回合',
           paras: [
             { t: '从波尔瓦萨一路退到岚京，一千二百公里。北郊防线是最后一道野战线。' },
-            { t: '能填上来的只有首都卫戍第 1 旅：三个守备营，平时守仓库和电台，没挨过炮。', hl: true },
+            { t: '能填上来的只有首都卫戍第 1 旅：三个守备营，站过检阅场、守过电台和军械库，**没挨过炮**。', hl: true },
             { t: '打过仗的是第 102 步兵师剩下的一个营、第 204 装甲旅的一个中坦营和一个侦察营。' },
             { t: '军校生旅还剩两个营和一个学员连。**他们能在阵地上自己恢复组织度**，哪一段塌了就往哪一段填。', hl: true }
           ],
@@ -3888,7 +3919,7 @@ const LEVELS = [
       ],
       beats: [
         { who: '首都卫戍第 1 旅 · 旅长', side: 'blue', portrait: 'portBlue',
-          text: '我的人守过仓库，守过电台，没守过阵地。\n给我们一段墙，我们就不走。' },
+          text: '我的人站过检阅场，守过电台和军械库，没守过阵地。\n给我们一段墙，我们就不走。' },
         { who: '第 102 步兵师 · 师部', side: 'blue', portrait: 'portHQ',
           text: '从波尔瓦萨退到这儿，一千二百公里。\n再退就是城门了。这一站，站住。' },
         { who: '敌第 63 步兵师 · 前沿无线电', side: 'red', portrait: 'portRed',
@@ -3907,8 +3938,6 @@ const LEVELS = [
     { id:'E1A', side:'blue', abbr:'901-1', name:'第 901 团第 1 营残部',            type:'inf',  str:5, mov:6, rng:1, r:5,  c:2,  corps:'E1', wave:1 },
     { id:'E1B', side:'blue', abbr:'901-2', name:'第 901 团第 2 营残部',            type:'inf',  str:5, mov:6, rng:1, r:5,  c:3,  corps:'E1', wave:1 },
     { id:'E1C', side:'blue', abbr:'902-1', name:'第 902 团第 1 营残部',            type:'inf',  str:5, mov:6, rng:1, r:5,  c:14, corps:'E1', wave:1 },
-    { id:'E1D', side:'blue', abbr:'902-2', name:'第 902 团第 2 营残部',            type:'inf',  str:5, mov:6, rng:1, r:5,  c:15, corps:'E1', wave:1 },
-    { id:'E1E', side:'blue', abbr:'903-1', name:'第 903 团第 1 营残部',            type:'inf',  str:5, mov:6, rng:1, r:6,  c:3,  corps:'E1', wave:1 },
     { id:'E1F', side:'blue', abbr:'301炮', name:'新编第 301 预备役步兵师炮兵营',    type:'art',  str:4, mov:6, rng:5, r:10, c:10, corps:'E1', wave:1, packed:1 },
 
     /* ── 我方 · 第 102 步兵师残部 ── */
@@ -3931,10 +3960,10 @@ const LEVELS = [
 
     /* ── 我方 · 首都卫戍第 1 旅（第一次上前线） ── */
     { id:'E5H', side:'blue', abbr:'卫戍H',  name:'首都卫戍第 1 旅旅部',            type:'hqb',  str:2, mov:8, rng:0, r:10, c:8,  corps:'E5', wave:1 },
-    { id:'E5A', side:'blue', abbr:'卫1-1', name:'首都卫戍第 1 团第 1 营',          type:'gdn',  str:7, mov:6, rng:1, r:4,  c:4,  corps:'E5', wave:1 },
-    { id:'E5B', side:'blue', abbr:'卫1-2', name:'首都卫戍第 1 团第 2 营',          type:'gdn',  str:7, mov:6, rng:1, r:4,  c:13, corps:'E5', wave:1 },
-    { id:'E5C', side:'blue', abbr:'卫1-3', name:'首都卫戍第 1 团第 3 营',          type:'gdn',  str:6, mov:6, rng:1, r:8,  c:12, corps:'E5', wave:1 },
-    { id:'E5D', side:'blue', abbr:'卫2-1', name:'首都卫戍第 2 团第 1 营',          type:'gdn',  str:6, mov:6, rng:1, r:5,  c:5,  corps:'E5', wave:1 },
+    { id:'E5A', side:'blue', abbr:'卫1-1', name:'首都卫戍第 1 团第 1 营',          type:'gdn',  str:7, mov:6, rng:1, r:4,  c:4,  corps:'E5', wave:1, traits:['guard'] },
+    { id:'E5B', side:'blue', abbr:'卫1-2', name:'首都卫戍第 1 团第 2 营',          type:'gdn',  str:7, mov:6, rng:1, r:4,  c:13, corps:'E5', wave:1, traits:['guard'] },
+    { id:'E5C', side:'blue', abbr:'卫1-3', name:'首都卫戍第 1 团第 3 营',          type:'gdn',  str:6, mov:6, rng:1, r:8,  c:12, corps:'E5', wave:1, traits:['guard'] },
+    { id:'E5D', side:'blue', abbr:'卫2-1', name:'首都卫戍第 2 团第 1 营',          type:'gdn',  str:6, mov:6, rng:1, r:5,  c:5,  corps:'E5', wave:1, traits:['guard'] },
 
     /* ── 敌方 · 第一波 · 第 63 步兵师 ── */
     { id:'R1H', side:'red', abbr:'63H',  name:'敌第 63 步兵师师部',              type:'hqd', str:2, mov:8, rng:0, r:1, c:8,  corps:'R1', wave:1 },
@@ -4157,10 +4186,10 @@ const LEVELS = [
   units: [
     /* ── 我方 · 首都卫戍第 1 旅（北郊打剩三个营，现在是老兵） ── */
     { id:'E5H', side:'blue', abbr:'卫戍H',  name:'首都卫戍第 1 旅旅部',            type:'hqb',  str:2, mov:8, rng:0, r:8,  c:5,  corps:'E5', wave:1 },
-    { id:'E5A', side:'blue', abbr:'卫1-1', name:'首都卫戍第 1 团第 1 营',          type:'gdn',  str:7, mov:6, rng:1, r:6,  c:3,  corps:'E5', wave:1 },
-    { id:'E5B', side:'blue', abbr:'卫1-2', name:'首都卫戍第 1 团第 2 营',          type:'gdn',  str:6, mov:6, rng:1, r:7,  c:2,  corps:'E5', wave:1 },
-    { id:'E5D', side:'blue', abbr:'卫2-1', name:'首都卫戍第 2 团第 1 营',          type:'gdn',  str:6, mov:6, rng:1, r:7,  c:3,  corps:'E5', wave:1 },
-    { id:'E5C', side:'blue', abbr:'卫1-3', name:'首都卫戍第 1 团第 3 营',          type:'gdn',  str:6, mov:6, rng:1, r:7,  c:8,  corps:'E5', wave:1 },
+    { id:'E5A', side:'blue', abbr:'卫1-1', name:'首都卫戍第 1 团第 1 营',          type:'gdn',  str:7, mov:6, rng:1, r:6,  c:3,  corps:'E5', wave:1, traits:['guard'] },
+    { id:'E5B', side:'blue', abbr:'卫1-2', name:'首都卫戍第 1 团第 2 营',          type:'gdn',  str:6, mov:6, rng:1, r:7,  c:2,  corps:'E5', wave:1, traits:['guard'] },
+    { id:'E5D', side:'blue', abbr:'卫2-1', name:'首都卫戍第 2 团第 1 营',          type:'gdn',  str:6, mov:6, rng:1, r:7,  c:3,  corps:'E5', wave:1, traits:['guard'] },
+    { id:'E5C', side:'blue', abbr:'卫1-3', name:'首都卫戍第 1 团第 3 营',          type:'gdn',  str:6, mov:6, rng:1, r:7,  c:8,  corps:'E5', wave:1, traits:['guard'] },
 
     /* ── 我方 · 第 102 步兵师残部（工兵与反坦克连） ── */
     { id:'E2H', side:'blue', abbr:'102H',  name:'第 102 步兵师师部',              type:'hqd', str:2, mov:8, rng:0, r:10, c:5,  corps:'E2', wave:1 },
@@ -4382,10 +4411,10 @@ const LEVELS = [
 
     /* ── 我方 · 首都卫戍第 1 旅（只剩一个守备营） ── */
     { id:'E5H', side:'blue', abbr:'卫戍H',  name:'首都卫戍第 1 旅旅部',            type:'hqb',  str:2, mov:8, rng:0, r:9,  c:9,  corps:'E5', wave:1 },
-    { id:'E5A', side:'blue', abbr:'卫1-1', name:'首都卫戍第 1 团第 1 营',          type:'gdn',  str:6, mov:6, rng:1, r:9,  c:6,  corps:'E5', wave:1 },
-    { id:'E5B', side:'blue', abbr:'卫1-2', name:'首都卫戍第 1 团第 2 营',          type:'gdn',  str:6, mov:6, rng:1, r:10, c:7,  corps:'E5', wave:1 },
-    { id:'E5D', side:'blue', abbr:'卫2-2', name:'首都卫戍第 2 团第 2 营',          type:'gdn',  str:6, mov:6, rng:1, r:6,  c:6,  corps:'E5', wave:1 },
-    { id:'E5C', side:'blue', abbr:'卫2-1', name:'首都卫戍第 2 团第 1 营',          type:'gdn',  str:6, mov:6, rng:1, r:9,  c:12, corps:'E5', wave:1 },
+    { id:'E5A', side:'blue', abbr:'卫1-1', name:'首都卫戍第 1 团第 1 营',          type:'gdn',  str:6, mov:6, rng:1, r:9,  c:6,  corps:'E5', wave:1, traits:['guard'] },
+    { id:'E5B', side:'blue', abbr:'卫1-2', name:'首都卫戍第 1 团第 2 营',          type:'gdn',  str:6, mov:6, rng:1, r:10, c:7,  corps:'E5', wave:1, traits:['guard'] },
+    { id:'E5D', side:'blue', abbr:'卫2-2', name:'首都卫戍第 2 团第 2 营',          type:'gdn',  str:6, mov:6, rng:1, r:6,  c:6,  corps:'E5', wave:1, traits:['guard'] },
+    { id:'E5C', side:'blue', abbr:'卫2-1', name:'首都卫戍第 2 团第 1 营',          type:'gdn',  str:6, mov:6, rng:1, r:9,  c:12, corps:'E5', wave:1, traits:['guard'] },
 
     /* ── 我方 · 第 102 步兵师残部（工兵连） ── */
     { id:'E2H', side:'blue', abbr:'102H',  name:'第 102 步兵师师部',              type:'hqd', str:2, mov:8, rng:0, r:10, c:8,  corps:'E2', wave:1 },
@@ -4436,7 +4465,10 @@ const LEVELS = [
   when: '新历 1208 年 10 月 28 日', where: '首都圈 · 岚京中央车站',
   teaser: '城里的补给全靠这个站台。站台底下还有三条没被炸断的隧道。',
   ready: true,
-  winScore: 16,
+  /* v5.1 把达成线从 16 提到 20：卫戍营拿到「卫戍精锐」、蓝方炮兵开始真的放列
+     之后，16 分等于白送（40 局实测 80%）。20 分要求"三个要点里至少两个半"，
+     对上简报里"站台是全场最值钱的一处"。 */
+  winScore: 20,
   perfectScore: 28,
   prev: {
     win:  '广播大楼还在播送。那天晚上，全城的收音机里都听见了同一句话：守军仍在城内。',
@@ -4610,9 +4642,8 @@ const LEVELS = [
 
     /* ── 我方 · 首都卫戍第 1 旅（恢复两个守备营） ── */
     { id:'E5H', side:'blue', abbr:'卫戍H',  name:'首都卫戍第 1 旅旅部',            type:'hqb',  str:2, mov:8, rng:0, r:12, c:7,  corps:'E5', wave:1 },
-    { id:'E5A', side:'blue', abbr:'卫1-1', name:'首都卫戍第 1 团第 1 营',          type:'gdn',  str:6, mov:6, rng:1, r:10, c:8,  corps:'E5', wave:1 },
-    { id:'E5B', side:'blue', abbr:'卫1-2', name:'首都卫戍第 1 团第 2 营',          type:'gdn',  str:6, mov:6, rng:1, r:10, c:9,  corps:'E5', wave:1 },
-    { id:'E5C', side:'blue', abbr:'卫2-1', name:'首都卫戍第 2 团第 1 营',          type:'gdn',  str:6, mov:6, rng:1, r:10, c:10, corps:'E5', wave:1 },
+    { id:'E5A', side:'blue', abbr:'卫1-1', name:'首都卫戍第 1 团第 1 营',          type:'gdn',  str:6, mov:6, rng:1, r:10, c:8,  corps:'E5', wave:1, traits:['guard'] },
+    { id:'E5B', side:'blue', abbr:'卫1-2', name:'首都卫戍第 1 团第 2 营',          type:'gdn',  str:6, mov:6, rng:1, r:10, c:9,  corps:'E5', wave:1, traits:['guard'] },
 
     /* ── 我方 · 首都军校生旅（一个营加学员连，预备队） ── */
     { id:'E4H', side:'blue', abbr:'军校H',  name:'首都军校生旅旅部',              type:'hqb',  str:2, mov:8, rng:0, r:11, c:8,  corps:'E4', wave:1 },
@@ -4629,7 +4660,6 @@ const LEVELS = [
     /* ── 我方 · 第 301 预备役步兵师（最后一个营 + 炮营） ── */
     { id:'E1H', side:'blue', abbr:'301H',  name:'新编第 301 预备役步兵师师部',      type:'hqd',  str:2, mov:8, rng:0, r:13, c:8,  corps:'E1', wave:1 },
     { id:'E1B', side:'blue', abbr:'901-2', name:'第 901 团第 2 营残部',            type:'inf',  str:5, mov:6, rng:1, r:11, c:10, corps:'E1', wave:1 },
-    { id:'E5D', side:'blue', abbr:'卫2-2', name:'首都卫戍第 2 团第 2 营',          type:'gdn',  str:6, mov:6, rng:1, r:12, c:9,  corps:'E5', wave:1 },
     { id:'E1G', side:'blue', abbr:'901-3', name:'第 901 团第 3 营残部',            type:'inf',  str:5, mov:6, rng:1, r:12, c:10, corps:'E1', wave:1 },
     { id:'E1F', side:'blue', abbr:'301炮', name:'新编第 301 预备役步兵师炮兵营',    type:'art',  str:4, mov:6, rng:5, r:13, c:10, corps:'E1', wave:1, packed:1 },
 
@@ -4645,6 +4675,10 @@ const LEVELS = [
     /* ── 敌方 · 第二波 · 近卫装甲第 2 师（第 4 回合，从北调车场压下来） ── */
     { id:'R2H', side:'red', abbr:'2H',   name:'敌近卫装甲第 2 师师部',            type:'hqd',  str:2, mov:8,  rng:0, r:0, c:4, corps:'R2', wave:2 },
     { id:'R2A', side:'red', abbr:'2-1',  name:'敌近卫装甲第 5 团第 1 营（中坦）',  type:'marm', str:11, mov:10, rng:1, r:0, c:5, corps:'R2', wave:2 },
+    /* v5.1 补第二个中坦营：C7 的装甲波是两个营，这里原来只有一个。
+       卫戍营拿到精锐特性、蓝方炮兵开始真的放列之后，C10 从 69% 涨到 75%，
+       靠"提高达成线"压不住（20 分已经贴着平均得分 21）。 */
+    { id:'R2B', side:'red', abbr:'2-3',  name:'敌近卫装甲第 6 团第 1 营（中坦）',  type:'marm', str:10, mov:10, rng:1, r:0, c:7, corps:'R2', wave:2 },
     { id:'R2F', side:'red', abbr:'2炮',  name:'敌近卫装甲第 2 师自行火炮营',      type:'spa',  str:5,  mov:8,  rng:4, r:0, c:3, corps:'R2', wave:2 },
 
     /* ── 敌方 · 第三波 · 第 9 突击工兵旅 + 独立重炮群（第 7 回合） ── */
@@ -4667,12 +4701,243 @@ const LEVELS = [
   win: { kind: 'survive' }
 },
 {
-  /* 护送关：胜负不看歼敌，看"出去多少人"。这类关卡是全篇节奏的换气口。 */
+  /* 护送关：胜负不看歼敌，看"出去多少人"。这类关卡是全篇节奏的换气口。
+     v5.1 实装。规则见 docs/26 §二，关卡说明见 docs/01。
+     这一关的戏眼不是"打赢"：车队按固定路线走、不会绕路，路被堵住就停在那儿，
+     所以玩家的每一个动作都在回答同一个问题——"这一段公路，我守不守得住"。
+
+     为什么地图做成 16 行（比第二章其他关都高）：14 行时双方出生区只隔四条横线，
+     开局第一回合就接火，车队还没动，两侧的掩护营已经被打穿了（实测 10 局 0%，
+     平均第 8 回合全灭）。南北各留出 5 行的接敌纵深，才有了"先布防、再挡人"的余地。 */
   id: 'C11B', ch: 2, no: 5, sub: true, name: '平民撤离', type: '附属 · 护送',
   when: '新历 1208 年 11 月 20 日', where: '首都圈 · 岚京西郊公路',
   teaser: '车队有四十公里长，走不快。敌军的侦察机已经在头顶转了两天。',
-  ready: false,
-  win: { kind: 'reach' }
+  ready: true,
+  win: { kind: 'escort', need: 3 },
+  /* 车队参数。path 是**一条**路径，所有绿方兵牌共用，各自记 escortIdx；
+     step 2 的意思是"一个回合走两个路径点"，也就是两格。 */
+  escort: {
+    step: 2,
+    path: [[7,17],[7,16],[7,15],[7,14],[7,13],[7,12],[7,11],[7,10],[7,9],[7,8],
+           [7,7],[7,6],[7,5],[7,4],[7,3],[7,2],[7,1],[7,0]],
+    exit: { zone: { r0: 6, r1: 8, c0: 0, c1: 1 } }
+  },
+  prev: {
+    win:  '车队出去了。西郊公路两边烧了整整一夜，天亮时路上只剩空车和散落的行李。',
+    fail: '车队没能出城。后来的人在公路边立了一块木牌，上面只写了日期。'
+  },
+  intro: [
+    '十一月 · 阴。岚京西郊公路。',
+    '城快被围死了。最后一批平民连夜西撤，卡车、马车、板车，四十公里长，走不快。',
+    '护送他们的是我们：第 102 步兵师剩下两个营和一个反坦克连，第 204 装甲旅一个中坦营、一个侦察营，卫戍第 1 旅两个守备营，军校生旅一个营。',
+    '第 301 预备役步兵师只剩一个营，加上最后三门火箭炮。弹药只有三个基数，打完就没了。',
+    '车队五支：四支难民，一支护送队。它们按自己的路线走，**不会绕路**——路被堵住，它们就停在那儿等。',
+    '敌人从北面和南面同时压过来，东面还有追兵。第 4 回合追兵到，第 8 回合他们的火箭炮开始砸公路。',
+    '任务：12 回合内，至少送出去 3 支。全部送出去，是一个不剩。'
+  ],
+  maxTurns: 12,
+  cols: 18,
+  rows: 16,
+  blueSources: [[13, 9], [13, 16]],
+  redSource: [0, 8],
+  forts: [
+    { r: 6, c: 10, side: 'blue', kind: 'H' },
+    { r: 9, c: 11, side: 'blue', kind: 'H' },
+    { r: 6, c: 12, side: 'blue', kind: 'B' },
+    { r: 9, c: 6,  side: 'blue', kind: 'B' }
+  ],
+  map: [
+    '..................',
+    '..ff..........ff..',
+    '..ff..hh..hh..ff..',
+    '......hh..hh......',
+    '..tt..ff..ff..tt..',
+    '..tt..ff..ff..tt..',
+    '..ff..ff..ff..ff..',
+    '##################',
+    '##################',
+    '..ff..ff..ff..ff..',
+    '..tt..ff..ff..tt..',
+    '..tt..ff..ff..tt..',
+    '......hh..hh......',
+    '..ff..hh..hh..ff..',
+    '..ff..........ff..',
+    '..................'
+  ],
+  /* 护送关没有可抢的要点：胜负只看车队。留空数组而不是删掉字段，
+     是为了让 objAt / renderGoal / updateControl 这些遍历处拿到的是空表
+     而不是 undefined（删字段的话每一处都要多一个判空）。 */
+  objectives: [],
+  events: [
+    {
+      id: 'convoy_out', desc: '车队出城',
+      when: { kind: 'firstBlood' },
+      effects: [
+        { kind: 'say', beats: [
+          { who: '西郊撤离指挥部 · 车队领队', side: 'blue', portrait: 'portBlue',
+            text: '四十公里，五支车队。我们不会停，也不会绕路。\n路断了就想办法通，别的我们不管。' },
+          { who: '第 102 步兵师 · 师部', side: 'blue', portrait: 'portHQ',
+            text: '你们走你们的。\n两侧交给我们。' }
+        ] }
+      ]
+    },
+    {
+      id: 'scouts', desc: '敌侦察机发现车队',
+      when: { kind: 'turn', turn: 3 },
+      effects: [
+        { kind: 'log', text: '敌军的侦察机沿着公路来回飞了两趟。当天下午，两侧的炮声都往公路这边靠了。', cls: 'r' },
+        { kind: 'sfx', name: 'alarm' }
+      ]
+    },
+    {
+      id: 'first_through', desc: '第一批车冲出去了',
+      when: { kind: 'escortPassed', n: 1 },
+      effects: [
+        { kind: 'log', text: '第一支车队冲出了封锁线。路边的人把帽子扔到天上，没有一个人喊。', cls: 'b' },
+        { kind: 'org', side: 'blue', delta: 4 }
+      ]
+    },
+    {
+      id: 'quota_done', desc: '达成线到了',
+      when: { kind: 'escortPassed', n: 3 },
+      effects: [
+        { kind: 'log', text: '三支车队已经出去了。命令是"能多送一支就多送一支"，后面的路还没走完。', cls: 'hi' },
+        { kind: 'org', side: 'blue', delta: 3 }
+      ]
+    },
+    {
+      id: 'last_mile', desc: '最后一段路',
+      when: { kind: 'turn', turn: 10 },
+      effects: [
+        { kind: 'log', text: '最后几支车队还有两公里。敌人的炮开始往西口打，他们把能烧的都烧了。', cls: 'r' },
+        { kind: 'org', side: 'blue', delta: -2 }
+      ]
+    }
+  ],
+  story: {
+    briefing: {
+      pages: [
+        {
+          order: '掩护命令 · 第 9 号',
+          kicker: '战役态势',
+          title: '四十公里的车队',
+          paras: [
+            { t: '城被围死之前，最后一批平民要从西郊公路撤出去。车队四十公里长，一夜只能走二十公里。' },
+            { t: '护送他们的不是车队自己的枪，是我们：两个步兵营、一个中坦营、一个侦察营、两个守备营、一个学员营。', hl: true },
+            { t: '第 301 预备役步兵师把最后三门火箭炮推上来了。**弹药只有三个基数**，打完就没了。' }
+          ],
+          nums: [
+            { k: '车队', v: '5 支' },
+            { k: '达成线', v: '3 支' },
+            { k: '回合', v: '12' }
+          ]
+        },
+        {
+          order: '车队须知 · 附页',
+          kicker: '这一关怎么玩',
+          title: '车队不会绕路',
+          paras: [
+            { t: '车队**按自己的路线走，不归你指挥**。一个回合走两格，走到西口就算撤出。' },
+            { t: '它们**不会绕路**：公路上站着一支敌军，车队就停在原地等。清路是你的活。', hl: true },
+            { t: '我方部队贴着车队站，能替它分担防御；车队本身不会还手（护送队有枪，但只有一支）。' },
+            { t: '敌人从北、南、东三面来。**别只守正面**——他们会绕到你身后去堵路。', hl: true }
+          ],
+          nums: [
+            { k: '每回合', v: '2 格' },
+            { k: '不会', v: '绕路' },
+            { k: '三面', v: '受敌' }
+          ]
+        },
+        {
+          order: '任务简报',
+          kicker: '你的任务',
+          title: '送出去三支，最好五支',
+          paras: [
+            { t: '第 12 回合结束、至少 3 支车队走出西口，算达成；全部 5 支走出去是超额。' },
+            { t: '车队全被打光、或者我方全军覆没，当场判负。' },
+            { t: '第 4 回合敌军装甲追兵从东面压上来，第 8 回合他们的火箭炮进入阵地。**先找炮，再守路。**', hl: true }
+          ],
+          nums: [
+            { k: '达成', v: '3 / 5' },
+            { k: '超额', v: '5 / 5' },
+            { k: '敌军波次', v: '3' }
+          ]
+        }
+      ],
+      beats: [
+        { who: '西郊撤离指挥部 · 车队领队', side: 'blue', portrait: 'portBlue',
+          text: '四十公里，五支车队。我们不会停，也不会绕路。\n路断了就想办法通，别的我们不管。' },
+        { who: '第 204 装甲旅 · 侦察营', side: 'blue', portrait: 'portHQ',
+          text: '北面林子里有动静，南面也有。\n他们想先把路掐断，再慢慢收拾我们。' },
+        { who: '敌近卫装甲第 2 师 · 追击支队', side: 'red', portrait: 'portRed',
+          text: '一列卡车，跑得比马车快不了多少。\n从后面追上去，一个都别放走。' }
+      ]
+    }
+  },
+  corpsName: {
+    E1: '第 301 预备役步兵师', E2: '第 102 步兵师', E3: '第 204 装甲旅',
+    E4: '首都军校生旅', E5: '首都卫戍第 1 旅',
+    R1: '敌第 63 步兵师先遣群', R2: '敌近卫装甲第 2 师追击支队', R3: '敌独立重炮群'
+  },
+  units: [
+    /* ── 友军车队（绿方）· 领头的写在最前面：推进时它先走，
+       后面的车才能依次补位。顺序反了，尾巴会先动、撞上前车，
+       整列在第二回合就堵死（escortTick 是按数组顺序处理的）。 ── */
+    { id:'G1', side:'green', abbr:'车队-1', name:'西郊撤离车队第 1 队', type:'ref', str:4, mov:3, rng:0, r:7, c:13, idx:4, wave:1 },
+    { id:'G2', side:'green', abbr:'车队-2', name:'西郊撤离车队第 2 队', type:'ref', str:4, mov:3, rng:0, r:7, c:14, idx:3, wave:1 },
+    { id:'G3', side:'green', abbr:'车队-3', name:'西郊撤离车队第 3 队', type:'ref', str:4, mov:3, rng:0, r:7, c:15, idx:2, wave:1 },
+    { id:'G4', side:'green', abbr:'车队-4', name:'西郊撤离车队第 4 队', type:'ref', str:4, mov:3, rng:0, r:7, c:16, idx:1, wave:1 },
+    { id:'G5', side:'green', abbr:'护送队',  name:'西郊撤离车队护送队', type:'esc', str:5, mov:6, rng:1, r:7, c:17, idx:0, wave:1 },
+
+    /* ── 我方 · 第 301 预备役步兵师（最后一个营 + 火箭炮连） ── */
+    { id:'E1H', side:'blue', abbr:'301H',  name:'新编第 301 预备役步兵师师部',      type:'hqd',  str:2, mov:8, rng:0, r:12, c:9,  corps:'E1', wave:1 },
+    { id:'E1B', side:'blue', abbr:'901-2', name:'第 901 团第 2 营残部',            type:'inf',  str:5, mov:6, rng:1, r:9,  c:10, corps:'E1', wave:1 },
+    { id:'E1R', side:'blue', abbr:'301火', name:'新编第 301 预备役步兵师火箭炮连',  type:'mlrs', str:4, mov:5, rng:6, r:11, c:8,  corps:'E1', wave:1, packed:1 },
+
+    /* ── 我方 · 第 102 步兵师（两个营 + 反坦克连 + 工兵连） ── */
+    { id:'E2A', side:'blue', abbr:'304-1', name:'第 304 步兵团第 1 营残部',        type:'inf',  str:5, mov:6, rng:1, r:6,  c:8,  corps:'E2', wave:1 },
+    { id:'E2B', side:'blue', abbr:'304-2', name:'第 304 步兵团第 2 营残部',        type:'inf',  str:5, mov:6, rng:1, r:9,  c:7,  corps:'E2', wave:1 },
+    { id:'E2H', side:'blue', abbr:'102H',  name:'第 102 步兵师师部',              type:'hqd',  str:2, mov:8, rng:0, r:12, c:5,  corps:'E2', wave:1 },
+    { id:'E2T', side:'blue', abbr:'102反', name:'第 102 步兵师反坦克连',          type:'at',  str:3, mov:5, rng:1, r:6,  c:11, corps:'E2', wave:1 },
+    { id:'E2E', side:'blue', abbr:'102工', name:'第 102 步兵师工兵连',            type:'engc',str:2, mov:6, rng:1, r:9,  c:12, corps:'E2', wave:1 },
+
+    /* ── 我方 · 第 204 装甲旅（中坦 + 侦察） ── */
+    { id:'E3A', side:'blue', abbr:'204-1', name:'第 204 装甲旅第 1 营（中坦）',     type:'marm', str:7, mov:10, rng:1, r:9,  c:13, corps:'E3', wave:1 },
+    { id:'E3C', side:'blue', abbr:'204侦', name:'第 204 装甲旅侦察营（轻坦）',      type:'larm', str:5, mov:12, rng:1, r:6,  c:13, corps:'E3', wave:1 },
+    { id:'E3H', side:'blue', abbr:'204H',  name:'第 204 装甲旅旅部',              type:'hqb',  str:2, mov:8,  rng:0, r:11, c:13, corps:'E3', wave:1 },
+
+    /* ── 我方 · 军校生旅与卫戍旅（各抽部队） ── */
+    { id:'E4A', side:'blue', abbr:'军校-1', name:'首都军校生旅第 1 营',            type:'inf',  str:6, mov:6, rng:1, r:9,  c:5,  corps:'E4', wave:1, traits:['cadet'] },
+    { id:'E4H', side:'blue', abbr:'军校H',  name:'首都军校生旅旅部',              type:'hqb',  str:2, mov:8, rng:0, r:11, c:5,  corps:'E4', wave:1 },
+    { id:'E5A', side:'blue', abbr:'卫1-1', name:'首都卫戍第 1 团第 1 营',          type:'gdn',  str:7, mov:6, rng:1, r:6,  c:6,  corps:'E5', wave:1, traits:['guard'] },
+    { id:'E5B', side:'blue', abbr:'卫1-2', name:'首都卫戍第 1 团第 2 营',          type:'gdn',  str:7, mov:6, rng:1, r:9,  c:6,  corps:'E5', wave:1, traits:['guard'] },
+    { id:'E5H', side:'blue', abbr:'卫戍H',  name:'首都卫戍第 1 旅旅部',            type:'hqb',  str:2, mov:8, rng:0, r:11, c:12, corps:'E5', wave:1 },
+
+    /* ── 敌方 · 第一波 · 第 63 步兵师先遣群（北、南两面压） ── */
+    { id:'R1H', side:'red', abbr:'63先H', name:'敌第 63 步兵师先遣群群部',        type:'hkg', str:2, mov:8, rng:0, r:0,  c:8,  corps:'R1', wave:1 },
+    { id:'R1A', side:'red', abbr:'63-1', name:'敌第 187 步兵团第 1 营',          type:'inf', str:7, mov:6, rng:1, r:1,  c:7,  corps:'R1', wave:1 },
+    { id:'R1B', side:'red', abbr:'63-2', name:'敌第 187 步兵团第 2 营',          type:'inf', str:7, mov:6, rng:1, r:1,  c:10, corps:'R1', wave:1 },
+    { id:'R1C', side:'red', abbr:'63-3', name:'敌第 188 步兵团第 1 营',          type:'inf', str:7, mov:6, rng:1, r:15, c:6,  corps:'R1', wave:1 },
+    { id:'R1D', side:'red', abbr:'63-4', name:'敌第 188 步兵团第 2 营（摩步）',    type:'mob', str:7, mov:8, rng:1, r:15, c:11, corps:'R1', wave:1 },
+    { id:'R1E', side:'red', abbr:'63-5', name:'敌第 189 步兵团第 1 营',          type:'inf', str:7, mov:6, rng:1, r:15, c:3,  corps:'R1', wave:1 },
+    { id:'R1F', side:'red', abbr:'63-6', name:'敌第 189 步兵团第 2 营（缺编）',    type:'inf', str:6, mov:6, rng:1, r:1,  c:13, corps:'R1', wave:1 },
+
+
+    /* ── 敌方 · 第二波 · 近卫装甲追击支队（第 4 回合，从东面追上来） ── */
+    { id:'R2H', side:'red', abbr:'追H',   name:'敌近卫装甲第 2 师追击支队部',      type:'hqd',  str:2, mov:8,  rng:0, r:15, c:17, corps:'R2', wave:2 },
+    { id:'R2A', side:'red', abbr:'2-1',  name:'敌近卫装甲第 5 团第 1 营（中坦）',  type:'marm', str:11, mov:10, rng:1, r:8,  c:17, corps:'R2', wave:2 },
+    { id:'R2B', side:'red', abbr:'2-3',  name:'敌近卫装甲第 6 团第 1 营（中坦）',  type:'marm', str:10, mov:10, rng:1, r:14, c:17, corps:'R2', wave:2 },
+    { id:'R2C', side:'red', abbr:'2-4',  name:'敌近卫装甲第 6 团第 2 营（装步）',  type:'mech', str:9,  mov:8,  rng:1, r:13, c:17, corps:'R2', wave:2 },
+
+    /* ── 敌方 · 第三波 · 独立重炮群（第 8 回合，火箭炮砸公路） ── */
+    { id:'R3H', side:'red', abbr:'重炮H', name:'敌独立重炮群群部',                type:'hkg',  str:2, mov:8, rng:0, r:1,  c:16, corps:'R3', wave:3 },
+    { id:'R3A', side:'red', abbr:'重火',  name:'敌独立重炮群火箭炮营',            type:'mlrs', str:5, mov:5, rng:6, r:2,  c:16, corps:'R3', wave:3, packed:1 },
+    { id:'R3B', side:'red', abbr:'重-2',  name:'敌独立重炮群第 2 营',              type:'hr',   str:6, mov:5, rng:9, r:1,  c:15, corps:'R3', wave:3, packed:1 }
+  ],
+  waves: [
+    { wave: 2, turn: 4, text: '敌近卫装甲第 2 师的追兵从东面压上来了，公路上全是坦克。' },
+    { wave: 3, turn: 8, text: '敌军火箭炮与重炮进入阵地，开始砸西郊公路。' }
+  ]
 },
 {
   id: 'C12', ch: 2, no: 6, name: '岚京保卫战', type: '防御',
@@ -5089,8 +5354,11 @@ const ASSETS = {
   unit: {
     inf: null, gdn: null, mob: null, mech: null,
     larm: null, marm: null, harm: null,
-    art: null, hr: null, sha: null, spa: null, at: null, td: null,
+    art: null, hr: null, sha: null, spa: null, mlrs: null, at: null, td: null,
     eng: null, engc: null, rec: null, sup: null, mrb: null,
+    /* 友军（绿方）：ref / esc。图还没做，槽先占住——素材槽与 TYPE 表
+       一一对齐是 selftest 的硬要求，加兵种忘了加槽会直接红。 */
+    ref: null, esc: null,
     aac: null, aab: null, hqd: null, hqb: null, hkg: null, hkc: null,
     fgt: null, atk: null, bmb: null, trp: null, para: null,
     gbt: null, ptb: null, ffg: null, dd: null, ca: null, bb: null,
@@ -5199,6 +5467,10 @@ const SONIC = {
     hqb:  { m: 'step',   a: 'rifle' },
     hkg:  { m: 'step',   a: 'rifle' },
     hkc:  { m: 'step',   a: 'rifle' },
+    /* 友军（v5.1）：车队是卡车队（engine），护送队两条腿。
+       难民永远不会攻击（rg 0），那条 a 是死数据——和运输机同一类，写全比留空好。 */
+    ref:  { m: 'engine', a: 'rifle' },
+    esc:  { m: 'step',   a: 'rifle' },
 
     /* ── 轮式：摩托化 / 牵引炮兵 / 防空 / 侦察 ──
        牵引炮兵听的是牵引车——炮本身不会自己走，所以是引擎不是炮声。 */
@@ -5206,6 +5478,7 @@ const SONIC = {
     rec:  { m: 'engine', a: 'rifle' },   // 机动 10，是摩托侦察
     art:  { m: 'engine', a: 'shell' },
     hr:   { m: 'engine', a: 'shell' },
+    mlrs: { m: 'engine', a: 'shell' },   // 发射车底盘仍是卡车
     at:   { m: 'engine', a: 'shell' },
     aac:  { m: 'engine', a: 'shell' },
     aab:  { m: 'engine', a: 'shell' },
@@ -5752,6 +6025,10 @@ const STACK_COVER = 0.50;      // 同格友军防御协同系数
    只减防御乘数、不动有效战力：被包抄的是"阵地"不是"编制"。
    0.30 恰好抵掉一道堑壕 + 半个碉堡，让"扎堆单点防御"不再是免死金牌。 */
 const FLANK_PENALTY = 0.30;
+/* 火箭炮齐射对**相邻格**的伤害系数（v5.1）。
+   目标格全额、相邻六格各一半：一次齐射的炸药量是固定的，覆盖面越大越薄。
+   写成 1.0 会让一发火箭同时按七格全额结算，任何防线都撑不过两轮（见 docs/26 §四）。 */
+const ROCKET_SPLASH = 0.5;
 
 function unitsAt(r, c) {
   return state.units.filter(u => u.pos[0] === r && u.pos[1] === c);
@@ -5824,14 +6101,38 @@ function objClusters(o) {
   return out;
 }
 function alive(side) { return state.units.filter(u => u.side === side); }
+/* ───────────────────── 三阵营：友军（绿方） ─────────────────────
+   v4.21 留的接口写的是"友军放进 state.allies"，真做的时候改了主意：
+   unitsAt / layerUnitsAt / stackFull / ZOC / 补给场 / 工事 / 雷区 / 渲染
+   全都只读 state.units，另开一张表等于把这七八处各写一份，
+   漏一处就是"屏幕上没有这支车队，但它堵着路"——见 docs/26 §一。
+
+   所以绿方就是 side:'green' 的单位，和蓝红同表。下面三个函数是**唯一**的
+   敌我判据，凡是要分敌我的地方都走它们，不要再写 `side !== u.side`
+   或者 `other(side)`——other() 只认蓝红两方，遇到绿方会返回 'blue'，
+   表现为"红方看不见车队"或"车队被自己人堵住"，都不会报错。 */
+function hostileSide(a, b) {
+  if (!a || !b || a === b) return false;
+  if (a === 'green' || b === 'green') return a === 'red' || b === 'red';
+  return true;
+}
+/* 互为友军的一方。蓝方与绿方互相算友军（可协同、可堆叠、互相掩护），
+   红方孤家寡人——它的盟军在这部作品里不存在。 */
+function friendlySides(side) {
+  return side === 'red' ? ['red'] : ['blue', 'green'];
+}
+function foesOf(side) {
+  return state.units.filter(u => hostileSide(u.side, side));
+}
+function isAlly(u) { return !!u && u.side === 'green'; }
 function uid(id) { return state.units.find(u => u.id === id) || null; }
-const ARTY_TYPES = ['art', 'hr', 'sha', 'spa'];
+const ARTY_TYPES = ['art', 'hr', 'sha', 'spa', 'mlrs'];
 /* 直瞄火炮：自行火炮能放平了打，1 格内也能还手。
    旅野炮与师重炮都有近界（射程表按现实火力换算，见 minRange）。 */
 const ARTY_DIRECT = ['sha', 'spa'];
 /* 拖曳式火炮：必须架设后才能射击，转移前必须收炮。
    自行火炮（sha / spa）不受此限——这是两类炮兵唯一的、也是最重要的区别。 */
-const TOWED_TYPES = ['art', 'hr'];
+const TOWED_TYPES = ['art', 'hr', 'mlrs'];
 /* 反坦克类：反坦克炮与坦克歼击车共用同一套克制关系 */
 const AT_LIKE = ['at', 'td'];
 /* 行进间射击：坦克有火炮稳定器、自行火炮有射击指挥系统，
@@ -6136,8 +6437,9 @@ function isBroken(u) {
    所以"贴着敌人"和"补给断了"这两种情况都不给恢复。 */
 function disengaged(u) {
   if (!u || !u.pos) return false;
-  const foe = other(u.side);
-  return !alive(foe).some(e => hexDist(e.pos, u.pos) <= 2);
+  /* foesOf 而不是 other()：绿方算"友军"，不再被自己的掩护部队判成接敌。
+     蓝红的判定一点没变（他们的敌人仍然只有对面那一方）。 */
+  return !foesOf(u.side).some(e => hexDist(e.pos, u.pos) <= 2);
 }
 /* 每回合结算时刷新标记。日志只在**进入**崩溃的那一次写，
    否则一支垮掉的营会连续 8 个回合每回合刷一行，把战报淹掉。 */
@@ -6194,7 +6496,9 @@ function other(s) { return s === 'blue' ? 'red' : 'blue'; }
 function inEnemyZOC(r, c, side) {
   for (const n of neighbors(r, c)) {
     const u = surfaceAt(n[0], n[1]);
-    if (u && u.side !== side) return true;
+    /* 绿方**不产生**控制区：难民车队不该掐断补给线，也不该拦住我军机动。
+       反过来它吃红方的 ZOC——被咬住时运补受影响，这是它该付的代价。 */
+    if (u && u.side !== 'green' && hostileSide(u.side, side)) return true;
   }
   return false;
 }
@@ -6280,6 +6584,11 @@ function supplyOf(u, fields) {
   const e = f[kk(u.pos[0], u.pos[1])];
   /* 辎重自持 */
   if (u.type === 'sup') return { label: '充足', mod: SUPPLY_MOD['充足'], dist: 0 };
+  /* 绿方（难民车队、护送队）不走军事补给场：自带口粮与油料。
+     让它们按 state.fields['green'] 算，会因为那张表根本不存在而全员判「断绝」——
+     一出生 −42% 战力、每回合掉 10 组织度，屏幕上只看到"车队很脆"，
+     看不出是补给算错了（和航空兵那条是同一类坑，见下面 isAir 的注释）。 */
+  if (u.side === 'green') return { label: '充足', mod: SUPPLY_MOD['充足'], dist: 0 };
 
   /* 航空兵不从地面补给场取补给。它不是"飞过去就能捡到粮"的兵种——
      基地在战场外，能飞多久看机内油弹（ammo）。以前这里没有这一支，
@@ -6389,10 +6698,17 @@ function homeBonus(u) {
 
    设计纪律：一条特性必须**能用一句话说清、且在战报或面板上看得见**。
    加一条软加成（比如"战力 +5%"）玩家永远不会注意到，最后就是数据里
-   多一个没人读的字段。所以这里只留三种效果，各自都落在具体函数上：
+   多一个没人读的字段。所以这里只留下面这些效果，各自都落在具体函数上：
      def      额外地形防御（terrainDefFor）
      orgTick  每回合自回复组织度（回合结算，不要求原地休整）
      noBreak  永不进入崩溃态（isBroken）
+     atk      攻击修正（previewAttack）
+     ammo     弹药上限（makeUnit）
+     zocFree  无视敌方控制区（computeReach / moveCost）
+
+   **每加一个字段，就必须在引擎里接一个读取点。** 这条不靠自觉：
+   selftest 会扫引擎源码，确认每个字段都出现在 traitSum(u,'x') 或
+   TRAITS[k].x 的读取里，新字段忘了接钩子直接红。设计稿与预留清单见 docs/26 §三。
 
    **自回复仍然受补给限制**：补给断绝的部队不恢复组织度。这条和
    "断绝每回合 −10"、"崩溃收拢要有补给"是同一条逻辑，破了它整个
@@ -6409,6 +6725,17 @@ const TRAITS = {
     name: '学员主官',
     orgTick: 6,
     note: '排以上主官由院校教官与高年级学员担任，每回合自行恢复 6 点组织度（补给断绝时无效）。'
+  },
+  /* 首都卫戍（v5.1）：不是"没挨过炮的预备役"，是**阅兵与要地警卫**部队——
+     兵员从各师挑、装备先紧着它、操典最严，缺点只有一个：没打过仗。
+     所以给的是"素质"不是"狠劲"：atk 是装备与训练，def 是工事操典，
+     orgTick 是纪律。它仍然打不过老兵，同一关里的第 102 师残部才是打过硬仗的。 */
+  guard: {
+    name: '卫戍精锐',
+    atk: 0.10,
+    def: 0.10,
+    orgTick: 4,
+    note: '首都卫戍部队：兵员从各师挑选，装备与操典都是全军最好的一档。攻击 +10%、阵地防御 +10%，每回合自行恢复 4 点组织度（补给断绝时无效）。'
   }
 };
 function traitList(u) {
@@ -6507,6 +6834,7 @@ function attackRange(u) {
    近界是真实存在的：榴弹炮打不了自己脚下的目标，要靠步兵掩护。 */
 function minRange(u) {
   if (u.type === 'hr') return 3;    // 4.5 km
+  if (u.type === 'mlrs') return 3;  // 4.5 km：火箭炮阵地比野炮更靠后
   if (u.type === 'art') return 2;   // 3 km
   return 1;
 }
@@ -6567,7 +6895,8 @@ function moveCost(u, ch) {
      只够判断领域的最小对象，直接取 `u.pos[0]` 会让整条校验链在部署检查那一步崩掉，
      而崩的位置看着像"检查脚本坏了"，其实是规则函数对入参要求变高了。 */
   if (ch === '#' && WHEEL_TYPES.includes(u.type) &&
-      !(u.pos && inEnemyZOC(u.pos[0], u.pos[1], u.side))) return 0.7;
+      (traitSum(u, 'zocFree') > 0 ||
+       !(u.pos && inEnemyZOC(u.pos[0], u.pos[1], u.side)))) return 0.7;
   return t.cost;
 }
 
@@ -6583,7 +6912,11 @@ function computeReach(u) {
   const out = { d: {}, stop: {} };
   /* 强行军卡的机动加成算进预算。用 u.mov + cardMov 而不是改 u.mov，
      是为了回合结束时能干净地清掉，不会把基础机动写脏。 */
-  const budget = u.mov + (u.cardMov || 0);
+  /* `|| 0` 不是防御性写法，是**必要**的：弹药车 / 校验器造的最小对象可能没有 mov，
+     而 undefined 参与加法会得到 NaN——`nd > NaN` 恒为 false，于是整个地图都"可达"。
+     踩过一次：自测里造的两支步兵漏了 mov，两人都算出 214 个可停格，
+     "zocFree 让可达格变多"那条断言于是假绿（214 → 214 看着像"没生效"）。 */
+  const budget = (Number(u.mov) || 0) + (u.cardMov || 0);
   if (budget <= 0) return out;
   const dist = {};
   const start = kk(u.pos[0], u.pos[1]);
@@ -6608,10 +6941,12 @@ function computeReach(u) {
       const here = layerUnitsAt(nr, nc, layer);
       if (here.length && here[0].side !== u.side) continue;   // 敌占格：要打，不走进
       if (here.length < slot) out.stop[key] = nd;             // 有空位才算落脚点
-      /* ZOC：进入敌方相邻格后停止。
-         空中不受这条限制——地面部队围不住天上的东西，否则"无视地形"等于白写。
-         代价是飞机可以一路飞到敌人背后，这是它该有的能力。 */
-      if (air || !inEnemyZOC(nr, nc, u.side)) pool.push([nd, nr, nc]);
+  /* ZOC：进入敌方相邻格后停止。
+     空中不受这条限制——地面部队围不住天上的东西，否则"无视地形"等于白写。
+     代价是飞机可以一路飞到敌人背后，这是它该有的能力。
+     zocFree 特性同理（v5.1 预留字段）：渗透型单位能穿过控制区，只有"停下"受影响。 */
+  const zocFree = traitSum(u, 'zocFree') > 0;
+  if (air || zocFree || !inEnemyZOC(nr, nc, u.side)) pool.push([nd, nr, nc]);
     }
   }
   delete dist[start];
@@ -6740,7 +7075,12 @@ function noteFlank(att, defPos) {
    反过来防空连也不能替地面守军分摊挨打。 */
 function helpers(u, defPos, side) {
   const layer = layerOf(u);
-  return alive(side)
+  const mates = [];
+  /* 蓝方与绿方互为友军（v5.1）：我军贴着车队站，就能替它分摊防御。
+     只按 def.side 一支一支算的话，玩家把两个营摆在难民两边也帮不上忙，
+     "在外围掩护"就只剩一句文案。 */
+  for (const s of friendlySides(side)) for (const a of alive(s)) mates.push(a);
+  return mates
     .filter(a => a !== u && a.rng > 0 && !isHQ(a) && layerOf(a) === layer &&
                  hexDist(a.pos, defPos) <= 1)
     .map(a => ({ u: a, w: hexDist(a.pos, defPos) === 0 ? STACK_COVER : 0.35 }))
@@ -6885,6 +7225,9 @@ function previewAttack(att, def, fields) {
     if (fk2 && FORT[fk2] && FORT[fk2].shell) attMod -= FORT[fk2].shell;
   }
   attMod += modAtk(att);
+  /* 单位特性里的攻击修正（v5.1）。和事件修正分开加：事件的 mods 会到期、会被
+     战报播报，特性是本局恒定的编制属性。卫戍精锐的 +10% 走这里。 */
+  attMod += traitSum(att, 'atk');
   /* 战术卡：集中突击。和事件修正分开加，撤销时各清各的 */
   attMod += (att.cardAtk || 0);
 
@@ -6928,9 +7271,12 @@ function previewAttack(att, def, fields) {
 /* 仅在射程内，不看展开状态与弹药。AI 靠它判断"这一炮位值不值得守"。 */
 function inRangeTargets(u, fields, opts) {
   if (u.rng === 0) return [];
-  const foe = other(u.side);
+  /* 敌军列表走 foesOf（v5.1）：红方的"敌人"是蓝方**和**绿方两支车队。
+     以前是 other(u.side)，红方永远看不见难民车队，整关没有一支敌人会朝车队
+     开一枪——这一条改错不会报错，只会让护送关变成"看着车队走完全程"。 */
+  const foe = foesOf(u.side);
   const lo = minRange(u), hi = attackRange(u);
-  return alive(foe).filter(t => {
+  return foe.filter(t => {
     const d = hexDist(u.pos, t.pos);
     if (d < lo || d > hi) return false;
     /* 打不着的就不该列出来：对空能力、目标类别白名单都在 canTarget 里。
@@ -7007,7 +7353,10 @@ function updateControl(silent) {
     for (const cell of o.cells) {
       const u = unitAt(cell[0], cell[1]);
       if (!u || !canCapture(u)) continue;
-      if (u.side === 'blue') b += u.str; else r += u.str;
+      /* 显式三分支（v5.1）。原来写的是 `if blue … else r +=`，绿方一进场
+         就会被算成敌军：车队路过要点的那一回合，要点直接判给红方。 */
+      if (u.side === 'blue') b += u.str;
+      else if (u.side === 'red') r += u.str;
     }
     const prev = state.ctrl[o.id] || 'none';
     let next;
@@ -7208,6 +7557,9 @@ function triggerMet(w) {
      已撤出的部队数量达标 / 指定兵牌已经离场。
      没有这两个触发器的话，"第一支部队过江了"这种事只能靠回合数猜。 */
   if (w.kind === 'escaped') return escapedCount() >= (w.count || 1);
+  /* 护送关专用（v5.1）：已经有 n 支车队走到终点。
+     "第一批车过了封锁线"这种事只能靠它，用回合数猜必然对不上。 */
+  if (w.kind === 'escortPassed') return escortPassed() >= (w.n || 1);
   if (w.kind === 'unitEscaped') {
     const ids = (state.escapedIds || []);
     return (w.ids || []).every(id => ids.indexOf(id) >= 0);
@@ -7355,7 +7707,10 @@ function hqMobility(u) {
 }
 
 function makeUnit(u, spent) {
-  const am = TYPE[u.type].am || 0;
+  /* 特性可以给弹药上限加成（v5.1 的 ammo 字段）。只在本兵种本来就有弹药时生效：
+     给步兵凭空加三发炮弹，界面上会出现一个永远不减的"弹药 3 / 3"。 */
+  const baseAm = TYPE[u.type].am || 0;
+  const am = baseAm ? baseAm + traitSum(u, 'ammo') : 0;
   if (state.everSeen) state.everSeen[u.id] = 1;
   const unit = {
     ...u, pos: [u.r, u.c], org: 100,
@@ -7541,6 +7896,10 @@ function saveSnapshot() {
     cardUsed: { ...state.cardUsed },
     escapedCount: state.escapedCount || 0,
     escapedIds: (state.escapedIds || []).slice(),
+    escortDone: state.escortDone || 0,
+    escortIds: (state.escortIds || []).slice(),
+    firstBlood: state.firstBlood || 0,
+    escGoalSaid: !!state.escGoalSaid,
     ctrl: { ...state.ctrl },
     mods: JSON.parse(JSON.stringify(state.mods)),
     flags: { ...state.flags },
@@ -7661,7 +8020,9 @@ function validateSave(s) {
   for (const u of s.units) {
     if (!u || typeof u !== 'object') return { ok: false, msg: '存档里有一条部队记录格式不对。' };
     if (typeof u.id !== 'string' || !u.id) return { ok: false, msg: '存档里有部队缺少编号。' };
-    if (u.side !== 'blue' && u.side !== 'red') return { ok: false, msg: '部队 ' + u.id + ' 的阵营无效。' };
+    if (u.side !== 'blue' && u.side !== 'red' && u.side !== 'green') {
+      return { ok: false, msg: '部队 ' + u.id + ' 的阵营无效。' };
+    }
     if (!TYPE[u.type]) return { ok: false, msg: '部队 ' + u.id + ' 的兵种「' + u.type + '」不存在。' };
     /* 显示用的三个字符串：兵牌名、简写、编号。它们在界面上出现的位置最多，
        也是最容易被塞进标签的三个字段。 */
@@ -7877,6 +8238,13 @@ function restoreGame(s) {
     cardId: null,
     escapedCount: s.escapedCount || 0,
     escapedIds: s.escapedIds || [],
+    /* 护送进度必须进档（v5.1）：车队的 escortIdx 跟着 units 一起存了，
+       但"已经走出去几支"是单独一个计数，不存的话读档就从 0 重算——
+       玩家送出去三支、读个档又变成没送。 */
+    escortDone: s.escortDone || 0,
+    escortIds: Array.isArray(s.escortIds) ? s.escortIds.slice() : [],
+    firstBlood: s.firstBlood || 0,
+    escGoalSaid: !!s.escGoalSaid,
     flags: s.flags || {},
     result: null,
     fields: { blue: {}, red: {} },
@@ -7930,6 +8298,14 @@ function pushUndo() {
        存档（saveSnapshot）早就带了 cardUsed，撤销栈漏了这一项，
        两套快照口径不一致，是最容易被漏掉的一类不一致。 */
     cardUsed: { ...(state.cardUsed || {}) },
+    /* 撤离 / 护送进度也要进快照（v5.1）。
+       以前只存 units：走进撤离区那一刻部队被删、计数 +1，撤销把人放回来了，
+       计数却留着——一撤一进可以刷撤出数。归档里"快照漏字段"这一类不一致
+       踩过一次（cardUsed），这次连新加的 escortDone 一起补齐。 */
+    escapedCount: state.escapedCount || 0,
+    escapedIds: (state.escapedIds || []).slice(),
+    escortDone: state.escortDone || 0,
+    escortIds: (state.escortIds || []).slice(),
     log: state.log.slice(-60)
   }));
   if (undoStack.length > UNDO_MAX) undoStack.shift();
@@ -7971,6 +8347,16 @@ function doUndo() {
      不能写成 `s.cardUsed || {}` —— 快照里没有这一项时（旧版撤销栈），
      `|| {}` 会把整局用掉的卡全部退回来，玩家连撤几步就能把卡刷满。 */
   state.cardUsed = s.cardUsed ? { ...s.cardUsed } : state.cardUsed;
+  /* 旧快照没有这几项时保持原值（`|| []` 会把已经撤出的人清空，
+     和 cardUsed 那条是同一个坑）。 */
+  if (typeof s.escapedCount === 'number') {
+    state.escapedCount = s.escapedCount;
+    state.escapedIds = (s.escapedIds || []).slice();
+  }
+  if (typeof s.escortDone === 'number') {
+    state.escortDone = s.escortDone;
+    state.escortIds = (s.escortIds || []).slice();
+  }
   state.log = s.log;
   clearSelection();
   refreshFields();
@@ -8095,6 +8481,10 @@ function newGame(opt) {
     cardId: null,        // 正在等待选目标的那张卡
     escapedCount: 0,     // 抵达撤离区并离场的部队数（reach 类关卡用）
     escapedIds: [],
+    /* 护送关（v5.1）：车队已撤出的支数与编号。和撤离关分开记——
+       escapedCount 统计的是**我方兵牌**，混在一起会让结算页把难民算成战损。 */
+    escortDone: 0,
+    escortIds: [],
     flags: { wave2: false, wave3: false },
     result: null,
     fields: { blue: {}, red: {} },
@@ -8118,7 +8508,14 @@ function newGame(opt) {
   state.units = LEVEL.units.filter(u => u.wave === 1).map(u => makeUnit(u, false));
   for (const u of LEVEL.units) {
     if (u.wave !== 1) continue;
+    /* 绿方车队不进编制表：initStr 是"各军初始战力"，用来判伤亡比例；
+       车队的 corps 是空的，混进去会多出一个 undefined 键。 */
+    if (u.side === 'green') continue;
     state.initStr[u.corps] = (state.initStr[u.corps] || 0) + defStr(u);
+  }
+  /* 车队路径索引。关卡数据里可以写 idx 预置（错开的起点），没写就按最近点补。 */
+  for (const u of alive('green')) {
+    if (Number.isInteger(u.idx)) u.escortIdx = u.idx;
   }
   clearUndo();
   refreshFields();
@@ -8423,13 +8820,34 @@ function doAttack(att, def, opts) {
      原来是按支平均分：两支战力 2 / 6 挨一发 4 点的炮，各掉 2 ——
      战力 2 的整支被抹掉、6 的那支几乎无感，等于炮弹精准绕过了主力。
      堆叠协同照样给防御分，但"两个人挤一起挨一发"就是两个人一起掉血。
-     非炮兵路径 victims 只有一支（原行为，一点不变）。 */
+     非炮兵路径 victims 只有一支（原行为，一点不变）。
+
+     火箭炮（v5.1）在此之上多一层：目标格吃全额，**相邻六格各吃一半**。
+     一次齐射的炸药量是固定的，覆盖面越大单位面积越薄，所以是半额不是全额；
+     每格内部仍按战力比例摊。它改变的是"堆叠纯赚"这件事——两格挨着的部队
+     会一起掉血，这是这个兵种唯一的存在理由。 */
   const splash = isArty(att);
-  const victims = splash
-    ? state.units.filter(u => u.str > 0 && u.side === def.side &&
-        !isAir(u) && u.pos[0] === def.pos[0] && u.pos[1] === def.pos[1])
-    : [def];
-  const shares = splash ? splashSplit(defLoss, victims) : [defLoss];
+  const rocket = att.type === 'mlrs';
+  let victims = [], shares = [], hitCells = 0;
+  if (!splash) {
+    victims = [def];
+    shares = [defLoss];
+  } else {
+    const cells = [{ pos: def.pos, dmg: defLoss }];
+    if (rocket) {
+      for (const n of neighbors(def.pos[0], def.pos[1])) {
+        cells.push({ pos: n, dmg: Math.round(defLoss * ROCKET_SPLASH) });
+      }
+    }
+    for (const g of cells) {
+      const us = state.units.filter(u => u.str > 0 && u.side === def.side &&
+        !isAir(u) && u.pos[0] === g.pos[0] && u.pos[1] === g.pos[1]);
+      if (!us.length) continue;
+      hitCells++;
+      victims = victims.concat(us);
+      shares = shares.concat(splashSplit(g.dmg, us));
+    }
+  }
   const dealt = shares.reduce((a, b) => a + b, 0);
 
   att.str = Math.max(0, att.str - attLoss);
@@ -8459,11 +8877,14 @@ function doAttack(att, def, opts) {
             (attLoss ? '我 −' + attLoss : '我无损') +
             (splash
               ? '，面上 −' + dealt +
-                (victims.length > 1
-                  ? '（' + victims.length + ' 部分担 ' + shares.join(' / ') + '）'
-                  : '')
+                (rocket
+                  ? '（齐射 · 邻格半额）'
+                  : victims.length > 1
+                    ? '（' + victims.length + ' 部分担 ' + shares.join(' / ') + '）'
+                    : '')
               : '，敌 −' + dealt);
   if (pv.flanked) msg += '，多面进攻（防御 −' + Math.round(FLANK_PENALTY * 100) + '%）';
+  if (rocket && hitCells > 1) msg += '，齐射覆盖 ' + hitCells + ' 格';
   if (fortAbsorb) msg += '，工事吸收 ' + fortAbsorb;
   if (pressOrg) msg += '，履带压制 组织度 −' + pressOrg;
   if (pv.ambush) msg += '，设伏（对方未能还手）';
@@ -8564,10 +8985,13 @@ function retreatCell(from, to) {
 
 function removeUnit(u) {
   state.units = state.units.filter(x => x !== u);
-  log('  ' + u.abbr + ' 被歼。', 'hi');
+  /* 绿方是难民车队，不是建制：写"被歼"读起来像把人当成一支部队（v5.1）。
+     同一处出口改一个词，战报和飘字一起对齐——分两处写迟早会漏一处。 */
+  const ally = u.side === 'green';
+  log('  ' + u.abbr + (ally ? ' 被打散。' : ' 被歼。'), 'hi');
   /* 所有死亡都走这里，所以歼灭表现只在这一处埋一次 */
   FX.sfx('kill');
-  FX.pop('歼灭', u.pos.slice(), 'sys');
+  FX.pop(ally ? '打散' : '歼灭', u.pos.slice(), 'sys');
   updateControl();
 }
 
@@ -9092,6 +9516,10 @@ function onHexClick(r, c) {
       }
       select(u); return;
     }
+    /* 友军格（v5.1）：只读检视。绿方单位玩家指挥不了，点它唯一有意义的事
+       就是看清这是哪支队伍、还剩多少人——落到"敌方"分支会让面板写「敌方」，
+       玩家会以为自己能打它。 */
+    if (u && u.side === 'green') { inspectUnit(u); return; }
     /* 敌方格：能不能打 → 打谁 → 打不了就看
        ① 可打目标两支以上 → 弹选择器，玩家点谁打谁
        ② 一支 → 一步开火（大多数情况，不给每次射击加一次确认）
@@ -9309,6 +9737,11 @@ function settlePhase() {
     FX.sfx('alarm');
   }
 
+  /* 车队推进（v5.1）。放在波次之后：这一回合刚到位的敌军，
+     下回合就能挡住车队——"敌人堵住公路"这件事必须在玩家动手之前发生，
+     否则玩家永远来不及反应。 */
+  escortTick();
+
   refreshFields();
   updateControl();
   checkEvents();
@@ -9350,6 +9783,13 @@ function perfectHint(lv) {
   /* 教学关：没有超额这回事，别给新手画一条更高的线 */
   if (isTutorial(L)) return { ok: false, text: '教学关不设超额达成' };
   const w = (L.win && L.win.kind) ? L.win : { kind: 'score' };
+  if (w.kind === 'escort') {
+    /* 超额线 = 车队**全部**走到。总数据关卡数据现算，与 escortTotal 同源
+       （那边数场上的 + 已撤出的，这边数编制的——开局两者相等）。 */
+    const need = w.need || 1;
+    const tot = (L.units || []).filter(u => u.side === 'green').length;
+    return { ok: true, text: '把车队全部送出（' + tot + ' 支全到，达成线 ' + need + ' 支）' };
+  }
   if (w.kind === 'reach') {
     const goal = w.count || 1;
     const top = (typeof w.perfect === 'number' && w.perfect > 0) ? w.perfect : goal + 2;
@@ -9420,6 +9860,126 @@ function blueInitialStr() {
 function isTutorial(lv) {
   const L = lv || LEVEL;
   return !!L && (L.ch === 0 || String(L.type || '').includes('教学'));
+}
+
+/* ═════════════════════ 护送（v5.1） ═════════════════════
+   关卡数据：`win:{ kind:'escort', need }` + `LEVEL.escort:{ step, path, exit }`。
+   规则与设计理由见 docs/26 §二。三条要点：
+     ① 绿方车队由本节的 escortTick 推着走——玩家不能指挥，AI 也不能；
+     ② 它**不会绕路**：路上站着一支敌军，它就停在原地等。这是整关的战术核心；
+     ③ 胜负只看"走出去几支"，不看歼敌。
+   为什么放在 settlePhase 里推进：红方打完、供给结算之前，玩家下一回合看到的
+   已经是新车位。放在蓝方回合开头推进也成立，但那样"敌人上回合堵住路"和
+   "这回合车队没动"会隔着一次玩家操作，因果看不清。 */
+function escortSpec() {
+  const w = winSpec();
+  return (w.kind === 'escort' && LEVEL.escort) ? LEVEL.escort : null;
+}
+function escortNeed() { const w = winSpec(); return w.kind === 'escort' ? (w.need || 1) : 0; }
+function escortPassed() { return state ? (state.escortDone || 0) : 0; }
+/* 车队总数 = **编制里**的绿方兵牌数，不是"场上的 + 已撤出的"。
+   后者会把打掉的车算没发生过：5 支里死了 2 支、剩下 3 支全走出去，
+   alive+passed 也是 3，于是判成"一个没少"的超额达成。
+   超额线的语义是"出发时有多少就送到多少"，分母必须是出发时的数。 */
+function escortTotal() {
+  return (LEVEL.units || []).filter(u => u.side === 'green').length;
+}
+function inEscortExit(pos) {
+  const E = escortSpec();
+  const z = E && E.exit;
+  if (!z) return false;
+  if (Array.isArray(z.cells)) {
+    return z.cells.some(c => c[0] === pos[0] && c[1] === pos[1]);
+  }
+  const r = z.zone || z;
+  return pos[0] >= r.r0 && pos[0] <= r.r1 && pos[1] >= r.c0 && pos[1] <= r.c1;
+}
+/* 路径索引的兜底：关卡数据没写 idx、或者读的是老存档（那时还没有 escortIdx），
+   就按"离当前位置最近的路径点"补一个。不补的话第一回合会从 0 号点算起，
+   车队会凭空往回走十几格——屏幕上就是"车队突然掉头"。 */
+function pathIndexOf(pos, path) {
+  let best = 0, bd = Infinity;
+  for (let i = 0; i < path.length; i++) {
+    const d = hexDist(pos, path[i]);
+    if (d < bd) { bd = d; best = i; }
+  }
+  return best;
+}
+/* 推进车队。返回本回合走到终点、撤出战场的支数。 */
+function escortTick() {
+  const E = escortSpec();
+  if (!E || !Array.isArray(E.path) || E.path.length < 2) return 0;
+  const step = Math.max(1, E.step || 2);
+  const path = E.path;
+  let moved = 0, arrived = 0, blockedAt = null;
+  for (const u of alive('green').slice()) {
+    if (!Number.isInteger(u.escortIdx)) u.escortIdx = pathIndexOf(u.pos, path);
+    let idx = u.escortIdx, n = 0;
+    while (n < step) {
+      const ni = idx + 1;
+      if (ni >= path.length) break;
+      const cell = path[ni];
+      if (!inBounds(cell[0], cell[1])) break;
+      /* 拦路的判据（v5.1 定稿）：**只认敌军**，不认自己人。
+         第一版用的是 stackFull——结果我方步兵站到公路上掩护车队，车队当场停住。
+         玩家看到的是"我明明在护着它，它却不走"，而且屏幕上没有任何提示；
+         脚本自战里更直接：蓝方每个回合都把路占满，车队全程挪不动（20 局 0%）。
+         "自己的部队会让路"这句话本来就不需要机制去证明，所以让绿方穿过友军。
+         但同格绿方仍然最多两支：五支车队叠在一格里，画面上就只剩一个兵牌了。 */
+      const here = layerUnitsAt(cell[0], cell[1], 'surface');
+      if (here.some(x => hostileSide(x.side, 'green')) ||
+          here.filter(x => x.side === 'green').length >= STACK_MAX) {
+        blockedAt = blockedAt || cell; break;
+      }
+      u.pos = [cell[0], cell[1]];
+      idx = ni; n++;
+    }
+    if (n) { u.escortIdx = idx; moved++; FX.move(u); }
+    if (inEscortExit(u.pos)) {
+      state.escortDone = (state.escortDone || 0) + 1;
+      state.escortIds = state.escortIds || [];
+      state.escortIds.push(u.id);
+      /* 撤出用 splice，不走 removeUnit：那个函数的语义是"被歼灭"，
+         会播伤亡、飘红字，而这里是"走掉了"。撤离关的 checkEscape 同理。 */
+      const i = state.units.indexOf(u);
+      if (i >= 0) state.units.splice(i, 1);
+      arrived++;
+      log('◆ ' + u.abbr + ' 驶出封锁线，撤出战场（已撤出 ' +
+          state.escortDone + ' 支）。', 'b');
+      FX.banner('车 队 撤 出 ' + state.escortDone + ' 支', 'b', 1700);
+      FX.sfx('win');
+    }
+  }
+  if (arrived) {
+    if (state.selected && state.units.indexOf(state.selected) < 0) clearSelection();
+    refreshFields();
+  }
+  if (blockedAt) {
+    /* 堵住必须说明白。只写"车队停在原地"的话，玩家会以为是速度设定，
+       不会想到是自己没清路——这一句是整个护送关的教学。
+       注意判据是 blockedAt 而不是 "blockedAt && !moved"：前车被堵、后车还在
+       往前挪的回合同样要报，否则玩家只看到"车队推进至 X"，完全不知道前面堵了。 */
+    log('车队被堵在 ' + coordName(blockedAt) + '，前车过不去。公路得清开。', 'hi');
+  } else if (moved) {
+    const lead = alive('green').slice()
+      .sort((a, b) => (b.escortIdx || 0) - (a.escortIdx || 0))[0];
+    if (lead) log('车队推进至 ' + coordName(lead.pos) + '。', 'b');
+  }
+  return arrived;
+}
+/* 达成线第一次达标：和撤离关一样只播一次（checkEnd 每步都会调）。 */
+function noteEscortGoalReached() {
+  if (!state || state.escGoalSaid) return;
+  if (escortPassed() < escortNeed()) return;
+  state.escGoalSaid = true;
+  log('◆ 已撤出 ' + escortNeed() + ' 支，护送达成。回合未终，' +
+      '还能再送几支就再送几支。', 'hi');
+  FX.banner('任 务 达 成 · 还 能 再 送', 'b', 2200);
+}
+function escortResult() {
+  const n = escortPassed();
+  if (n < escortNeed()) return 'fail';
+  return n >= escortTotal() ? 'perfect' : 'win';
 }
 
 /* 撤离关的成绩只看一件东西：**最后走出去几支**。
@@ -9507,6 +10067,11 @@ function judgeFinal() {
     }
   } else if (w.kind === 'reach') {
     state.result = reachResult();
+  } else if (w.kind === 'escort') {
+    /* 护送和突围同一条口径：够数不中途结算，打满回合按撤出总数判。
+       差别只在"谁在走"——reach 是玩家自己的兵牌走进撤离区，
+       escort 是车队按关卡路径走到终点。 */
+    state.result = escortResult();
   } else {
     const sc = blueScore();
     if (sc >= LEVEL.perfectScore && !isTutorial(LEVEL)) state.result = 'perfect';
@@ -9546,6 +10111,15 @@ function checkEnd() {
     noteEscapeGoalReached();
     return;
   }
+  if (w.kind === 'escort') {
+    /* 车队全没了、又没凑够达成线，当场判负：这时玩家已经没有任何手段翻盘，
+       让他空转到最后一回合只是走程序。够数就不再判，交给 judgeFinal。 */
+    if (alive('green').length === 0 && escortPassed() < escortNeed()) {
+      state.result = 'fail'; state.phase = 'over'; showOverlay(); render(); return;
+    }
+    noteEscortGoalReached();
+    return;
+  }
   if (w.kind === 'survive') {
     /* 坚守类的达成条件通常是"活到最后一回合"，但有些关的简报写的是
        "坚守 N 回合 **或** 敌军全灭"——那是并列条件，不是"必须守满"。
@@ -9575,6 +10149,10 @@ function showOverlay() {
     ? { perfect: ['超额突围', '冲出去的比要求还多，这条封锁线没拦住你们。'],
         win:     ['突围成功', '足够多的部队穿过了封锁线。'],
         fail:    ['突围失败', '抵达撤离区的部队不够，或者被打光了。'] }
+    : w.kind === 'escort'
+    ? { perfect: ['一个没少', '整条车队都走出了封锁线，一辆车都没丢。'],
+        win:     ['护送达成', '车队冲出去了。公路上留下的车，没人会忘记。'],
+        fail:    ['护送失败', '车队没能走出去，或者在路上就打光了。'] }
     : w.kind === 'survive'
     ? { perfect: ['完整坚守', '一个没损失，防线原封不动撑到了最后。'],
         win:     ['坚守成功', '撑到了预定时间，援军会记住这一天。'],
@@ -9858,8 +10436,10 @@ function renderBoard() {
         else if (cs === 'contested') cls += ' cc';
       }
       if (t.cost >= 99) cls += ' river';
-      /* 撤离区：走进就离场，玩家必须先看见它，否则"往东突围"就是一句空话 */
-      if (inEscapeZone([r, c])) cls += ' esczone';
+      /* 撤离区：走进就离场，玩家必须先看见它，否则"往东突围"就是一句空话。
+         护送关的"西口"用同一套染色（v5.1）：车队走到那儿就撤出，
+         玩家看不见出口，就没法判断"这一波要挡多久"。 */
+      if (inEscapeZone([r, c]) || inEscortExit([r, c])) cls += ' esczone';
       const ftHere = fortAt(r, c);
       if (ftHere) cls += ftHere.side === 'blue' ? ' fb' : ' fr';
       const rk = kk(r, c);
@@ -9914,7 +10494,10 @@ function renderBoard() {
         /* 友军预留（v4.18 第 8 条）：带 u.ally 标记的蓝方单位渲染成绿色——
            规则层它就是蓝方（可协同/堆叠/吃光环），颜色只区分指挥权。
            关卡数据里写 ally: true 即生效，引擎其余逻辑零改动。 */
-        let uc = 'unit ' + (u2.ally ? 'ally' : u2.side);
+        /* 友军（v5.1）：u.ally 是 v4.18 给"同一阵营但归别人指挥"留的标记，
+           v5.1 起绿方阵营也走同一个色板。两套写法都认，是为了不让关卡数据
+           从 ally:true 迁移到 side:'green' 时出现一关绿一关蓝。 */
+        let uc = 'unit ' + ((u2.ally || u2.side === 'green') ? 'ally' : u2.side);
         /* A4 色带：同编成同色，最多 8 色循环（一关最多 12 个编成）。
            色带只表达"编成一不一样"，不表达阵营——阵营已经由红蓝底承担了。 */
         const ck = corpsKey(u2);
@@ -10081,6 +10664,20 @@ function renderGoal() {
     }
     html += '<div class="row"><span>仍在战场</span><b>' + alive('blue').length + ' 支</b></div>';
     html += '<div class="row" style="font-size:11px"><span>走到绿色区域即撤出</span><b>剩 ' +
+            Math.max(0, LEVEL.maxTurns - state.turn + 1) + ' 回合</b></div>';
+  } else if (w.kind === 'escort') {
+    /* 护送关的进度条是"车队撤出几支"，不是战果分。三行就够：
+       达成线、超额线、还在路上几支——玩家一眼能看出"要不要再冒个险"。 */
+    const n = escortPassed(), g = escortNeed(), tot = escortTotal();
+    html += '<div class="row"><span>车队撤出</span><b class="' +
+            (n >= g ? 'ok' : n > 0 ? 'warn' : 'bad') + '">' + n + ' / ' + g + ' 支</b></div>';
+    html += '<div class="vpbar"><i style="width:' + Math.min(100, g ? n / g * 100 : 0) + '%"></i></div>';
+    if (n >= g && tot > g) {
+      html += '<div class="row"><span>超额线</span><b class="' +
+              (n >= tot ? 'ok' : 'warn') + '">' + n + ' / ' + tot + ' 支</b></div>';
+    }
+    html += '<div class="row"><span>车队在路上</span><b>' + alive('green').length + ' 支</b></div>';
+    html += '<div class="row" style="font-size:11px"><span>车队沿公路西撤，路被堵住就停</span><b>剩 ' +
             Math.max(0, LEVEL.maxTurns - state.turn + 1) + ' 回合</b></div>';
   } else if (w.kind === 'survive') {
     const left = Math.max(0, LEVEL.maxTurns - state.turn + 1);
@@ -10644,8 +11241,8 @@ function renderUnitBox() {
 
   let h = '';
   h += '<div class="ub-head"><span class="ub-name">' + esc(u.name) + '</span>' +
-       '<span class="tag ' + (u.ally ? 'ally' : (u.side === 'blue' ? 'b' : 'r')) + '">' +
-       (u.side === 'blue' ? '我方' : '敌方') + '</span></div>';
+       '<span class="tag ' + ((u.ally || u.side === 'green') ? 'ally' : (u.side === 'blue' ? 'b' : 'r')) + '">' +
+       (u.side === 'blue' ? '我方' : u.side === 'green' ? '友军' : '敌方') + '</span></div>';
   h += '<div class="ub-meta">' + ty.name + ' · ' + ty.role + ' · ' + coordName(u.pos) + ' ' + t.name + '</div>';
   /* 检视和选中长得一样，只有这一行能区分。不写清楚的话，玩家会以为
      "点敌人 = 选中敌人"，接着按 Esc 期待一件事、看到的是另一件事。 */
@@ -10742,9 +11339,14 @@ function renderUnitBox() {
     for (const k of tn) {
       const t = TRAITS[k];
       const vals = [];
-      if (t.orgTick) vals.push('组织度 +' + t.orgTick + '/回合');
+      /* 一行摘要必须覆盖这个特性改动的每一个数值——只写 name + note 的话，
+         玩家要在两段长文字里自己找"+10%"，等于没写。加字段时这里一起加。 */
+      if (t.atk) vals.push('攻击 +' + Math.round(t.atk * 100) + '%');
       if (t.def) vals.push('防御 +' + Math.round(t.def * 100) + '%');
+      if (t.orgTick) vals.push('组织度 +' + t.orgTick + '/回合');
+      if (t.ammo) vals.push('弹药 +' + t.ammo);
       if (t.noBreak) vals.push('永不崩溃');
+      if (t.zocFree) vals.push('无视敌方控制区');
       h += '<div class="kv"><span>' + bold(t.name) + '</span><b class="ok">' +
            vals.join(' · ') + '</b></div>';
       h += '<div class="abil">' + bold(t.note) + '</div>';
@@ -12458,6 +13060,9 @@ window.__WAR__ = {
   saveGame, readSave, clearSave, restoreGame, saveSnapshot,
   SAVE_KEY, SAVE_VER, LOG, DEBUG,
   computeReach, previewAttack, targetsFor, supplyOf, effStr, terrainDefFor,
+  /* 防御协同（v5.1 起蓝绿互为友军）。导出是为了验"我军贴着车队就替它分摊防御"——
+     这一条坏了不会报错，只会让"在外围掩护"变成一句空话。 */
+  helpers,
   /* 无效接触的判据（v4.18 热修抽出）：比值不够**且**对面够得着还手。
      导出它是为了让断言能问"这条闸到底拦了谁"，而不是只看列表面板。 */
   INVALID_RATIO, PUSH_RATIO, invalidContact,
@@ -12564,6 +13169,13 @@ window.__WAR__ = {
      这几条都是"坏了也不报错、只是手感不对"的规则，只能靠断言守。 */
   retreatCell, retreatCells, PUSH_BLOCK_ORG, actedThisTurn,
   orgFactor, ORG_CURVE, SUPPLY_MOD, TRAITS, traitList, traitSum, hasTrait,
+  /* v5.1 友军与护送：阵营判定 / 车队推进 / 成败判定 / 火箭炮面覆盖。
+     全都要单独导出——"红方看不见车队""车队被堵住却还在动""齐射只打一格"
+     这三种错法在界面上都不抛异常，只能靠断言守。 */
+  hostileSide, friendlySides, foesOf, isAlly,
+  escortSpec, escortNeed, escortPassed, escortTotal, escortTick,
+  inEscortExit, pathIndexOf, noteEscortGoalReached, escortResult,
+  ROCKET_SPLASH, escortLeadUnit, aiEscortGoal,
   /* 领域（陆 / 空 / 绿水 / 蓝水）：一件机制的四张脸——走哪格、和谁挤、
      谁能打它、界面怎么画。测试直接驱动 domainOf / moveCost / canHitAir，
      否则"加一种兵种忘了改 moveCost"这类事只能等玩出来。 */

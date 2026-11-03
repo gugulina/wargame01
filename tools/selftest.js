@@ -8,7 +8,9 @@ const file = process.argv[2] && !process.argv[2].startsWith('-')
   ? path.resolve(process.argv[2])
   : path.join(__dirname, '..', 'game', 'campaign.html');
 
-const { api, sandbox } = loadGame(file);
+/* code：拼好的引擎源码（内联 + ai.js）。有一条结构断言要扫它——
+   "每个特性字段都有读取点"没法从运行时 API 看出来。 */
+const { api, sandbox, code } = loadGame(file);
 
 /* 整套自测跑在岚口（C3）上：城区的「为了祖国」、两处渡口、第 205 装甲旅、
    第 3 坦克军先遣队这些编制都是 C3 独有的。
@@ -5439,6 +5441,257 @@ console.log('\n[60] 指挥部机动：跟得上自己的部队（v5.0）');
      late ? String(api.makeUnit(late, false).mov) : '缺 R2H');
   ok('封顶值就是 10，没有哪个指挥部能跑到 12', api.HQ_MOV_CAP === 10);
   ok('不是"全关最快"：步兵师师部没被别的编制的轻坦带走', by('E1H').mov === 8);
+}
+
+console.log('\n[61] 单位特性：卫戍精锐与 buff 词汇表（v5.1）');
+{
+  /* 结构守卫：TRAITS 的每个字段都必须在引擎里有读取点。
+     没有这一条，\"预留的 buff\" 会变成数据里多一个没人读的字段——
+     它不报错、不影响任何数值，只能靠人读代码发现。 */
+  const fields = new Set();
+  for (const k in api.TRAITS) {
+    for (const f in api.TRAITS[k]) if (f !== 'name' && f !== 'note') fields.add(f);
+  }
+  const missing = [...fields].filter(f =>
+    !new RegExp("traitSum\\([^)]*'" + f + "'").test(code) &&
+    !new RegExp("TRAITS\\[[^\\]]+\\]\\." + f + "\\b").test(code));
+  ok('每个特性字段都有引擎读取点（不留死字段）', missing.length === 0,
+     [...fields].sort().join(',') + ' 缺：' + missing.join(','));
+  /* 六个字段是 docs/26 §3.2 定的词汇表。ammo / zocFree 目前没有部队使用，
+     所以只出现在读取点、不出现在任何一条 TRAITS 里——两者的口径要分开验：
+     "定义的字段都在词表里" + "词表里的字段都有读取点"。 */
+  const VOCAB = ['def', 'orgTick', 'noBreak', 'atk', 'ammo', 'zocFree'];
+  const unread = VOCAB.filter(f =>
+    !new RegExp("traitSum\\([^)]*'" + f + "'").test(code) &&
+    !new RegExp("TRAITS\\[[^\\]]+\\]\\." + f + "\\b").test(code));
+  ok('词汇表六个字段全部有读取点', unread.length === 0, unread.join(','));
+  ok('没有词表外的野字段', [...fields].every(f => VOCAB.indexOf(f) >= 0),
+     [...fields].sort().join(','));
+
+  api.newGame({ level: 'C7', noSave: true });
+  const S = api.getState();
+  const gd = api.alive('blue').filter(u => u.type === 'gdn');
+  ok('卫戍旅的四个守备营都带 guard 特性',
+     gd.length === 4 && gd.every(u => api.hasTrait(u, 'guard')), gd.map(u => u.id).join(','));
+  ok('旅部不挂战斗特性（指挥牌不是战斗部队）',
+     !api.hasTrait(S.units.find(u => u.id === 'E5H'), 'guard'));
+
+  /* atk：同一支步兵、同一个目标，只差这一条特性 */
+  const foe = S.units.find(u => u.side === 'red');
+  foe.pos = [4, 6];
+  const mk = traits => {
+    const u = api.makeUnit({ id: 'TA' + (traits && traits.length ? '1' : '0'), side: 'blue',
+      abbr: 'T', name: '测试营', type: 'inf', str: 6, r: 4, c: 5, wave: 1,
+      traits: traits || [] }, false);
+    u.pos = [4, 5];
+    return u;
+  };
+  const A = mk(['guard']), B = mk([]);
+  const pvA = api.previewAttack(A, foe, S.fields);
+  const pvB = api.previewAttack(B, foe, S.fields);
+  ok('guard 的攻击 +10% 真的进了结算（比值变大）', pvA.ratio > pvB.ratio,
+     pvA.ratio.toFixed(3) + ' / ' + pvB.ratio.toFixed(3));
+  ok('差额就是 0.10，不是别处顺手加的',
+     Math.abs((pvA.attMod - pvB.attMod) - 0.10) < 1e-9, (pvA.attMod - pvB.attMod).toFixed(3));
+  ok('guard 的防御 +10% 进了地形防御',
+     Math.abs(api.terrainDefFor(A) - api.terrainDefFor(B) - 0.10) < 1e-9);
+  ok('guard 的自恢复进了 orgTick 合计', api.traitSum(A, 'orgTick') === 4);
+
+  /* ammo 与 zocFree 目前没有部队使用（docs/26 §3.4 的预留字段）。
+     用临时特性验钩子——验的是\"加了这个字段，引擎会不会读它\"。 */
+  api.TRAITS.__ammo = { name: '测试补给', ammo: 2 };
+  const artDef = { side: 'blue', abbr: 'TB', name: '测试炮', type: 'art',
+    str: 4, r: 5, c: 5, wave: 1, rng: 5 };
+  const art1 = api.makeUnit({ ...artDef, id: 'TB1', traits: ['__ammo'] }, false);
+  const art2 = api.makeUnit({ ...artDef, id: 'TB2' }, false);
+  ok('ammo 特性加的是弹药上限（8 → 10）', art1.maxAmmo === art2.maxAmmo + 2,
+     art1.maxAmmo + ' / ' + art2.maxAmmo);
+  const inf1 = api.makeUnit({ id: 'TD1', side: 'blue', abbr: 'TD', name: '测试营',
+    type: 'inf', str: 5, r: 5, c: 5, wave: 1, traits: ['__ammo'] }, false);
+  ok('ammo 只对有弹药的兵种生效（不给步兵凭空发炮弹）', inf1.ammo === undefined);
+  delete api.TRAITS.__ammo;
+
+  api.TRAITS.__zoc = { name: '测试渗透', zocFree: 1 };
+  S.units.length = 0;
+  const wall = api.makeUnit({ id: 'W1', side: 'red', abbr: 'W', name: '敌哨',
+    type: 'inf', str: 8, r: 6, c: 12, wave: 1 }, false);
+  const z0 = api.makeUnit({ id: 'Z0', side: 'blue', abbr: 'Z0', name: '甲',
+    type: 'inf', str: 6, r: 6, c: 10, wave: 1, mov: 6 }, false);
+  const z1 = api.makeUnit({ id: 'Z1', side: 'blue', abbr: 'Z1', name: '乙',
+    type: 'inf', str: 6, r: 6, c: 10, wave: 1, mov: 6, traits: ['__zoc'] }, false);
+  S.units.push(wall, z0, z1);
+  const r0 = Object.keys(api.computeReach(z0).stop).length;
+  const r1 = Object.keys(api.computeReach(z1).stop).length;
+  ok('zocFree 让部队穿过控制区（可达格变多）', r1 > r0, r0 + ' → ' + r1);
+  delete api.TRAITS.__zoc;
+}
+
+console.log('\n[62] 友军（绿方）：敌我判定与协同（v5.1）');
+{
+  api.newGame({ level: 'C11B', noSave: true });
+  const S = api.getState();
+  ok('车队五支全在场上', api.alive('green').length === 5, String(api.alive('green').length));
+  ok('红方的敌人包含绿方', api.foesOf('red').some(u => u.side === 'green'));
+  ok('蓝方的敌人只有红方', api.foesOf('blue').every(u => u.side === 'red'));
+  ok('蓝方的友军含绿方', api.friendlySides('blue').indexOf('green') >= 0);
+  ok('红方没有友军', api.friendlySides('red').indexOf('green') < 0);
+
+  const g0 = api.alive('green')[0];
+  ok('车队不吃军事补给（自带口粮，恒充足）', api.supplyOf(g0, S.fields).label === '充足');
+
+  /* 三件事分开摆样本：ZOC / 目标列表 / 防御协同，各用各的站位。
+     一个摆位同时验三条，一条不成立就分不清是哪条坏了。 */
+  const mkG = () => api.makeUnit({ id: 'GX', side: 'green', abbr: 'GX', name: '测试车队',
+    type: 'ref', str: 4, r: 7, c: 9, wave: 1 }, false);
+  const mkR = (r, c) => api.makeUnit({ id: 'RX', side: 'red', abbr: 'RX', name: '敌测试营',
+    type: 'inf', str: 8, r, c, wave: 1, mov: 6, rng: 1 }, false);
+  const mkB = (r, c) => api.makeUnit({ id: 'BX', side: 'blue', abbr: 'BX', name: '我测试营',
+    type: 'inf', str: 6, r, c, wave: 1, mov: 6, rng: 1 }, false);
+
+  /* 问的是**红方**这一侧：绿方对蓝方本来就不 hostile，拿蓝方验这条会假绿
+     （实测：把 u.side !== 'green' 那半个条件删掉，断言照样过）。 */
+  S.units.length = 0;
+  const G = mkG();
+  S.units.push(G, mkR(2, 9));
+  ok('车队不产生控制区（不给任何一方当路障）',
+     api.inEnemyZOC(7, 8, 'red') === false);
+
+  S.units.length = 0;
+  const G2 = mkG(), R2 = mkR(7, 8);
+  S.units.push(G2, R2);
+  ok('红方看得见车队（目标列表里有它）', api.targetsFor(R2, S.fields).indexOf(G2) >= 0,
+     api.targetsFor(R2, S.fields).map(u => u.id).join(','));
+
+  S.units.length = 0;
+  const G3 = mkG(), B3 = mkB(7, 8);
+  S.units.push(G3, B3);
+  ok('我军贴着车队就能替它分摊防御',
+     api.helpers(G3, G3.pos, 'green').some(h => h.u === B3));
+
+  /* 车队站在要点上不改变控制权：走的是 updateControl 的三分支 */
+  api.newGame({ level: 'C10', noSave: true });
+  const S2 = api.getState();
+  const obj = api.LEVEL.objectives.find(o => o.id === 'hall');
+  S2.units.length = 0;
+  /* 这里必须用**能占点**的兵种（inf）。难民 ref 不在 CAPTURE_TYPES 里，
+     updateControl 的循环会先 `continue` 掉它——拿它验"绿方算不算敌军"，
+     即使把三分支改回 `if blue … else red` 也照样绿（实测：变异没红）。
+     能占点的友军步兵是真实存在的（v4.18 的 ally:true 就是"归别人指挥的蓝方"）。 */
+  const G4 = api.makeUnit({ id: 'G4', side: 'green', abbr: 'G4', name: '友军步兵连',
+    type: 'inf', str: 4, r: obj.cells[0][0], c: obj.cells[0][1], wave: 1,
+    mov: 6, rng: 1 }, false);
+  S2.units.push(G4);
+  api.updateControl(true);
+  ok('车队站在要点上不算敌军占领', api.ctrlState(obj) !== 'red', api.ctrlState(obj));
+}
+
+console.log('\n[63] 护送关：车队推进、堵路与胜负（v5.1）');
+{
+  api.newGame({ level: 'C11B', noSave: true });
+  const S = api.getState();
+  const path = api.LEVEL.escort.path;
+  const G1 = S.units.find(u => u.id === 'G1');
+  ok('车队按关卡数据预置路径索引', G1.escortIdx === 4, String(G1.escortIdx));
+  const i0 = G1.escortIdx;
+  api.escortTick();
+  ok('一个回合走 step 格（2 格）', G1.escortIdx === i0 + 2, i0 + ' → ' + G1.escortIdx);
+
+  /* 敌军站在公路上 → 停住，而且必须有战报（静默停下会被当成速度设定） */
+  const R = S.units.find(u => u.side === 'red');
+  R.pos = path[G1.escortIdx + 1].slice();
+  const before = G1.escortIdx;
+  const l0 = S.log.length;
+  api.escortTick();
+  ok('敌军堵住公路，车队一步不动', G1.escortIdx === before, before + ' → ' + G1.escortIdx);
+  ok('堵路要写战报', S.log.slice(l0).some(l => l.text.indexOf('堵') >= 0),
+     S.log.slice(l0).map(l => l.text).join(' | '));
+
+  /* 走进西口 = 撤出：从场上移除并计数 */
+  R.pos = [0, 0];
+  const G5 = S.units.find(u => u.id === 'G5');
+  G5.pos = path[path.length - 2].slice();
+  G5.escortIdx = path.length - 2;
+  const done0 = api.escortPassed();
+  api.escortTick();
+  ok('走到西口就撤出（移除 + 计数）',
+     api.escortPassed() === done0 + 1 && S.units.indexOf(G5) < 0,
+     api.escortPassed() + ' / ' + done0);
+
+  /* 达成线到了不结算（和撤离关同一条口径） */
+  S.escortDone = api.escortNeed();
+  api.checkEnd();
+  ok('达成线到了不中途结算（还能再送）', !S.result, S.result || '未结算');
+  S.turn = api.LEVEL.maxTurns;
+  api.judgeFinal();
+  ok('打满回合按撤出数判达成', S.result === 'win' || S.result === 'perfect', S.result);
+
+  api.newGame({ level: 'C11B', noSave: true });
+  const S2 = api.getState();
+  S2.units = S2.units.filter(u => u.side !== 'green');
+  api.checkEnd();
+  ok('车队全灭、又没凑够数 → 当场判负', S2.result === 'fail', S2.result || '未判');
+
+  api.newGame({ level: 'C11B', noSave: true });
+  const S3 = api.getState();
+  S3.escortDone = 2;
+  ok('存档带护送进度（escortDone）', api.saveSnapshot().escortDone === 2);
+  /* 打掉一支之后仍然要报 5：分母是**出发时**的车队数。
+     写成"场上的 + 已撤出的"的话，这里会变成 4，而 4 也能让"全部送到"
+     在死过车的情况下成立——超额达成就成了"反正死的不是我"。 */
+  S3.units = S3.units.filter(u => u.id !== 'G1');
+  ok('超额线的分母是出发时的车队数（打掉的不算"没少"）', api.escortTotal() === 5,
+     String(api.escortTotal()));
+
+  /* 撤销要连进度一起回滚：撤离关原来只回滚 units，计数留在新值上，
+     一撤一进就能刷撤出数。护送进度走的是同一份快照。 */
+  api.newGame({ level: 'C11B', noSave: true });
+  const S5 = api.getState();
+  S5.escortDone = 1;
+  api.pushUndo();
+  S5.escortDone = 3;
+  api.doUndo();
+  ok('撤销连护送进度一起回滚', api.getState().escortDone === 1,
+     String(api.getState().escortDone));
+}
+
+console.log('\n[64] 火箭炮：面覆盖与近界（v5.1）');
+{
+  api.newGame({ level: 'C11B', noSave: true });
+  const S = api.getState();
+  S.units.length = 0;
+  const mk = (id, sd, type, str, r, c, extra) => {
+    const u = api.makeUnit(Object.assign({ id, side: sd, abbr: id, name: id, type, str,
+      r, c, wave: 1 }, extra || {}), false);
+    u.pos = [r, c];
+    return u;
+  };
+  const att = mk('ML', 'blue', 'mlrs', 12, 7, 5, { rng: 6 });
+  const d1 = mk('D1', 'red', 'inf', 8, 7, 8);
+  const d2 = mk('D2', 'red', 'inf', 8, 7, 9);
+  S.units.push(att, d1, d2);
+  ok('火箭炮射程 6、近界 3', api.attackRange(att) === 6 && api.minRange(att) === 3,
+     api.attackRange(att) + ' / ' + api.minRange(att));
+  ok('弹药只有 3 发', att.maxAmmo === 3, String(att.maxAmmo));
+  ok('拖曳炮没展开就打不了（必须放列）',
+     api.canFire(Object.assign({}, att, { packed: true })) === false);
+  const b1 = d1.str, b2 = d2.str;
+  api.doAttack(att, d1);
+  const loss1 = b1 - d1.str, loss2 = b2 - d2.str;
+  ok('目标格吃全额、相邻格也掉血（齐射覆盖）', loss1 > 0 && loss2 > 0, loss1 + ' / ' + loss2);
+  ok('相邻格只吃一半，不会和目标格一样疼', loss2 <= loss1, loss1 + ' / ' + loss2);
+  ok('开一次火扣一发弹', att.ammo === att.maxAmmo - 1, att.ammo + ' / ' + att.maxAmmo);
+
+  /* 对照：普通旅炮打同样的摆位，只覆盖目标格 */
+  api.newGame({ level: 'C11B', noSave: true });
+  const S2 = api.getState();
+  S2.units.length = 0;
+  const art = mk('AR', 'blue', 'art', 12, 7, 5, { rng: 5 });
+  const e1 = mk('E1', 'red', 'inf', 8, 7, 8);
+  const e2 = mk('E2', 'red', 'inf', 8, 7, 9);
+  S2.units.push(art, e1, e2);
+  const c2 = e2.str;
+  api.doAttack(art, e1);
+  ok('对照：普通炮兵只覆盖目标格，相邻格不挨打', e2.str === c2, c2 + ' → ' + e2.str);
 }
 
 console.log('\n通过 ' + pass + ' 项，失败 ' + fail + ' 项');

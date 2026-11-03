@@ -378,8 +378,16 @@ const HUNT_PULL = 1.2;
 
 function alliedUnits(side) {
   if (side !== 'blue') return [];
+  const out = [];
   const list = (state && Array.isArray(state.allies)) ? state.allies : [];
-  return list.filter(u => u && u.side === 'green' && !(u.str <= 0));
+  for (const u of list) if (u && u.side === 'green' && !(u.str <= 0)) out.push(u);
+  /* v5.1：绿方现在住在 state.units 里（理由见 docs/26 §一——占格、堆叠、渲染、
+     ZOC 全都只读那张表）。state.allies 保留，给"将来真会有外援"留个口子。
+     两条来源合并，点数口径不变。 */
+  for (const u of (state && state.units) || []) {
+    if (u && u.side === 'green' && !(u.str <= 0)) out.push(u);
+  }
+  return out;
 }
 /* 场上点数：活着的部队。友军按蓝方一侧合计。 */
 function sideFieldPoints(side) {
@@ -888,6 +896,10 @@ function holdThreatBonus(t) {
 function scoreTarget(att, t, fields, style, hunt) {
   const pv = previewAttack(att, t, fields);
   let s = pv.ratio;
+  /* 护送关（v5.1）：车队本身就是任务目标。不给这一条，红方走到跟前会挑
+     旁边的掩护部队打——玩家看到的是"它从我车队旁边过去了"，
+     像 AI 不知道自己在打什么。 */
+  if (t.side === 'green') s += 1.2;
   /* 多面进攻过的格子值更多分：防御已经被第一波攻击拉开，
      第二炮是真正的破防炮——AI 该知道把火力砸向同一个伤口。 */
   if (pv.flanked) s += 0.3;
@@ -965,6 +977,36 @@ function aiHoldGoal(u) {
   return cell;
 }
 
+/* ── 护送关：目标不是要点，是车队（v5.1）──
+   红方历来的推进轴是"要点"，因为 aiGoalFor 只认要点——护送关没有要点可抢，
+   不改这一条，全场红方会站在出生点不动。规则见 docs/26 §2.4。
+
+   取"车队最前那支"再往前两个路径点，而不是"离我最近那支"：
+   取最近的会让所有部队围住尾巴，车队前半段照走不误；
+   取最前的再往前一点，才是"抢到车队前面把路堵住"。
+   这是全作唯一一处**只在单关类型里**离开要点轴的例外；
+   C2 那次"离开要点轴去追人"把达成率打到 0%，方向正好相反——
+   那一关的封锁线是渡口，这一关的封锁线就是车队。 */
+function escortLeadUnit() {
+  let best = null, bi = -1;
+  for (const u of alive('green')) {
+    const i = Number.isInteger(u.escortIdx) ? u.escortIdx : 0;
+    if (i > bi) { bi = i; best = u; }
+  }
+  return best;
+}
+function aiEscortGoal(u) {
+  const E = LEVEL.escort;
+  if (!E || !Array.isArray(E.path) || !E.path.length) return null;
+  const lead = escortLeadUnit();
+  if (!lead) return null;
+  /* 拦在车队前面两个路径点。路径点本身可能被占满（那正是我们要的"堵住"），
+     走位评分会自己找旁边能停的格。 */
+  const idx = Math.min((Number.isInteger(lead.escortIdx) ? lead.escortIdx : 0) + 2,
+                       E.path.length - 1);
+  return E.path[idx].slice();
+}
+
 /* 往哪走。三种脾气共用同一条推进轴（要点），差别只在"要不要顺手吃人"：
    目标点的取法分两类——
      · 夺取型：**还没归我**的要点，核心要点另有 2 格加权
@@ -982,6 +1024,12 @@ function aiGoalFor(u, style, hunt) {
     const ht = aiHuntTarget(u);
     if (ht) return ht.pos.slice();
   } else if (tac) return tac;
+  /* 护送关：推进轴换成人头攒动的公路。放在 hold 之前是故意的——
+     守备型在这一关没有要点可抱，不换轴就一步不动。 */
+  if (LEVEL.escort) {
+    const eg = aiEscortGoal(u);
+    if (eg) return eg;
+  }
   if (st === AI_STYLES.hold) return aiHoldGoal(u);
   /* 追击：暂时离开要点轴。目标是敌军里最值钱的那一支，
      没有敌人时才落回原来的要点推进。 */
@@ -1026,7 +1074,7 @@ function aiMoveScore(u, p, goal, style, hunt) {
   let s = -hexDist(p, goal) * st.objPull + t.def * st.terrainWeight;
   if (st.foePull) {
     let mind = Infinity;
-    for (const f of alive(other(u.side))) mind = Math.min(mind, hexDist(p, f.pos));
+    for (const f of foesOf(u.side)) mind = Math.min(mind, hexDist(p, f.pos));
     if (mind < Infinity) s -= Math.min(mind, 6) * st.foePull;
   }
   /* 追击：夺取型平时 foePull=0（只认要点），追击期间额外往最近敌军压。
@@ -1040,7 +1088,7 @@ function aiMoveScore(u, p, goal, style, hunt) {
   const chase = tacA === 'hunt' ? true : (hunt && !tacA);
   if (chase) {
     let mind = Infinity;
-    for (const f of alive(other(u.side))) mind = Math.min(mind, hexDist(p, f.pos));
+    for (const f of foesOf(u.side)) mind = Math.min(mind, hexDist(p, f.pos));
     if (mind < Infinity) s -= Math.min(mind, 8) * HUNT_PULL;
   }
   /* 防守型把己方工事当成家：一格碉堡/要塞炮比多两格的空地值钱。 */
@@ -1051,7 +1099,7 @@ function aiMoveScore(u, p, goal, style, hunt) {
   /* 炮兵怕贴脸——这条与脾气无关，谁的炮被贴住都打不出东西。 */
   if (isArty(u)) {
     let mind = Infinity;
-    for (const f of alive(other(u.side))) mind = Math.min(mind, hexDist(p, f.pos));
+    for (const f of foesOf(u.side)) mind = Math.min(mind, hexDist(p, f.pos));
     if (mind < 2) s -= isDirectArty(u) ? 25 : 40;
     /* v4.17：提前一回合起身。原来的分界只有"2 格内"和"3 格内加分"，
        敌人在 2 格时它才想起要跑，这一回合已经来不及。 */
@@ -1213,7 +1261,7 @@ function aiGuardSituation(u) {
    这一步只对**已崩溃**的部队生效，不碰任何还能打的部队的推进轴。 */
 function aiRetreatScore(u, p) {
   let mind = Infinity;
-  for (const f of alive(other(u.side))) mind = Math.min(mind, hexDist(p, f.pos));
+  for (const f of foesOf(u.side)) mind = Math.min(mind, hexDist(p, f.pos));
   if (mind === Infinity) mind = 6;
   let s = Math.min(mind, 6) * 10;
   if (!isAir(u)) {

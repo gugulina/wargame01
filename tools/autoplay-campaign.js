@@ -365,6 +365,55 @@ async function blueTurnBreakout() {
   }
 }
 
+/* ───────── 蓝方策略 C：掩护车队（escort） ─────────
+   这一套的脑子只有一句话：**把自己塞到敌人和车队之间**。
+   判据是"到最近敌军的距离 + 到车队质心的距离"最小——两点之间，
+   不是"跟着车队跑"。第一版写的是"往车队前方两格靠"，结果全军抢到车队
+   前头去，尾巴全让给追兵，20 局里平均只送出 1.8 支。
+   它仍然比真人笨：不会换防、不会用战术卡、不会拿坦克做反冲击。
+   脚本给的是**下限**，45–60% 那条带是照着它定的。 */
+async function blueTurnEscort() {
+  const aliveBlue = () => api.alive('blue');
+  const convoyCell = () => {
+    const gs = api.alive('green');
+    if (!gs.length) return null;
+    let r = 0, c = 0;
+    for (const g of gs) { r += g.pos[0]; c += g.pos[1]; }
+    return [Math.round(r / gs.length), Math.round(c / gs.length)];
+  };
+
+  for (const u of aliveBlue().slice()) {
+    if (!aliveBlue().includes(u)) continue;
+
+    /* 1. 有便宜就打。炮兵门槛低——清掉追兵比守住阵地更值 */
+    if (tryShoot(u, api.isArty(u) ? 0.60 : 0.75)) continue;
+
+    /* 2. 炮兵、指挥部、辎重不挪窝：火箭炮一挪就没有下一发 */
+    if (api.isArty(u) || api.isHQ(u) || u.type === 'sup') continue;
+    if (u.moved) continue;
+
+    /* 3. 塞到敌人与车队之间 */
+    const cv = convoyCell();
+    if (!cv) continue;
+    const reach = api.computeReach(u);
+    let best = null, bs = -Infinity;
+    for (const key in reach.stop) {
+      const p = key.split(',').map(Number);
+      const t = api.TERRAIN[L.map[p[0]][p[1]]];
+      let md = Infinity;
+      for (const f of api.alive('red')) md = Math.min(md, api.cheb(p, f.pos));
+      const dc = api.cheb(p, cv);
+      /* 敌人越近、车队越近，这个位置越值钱；离车队超过 3 格直接重罚，
+         否则整支部队会追着敌人跑掉、把车队留给别人。 */
+      let s = -(md + dc) + t.def * 3;
+      if (dc > 3) s -= 6;
+      if (md === 0) s -= 8;              // 别站到敌人格里（站不进去，但兜底）
+      if (s > bs) { bs = s; best = p; }
+    }
+    if (best) api.doMove(u, best);
+  }
+}
+
 async function playOne(idx) {
   /* 可复现的骰子。--seed 给了值就按 (种子 + 局号) 派生每局的流，
      没给就保持原来的 Math.random——默认行为一点不变，
@@ -384,7 +433,15 @@ async function playOne(idx) {
   while (!st.result && guard < 60) {
     guard++;
     if (st.phase !== 'blue') break;
+    /* 拖曳炮先放列。自战脚本以前从不展开收炮，于是**每一关的蓝方炮兵都是摆设**：
+       炮在行军状态，canFire 判 false，整局一枪不放。红方 AI 是会的（runAI 里有
+       doUnpack），两边不对称，历史达成率里蓝方那一边一直少了一支炮兵。
+       放列占整回合，所以放在策略之前、每回合只做一次。 */
+    for (const u of st.units.filter(x => x.side === 'blue')) {
+      if (api.isTowed(u) && u.packed && !u.moved && !u.fired) api.doUnpack(u);
+    }
     if (kind === 'reach') await blueTurnBreakout();
+    else if (kind === 'escort') await blueTurnEscort();
     else await blueTurnHold();
     if (st.result) break;
     const bs = st.units.filter(u => u.side === 'blue');
@@ -443,6 +500,7 @@ async function playOne(idx) {
     score: api.blueScore(),
     turn: st.turn,
     escaped: api.escapedCount(),
+    escort: api.escortPassed(),
     goal: api.escapeGoal(),
     /* 返回"保住了几个 keep 要点"的数字，**不能返回 "1/1" 这种字符串**。
        上一版返回的是 '0/1'，而 '0/1' 在 JS 里是 truthy——
@@ -477,7 +535,7 @@ async function playOne(idx) {
   const tally = { fail: 0, win: 0, perfect: 0, stuck: 0 };
   const evtTally = {};
   let scoreSum = 0, turnSum = 0, bLoss = 0, rLoss = 0, starveSum = 0, orgSum = 0, fortSum = 0;
-  let escapeSum = 0, keepNone = 0;
+  let escapeSum = 0, escortSum = 0, keepNone = 0;
   const kindSum = {};
   const ctrlTally = {};
   let blueAliveSum = 0, gdnSum = 0;
@@ -494,7 +552,7 @@ async function playOne(idx) {
     for (const e of r.events) evtTally[e] = (evtTally[e] || 0) + 1;
     scoreSum += r.score; turnSum += r.turn;
     scores.push(r.score);
-    escapeSum += r.escaped; if (!r.keepHeld) keepNone++;
+    escapeSum += r.escaped; escortSum += r.escort; if (!r.keepHeld) keepNone++;
     bLoss += r.blueLoss; rLoss += r.redLoss;
     blueAliveSum += r.blueAlive; gdnSum += r.gdnAlive;
     fortAccSum += r.fortAcc; coreAccSum += r.coreAcc;
@@ -538,6 +596,11 @@ async function playOne(idx) {
     console.log('平均得分    ' + (scoreSum / ROUNDS).toFixed(1) + ' / ' + L.winScore);
   } else if (kind === 'reach') {
     console.log('平均撤出    ' + (escapeSum / ROUNDS).toFixed(2) + ' / ' + api.escapeGoal() + ' 支');
+  } else if (kind === 'escort') {
+    const need = (L.win && L.win.need) || 1;
+    const tot = L.units.filter(u => u.side === 'green').length;
+    console.log('平均撤出    ' + (escortSum / ROUNDS).toFixed(2) + ' / ' + need +
+                ' 支（车队共 ' + tot + ' 支）');
   } else if (kind === 'survive') {
     console.log('核心保有    ' + (ROUNDS - keepNone) + ' / ' + ROUNDS + ' 局');
   }

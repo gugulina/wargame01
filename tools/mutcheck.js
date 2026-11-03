@@ -1381,6 +1381,64 @@ const MUTANTS = [
    '    if (o.id === u.id) continue;',
    '步兵师师部一动不动'],
 
+  /* ── v5.1 友军 / 护送 / 特性 / 火箭炮 ──
+     这一批的共同点是"屏幕上不报错"：红方看不见车队、绿方被算成敌军、
+     车队被自己人堵死、邻格没吃到溅射——全都是跑得下去、只是玩法变了的错。 */
+  [' foesOf 退回 other（红方看不见车队，整关没人打车队）',
+   "function foesOf(side) {\n  return state.units.filter(u => hostileSide(u.side, side));\n}",
+   "function foesOf(side) {\n  return state.units.filter(u => u.side === other(side));\n}",
+   '红方看得见车队'],
+
+  ['防御协同只认本阵营（我军贴着车队也帮不上忙）',
+   '  for (const s of friendlySides(side)) for (const a of alive(s)) mates.push(a);',
+   '  for (const a of alive(side)) mates.push(a);',
+   '我军贴着车队就能替它分摊防御'],
+
+  ['绿方也走军事补给场（车队一出生就"断绝"）',
+   "  if (u.side === 'green') return { label: '充足', mod: SUPPLY_MOD['充足'], dist: 0 };",
+   "  if (u.side === 'green' && false) return { label: '充足', mod: SUPPLY_MOD['充足'], dist: 0 };",
+   '车队不吃军事补给'],
+
+  ['绿方也产生控制区（难民堵住补给线）',
+   "    if (u && u.side !== 'green' && hostileSide(u.side, side)) return true;",
+   "    if (u && hostileSide(u.side, side)) return true;",
+   '车队不产生控制区'],
+
+  ['要点控制把绿方算成敌军（车队路过等于丢点）',
+   "      if (u.side === 'blue') b += u.str;\n      else if (u.side === 'red') r += u.str;",
+   "      if (u.side === 'blue') b += u.str; else r += u.str;",
+   '车队站在要点上不算敌军占领'],
+
+  ['车队一个回合只走一格（和关卡数据脱钩）',
+   '  const step = Math.max(1, E.step || 2);',
+   '  const step = 1;',
+   '一个回合走 step 格'],
+
+  ['敌军站在路上也不拦车队（堵路机制整个失效）',
+   "      if (here.some(x => hostileSide(x.side, 'green')) ||\n          here.filter(x => x.side === 'green').length >= STACK_MAX) {\n        blockedAt = blockedAt || cell; break;\n      }",
+   "      if (false) {\n        blockedAt = blockedAt || cell; break;\n      }",
+   '敌军堵住公路，车队一步不动'],
+
+  ['达成线一到就拉幕（看不见还能再送几支）',
+   '    noteEscortGoalReached();\n    return;',
+   "    state.result = 'win';\n    return;",
+   '达成线到了不中途结算'],
+
+  ['超额线的分母算成"场上 + 已撤出"（打掉的车不算数）',
+   "  return (LEVEL.units || []).filter(u => u.side === 'green').length;",
+   "  return alive('green').length + escortPassed();",
+   '超额线的分母是出发时的车队数'],
+
+  ['特性里的攻击修正不生效（卫戍精锐只剩一句文案）',
+   "  attMod += traitSum(att, 'atk');",
+   '  attMod += 0;',
+   '差额就是 0.10'],
+
+  ['火箭炮不再覆盖相邻格（齐射变回单发）',
+   '    if (rocket) {\n      for (const n of neighbors(def.pos[0], def.pos[1])) {',
+   '    if (false) {\n      for (const n of neighbors(def.pos[0], def.pos[1])) {',
+   '相邻格也掉血'],
+
 ];
 
 /* 锚点按 LF 写，但 campaign.html 是 CRLF（7356 行全是）。

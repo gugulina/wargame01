@@ -5,8 +5,8 @@
    为什么是 .js 而不是 .json：项目要能双击直接打开，
    file:// 下 fetch 会被同源策略拦掉，<script src> 不会。 */
 window.CANGYU = {
-  "ver": "v5.0",
-  "srcSig": "501967:1vvnn8x",
+  "ver": "v5.1",
+  "srcSig": "528177:p8lmo2",
   "storage": {
     "save": "wargame.lankou.save",
     "saveVer": 3,
@@ -33,7 +33,7 @@ window.CANGYU = {
       "total": 9,
       "main": 6,
       "sub": 3,
-      "ready": 4
+      "ready": 5
     },
     {
       "no": 3,
@@ -436,8 +436,8 @@ window.CANGYU = {
       "cols": 18,
       "rows": 12,
       "blue": {
-        "cards": 24,
-        "str": 103
+        "cards": 22,
+        "str": 93
       },
       "red": {
         "cards": 15,
@@ -579,18 +579,18 @@ window.CANGYU = {
       "win": "score",
       "perfect": {
         "ok": true,
-        "text": "得分 28 以上（达成线 16）"
+        "text": "得分 28 以上（达成线 20）"
       },
       "turns": 12,
       "cols": 18,
       "rows": 14,
       "blue": {
-        "cards": 19,
-        "str": 75
+        "cards": 17,
+        "str": 63
       },
       "red": {
-        "cards": 15,
-        "str": 78
+        "cards": 16,
+        "str": 88
       }
     },
     {
@@ -631,22 +631,25 @@ window.CANGYU = {
       "when": "新历 1208 年 11 月 20 日",
       "where": "首都圈 · 岚京西郊公路",
       "teaser": "车队有四十公里长，走不快。敌军的侦察机已经在头顶转了两天。",
-      "ready": false,
+      "ready": true,
       "open": false,
-      "prevId": null,
+      "prevId": "C10",
       "noText": "第 5 关 · 附属 · ",
-      "win": "reach",
+      "win": "escort",
       "perfect": {
-        "ok": false,
-        "text": "尚未编成"
+        "ok": true,
+        "text": "把车队全部送出（5 支全到，达成线 3 支）"
       },
+      "turns": 12,
+      "cols": 18,
+      "rows": 16,
       "blue": {
-        "cards": 0,
-        "str": 0
+        "cards": 16,
+        "str": 66
       },
       "red": {
-        "cards": 0,
-        "str": 0
+        "cards": 14,
+        "str": 88
       }
     },
     {

@@ -281,6 +281,8 @@ for (const L of ready) {
   const hqCorps = new Set(L.units.filter(u => HQ_TYPES.includes(u.type)).map(u => u.side + ':' + u.corps));
   for (const u of L.units) {
     if (HQ_TYPES.includes(u.type)) continue;
+    /* 绿方是难民车队，不是军事编制：没有旅部是它的设定，不是数据缺陷。 */
+    if (u.side === 'green') continue;
     if (!hqCorps.has(u.side + ':' + u.corps)) {
       console.log('[提示] ' + tag + ' ' + u.id + '（' + u.name + '）无本部指挥牌，常年脱指（恢复 ' +
         (u.side === 'blue' ? 7 : 12) + '/回合）');
@@ -331,8 +333,60 @@ for (const L of ready) {
       }
     }
   }
-  /* 红方 AI 完全靠 LEVEL.objectives 找目标：一个都没有，全军原地不动 */
-  if (!L.objectives.length) {
+  /* ── 护送关（v5.1）──
+     这一类的胜负挂在"车队走完路径"上，路径写错不会崩，只会让车队原地踏步
+     或者一步跨出地图，所以三条都要在数据层拦：到达线、路径、出口区。 */
+  if (w.kind === 'escort') {
+    const E = L.escort || {};
+    if (!(w.need > 0)) {
+      console.error('[3/4] ' + tag + '：escort 类关卡缺少 need（至少送出去几支）');
+      bad++;
+    }
+    const greens = L.units.filter(u => u.side === 'green');
+    if (!greens.length) {
+      console.error('[3/4] ' + tag + '：escort 类关卡里一支绿方车队都没有');
+      bad++;
+    }
+    if (w.need > greens.length) {
+      console.error('[3/4] ' + tag + '：escort 的 need（' + w.need +
+        '）大于车队总数（' + greens.length + '），这关永远达不成');
+      bad++;
+    }
+    if (!Array.isArray(E.path) || E.path.length < 2) {
+      console.error('[3/4] ' + tag + '：escort 缺少 path（至少两个路径点）');
+      bad++;
+    } else {
+      E.path.forEach((p, i) => {
+        if (!Array.isArray(p) || p.length !== 2 || p[0] < 0 || p[0] >= L.rows ||
+            p[1] < 0 || p[1] >= L.cols) {
+          console.error('[3/4] ' + tag + '：escort.path 第 ' + i + ' 个点不在图上：' + p);
+          bad++;
+          return;
+        }
+        const t = api.TERRAIN[L.map[p[0]][p[1]]];
+        if (t && t.cost >= 99) {
+          console.error('[3/4] ' + tag + '：escort.path 第 ' + i + ' 个点落在车队走不了的地形（' +
+            t.name + '）：' + p[0] + ',' + p[1]);
+          bad++;
+        }
+      });
+    }
+    if (!E.exit) {
+      console.error('[3/4] ' + tag + '：escort 缺少 exit（走到哪里算撤出）');
+      bad++;
+    }
+    /* 车队的 idx 必须落在路径上，否则第一回合会算出"最近点"，
+       表现为车队开局先往回退一格——不报错，只是看起来像卡了。 */
+    for (const g of greens) {
+      if (g.idx !== undefined && (!(g.idx >= 0) || g.idx >= (E.path || []).length)) {
+        console.error('[3/4] ' + tag + '：绿方 ' + g.id + ' 的 idx 超出路径范围：' + g.idx);
+        bad++;
+      }
+    }
+  }
+  /* 红方 AI 完全靠 LEVEL.objectives 找目标：一个都没有，全军原地不动。
+     例外是护送关——那一关的推进轴是车队（aiEscortGoal），不是要点。 */
+  if (!L.objectives.length && w.kind !== 'escort') {
     console.error('[3/4] ' + tag + '：没有要点，红方 AI 会全体停滞');
     bad++;
   }
@@ -386,7 +440,9 @@ for (const L of ready) {
      所以每条 when 都要落到真实存在的东西上：兵牌 id、要点 id、编制代号。 */
   const KNOWN_WHEN = ['turn', 'control', 'allControl', 'corpsBelow', 'unitDead',
                       'unitActed', 'unitAt', 'unitBelow', 'sideBelow', 'firstBlood',
-                      'escaped', 'unitEscaped', 'inZone', 'nearObj'];
+                      'escaped', 'unitEscaped', 'inZone', 'nearObj',
+                      /* v5.1 护送关：已经有 n 支车队走到终点 */
+                      'escortPassed'];
   const unitIds = new Set(L.units.map(u => u.id));
   const objIds = new Set((L.objectives || []).map(o => o.id));
   const corpsIds = new Set(L.units.map(u => u.corps).filter(Boolean));
