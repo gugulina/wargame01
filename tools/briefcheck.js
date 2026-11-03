@@ -1727,6 +1727,33 @@ function skip(name, why) {
     domA.window.close();
   }
 
+  /* ── [29] 兵牌编成归属（v4.27）──
+     A1 联动 / A2 面板 / A4 色带三条都读同一张 LEVEL.corpsName，一起测：
+     色带分不分组、联动对不对、面板说不说得清"这支归谁"。
+     判据不能只写"有两种颜色"——两支编成互换色号它照样绿，所以要钉数量。 */
+  {
+    const domU = new JSDOM(html, {
+      runScripts: 'dangerously', pretendToBeVisual: true, virtualConsole: vc,
+      url: 'http://127.0.0.1/game/campaign.html?lv=C1&demo=unit'
+    });
+    const du = domU.window.document;
+    await wait(900);
+    const mine = [...du.querySelectorAll('#board .unit.blue')];
+    const kinds = [...new Set(mine.map(e => (e.className.match(/ca\d/) || [''])[0]).filter(Boolean))].sort();
+    ok('我方两个编成给出两种色号', kinds.length === 2, kinds.join(' / ') || '一个也没有');
+    /* B1 = 第 1 边防旅，4 支（1H / 1-1 / 1-2 / 1-3），键序第一 → ca0 */
+    const kin4 = mine.filter(e => /ca0/.test(e.className)).length;
+    ok('第 1 边防旅的 4 支同色（色号没串到别的编成）', kin4 === 4, String(kin4));
+    const kin = [...du.querySelectorAll('#board .unit.kin')];
+    ok('选中一支后同编成其余 3 支一并描边', kin.length === 3, String(kin.length));
+    ok('联动描边与色带同色（同一支编成才连）',
+       kin.length > 0 && kin.every(e => /ca0/.test(e.className)),
+       kin.map(e => (e.className.match(/c[ae]\d/) || [''])[0]).join(' '));
+    const boxTxt = (du.getElementById('unitBox') || {}).textContent || '';
+    ok('面板写明「上级」这一行', /上级\s*第 1 边防旅/.test(boxTxt), boxTxt.replace(/\s+/g, ' ').slice(0, 60));
+    domU.window.close();
+  }
+
   console.log('');
   console.log('通过 ' + pass + ' 项' + (skipped ? ' · 跳过 ' + skipped + ' 项' : '') +
               '，失败 ' + fail + ' 项');

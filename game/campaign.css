@@ -259,6 +259,33 @@
     content: ''; position: absolute; inset: 0; border-radius: 3px; pointer-events: none;
     background: repeating-linear-gradient(45deg, rgba(0,0,0,.30) 0 3px, transparent 3px 6px);
   }
+  /* ── 编成归属（色带 + 联动描边）──
+     兵牌 30×26px、代号 8px，放不下第二行字，所以归属只能靠颜色与联动表达：
+     顶部 2px 色条 = 同一个师/旅；选中一支时，同编成其余兵牌描一圈同色虚线。
+     色带放顶部而不是底部：底部已经被组织度条占着，海军还有一条水线。
+     8 色循环（一关最多 12 个编成），只要求"同屏相邻的编成不同色"，
+     不要求全局唯一——真正的辨认线索是 A1 的描边和面板里的「上级」那一行。 */
+  .unit::before {
+    content: ''; position: absolute; left: 1px; right: 1px; top: 1px; height: 2px;
+    border-radius: 2px; background: var(--cgc, transparent); pointer-events: none;
+  }
+  /* 我方（蓝底）暖色板 */
+  .unit.ca0 { --cgc: #FFD24A; }
+  .unit.ca1 { --cgc: #FF9F45; }
+  .unit.ca2 { --cgc: #FFFFFF; }
+  .unit.ca3 { --cgc: #8CE99A; }
+  .unit.ca4 { --cgc: #FFB3D9; }
+  .unit.ca5 { --cgc: #D6D3C8; }
+  /* 敌方（红底）冷色板 */
+  .unit.ce0 { --cgc: #4FD1C5; }
+  .unit.ce1 { --cgc: #9AD0FF; }
+  .unit.ce2 { --cgc: #D9B3FF; }
+  .unit.ce3 { --cgc: #FFFFFF; }
+  .unit.ce4 { --cgc: #B2F2BB; }
+  .unit.ce5 { --cgc: #FFE066; }
+  /* 同编成联动。放在 .unit.sel 之前：两者会同时命中同一支兵牌，
+     后定义的 sel 实线框要盖住这里的虚线框。 */
+  .unit.kin { outline: 2px dashed var(--cgc, #6B6A63); outline-offset: 1px; }
   .unit.sel { outline: 2px solid #1F1E1A; outline-offset: 1px; box-shadow: 0 0 0 4px rgba(31,30,26,.16); }
   .unit .n { font-size: 8px; letter-spacing: -.3px; opacity: .95; }
   .unit .s { font-size: 10px; font-weight: 800; line-height: 1.05; }
