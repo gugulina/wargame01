@@ -3382,8 +3382,10 @@ console.log('\n[46] 炮兵分摊 / 多面进攻 / 指挥部防炮 / 教学关封
        v1.org + ' / ' + v2.org);
     /* "相差不超过 1"拦不住"都掉全额"的 mutant——账目必须对上：
        战报里写着面上损失 X 与各支份额，份额合计必须等于 X。 */
-    const lm = S.log.map(l => l.text).reverse().find(t => t.indexOf('按战力分摊') >= 0);
-    const mm = /面上 -(\d+)（(\d+) 支按战力分摊 ([\d\s\/]+)）/.exec(lm || '');
+    /* 战报改成战报体之后写的是「面上 −3（2 部分担 1 / 2）」。
+       判据不能松成"出现面上损失"——那样"每支各掉一份"也能通过。 */
+    const lm = S.log.map(l => l.text).reverse().find(t => t.indexOf('部分担') >= 0);
+    const mm = /面上 −(\d+)（(\d+) 部分担 ([\d\s\/]+)）/.exec(lm || '');
     ok('炮击战报给出逐支份额', !!mm, lm);
     if (mm) {
       const dealt = Number(mm[1]);
@@ -3458,8 +3460,8 @@ console.log('\n[46] 炮兵分摊 / 多面进攻 / 指挥部防炮 / 教学关封
     ok('打行军状态的拖曳炮：攻方零损失（对方没还手）',
        gunner.str === gBefore, gBefore + ' → ' + gunner.str);
     const hitLogs = S.log.slice(logBefore).map(l => String(l.text || ''));
-    ok('战报写明「对方无法反击」',
-       hitLogs.some(t => t.indexOf('对方无法反击') >= 0), hitLogs.join(' | '));
+    ok('战报写明「对方未能还手」',
+       hitLogs.some(t => t.indexOf('对方未能还手') >= 0), hitLogs.join(' | '));
     /* 对照：同一门炮展开后就能还手。
        没有这条，"canCounter 恒返回 false"也能让上面两条全绿。 */
     towed.packed = false;
@@ -4572,7 +4574,9 @@ console.log('\n[54] 端到端：夺取型 runAI 把攻坚令带进开火流程�
   const before = blue.str;
   api.setRng(() => 0.9);
   await api.endBluePhase();
-  const attacked = api.getState().log.some(l => l.text.indexOf('攻击') >= 0);
+  /* 战报体里是「1-2 攻 14-5」，不再写「攻击」。判据跟着改，但仍然是
+     "这一枪留了记录"，不是"伤害掉了"——两者一起绿才算真的开了火。 */
+  const attacked = api.getState().log.some(l => l.text.indexOf(' 攻 ') >= 0);
   ok('端到端：夺取型 runAI 把攻坚令带进开火流程',
      blue.str < before && attacked,
      '守军 ' + before + '→' + blue.str + ' / 战报 ' + attacked);
@@ -4791,7 +4795,7 @@ console.log('\n[54] 端到端：夺取型 runAI 把攻坚令带进开火流程�
       ok('带追击令时 doAttack 放行', api.doAttack(weak, strong, { hunt: true }) !== false);
       ok('追击伤害真的落地', strong.str < before, before + '→' + strong.str);
       ok('带追击令的攻击仍然允许对方反击',
-         api.getState().log.some(l => l.text.indexOf('攻击') >= 0));
+         api.getState().log.some(l => l.text.indexOf(' 攻 ') >= 0));
     }
   }
 
