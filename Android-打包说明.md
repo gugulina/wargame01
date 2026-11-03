@@ -1,17 +1,14 @@
 # Android 打包说明
 
-> **v4.16（2026-10-29）只改了 `build.gradle` 的版本号（versionCode 10 / versionName 4.16），
-> 没有出包。** 当前发布物仍是下面的 v9，它装的是 v4.15 引擎。
-> 下包之前先把这一行连同 §四 的清单一起对一遍——gradle 已经比包超前一个版本，
-> 直接 `cap copy` + 构建出来的 v10 才是 4.16。
+> **v4.17–v4.26 之间没出过包**，versionCode 是手改的，从 10 一路涨到 18。
+> v19 是第一个真正装着 4.27 引擎的包；它不是 v9 的下一版，中间隔了十个版本。
 
-**当前包**：`苍屿战役-v9.apk`（versionCode 9 / versionName 4.15）· 7,743,691 字节 ≈ 7.4 MiB
-**上一版**：v8（versionCode 8 / versionName 4.14）· 7,736,355 字节 —— v9 净增 7,336 字节
-（新增的是 `data/notes.js`（12,456 字节）与菜单页公告面板；这是 `clean assembleDebug` 的数字，
-增量构建量出来会大 42 KB，原因见 §二 的那条注）
-**再上一版**：v7（versionCode 7 / versionName 4.13）· 7,722,590 字节
-**更早**：v6（versionCode 6 / versionName 4.12）· 7.4 MB；v5（versionCode 5）· 26 MB
-—— 体积差的不是优化，是 v5 把开发 leftovers 打进了包
+**当前包**：`苍屿战役-v19.apk`（versionCode 19 / versionName 4.27）· 7,849,232 字节 ≈ 7.49 MiB
+**上一版**：v9（versionCode 9 / versionName 4.15）· 7,743,691 字节 —— v19 净增 105,541 字节
+（跨了十个版本：中间补了关卡、兵种与公告，`data/notes.js` 现在 32 条、README 到 90 KB。
+这是 `clean assembleDebug` 的数字；与 v9 的差值里含版本公告面板和几版关卡数据）
+**更早**：v8 · 7,736,355 ｜ v7 · 7,722,590 ｜ v6 · 7.4 MB ｜ v5 · 26 MB
+—— v5 那 26 MB 不是优化问题，是把开发 leftovers 打进了包
 **构建**：Capacitor 8.5.3 + Gradle 8.14.3 + JDK 21 + Android SDK 36
 
 > 这份文档原先叫"测试报告"，里面有一批数对不上（写 Capacitor 7 实际是 8.5.3、写最低 API 21
@@ -54,6 +51,16 @@ cd android && ./gradlew clean assembleDebug   # 发版加 clean
 > 压缩比/对齐差异。所以：**体积只有在 clean 构建之间才可比**，验收看内容不看体积。
 
 产物：`android/app/build/outputs/apk/debug/app-debug.apk`
+
+**v19 的构建实测（2026-11-03）**：
+
+- 耗时 `clean assembleDebug` 2 分 29 秒，97 个 task（88 执行 / 9 命中缓存）
+- `aapt dump badging`：`versionCode='19' versionName='4.27'`、`sdkVersion:'24'`、`targetSdkVersion:'36'`、label `苍屿战役`
+- 包内 `assets/public/game/campaign.html` 的 `#verTag` 是 `v4.27`（不是构建时读的 config，是拷进去的那份字节）
+- 解包与 `www/` 逐文件 `diff -rq`：**实质差异 0**。
+  只有三项在预期内——`www/.manifest.json` 不进包（构建清单）、包内多出 Capacitor 注入的
+  `cordova.js` 与 `cordova_plugins.js`
+- 45 个 web 文件 / 4.4 MB 目录；APK 7.49 MiB
 
 环境（本机实测）：
 
@@ -161,6 +168,6 @@ node tools/build-www.js --check   # 只校验（已挂进 npm test）
 
 1. `npm test` 全绿（含 `[www]` 那行）
 2. `npm run www` 重建
-3. `android/app/build.gradle` 里 `versionCode` +1
+3. `android/app/build.gradle` 里 `versionCode` +1、`versionName` 改成新版本号（build-www --check 会核）
 4. `npx cap copy android && cd android && ./gradlew assembleDebug`
 5. 装到真机，确认：能启动、有声音、能存档、切后台回来进度还在
