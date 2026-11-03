@@ -68,8 +68,8 @@ const MUTANTS = [
    '普通地面炮兵列不出空中目标'],
 
   ['空中也吃 ZOC（computeReach 里去掉 air 豁免）',
-   'if (air || !inEnemyZOC(nr, nc, u.side)) pool.push([nd, nr, nc]);',
-   'if (!inEnemyZOC(nr, nc, u.side)) pool.push([nd, nr, nc]);',
+   'if (air || zocFree || !inEnemyZOC(nr, nc, u.side)) pool.push([nd, nr, nc]);',
+   'if (zocFree || !inEnemyZOC(nr, nc, u.side)) pool.push([nd, nr, nc]);',
    '空中：同起点同预算能飞到'],
 
   ['select 去掉 null 兜底（截图钩子取不到单位就崩）',
@@ -572,8 +572,8 @@ const MUTANTS = [
 
   /* ── v4.18 ── */
   ['炮兵分摊退回单体（堆叠格每支各吃全额）',
-   '  const shares = splash ? splashSplit(defLoss, victims) : [defLoss];',
-   '  const shares = splash ? victims.map(() => defLoss) : [defLoss];',
+   '      shares = shares.concat(splashSplit(g.dmg, us));',
+   '      shares = shares.concat(us.map(() => g.dmg));',
    '不等战力堆叠：战力 4 的那支最多吃 2 点'],
 
   /* 按比例 → 平均分：两支 2 / 6 挨 4 点，平均分是 2 / 2，比例分才是 1 / 3 */
@@ -1037,8 +1037,8 @@ const MUTANTS = [
      锚点跟着改。只改前半句会**找不到**——失效的锚点报的是 "?" 不是 "✗"，
      跑全量时很容易被当成"零假防线"放过去（MEMORY 里记着这条）。 */
   ['追击走位不往敌军压（沿途遭遇变成路过）',
-   '  if (chase) {\n    let mind = Infinity;\n    for (const f of alive(other(u.side))) mind = Math.min(mind, hexDist(p, f.pos));\n    if (mind < Infinity) s -= Math.min(mind, 8) * HUNT_PULL;\n  }',
-   '  if (false) {\n    let mind = Infinity;\n    for (const f of alive(other(u.side))) mind = Math.min(mind, hexDist(p, f.pos));\n    if (mind < Infinity) s -= Math.min(mind, 8) * HUNT_PULL;\n  }',
+   '  if (chase) {\n    let mind = Infinity;\n    for (const f of foesOf(u.side)) mind = Math.min(mind, hexDist(p, f.pos));\n    if (mind < Infinity) s -= Math.min(mind, 8) * HUNT_PULL;\n  }',
+   '  if (false) {\n    let mind = Infinity;\n    for (const f of foesOf(u.side)) mind = Math.min(mind, hexDist(p, f.pos));\n    if (mind < Infinity) s -= Math.min(mind, 8) * HUNT_PULL;\n  }',
    '追击给贴近敌军的落点加分'],
 
   /* 开火门槛不归零：兵力 2 倍还在挑性价比 */
@@ -1467,9 +1467,19 @@ function htmlPointingToMutAi(html) {
 }
 
 const GREP = (process.argv.find(a => a.startsWith('--grep=')) || '').slice(7);
+/* --shard=k/n：只跑下标 k, k+n, k+2n… 的条目，用来把全量拆成几份并行跑。
+   231 条串行要两个多小时，改一条断言根本等不起；拆四份各自独立进程，
+   彼此只读自己的临时文件（拷一份仓库跑），互不干扰。 */
+const SHARD = (() => {
+  const a = (process.argv.find(x => x.startsWith('--shard=')) || '').slice(8);
+  const m = /^(\d+)\/(\d+)$/.exec(a);
+  return m ? { k: Number(m[1]), n: Number(m[2]) } : null;
+})();
 let bad = 0, fromAi = 0;
 try {
-  for (const [name, old, neu, expect, runner] of MUTANTS) {
+  for (let mi = 0; mi < MUTANTS.length; mi++) {
+    const [name, old, neu, expect, runner] = MUTANTS[mi];
+    if (SHARD && mi % SHARD.n !== SHARD.k) continue;
     if (GREP && name.indexOf(GREP) < 0) continue;
     let anchor = resolve(baseHtml, old, neu);
     let where = 'html';
