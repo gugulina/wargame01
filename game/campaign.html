@@ -58,7 +58,7 @@
      <link> 不会——跟 data/levels.js 必须用 <script src> 是同一个原因。
      ?v= 跟着顶栏版本走（tools/check.js 校验），否则改完样式玩家可能还在吃
      GitHub Pages 的十分钟缓存，看到的是一半新一半旧的页面。 -->
-<link rel="stylesheet" href="campaign.css?v=4.27">
+<link rel="stylesheet" href="campaign.css?v=5.0">
 <!-- 版本公告数据与菜单页共用一份（HQ 的「版本公告」页签读它）。
      放在 <head> 里同步加载：页签是玩家点了才渲染的，但真读不到时那一页要能
      说清"文件缺了"，而不是显示一片空白——异步加载失败是静默的。 -->
@@ -76,7 +76,7 @@
       <span class="pill" id="phasePill">我方阶段</span>
       <!-- 全项目唯一的版本标记：tools/export-levels.js 按这个 span 的原样文本抓版本号，
            开始页撤掉之后它挪到了顶栏，标签必须保持 <span id="verTag"> 这个形状 -->
-      <span id="verTag">v4.27</span>
+      <span id="verTag">v5.0</span>
       <!-- 存档异常：只在真的写失败时出现（隐私模式 / 配额满 / 被清理）。
            默认 display:none，别让它平时占位——一排胶囊里突然多一个红字，
            玩家第一反应是"我是不是哪里点坏了"。 -->
@@ -341,7 +341,7 @@
      引擎顶层的 window.__WAR__ 导出表直接引用 runAI / huntContact 等 38 个符号，
      那些是 function 声明，AI 后加载就会在导出那一刻报 ReferenceError；
      反过来 AI 引用引擎的 state / LEVEL / TYPE 全在函数体内，调用时才解析。 -->
-<script src="ai.js?v=4.27"></script>
+<script src="ai.js?v=5.0"></script>
 
 <script>
 /* ───────────────────────── 地形 ───────────────────────── */
@@ -3694,8 +3694,8 @@ const LEVELS = [
        位置刻意放在 63 炮兵营后面 3 格：既要罩住炮兵，又不能在第一天就被摸掉。 */
     { id:'R1S', side:'red', abbr:'63辎', name:'敌第 63 步兵师辎重队',            type:'sup', str:3, mov:8, rng:0, r:1, c:10, corps:'R1', wave:1 },
     { id:'R1A', side:'red', abbr:'63-1', name:'敌第 187 步兵团第 1 营',          type:'inf', str:8, mov:6, rng:1, r:2, c:6,  corps:'R1', wave:1 },
-    { id:'R1B', side:'red', abbr:'63-2', name:'敌第 187 步兵团第 2 营',          type:'inf', str:8, mov:6, rng:1, r:2, c:7,  corps:'R1', wave:1 },
-    { id:'R1C', side:'red', abbr:'63-3', name:'敌第 188 步兵团第 1 营',          type:'inf', str:8, mov:6, rng:1, r:2, c:9,  corps:'R1', wave:1 },
+    { id:'R1B', side:'red', abbr:'63-2', name:'敌第 187 步兵团第 2 营',          type:'inf', str:7, mov:6, rng:1, r:2, c:7,  corps:'R1', wave:1 },
+    { id:'R1C', side:'red', abbr:'63-3', name:'敌第 188 步兵团第 1 营',          type:'inf', str:7, mov:6, rng:1, r:2, c:9,  corps:'R1', wave:1 },
     { id:'R1D', side:'red', abbr:'63-4', name:'敌第 188 步兵团第 2 营（摩步）',    type:'mob', str:8, mov:8, rng:1, r:2, c:10, corps:'R1', wave:1 },
     { id:'R1F', side:'red', abbr:'63炮', name:'敌第 63 步兵师炮兵营',            type:'art', str:5, mov:6, rng:5, r:1, c:7,  corps:'R1', wave:1, packed:1 },
     { id:'R1G', side:'red', abbr:'63-5', name:'敌第 188 步兵团第 3 营',          type:'inf', str:6, mov:6, rng:1, r:3, c:11, corps:'R1', wave:1 },
@@ -3724,8 +3724,245 @@ const LEVELS = [
   id: 'C7', ch: 2, no: 1, name: '岚京北郊', type: '防御',
   when: '新历 1208 年 9 月 12 日', where: '首都圈 · 岚京北郊',
   teaser: '敌人的侦察兵已经能看见城里的钟楼。北郊这几个村子，是首都最后一道门槛。',
-  ready: false,
-  win: { kind: 'survive' }
+  ready: true,
+  win: { kind: 'survive', keep: ['vN'] },
+  prev: {
+    win:  '北郊防线守住了，敌人在城下停了十二天。这十二天里，城里的医院和电台往南撤空了。',
+    fail: '北郊防线没能守住，敌人的前锋当天就看见了城墙。撤进城里的部队只剩编制的一半。'
+  },
+  intro: [
+    '九月 · 阴。从北郊防线撤下来十二天，人还没补齐，敌人已经到了。',
+    '第 301 预备役步兵师在北郊打光了两个团。撤下来的只有师部和三个不满员的营，一个营不到两百人。',
+    '第 102 步兵师剩下一个营、一个反坦克连、一个工兵连。第 204 装甲旅剩一个中坦营和一个侦察营。',
+    '首都卫戍第 1 旅第一次上前线：三个守备营，平时守的是仓库、电台和军械库。他们没挨过炮。',
+    '军校生旅还剩两个营和一个学员连。这支旅能在阵地上自己恢复组织度，哪一段塌了就往哪一段填。',
+    '任务：坚守 12 回合，北郊两座村子必须始终在我方手中。全军被歼即判负。',
+    '西北村是主阵地，必须守住；东北村是前哨，丢了不算失守，但主阵地的侧翼会露出来。',
+    '公路从北面直通城墙正门。中央路口一丢，装甲就能顺着公路开到城门底下。反坦克连摆在路口两侧。',
+    '敌装甲第 2 师第 5 回合到，独立重炮群第 9 回合开始压制。重炮不打步兵，专挑炮兵阵地和指挥部。'
+  ],
+  maxTurns: 12,
+  cols: 18,
+  rows: 12,
+  blueSources: [[11, 8]],
+  redSource: [0, 8],
+  forts: [
+    { r: 4, c: 2,  side: 'blue', kind: 'H' },
+    { r: 4, c: 15, side: 'blue', kind: 'H' },
+    { r: 8, c: 2,  side: 'blue', kind: 'B' },
+    { r: 6, c: 8,  side: 'blue', kind: 'B' },
+    { r: 9, c: 9,  side: 'blue', kind: 'F' },
+    { r: 10, c: 11, side: 'blue', kind: 'F' }
+  ],
+  map: [
+    '..................',
+    '..ff....##....ff..',
+    '..ff....##....ff..',
+    '....hh..##..hh....',
+    '..tt....##....tt..',
+    '..tt....##....tt..',
+    '..############....',
+    '..ff....##....ff..',
+    '..hh....##....hh..',
+    '..tttt..##..tttt..',
+    '..tttt..##..tttt..',
+    '..................'
+  ],
+  objectives: [
+    { id: 'vN', name: '北郊西北村', vp: 10, core: true, rule: 'contest', kind: 'town',
+      cells: [[4,2],[4,3],[5,2],[5,3]] },
+    { id: 'vE', name: '北郊东北村', vp: 10, core: false, rule: 'contest', kind: 'town',
+      cells: [[4,14],[4,15],[5,14],[5,15]] },
+    { id: 'cross', name: '中央公路口', vp: 10, core: false, kind: 'road',
+      cells: [[6,8],[6,9],[7,8],[7,9]] },
+    { id: 'south', name: '南郊高地', vp: 10, core: false, kind: 'hill',
+      cells: [[8,4],[8,5],[9,4],[9,5]] }
+  ],
+  events: [
+    {
+      id: 'first_shot', desc: '城郊接敌',
+      when: { kind: 'firstBlood' },
+      effects: [
+        { kind: 'say', beats: [
+          { who: '首都卫戍第 1 旅 · 旅长', side: 'blue', portrait: 'portBlue',
+            text: '我的人守过仓库，守过电台，没守过阵地。\n给我们一段墙，我们就不走。' },
+          { who: '第 102 步兵师 · 师部', side: 'blue', portrait: 'portHQ',
+            text: '从波尔瓦萨退到这儿，一千二百公里。\n再退就是城门了。这一站，站住。' }
+        ] }
+      ]
+    },
+    {
+      id: 'first_push', desc: '敌军全线压上',
+      when: { kind: 'turn', turn: 4 },
+      effects: [
+        { kind: 'log', text: '敌军两个团同时压上，两座村子南北受敌。前沿的新兵打光了第一个弹药基数。', cls: 'hi' },
+        { kind: 'org', side: 'blue', delta: -3 }
+      ]
+    },
+    {
+      id: 'village_n_lost', desc: '西北村失守（稀有分支）',
+      rare: true,
+      when: { kind: 'control', obj: 'vN', side: 'red' },
+      effects: [
+        { kind: 'log', text: '西北村丢了。敌人把机枪架在村口的二层楼上，整条公路都在它眼皮底下。', cls: 'r' },
+        { kind: 'org', side: 'blue', delta: -5 }
+      ]
+    },
+    {
+      id: 'village_e_lost', desc: '东北村失守（稀有分支）',
+      rare: true,
+      when: { kind: 'control', obj: 'vE', side: 'red' },
+      effects: [
+        { kind: 'log', text: '东北村丢了。防线成了一个斜口，南郊高地的侧翼露了出来。', cls: 'r' },
+        { kind: 'org', side: 'blue', delta: -5 }
+      ]
+    },
+    {
+      id: 'armor_here', desc: '装甲师投入',
+      when: { kind: 'unitActed', id: 'R2A', act: 'fire' },
+      effects: [
+        { kind: 'banner', text: '敌装甲第 2 师投入战斗', cls: 'r', ms: 2400 },
+        { kind: 'log', text: '坦克从公路两侧的树林里出来，炮口对着村口。反坦克连的射界只有一格，等它们进路口。', cls: 'r' },
+        { kind: 'sfx', name: 'alarm' },
+        { kind: 'org', side: 'blue', delta: -4 }
+      ]
+    },
+    {
+      id: 'last_hours', desc: '最后四个小时',
+      when: { kind: 'turn', turn: 11 },
+      effects: [
+        { kind: 'log', text: '无线电：城防司令部把最后两个补充营拨过来了，天亮前到。再撑四个回合。', cls: 'b' },
+        { kind: 'org', side: 'blue', delta: 6 }
+      ]
+    }
+  ],
+  story: {
+    briefing: {
+      pages: [
+        {
+          order: '作战命令 · 第 47 号',
+          kicker: '战役态势',
+          title: '城下的十四个回合',
+          paras: [
+            { t: '从波尔瓦萨一路退到岚京，一千二百公里。北郊防线是最后一道野战线。' },
+            { t: '能填上来的只有首都卫戍第 1 旅：三个守备营，平时守仓库和电台，没挨过炮。', hl: true },
+            { t: '打过仗的是第 102 步兵师剩下的一个营、第 204 装甲旅的一个中坦营和一个侦察营。' },
+            { t: '军校生旅还剩两个营和一个学员连。**他们能在阵地上自己恢复组织度**，哪一段塌了就往哪一段填。', hl: true }
+          ],
+          nums: [
+            { k: '部队', v: '22' },
+            { k: '回合', v: '12' },
+            { k: '村子', v: '2 座' }
+          ]
+        },
+        {
+          order: '防线要图 · 附页',
+          kicker: '地形',
+          title: '两座村子，一条公路',
+          paras: [
+            { t: '西北村是**主阵地**，必须守到最后一回合。东北村是前哨，丢了不算失守，但会扣组织度、也会让主阵地侧翼露出来。', hl: true },
+            { t: '村子是巷战地形，防御 0.85，村口有堑壕。守备营在村里战力 7 → 10，出村就是普通预备役。', hl: true },
+            { t: '公路从北面直通城门。中央路口一丢，装甲顺着公路就开到城墙底下。反坦克连摆路口两侧，射界只有一格。' }
+          ],
+          nums: [
+            { k: '村内防御', v: '0.85' },
+            { k: '堑壕加成', v: '+0.15' },
+            { k: '守备营', v: '7 → 10' }
+          ]
+        },
+        {
+          order: '任务简报',
+          kicker: '你的任务',
+          title: '别让装甲进城',
+          paras: [
+            { t: '第 12 回合结束、西北村还在我方手里，算达成；全军打光当场判负。' },
+            { t: '敌军两波：第 63 步兵师（开局）、近卫装甲第 2 师（第 5 回合），独立重炮群第 9 回合开始压制。' },
+            { t: '重炮不打步兵，专挑炮兵阵地和指挥部。炮兵打完就挪，指挥部离前线远一点。', hl: true }
+          ],
+          nums: [
+            { k: '回合', v: '12' },
+            { k: '敌军波次', v: '3' },
+            { k: '主阵地', v: '不能丢' }
+          ]
+        }
+      ],
+      beats: [
+        { who: '首都卫戍第 1 旅 · 旅长', side: 'blue', portrait: 'portBlue',
+          text: '我的人守过仓库，守过电台，没守过阵地。\n给我们一段墙，我们就不走。' },
+        { who: '第 102 步兵师 · 师部', side: 'blue', portrait: 'portHQ',
+          text: '从波尔瓦萨退到这儿，一千二百公里。\n再退就是城门了。这一站，站住。' },
+        { who: '敌第 63 步兵师 · 前沿无线电', side: 'red', portrait: 'portRed',
+          text: '他们在村子里摆了人。\n那就先把村子烧了。' }
+      ]
+    }
+  },
+  corpsName: {
+    E1: '第 301 预备役步兵师', E2: '第 102 步兵师', E3: '第 204 装甲旅',
+    E4: '首都军校生旅', E5: '首都卫戍第 1 旅',
+    R1: '敌第 63 步兵师', R2: '敌近卫装甲第 2 师', R3: '敌独立重炮群'
+  },
+  units: [
+    /* ── 我方 · 第 301 预备役步兵师（北郊打光两个团，剩三个不满员的营） ── */
+    { id:'E1H', side:'blue', abbr:'301H',  name:'新编第 301 预备役步兵师师部',      type:'hqd',  str:2, mov:8, rng:0, r:8,  c:10, corps:'E1', wave:1 },
+    { id:'E1A', side:'blue', abbr:'901-1', name:'第 901 团第 1 营残部',            type:'inf',  str:5, mov:6, rng:1, r:5,  c:2,  corps:'E1', wave:1 },
+    { id:'E1B', side:'blue', abbr:'901-2', name:'第 901 团第 2 营残部',            type:'inf',  str:5, mov:6, rng:1, r:5,  c:3,  corps:'E1', wave:1 },
+    { id:'E1C', side:'blue', abbr:'902-1', name:'第 902 团第 1 营残部',            type:'inf',  str:5, mov:6, rng:1, r:5,  c:14, corps:'E1', wave:1 },
+    { id:'E1D', side:'blue', abbr:'902-2', name:'第 902 团第 2 营残部',            type:'inf',  str:5, mov:6, rng:1, r:5,  c:15, corps:'E1', wave:1 },
+    { id:'E1E', side:'blue', abbr:'903-1', name:'第 903 团第 1 营残部',            type:'inf',  str:5, mov:6, rng:1, r:6,  c:3,  corps:'E1', wave:1 },
+    { id:'E1F', side:'blue', abbr:'301炮', name:'新编第 301 预备役步兵师炮兵营',    type:'art',  str:4, mov:6, rng:5, r:10, c:10, corps:'E1', wave:1, packed:1 },
+
+    /* ── 我方 · 第 102 步兵师残部 ── */
+    { id:'E2H', side:'blue', abbr:'102H',  name:'第 102 步兵师师部',              type:'hqd', str:2, mov:8, rng:0, r:10, c:9,  corps:'E2', wave:1 },
+    { id:'E2A', side:'blue', abbr:'304-1', name:'第 304 步兵团第 1 营残部',        type:'inf', str:4, mov:6, rng:1, r:6,  c:7,  corps:'E2', wave:1 },
+    { id:'E2T', side:'blue', abbr:'102反', name:'第 102 步兵师反坦克连',          type:'at',  str:3, mov:5, rng:1, r:7,  c:10, corps:'E2', wave:1 },
+    { id:'E2E', side:'blue', abbr:'102工', name:'第 102 步兵师工兵连',            type:'engc',str:2, mov:6, rng:1, r:10, c:11, corps:'E2', wave:1 },
+    { id:'E2G', side:'blue', abbr:'102高', name:'第 102 步兵师师属高炮连',        type:'aac', str:3, mov:6, rng:2, r:9,  c:9,  corps:'E2', wave:1 },
+
+    /* ── 我方 · 第 204 装甲旅残部 ── */
+    { id:'E3H', side:'blue', abbr:'204H',  name:'第 204 装甲旅旅部',              type:'hqb',  str:2, mov:8,  rng:0, r:10, c:7,  corps:'E3', wave:1 },
+    { id:'E3A', side:'blue', abbr:'204-1', name:'第 204 装甲旅第 1 营（中坦）残部', type:'marm', str:6, mov:10, rng:1, r:8,  c:7,  corps:'E3', wave:1 },
+    { id:'E3C', side:'blue', abbr:'204侦', name:'第 204 装甲旅侦察营（轻坦）残部',  type:'larm', str:5, mov:12, rng:1, r:7,  c:7,  corps:'E3', wave:1 },
+
+    /* ── 我方 · 首都军校生旅（自带组织度恢复） ── */
+    { id:'E4H', side:'blue', abbr:'军校H',  name:'首都军校生旅旅部',              type:'hqb',  str:2, mov:8, rng:0, r:9,  c:11, corps:'E4', wave:1 },
+    { id:'E4A', side:'blue', abbr:'军校-1', name:'首都军校生旅第 1 营',            type:'inf',  str:6, mov:6, rng:1, r:5,  c:4,  corps:'E4', wave:1, traits:['cadet'] },
+    { id:'E4B', side:'blue', abbr:'军校-2', name:'首都军校生旅第 2 营',            type:'inf',  str:5, mov:6, rng:1, r:5,  c:13, corps:'E4', wave:1, traits:['cadet'] },
+    { id:'E4C', side:'blue', abbr:'炮校生', name:'首都炮兵指挥学院学员连',        type:'inf',  str:4, mov:6, rng:1, r:6,  c:6,  corps:'E4', wave:1, traits:['cadet'] },
+
+    /* ── 我方 · 首都卫戍第 1 旅（第一次上前线） ── */
+    { id:'E5H', side:'blue', abbr:'卫戍H',  name:'首都卫戍第 1 旅旅部',            type:'hqb',  str:2, mov:8, rng:0, r:10, c:8,  corps:'E5', wave:1 },
+    { id:'E5A', side:'blue', abbr:'卫1-1', name:'首都卫戍第 1 团第 1 营',          type:'gdn',  str:7, mov:6, rng:1, r:4,  c:4,  corps:'E5', wave:1 },
+    { id:'E5B', side:'blue', abbr:'卫1-2', name:'首都卫戍第 1 团第 2 营',          type:'gdn',  str:7, mov:6, rng:1, r:4,  c:13, corps:'E5', wave:1 },
+    { id:'E5C', side:'blue', abbr:'卫1-3', name:'首都卫戍第 1 团第 3 营',          type:'gdn',  str:6, mov:6, rng:1, r:8,  c:12, corps:'E5', wave:1 },
+    { id:'E5D', side:'blue', abbr:'卫2-1', name:'首都卫戍第 2 团第 1 营',          type:'gdn',  str:6, mov:6, rng:1, r:5,  c:5,  corps:'E5', wave:1 },
+
+    /* ── 敌方 · 第一波 · 第 63 步兵师 ── */
+    { id:'R1H', side:'red', abbr:'63H',  name:'敌第 63 步兵师师部',              type:'hqd', str:2, mov:8, rng:0, r:1, c:8,  corps:'R1', wave:1 },
+    { id:'R1S', side:'red', abbr:'63辎', name:'敌第 63 步兵师辎重队',            type:'sup', str:3, mov:8, rng:0, r:1, c:10, corps:'R1', wave:1 },
+    { id:'R1A', side:'red', abbr:'63-1', name:'敌第 187 步兵团第 1 营',          type:'inf', str:8, mov:6, rng:1, r:2, c:6,  corps:'R1', wave:1 },
+    { id:'R1B', side:'red', abbr:'63-2', name:'敌第 187 步兵团第 2 营',          type:'inf', str:8, mov:6, rng:1, r:2, c:7,  corps:'R1', wave:1 },
+    { id:'R1C', side:'red', abbr:'63-3', name:'敌第 188 步兵团第 1 营',          type:'inf', str:8, mov:6, rng:1, r:2, c:10, corps:'R1', wave:1 },
+    { id:'R1D', side:'red', abbr:'63-4', name:'敌第 188 步兵团第 2 营（摩步）',    type:'mob', str:8, mov:8, rng:1, r:2, c:11, corps:'R1', wave:1 },
+    { id:'R1F', side:'red', abbr:'63炮', name:'敌第 63 步兵师炮兵营',            type:'art', str:5, mov:6, rng:5, r:1, c:7,  corps:'R1', wave:1, packed:1 },
+    { id:'R1G', side:'red', abbr:'63-5', name:'敌第 188 步兵团第 3 营',          type:'inf', str:6, mov:6, rng:1, r:3, c:9,  corps:'R1', wave:1 },
+
+    /* ── 敌方 · 第二波 · 近卫装甲第 2 师（第 5 回合，沿公路冲） ── */
+    /* 装甲波次摆在**中路**，不抄西翼：全压西边会让西北村 4 支守军顶 5 支装甲，
+       实测那一路 97% 丢掉，而东翼 100% 守住——两翼一死一活，不是难度问题，是轴线问题。 */
+    { id:'R2H', side:'red', abbr:'2H',   name:'敌近卫装甲第 2 师师部',            type:'hqd',  str:2, mov:8,  rng:0, r:0, c:8, corps:'R2', wave:2 },
+    { id:'R2A', side:'red', abbr:'2-1',  name:'敌近卫装甲第 5 团第 1 营（中坦）',  type:'marm', str:12, mov:10, rng:1, r:0, c:9, corps:'R2', wave:2 },
+    { id:'R2B', side:'red', abbr:'2-2',  name:'敌近卫装甲第 5 团第 2 营（中坦）',  type:'marm', str:11, mov:10, rng:1, r:0, c:10, corps:'R2', wave:2 },
+    { id:'R2C', side:'red', abbr:'2-4',  name:'敌近卫装甲第 6 团第 2 营（装步）',  type:'mech', str:10, mov:8,  rng:1, r:1, c:9, corps:'R2', wave:2 },
+    { id:'R2F', side:'red', abbr:'2炮',  name:'敌近卫装甲第 2 师自行火炮营',      type:'spa',  str:5,  mov:8,  rng:4, r:0, c:7, corps:'R2', wave:2 },
+
+    /* ── 敌方 · 第三波 · 独立重炮群（第 9 回合，专打炮兵与指挥部） ── */
+    { id:'R3H', side:'red', abbr:'重炮H', name:'敌独立重炮群群部',                type:'hkg', str:2, mov:8, rng:0, r:0, c:13, corps:'R3', wave:3 },
+    { id:'R3A', side:'red', abbr:'重-1', name:'敌独立重炮群第 1 营',              type:'hr',  str:6, mov:5, rng:9, r:1, c:13, corps:'R3', wave:3, packed:1 }
+  ],
+  waves: [
+    { wave: 2, turn: 6, text: '敌军近卫装甲第 2 师沿公路压上来，矛头对着中央路口。' },
+    { wave: 3, turn: 10, text: '敌军独立重炮群进入阵地，专挑炮兵阵地和指挥部。' }
+  ]
 },
 {
   /* 附属 · 破袭。正关是"守"，这一关是"让对方守不成"——
@@ -3737,19 +3974,451 @@ const LEVELS = [
   win: { kind: 'score' }
 },
 {
-  /* 城市基础设施第一次成为"要点"：水厂丢了，全城断水，后面几关的组织度上限下调。 */
+  /* 城市基础设施当要点（第 2 章的内容门槛）。
+     不引入跨关状态：水厂的分量在本关内兑现——泵房一丢，全场组织度掉 8 点，
+     也就是"全城断水"这件事在战场上立刻能感觉到，而不是等到下一关才扣一个数。
+     跨关传递要新增存档字段与"上一关打成什么样"的判定，收益不抵风险。 */
   id: 'C8', ch: 2, no: 2, name: '城北水厂', type: '坚守',
   when: '新历 1208 年 10 月 2 日', where: '首都圈 · 岚京城北水厂',
   teaser: '两百万人喝的水从这里来。水厂一丢，城里的守军撑不过一周。',
-  ready: false,
-  win: { kind: 'survive' }
+  ready: true,
+  win: { kind: 'survive', keep: ['plant'] },
+  prev: {
+    win:  '北郊守住了十四天，敌人绕到城东去了。城防司令部趁这两天把水厂的守备换成了能打的。',
+    fail: '北郊失守，敌人当天就从北门进了城。水厂成了城北最后一个据点，身后已经没有防线。'
+  },
+  intro: [
+    '十月 · 小雨。城北水厂。',
+    '厂区一圈围墙，中间是沉淀池、滤池和泵房，管道从北面进来，清水从南面出去。',
+    '这座厂给全城两百万人供水。厂区一丢，城里的守军撑不过一周——不是被打垮的，是渴垮的。',
+    '守厂的是首都卫戍第 1 旅剩下的三个守备营。他们在北郊挨了十四天炮，已经不是新兵了。',
+    '第 102 步兵师的工兵连在厂区里埋了雷、修了碉堡；反坦克连守大门，那是厂区唯一能进车的地方。',
+    '军校生旅抽了一个营和一个学员连过来。第 301 预备役师只剩一个营，加上炮营，摆在沉淀池后面。',
+    '任务：坚守 12 回合，水厂主厂区必须始终在我方手中。全军被歼即判负。',
+    '厂区是巷战地形，围墙和厂房都能挡炮弹。但厂区里**装甲展不开**，敌人不会拿坦克硬冲——他们会用工兵炸围墙。',
+    '敌第 9 突击工兵旅跟在步兵后面：他们不冲锋，专门拆碉堡和雷区。看到工兵上来，先用炮打掉。',
+    '泵房在北墙下面，是最容易被摸掉的一格。泵房一丢，管道压力掉到底，**全场组织度立刻掉 8 点**。'
+  ],
+  maxTurns: 12,
+  cols: 18,
+  rows: 14,
+  blueSources: [[12, 7]],
+  redSource: [0, 8],
+  forts: [
+    { r: 5, c: 6,  side: 'blue', kind: 'B' },
+    { r: 5, c: 9,  side: 'blue', kind: 'B' },
+    { r: 9, c: 6,  side: 'blue', kind: 'B' },
+    { r: 9, c: 9,  side: 'blue', kind: 'B' },
+    { r: 6, c: 2,  side: 'blue', kind: 'H' },
+    { r: 7, c: 3,  side: 'blue', kind: 'H' },
+    { r: 11, c: 7, side: 'blue', kind: 'F' },
+    { r: 11, c: 9, side: 'blue', kind: 'F' }
+  ],
+  map: [
+    '..................',
+    '..ff....##....ff..',
+    '..ff....##....ff..',
+    '..tttt..##..tttt..',
+    '..tttt..##..tttt..',
+    '......####........',
+    '..tt..tttttt..tt..',
+    '..tt..tttttt..tt..',
+    '..tt..tttttt..tt..',
+    '......####........',
+    '..ff....##....ff..',
+    '..ff....##....ff..',
+    '....hh..##..hh....',
+    '..................'
+  ],
+  objectives: [
+    { id: 'plant', name: '水厂主厂区', vp: 12, core: true, rule: 'contest', kind: 'town',
+      cells: [[6,6],[6,7],[6,8],[6,9],[7,6],[7,7],[8,6],[8,7]] },
+    { id: 'pump', name: '北墙泵房', vp: 8, core: false, rule: 'contest', kind: 'town',
+      cells: [[6,2],[6,3],[7,2],[7,3]] },
+    { id: 'gate', name: '水厂大门', vp: 8, core: false, kind: 'road',
+      cells: [[5,7],[5,8],[9,7],[9,8]] },
+    { id: 'yard', name: '南料场', vp: 8, core: false, kind: 'town',
+      cells: [[9,13],[9,14],[10,13],[10,14]] }
+  ],
+  events: [
+    {
+      id: 'hold_the_wall', desc: '水厂接敌',
+      when: { kind: 'firstBlood' },
+      effects: [
+        { kind: 'say', beats: [
+          { who: '首都卫戍第 1 旅 · 旅长', side: 'blue', portrait: 'portBlue',
+            text: '北郊那十四天，我丢了两个营。\n这一回我们不退。围墙后面就是两百万人的水缸。' },
+          { who: '第 102 步兵师 · 工兵连', side: 'blue', portrait: 'portHQ',
+            text: '雷埋好了，四个碉堡也修起来了。\n他们把工兵推上来的时候，先打拿炸药包的那个。' }
+        ] }
+      ]
+    },
+    {
+      id: 'sappers', desc: '敌突击工兵投入',
+      when: { kind: 'unitActed', id: 'R4A', act: 'work' },
+      effects: [
+        { kind: 'banner', text: '敌突击工兵开始破障', cls: 'r', ms: 2400 },
+        { kind: 'log', text: '敌军工兵贴着围墙架起爆破筒。他们不冲锋，专拆碉堡和雷区——让他们拆完，围墙就是个门。', cls: 'r' },
+        { kind: 'sfx', name: 'alarm' }
+      ]
+    },
+    {
+      id: 'pump_lost', desc: '泵房失守（稀有分支）',
+      rare: true,
+      when: { kind: 'control', obj: 'pump', side: 'red' },
+      effects: [
+        { kind: 'log', text: '泵房丢了。管道压力掉到底，全厂的水泵同时停了——两百万人的水缸见了底。', cls: 'r' },
+        { kind: 'org', side: 'blue', delta: -5 }
+      ]
+    },
+    {
+      id: 'water_low', desc: '储水降到警戒线',
+      when: { kind: 'turn', turn: 7 },
+      effects: [
+        { kind: 'log', text: '城防司令部来电：城里储水只够五天，水厂必须撑到月底。', cls: 'hi' },
+        { kind: 'org', side: 'blue', delta: -3 }
+      ]
+    },
+    {
+      id: 'counter_push', desc: '工兵连夜补墙',
+      when: { kind: 'turn', turn: 11 },
+      effects: [
+        { kind: 'log', text: '工兵连趁着夜色把南墙的缺口补上了，用沙袋和钢轨加了一个新火力点。', cls: 'b' },
+        { kind: 'org', side: 'blue', delta: 5 },
+        { kind: 'fort', r: 9, c: 9, fort: 'B', side: 'blue' }
+      ]
+    }
+  ],
+  story: {
+    briefing: {
+      pages: [
+        {
+          order: '守备命令 · 第 12 号',
+          kicker: '战役态势',
+          title: '两百万人的水缸',
+          paras: [
+            { t: '城北水厂是全城唯一的净水厂。管道从北面进来，清水从南面出去。' },
+            { t: '厂区一丢，城里撑不过一周。不是被打垮的，是渴垮的。', hl: true },
+            { t: '守厂的是卫戍第 1 旅剩下的三个守备营，加上 102 师的工兵连与反坦克连。' },
+            { t: '军校生旅抽来一个营和一个学员连。第 301 预备役师只剩一个营，加上炮营，摆在沉淀池后面。', hl: true }
+          ],
+          nums: [
+            { k: '部队', v: '17' },
+            { k: '回合', v: '12' },
+            { k: '供水人口', v: '200 万' }
+          ]
+        },
+        {
+          order: '厂区要图 · 附页',
+          kicker: '地形',
+          title: '围墙、沉淀池、泵房',
+          paras: [
+            { t: '厂区是巷战地形，防御 0.85，四个角有碉堡。围墙和厂房都能挡炮弹。' },
+            { t: '厂区里**装甲展不开**，敌人不会拿坦克硬冲。他们会用工兵炸围墙。', hl: true },
+            { t: '泵房在北墙下面，是最容易被摸掉的一格。**泵房一丢，全场组织度立刻掉 5 点**。' }
+          ],
+          nums: [
+            { k: '厂区防御', v: '0.85' },
+            { k: '碉堡', v: '4 座' },
+            { k: '泵房失守', v: '−5 组织度' }
+          ]
+        },
+        {
+          order: '任务简报',
+          kicker: '你的任务',
+          title: '守住两处',
+          paras: [
+            { t: '第 12 回合结束、水厂主厂区还在我方手里，算达成；全军打光当场判负。' },
+            { t: '敌第 63 步兵师从北面压，第 9 突击工兵旅跟在后面拆碉堡，独立重炮群第 8 回合开始压制。' },
+            { t: '看到工兵上来，先用炮打掉。**他们拆一座碉堡很快**，围墙破了就补不回来。', hl: true }
+          ],
+          nums: [
+            { k: '回合', v: '12' },
+            { k: '必须守住', v: '主厂区' },
+            { k: '敌军波次', v: '3' }
+          ]
+        }
+      ],
+      beats: [
+        { who: '首都卫戍第 1 旅 · 旅长', side: 'blue', portrait: 'portBlue',
+          text: '北郊那十四天，我丢了两个营。\n这一回我们不退。围墙后面就是两百万人的水缸。' },
+        { who: '第 102 步兵师 · 工兵连', side: 'blue', portrait: 'portHQ',
+          text: '雷埋好了，四个碉堡也修起来了。\n他们把工兵推上来的时候，先打拿炸药包的那个。' },
+        { who: '敌第 9 突击工兵旅 · 旅长', side: 'red', portrait: 'portRed',
+          text: '一道围墙，四个碉堡。\n一晚上够了。' }
+      ]
+    }
+  },
+  corpsName: {
+    E1: '第 301 预备役步兵师', E2: '第 102 步兵师',
+    E4: '首都军校生旅', E5: '首都卫戍第 1 旅',
+    R1: '敌第 63 步兵师', R3: '敌独立重炮群', R4: '敌第 9 突击工兵旅'
+  },
+  units: [
+    /* ── 我方 · 首都卫戍第 1 旅（北郊打剩三个营，现在是老兵） ── */
+    { id:'E5H', side:'blue', abbr:'卫戍H',  name:'首都卫戍第 1 旅旅部',            type:'hqb',  str:2, mov:8, rng:0, r:8,  c:5,  corps:'E5', wave:1 },
+    { id:'E5A', side:'blue', abbr:'卫1-1', name:'首都卫戍第 1 团第 1 营',          type:'gdn',  str:7, mov:6, rng:1, r:6,  c:3,  corps:'E5', wave:1 },
+    { id:'E5B', side:'blue', abbr:'卫1-2', name:'首都卫戍第 1 团第 2 营',          type:'gdn',  str:6, mov:6, rng:1, r:7,  c:2,  corps:'E5', wave:1 },
+    { id:'E5D', side:'blue', abbr:'卫2-1', name:'首都卫戍第 2 团第 1 营',          type:'gdn',  str:6, mov:6, rng:1, r:7,  c:3,  corps:'E5', wave:1 },
+    { id:'E5C', side:'blue', abbr:'卫1-3', name:'首都卫戍第 1 团第 3 营',          type:'gdn',  str:6, mov:6, rng:1, r:7,  c:8,  corps:'E5', wave:1 },
+
+    /* ── 我方 · 第 102 步兵师残部（工兵与反坦克连） ── */
+    { id:'E2H', side:'blue', abbr:'102H',  name:'第 102 步兵师师部',              type:'hqd', str:2, mov:8, rng:0, r:10, c:5,  corps:'E2', wave:1 },
+    { id:'E2A', side:'blue', abbr:'304-1', name:'第 304 步兵团第 1 营残部',        type:'inf', str:4, mov:6, rng:1, r:7,  c:12, corps:'E2', wave:1 },
+    { id:'E2T', side:'blue', abbr:'102反', name:'第 102 步兵师反坦克连',          type:'at',  str:3, mov:5, rng:1, r:6,  c:7,  corps:'E2', wave:1 },
+    { id:'E2E', side:'blue', abbr:'102工', name:'第 102 步兵师工兵连',            type:'engc',str:2, mov:6, rng:1, r:9,  c:6,  corps:'E2', wave:1 },
+
+    /* ── 我方 · 首都军校生旅（抽一个营过来） ── */
+    { id:'E4H', side:'blue', abbr:'军校H',  name:'首都军校生旅旅部',              type:'hqb',  str:2, mov:8, rng:0, r:10, c:9,  corps:'E4', wave:1 },
+    { id:'E4A', side:'blue', abbr:'军校-1', name:'首都军校生旅第 1 营',            type:'inf',  str:6, mov:6, rng:1, r:8,  c:7,  corps:'E4', wave:1, traits:['cadet'] },
+    { id:'E4C', side:'blue', abbr:'炮校生', name:'首都炮兵指挥学院学员连',        type:'inf',  str:4, mov:6, rng:1, r:8,  c:8,  corps:'E4', wave:1, traits:['cadet'] },
+    { id:'E4B', side:'blue', abbr:'军校-2', name:'首都军校生旅第 2 营',            type:'inf',  str:5, mov:6, rng:1, r:7,  c:13, corps:'E4', wave:1, traits:['cadet'] },
+
+    /* ── 我方 · 第 301 预备役步兵师（只剩一个营） ── */
+    { id:'E1H', side:'blue', abbr:'301H',  name:'新编第 301 预备役步兵师师部',      type:'hqd',  str:2, mov:8, rng:0, r:9,  c:11, corps:'E1', wave:1 },
+    { id:'E1G', side:'blue', abbr:'901-3', name:'第 901 团第 3 营残部',            type:'inf',  str:5, mov:6, rng:1, r:7,  c:6,  corps:'E1', wave:1 },
+    { id:'E1B', side:'blue', abbr:'901-2', name:'第 901 团第 2 营残部',            type:'inf',  str:5, mov:6, rng:1, r:7,  c:5,  corps:'E1', wave:1 },
+    { id:'E1F', side:'blue', abbr:'301炮', name:'新编第 301 预备役步兵师炮兵营',    type:'art',  str:4, mov:6, rng:5, r:11, c:8,  corps:'E1', wave:1, packed:1 },
+
+    /* ── 敌方 · 第一波 · 第 63 步兵师 ── */
+    { id:'R1H', side:'red', abbr:'63H',  name:'敌第 63 步兵师师部',              type:'hqd', str:2, mov:8, rng:0, r:1, c:8,  corps:'R1', wave:1 },
+    { id:'R1S', side:'red', abbr:'63辎', name:'敌第 63 步兵师辎重队',            type:'sup', str:3, mov:8, rng:0, r:1, c:10, corps:'R1', wave:1 },
+    { id:'R1A', side:'red', abbr:'63-1', name:'敌第 187 步兵团第 1 营',          type:'inf', str:8, mov:6, rng:1, r:2, c:6,  corps:'R1', wave:1 },
+    { id:'R1B', side:'red', abbr:'63-2', name:'敌第 187 步兵团第 2 营',          type:'inf', str:8, mov:6, rng:1, r:2, c:7,  corps:'R1', wave:1 },
+    { id:'R1C', side:'red', abbr:'63-3', name:'敌第 188 步兵团第 1 营',          type:'inf', str:8, mov:6, rng:1, r:2, c:10, corps:'R1', wave:1 },
+    { id:'R1D', side:'red', abbr:'63-4', name:'敌第 188 步兵团第 2 营（摩步）',    type:'mob', str:7, mov:8, rng:1, r:2, c:11, corps:'R1', wave:1 },
+    { id:'R1F', side:'red', abbr:'63炮', name:'敌第 63 步兵师炮兵营',            type:'art', str:5, mov:6, rng:5, r:1, c:7,  corps:'R1', wave:1, packed:1 },
+
+    /* ── 敌方 · 第二波 · 第 9 突击工兵旅（第 5 回合，专拆碉堡与雷区） ── */
+    { id:'R4H', side:'red', abbr:'9H',   name:'敌第 9 突击工兵旅旅部',            type:'hqb',  str:2, mov:8, rng:0, r:0, c:6,  corps:'R4', wave:2 },
+    { id:'R4A', side:'red', abbr:'9工-1', name:'敌第 9 突击工兵旅第 1 营',        type:'eng',  str:6, mov:6, rng:1, r:0, c:7,  corps:'R4', wave:2 },
+    { id:'R4B', side:'red', abbr:'9工-2', name:'敌第 9 突击工兵旅第 2 营',        type:'eng',  str:6, mov:6, rng:1, r:1, c:6,  corps:'R4', wave:2 },
+    { id:'R4C', side:'red', abbr:'9-3',  name:'敌第 9 突击工兵旅第 3 营（掩护）',  type:'inf',  str:7, mov:6, rng:1, r:1, c:5,  corps:'R4', wave:2 },
+
+    /* ── 敌方 · 第三波 · 独立重炮群（第 8 回合） ── */
+    { id:'R3H', side:'red', abbr:'重炮H', name:'敌独立重炮群群部',                type:'hkg', str:2, mov:8, rng:0, r:0, c:13, corps:'R3', wave:3 },
+    { id:'R3A', side:'red', abbr:'重-1', name:'敌独立重炮群第 1 营',              type:'hr',  str:6, mov:5, rng:9, r:1, c:13, corps:'R3', wave:3, packed:1 },
+    { id:'R3B', side:'red', abbr:'重-2', name:'敌独立重炮群第 2 营',              type:'hr',  str:6, mov:5, rng:9, r:1, c:14, corps:'R3', wave:3, packed:1 }
+  ],
+  waves: [
+    { wave: 2, turn: 5, text: '敌军突击工兵上来了，跟在步兵后面，专拆碉堡与雷区。' },
+    { wave: 3, turn: 8, text: '敌军独立重炮群进入阵地，开始压制厂区纵深。' }
+  ]
 },
 {
+  /* 巷战：整张图没有一格平原，装甲进来就是活靶。
+     所以这一关的敌方编制里**一个坦克都没有**——第 9 突击工兵旅 + 步兵，
+     这不是"加强"，是"换了一种敌人"。玩家上一关学到的反装甲经验在这里用不上。 */
   id: 'C9', ch: 2, no: 3, name: '广播大楼', type: '巷战',
   when: '新历 1208 年 10 月 14 日', where: '首都圈 · 岚京市中心 · 广播大楼',
   teaser: '大楼里的发射机还在播送。全城都在听这一个台。',
-  ready: false,
-  win: { kind: 'score' }
+  ready: true,
+  winScore: 21,
+  perfectScore: 30,
+  prev: {
+    win:  '水厂守住了。城里还有水，电台还能播送——这两件事让城没有乱。',
+    fail: '水厂丢了。城里开始限水，一天两小时。广播里第一次出现了"请市民保持秩序"这句话。'
+  },
+  intro: [
+    '十月 · 阴。岚京市中心，广播大楼。',
+    '大楼十一层，钢筋混凝土，地下一层是机房。顶楼的天线塔还立着，发射机在地下室里照常工作。',
+    '这台发射机是全城唯一还在播送的电台。它一停，两百万人就只剩下谣言可听。',
+    '守大楼的是军校生旅剩下的两个营和一个学员连。他们在北郊和水厂都填过口子，是城里最后一批打过硬仗的步兵。',
+    '卫戍第 1 旅只剩下一个守备营，摆在二楼和三楼。第 102 步兵师的工兵连在一楼砌了掩体。',
+    '任务：在 12 回合内守住大楼，得分不低于 21。得分来自要点——大楼、演播楼、中央广场、街垒。',
+    '这一关**没有一格平原**：满城都是楼和街道。坦克开进来只能顺着街走，两侧的窗口全是火箭筒。',
+    '所以敌人一个坦克都没派。他们派的是第 9 突击工兵旅：爆破筒、火焰喷射器、逐屋清剿。',
+    '巷战的规矩是"谁在楼里谁占便宜"。守住一层楼，比在街上打掉一个连有用。'
+  ],
+  maxTurns: 12,
+  cols: 18,
+  rows: 14,
+  blueSources: [[7, 8]],
+  redSource: [0, 8],
+  forts: [
+    { r: 4, c: 6,  side: 'blue', kind: 'H' },
+    { r: 5, c: 7,  side: 'blue', kind: 'H' },
+    { r: 9, c: 7,  side: 'blue', kind: 'H' },
+    { r: 10, c: 6, side: 'blue', kind: 'H' },
+    { r: 6, c: 9,  side: 'blue', kind: 'B' },
+    { r: 8, c: 9,  side: 'blue', kind: 'B' }
+  ],
+  map: [
+    '..................',
+    '..tttt..tt..tttt..',
+    '..tttt..tt..tttt..',
+    '..tttt..tt..tttt..',
+    '..tt..tttttt..tt..',
+    '..tt..tttttt..tt..',
+    '..tt..tttttt..tt..',
+    '..##########..tt..',
+    '..tt..tttttt..tt..',
+    '..tt..tttttt..tt..',
+    '..tt..tttttt..tt..',
+    '..tttt..tt..tttt..',
+    '..tttt..tt..tttt..',
+    '..................'
+  ],
+  objectives: [
+    { id: 'radio', name: '广播大楼', vp: 12, core: true, rule: 'contest', kind: 'town',
+      cells: [[5,6],[5,7],[6,6],[6,7]] },
+    { id: 'studio', name: '演播楼', vp: 10, core: false, rule: 'contest', kind: 'town',
+      cells: [[9,6],[9,7],[10,6],[10,7]] },
+    { id: 'square', name: '中央广场', vp: 10, core: false, rule: 'contest', kind: 'road',
+      cells: [[3,8],[3,9],[4,8],[4,9]] },
+    { id: 'barricade', name: '西街垒', vp: 8, core: false, rule: 'contest', kind: 'town',
+      cells: [[7,4],[7,5],[8,4],[8,5]] }
+  ],
+  events: [
+    {
+      id: 'on_air', desc: '大楼接敌',
+      when: { kind: 'firstBlood' },
+      effects: [
+        { kind: 'say', beats: [
+          { who: '广播大楼 · 播音室', side: 'blue', portrait: 'portBlue',
+            text: '……现在是十点整，岚京广播电台，仍在播音。\n市民请留在室内，关闭门窗。守军仍在城内。' },
+          { who: '首都军校生旅 · 旅长', side: 'blue', portrait: 'portHQ',
+            text: '他们要从楼梯上来。\n把每一层的门都堵死，楼梯口架机枪。' }
+        ] }
+      ]
+    },
+    {
+      id: 'jammed', desc: '发射机被震坏',
+      when: { kind: 'turn', turn: 4 },
+      effects: [
+        { kind: 'log', text: '重炮落到天线塔边上，发射机的电子管烧了两支。播音断断续续，只能靠备用机撑着。', cls: 'hi' },
+        { kind: 'org', side: 'blue', delta: -3 }
+      ]
+    },
+    {
+      id: 'radio_lost', desc: '大楼失守（稀有分支）',
+      rare: true,
+      when: { kind: 'control', obj: 'radio', side: 'red' },
+      effects: [
+        { kind: 'log', text: '敌军进了大楼一层。机房还在我们手里，但楼梯已经被占了。全城的收音机里开始出现另一个声音。', cls: 'r' },
+        { kind: 'org', side: 'blue', delta: -6 }
+      ]
+    },
+    {
+      id: 'last_broadcast', desc: '最后一次播音',
+      when: { kind: 'turn', turn: 9 },
+      effects: [
+        { kind: 'log', text: '播音员念完了最后一段：守军仍在城内，电台仍在播音。然后她把话筒交给了下一班。', cls: 'b' },
+        { kind: 'org', side: 'blue', delta: 6 }
+      ]
+    }
+  ],
+  story: {
+    briefing: {
+      pages: [
+        {
+          order: '城防命令 · 第 31 号',
+          kicker: '战役态势',
+          title: '全城都在听这一个台',
+          paras: [
+            { t: '广播大楼十一层，地下室是机房。这台发射机是全城唯一还在播送的电台。' },
+            { t: '它一停，两百万人就只剩下谣言可听。**大楼的分量不在军事上，在这件事上**。', hl: true },
+            { t: '守大楼的是军校生旅剩下的两个营和一个学员连，加上卫戍旅最后一个守备营。' },
+            { t: '第 102 步兵师的工兵连在一楼砌了掩体。他们没有炮，只能靠楼。', hl: true }
+          ],
+          nums: [
+            { k: '部队', v: '9' },
+            { k: '回合', v: '12' },
+            { k: '收听人口', v: '200 万' }
+          ]
+        },
+        {
+          order: '街区要图 · 附页',
+          kicker: '地形',
+          title: '没有一格平原',
+          paras: [
+            { t: '整张图都是楼和街道。城市地形防御 0.85，街道只有 0 的加成——**别把人摆在街上**。', hl: true },
+            { t: '坦克在城里只能顺着街走，两侧窗口全是火箭筒。所以敌人一个坦克都没派。' },
+            { t: '来的是第 9 突击工兵旅：爆破筒、火焰喷射器、逐屋清剿。他们拆楼比拆碉堡还快。' }
+          ],
+          nums: [
+            { k: '城市防御', v: '0.85' },
+            { k: '街道防御', v: '0' },
+            { k: '敌军坦克', v: '0' }
+          ]
+        },
+        {
+          order: '任务简报',
+          kicker: '你的任务',
+          title: '守住电波',
+          paras: [
+            { t: '12 回合结束，得分不低于 21 算达成。得分来自四个要点的控制权，每回合结算。' },
+            { t: '大楼 12 分，是全场最值钱的一处。**丢了它，剩下的点全守住也够不上 21**。' },
+            { t: '巷战里一栋楼比一条街值钱：守在里面，敌人要一层一层清；站在街上，一轮炮就没了。', hl: true }
+          ],
+          nums: [
+            { k: '回合', v: '12' },
+            { k: '达成线', v: '21 分' },
+            { k: '大楼', v: '12 分' }
+          ]
+        }
+      ],
+      beats: [
+        { who: '广播大楼 · 播音室', side: 'blue', portrait: 'portBlue',
+          text: '……现在是十点整，岚京广播电台，仍在播音。\n市民请留在室内，关闭门窗。守军仍在城内。' },
+        { who: '首都军校生旅 · 旅长', side: 'blue', portrait: 'portHQ',
+          text: '他们要从楼梯上来。\n把每一层的门都堵死，楼梯口架机枪。' },
+        { who: '敌第 9 突击工兵旅 · 旅长', side: 'red', portrait: 'portRed',
+          text: '一栋楼，十一层。\n一层一层往上清，清到顶为止。' }
+      ]
+    }
+  },
+  corpsName: {
+    E2: '第 102 步兵师', E4: '首都军校生旅', E5: '首都卫戍第 1 旅',
+    R1: '敌第 63 步兵师', R3: '敌独立重炮群', R4: '敌第 9 突击工兵旅'
+  },
+  units: [
+    /* ── 我方 · 首都军校生旅（剩两个营，守大楼） ── */
+    { id:'E4H', side:'blue', abbr:'军校H',  name:'首都军校生旅旅部',              type:'hqb',  str:2, mov:8, rng:0, r:7,  c:8,  corps:'E4', wave:1 },
+    { id:'E4A', side:'blue', abbr:'军校-1', name:'首都军校生旅第 1 营',            type:'inf',  str:6, mov:6, rng:1, r:5,  c:6,  corps:'E4', wave:1, traits:['cadet'] },
+    { id:'E4B', side:'blue', abbr:'军校-2', name:'首都军校生旅第 2 营',            type:'inf',  str:5, mov:6, rng:1, r:6,  c:7,  corps:'E4', wave:1, traits:['cadet'] },
+    { id:'E4D', side:'blue', abbr:'军校-3', name:'首都军校生旅第 3 营',            type:'inf',  str:5, mov:6, rng:1, r:6,  c:5,  corps:'E4', wave:1, traits:['cadet'] },
+    { id:'E4C', side:'blue', abbr:'炮校生', name:'首都炮兵指挥学院学员连',        type:'inf',  str:4, mov:6, rng:1, r:5,  c:7,  corps:'E4', wave:1, traits:['cadet'] },
+
+    /* ── 我方 · 首都卫戍第 1 旅（只剩一个守备营） ── */
+    { id:'E5H', side:'blue', abbr:'卫戍H',  name:'首都卫戍第 1 旅旅部',            type:'hqb',  str:2, mov:8, rng:0, r:9,  c:9,  corps:'E5', wave:1 },
+    { id:'E5A', side:'blue', abbr:'卫1-1', name:'首都卫戍第 1 团第 1 营',          type:'gdn',  str:6, mov:6, rng:1, r:9,  c:6,  corps:'E5', wave:1 },
+    { id:'E5B', side:'blue', abbr:'卫1-2', name:'首都卫戍第 1 团第 2 营',          type:'gdn',  str:6, mov:6, rng:1, r:10, c:7,  corps:'E5', wave:1 },
+    { id:'E5D', side:'blue', abbr:'卫2-2', name:'首都卫戍第 2 团第 2 营',          type:'gdn',  str:6, mov:6, rng:1, r:6,  c:6,  corps:'E5', wave:1 },
+    { id:'E5C', side:'blue', abbr:'卫2-1', name:'首都卫戍第 2 团第 1 营',          type:'gdn',  str:6, mov:6, rng:1, r:9,  c:12, corps:'E5', wave:1 },
+
+    /* ── 我方 · 第 102 步兵师残部（工兵连） ── */
+    { id:'E2H', side:'blue', abbr:'102H',  name:'第 102 步兵师师部',              type:'hqd', str:2, mov:8, rng:0, r:10, c:8,  corps:'E2', wave:1 },
+    { id:'E2A', side:'blue', abbr:'304-1', name:'第 304 步兵团第 1 营残部',        type:'inf', str:3, mov:6, rng:1, r:9,  c:7,  corps:'E2', wave:1 },
+    { id:'E1H', side:'blue', abbr:'301H',  name:'新编第 301 预备役步兵师师部',      type:'hqd',  str:2, mov:8, rng:0, r:11, c:11, corps:'E1', wave:1 },
+    { id:'E1G', side:'blue', abbr:'901-3', name:'第 901 团第 3 营残部',            type:'inf',  str:5, mov:6, rng:1, r:10, c:11, corps:'E1', wave:1 },
+    { id:'E1B', side:'blue', abbr:'901-2', name:'第 901 团第 2 营残部',            type:'inf',  str:5, mov:6, rng:1, r:4,  c:6,  corps:'E1', wave:1 },
+    { id:'E2G', side:'blue', abbr:'102高', name:'第 102 步兵师师属高炮连',        type:'aac', str:3, mov:6, rng:2, r:4,  c:5,  corps:'E2', wave:1 },
+    { id:'E2E', side:'blue', abbr:'102工', name:'第 102 步兵师工兵连',            type:'engc',str:2, mov:6, rng:1, r:10, c:6,  corps:'E2', wave:1 },
+
+    /* ── 敌方 · 第 63 步兵师（正面压上） ── */
+    { id:'R1H', side:'red', abbr:'63H',  name:'敌第 63 步兵师师部',              type:'hqd', str:2, mov:8, rng:0, r:1, c:8,  corps:'R1', wave:1 },
+    { id:'R1S', side:'red', abbr:'63辎', name:'敌第 63 步兵师辎重队',            type:'sup', str:3, mov:8, rng:0, r:1, c:11, corps:'R1', wave:1 },
+    { id:'R1A', side:'red', abbr:'63-1', name:'敌第 187 步兵团第 1 营',          type:'inf', str:8, mov:6, rng:1, r:2, c:6,  corps:'R1', wave:1 },
+    { id:'R1B', side:'red', abbr:'63-2', name:'敌第 187 步兵团第 2 营',          type:'inf', str:8, mov:6, rng:1, r:2, c:7,  corps:'R1', wave:1 },
+    { id:'R1C', side:'red', abbr:'63-3', name:'敌第 188 步兵团第 1 营',          type:'inf', str:8, mov:6, rng:1, r:2, c:9,  corps:'R1', wave:1 },
+    { id:'R1D', side:'red', abbr:'63-4', name:'敌第 188 步兵团第 2 营（摩步）',    type:'mob', str:7, mov:8, rng:1, r:2, c:10, corps:'R1', wave:1 },
+    { id:'R1F', side:'red', abbr:'63炮', name:'敌第 63 步兵师炮兵营',            type:'art', str:5, mov:6, rng:5, r:1, c:6,  corps:'R1', wave:1, packed:1 },
+
+    /* ── 敌方 · 第 9 突击工兵旅（第 4 回合，逐屋清剿） ── */
+    { id:'R4H', side:'red', abbr:'9H',   name:'敌第 9 突击工兵旅旅部',            type:'hqb',  str:2, mov:8, rng:0, r:0, c:7,  corps:'R4', wave:2 },
+    { id:'R4A', side:'red', abbr:'9工-1', name:'敌第 9 突击工兵旅第 1 营',        type:'eng',  str:6, mov:6, rng:1, r:0, c:8,  corps:'R4', wave:2 },
+    { id:'R4B', side:'red', abbr:'9工-2', name:'敌第 9 突击工兵旅第 2 营',        type:'eng',  str:6, mov:6, rng:1, r:0, c:9,  corps:'R4', wave:2 },
+    /* 掩护营在北郊被打残，只剩编制架子，没有并进这一波。 */
+
+    /* ── 敌方 · 独立重炮群（第 7 回合，专打天线塔与楼顶） ── */
+    { id:'R3H', side:'red', abbr:'重炮H', name:'敌独立重炮群群部',                type:'hkg', str:2, mov:8, rng:0, r:0, c:14, corps:'R3', wave:3 },
+    { id:'R3A', side:'red', abbr:'重-1', name:'敌独立重炮群第 1 营',              type:'hr',  str:6, mov:5, rng:9, r:1, c:14, corps:'R3', wave:3, packed:1 }
+  ],
+  waves: [
+    { wave: 2, turn: 4, text: '敌军突击工兵进入街区，逐屋爆破，从一楼往上传。' },
+    { wave: 3, turn: 7, text: '敌军重炮群开始轰击天线塔，楼顶的水箱被打穿了两只。' }
+  ]
 },
 {
   /* 夜战：视野半径从 4 降到 2，火炮不能校射。占位时先把类型钉住。 */
@@ -3760,11 +4429,235 @@ const LEVELS = [
   win: { kind: 'score' }
 },
 {
+  /* 争夺：点位多、易手快，这一关的分数是"来回抢"抢出来的。
+     站台在正中间，四面都是路——谁把它拿住，谁就得挨三面的打。
+     所以它不是"守住就赢"，是"拿得住多久"。 */
   id: 'C10', ch: 2, no: 4, name: '中央车站', type: '争夺',
   when: '新历 1208 年 10 月 28 日', where: '首都圈 · 岚京中央车站',
   teaser: '城里的补给全靠这个站台。站台底下还有三条没被炸断的隧道。',
-  ready: false,
-  win: { kind: 'score' }
+  ready: true,
+  winScore: 16,
+  perfectScore: 28,
+  prev: {
+    win:  '广播大楼还在播送。那天晚上，全城的收音机里都听见了同一句话：守军仍在城内。',
+    fail: '广播大楼失守。第二天早上，城里的收音机换了声音，很多人以为是自己的机器坏了。'
+  },
+  intro: [
+    '十月 · 雨。岚京中央车站。',
+    '十二条站线，六座站台，站房下面还有三条没被炸断的隧道——城里的粮食和弹药，全靠这里卸。',
+    '站场是这一带唯一能让装甲展开的地方：站线之间是硬地，坦克能并排走。敌人会从这里来。',
+    '守站场的是第 204 装甲旅剩下的一个中坦营。他们的坦克不多，但在站场里终于能跑起来。',
+    '卫戍第 1 旅恢复了两个守备营，守站房和南段站台；军校生旅剩一个营加一个学员连，做预备队。',
+    '第 102 步兵师的反坦克连摆在站台北口，那里是坦克唯一能上站台的方向。',
+    '任务：12 回合内得分不低于 16。得分来自站台、站房、隧道口三处要点，每回合结算。',
+    '站台 12 分，是全场最值钱的一处，也是最难守的一处：四面都是站线，谁都能从侧面切进来。',
+    '隧道口在我们手里，预备队就能从地下调过去。丢了隧道口，援兵要绕整整一圈。'
+  ],
+  maxTurns: 12,
+  cols: 18,
+  rows: 14,
+  blueSources: [[13, 8]],
+  redSource: [0, 8],
+  forts: [
+    { r: 3, c: 8,  side: 'blue', kind: 'H' },
+    { r: 7, c: 9,  side: 'blue', kind: 'H' },
+    { r: 8, c: 10, side: 'blue', kind: 'B' },
+    { r: 9, c: 12, side: 'blue', kind: 'B' },
+    { r: 11, c: 6, side: 'blue', kind: 'F' },
+    { r: 11, c: 12, side: 'blue', kind: 'F' }
+  ],
+  map: [
+    '..................',
+    '..tt..##########..',
+    '..tt..##########..',
+    '..tt..##......##..',
+    '..tt..##.tttt.##..',
+    '..tt..##.tttt.##..',
+    '..tt..##.tttt.##..',
+    '..tt..##......##..',
+    '..tt..##########..',
+    '..tt..##########..',
+    '..tttttttttttttt..',
+    '..tttttttttttttt..',
+    '....hh....hh......',
+    '..................'
+  ],
+  objectives: [
+    { id: 'platform', name: '中央站台', vp: 12, core: true, rule: 'contest', kind: 'town',
+      /* 站台往南压一格（r5–7）：r4 离红方出生点只有两格，开局必被抢。
+         蓝方在 r7 有立足点，红方要先啃下 r5–6 才谈得上"拿住站台"。 */
+      cells: [[10,8],[10,9],[10,10],[11,8],[11,9],[11,10]] },
+    /* 站房只算南半（r7–8）。原来把北门 r3 也写进来，那个点在红方出生点两格内，
+       蓝方永远拿不到——要点横跨双方时，控制权永远是 contested，这 10 分等于不存在。 */
+    { id: 'hall', name: '站房大厅', vp: 12, core: false, rule: 'contest', kind: 'town',
+      cells: [[12,9],[12,10],[13,9],[13,10]] },
+    /* 北调车场从要点里删掉了：它在红方出生点两格内，蓝方 100 局一次都没拿到过。
+       更麻烦的是它让红方开局就白拿分，把"红方超过 maxRed − winScore 就判负"这条线压得很低——
+       实测丢站台（12）再加一个南侧要点就当场判负，玩家连打回来的机会都没有。 */
+    { id: 'tunnel', name: '隧道口', vp: 10, core: false, rule: 'contest', kind: 'town',
+      cells: [[10,6],[10,7],[11,6],[11,7]] }
+  ],
+  events: [
+    {
+      id: 'first_train', desc: '站场接敌',
+      when: { kind: 'firstBlood' },
+      effects: [
+        { kind: 'say', beats: [
+          { who: '第 204 装甲旅 · 旅长', side: 'blue', portrait: 'portBlue',
+            text: '我的坦克在城里憋了两个月，一条街都开不出去。\n站场是唯一能让它们跑起来的地方。别浪费。' },
+          { who: '首都卫戍第 1 旅 · 旅长', side: 'blue', portrait: 'portHQ',
+            text: '站房我守。你们去打站台。\n打下来记得喊一声，我让人送弹药过去。' }
+        ] }
+      ]
+    },
+    {
+      id: 'tunnel_hit', desc: '隧道被炸',
+      when: { kind: 'turn', turn: 5 },
+      effects: [
+        { kind: 'log', text: '一枚重炮落在二号隧道口，塌了半边。预备队从地下调动的路断了一条。', cls: 'hi' },
+        { kind: 'org', side: 'blue', delta: -3 }
+      ]
+    },
+    {
+      id: 'platform_lost', desc: '站台失守（稀有分支）',
+      rare: true,
+      when: { kind: 'control', obj: 'platform', side: 'red' },
+      effects: [
+        { kind: 'log', text: '敌军上了站台。十二条站线全在他们眼皮底下，城里的补给车队再也进不来。', cls: 'r' },
+        { kind: 'org', side: 'blue', delta: -5 }
+      ]
+    },
+    {
+      id: 'armor_counter', desc: '装甲反击',
+      when: { kind: 'turn', turn: 8 },
+      effects: [
+        { kind: 'banner', text: '第 204 装甲旅反击', cls: 'b', ms: 2400 },
+        { kind: 'log', text: '中坦营从站台南口压上去，一口气推到第三条站线。这是进城以来第一次把敌人往后推。', cls: 'b' },
+        { kind: 'org', side: 'blue', delta: 6 },
+        { kind: 'str', side: 'blue', filter: { corps: 'E3' }, delta: 1 }
+      ]
+    }
+  ],
+  story: {
+    briefing: {
+      pages: [
+        {
+          order: '城防命令 · 第 38 号',
+          kicker: '战役态势',
+          title: '站台上的十二条线',
+          paras: [
+            { t: '中央车站是城里唯一还能卸货的地方。粮食、弹药、伤员，都从这里过。' },
+            { t: '十二条站线，六座站台。站场是这一带**唯一能让装甲展开的硬地**——敌人会从这里来。', hl: true },
+            { t: '守站场的是第 204 装甲旅剩下的一个中坦营：坦克不多，但在站场里终于能跑起来。' },
+            { t: '卫戍第 1 旅恢复两个守备营，守站房与南段站台；军校生旅剩一个营加一个学员连，做预备队。', hl: true }
+          ],
+          nums: [
+            { k: '部队', v: '15' },
+            { k: '回合', v: '12' },
+            { k: '站线', v: '12 条' }
+          ]
+        },
+        {
+          order: '站场要图 · 附页',
+          kicker: '地形',
+          title: '四面都是站线',
+          paras: [
+            { t: '站场是硬地加站台，装甲能并排走。北面两条调车线是敌人的入口。' },
+            { t: '中央站台 12 分，是全场最值钱的一处，也是最难守的一处：**四面都是站线，谁都能从侧面切进来**。', hl: true },
+            { t: '站房 12 分、隧道口 10 分，两处都在南半，预备队从地下就能调过去。北调车场一开局就丢了，不计分。', hl: true }
+          ],
+          nums: [
+            { k: '站台', v: '12 分' },
+            { k: '站房', v: '12 分' },
+            { k: '隧道口', v: '10 分' }
+          ]
+        },
+        {
+          order: '任务简报',
+          kicker: '你的任务',
+          title: '来回抢',
+          paras: [
+            { t: '12 回合结束，得分不低于 16 算达成。分数每回合结算，**点位是会易手的**。' },
+            { t: '站台 12 分，丢了它，站房（12）加隧道口（10）是 22，仍然够 16 的线——但这两处得一起守住。' },
+            { t: '反坦克连摆站场北口那道缺口，那是坦克唯一能上站台的方向。别把它调去守站房。', hl: true }
+          ],
+          nums: [
+            { k: '回合', v: '12' },
+            { k: '达成线', v: '16 分' },
+            { k: '要点', v: '4 处' }
+          ]
+        }
+      ],
+      beats: [
+        { who: '第 204 装甲旅 · 旅长', side: 'blue', portrait: 'portBlue',
+          text: '我的坦克在城里憋了两个月，一条街都开不出去。\n站场是唯一能让它们跑起来的地方。别浪费。' },
+        { who: '首都卫戍第 1 旅 · 旅长', side: 'blue', portrait: 'portHQ',
+          text: '站房我守。你们去打站台。\n打下来记得喊一声，我让人送弹药过去。' },
+        { who: '敌近卫装甲第 2 师 · 师部', side: 'red', portrait: 'portRed',
+          text: '站场。终于有不挡路的地方了。\n把坦克排开，从北面直接推过去。' }
+      ]
+    }
+  },
+  corpsName: {
+    E1: '第 301 预备役步兵师', E2: '第 102 步兵师', E3: '第 204 装甲旅',
+    E4: '首都军校生旅', E5: '首都卫戍第 1 旅',
+    R1: '敌第 63 步兵师', R2: '敌近卫装甲第 2 师', R3: '敌独立重炮群', R4: '敌第 9 突击工兵旅'
+  },
+  units: [
+    /* ── 我方 · 第 204 装甲旅（站场里终于能跑起来） ── */
+    { id:'E3H', side:'blue', abbr:'204H',  name:'第 204 装甲旅旅部',              type:'hqb',  str:2, mov:8,  rng:0, r:12, c:5,  corps:'E3', wave:1 },
+    { id:'E3A', side:'blue', abbr:'204-1', name:'第 204 装甲旅第 1 营（中坦）残部', type:'marm', str:6, mov:10, rng:1, r:11, c:13, corps:'E3', wave:1 },
+
+    /* ── 我方 · 首都卫戍第 1 旅（恢复两个守备营） ── */
+    { id:'E5H', side:'blue', abbr:'卫戍H',  name:'首都卫戍第 1 旅旅部',            type:'hqb',  str:2, mov:8, rng:0, r:12, c:7,  corps:'E5', wave:1 },
+    { id:'E5A', side:'blue', abbr:'卫1-1', name:'首都卫戍第 1 团第 1 营',          type:'gdn',  str:6, mov:6, rng:1, r:10, c:8,  corps:'E5', wave:1 },
+    { id:'E5B', side:'blue', abbr:'卫1-2', name:'首都卫戍第 1 团第 2 营',          type:'gdn',  str:6, mov:6, rng:1, r:10, c:9,  corps:'E5', wave:1 },
+    { id:'E5C', side:'blue', abbr:'卫2-1', name:'首都卫戍第 2 团第 1 营',          type:'gdn',  str:6, mov:6, rng:1, r:10, c:10, corps:'E5', wave:1 },
+
+    /* ── 我方 · 首都军校生旅（一个营加学员连，预备队） ── */
+    { id:'E4H', side:'blue', abbr:'军校H',  name:'首都军校生旅旅部',              type:'hqb',  str:2, mov:8, rng:0, r:11, c:8,  corps:'E4', wave:1 },
+    { id:'E4A', side:'blue', abbr:'军校-1', name:'首都军校生旅第 1 营',            type:'inf',  str:6, mov:6, rng:1, r:11, c:7,  corps:'E4', wave:1, traits:['cadet'] },
+    { id:'E4C', side:'blue', abbr:'炮校生', name:'首都炮兵指挥学院学员连',        type:'inf',  str:4, mov:6, rng:1, r:11, c:9,  corps:'E4', wave:1, traits:['cadet'] },
+
+    /* ── 我方 · 第 102 步兵师残部（反坦克连守南口） ── */
+    { id:'E2H', side:'blue', abbr:'102H',  name:'第 102 步兵师师部',              type:'hqd', str:2, mov:8, rng:0, r:12, c:8,  corps:'E2', wave:1 },
+    { id:'E2A', side:'blue', abbr:'304-1', name:'第 304 步兵团第 1 营残部',        type:'inf', str:3, mov:6, rng:1, r:11, c:6,  corps:'E2', wave:1 },
+    { id:'E2T', side:'blue', abbr:'102反', name:'第 102 步兵师反坦克连',          type:'at',  str:3, mov:5, rng:1, r:9,  c:9,  corps:'E2', wave:1 },
+    { id:'E2E', side:'blue', abbr:'102工', name:'第 102 步兵师工兵连',            type:'engc',str:2, mov:6, rng:1, r:10, c:7,  corps:'E2', wave:1 },
+    { id:'E2G', side:'blue', abbr:'102高', name:'第 102 步兵师师属高炮连',        type:'aac', str:3, mov:6, rng:2, r:11, c:11, corps:'E2', wave:1 },
+
+    /* ── 我方 · 第 301 预备役步兵师（最后一个营 + 炮营） ── */
+    { id:'E1H', side:'blue', abbr:'301H',  name:'新编第 301 预备役步兵师师部',      type:'hqd',  str:2, mov:8, rng:0, r:13, c:8,  corps:'E1', wave:1 },
+    { id:'E1B', side:'blue', abbr:'901-2', name:'第 901 团第 2 营残部',            type:'inf',  str:5, mov:6, rng:1, r:11, c:10, corps:'E1', wave:1 },
+    { id:'E5D', side:'blue', abbr:'卫2-2', name:'首都卫戍第 2 团第 2 营',          type:'gdn',  str:6, mov:6, rng:1, r:12, c:9,  corps:'E5', wave:1 },
+    { id:'E1G', side:'blue', abbr:'901-3', name:'第 901 团第 3 营残部',            type:'inf',  str:5, mov:6, rng:1, r:12, c:10, corps:'E1', wave:1 },
+    { id:'E1F', side:'blue', abbr:'301炮', name:'新编第 301 预备役步兵师炮兵营',    type:'art',  str:4, mov:6, rng:5, r:13, c:10, corps:'E1', wave:1, packed:1 },
+
+    /* ── 敌方 · 第一波 · 第 63 步兵师（正面压上） ── */
+    { id:'R1H', side:'red', abbr:'63H',  name:'敌第 63 步兵师师部',              type:'hqd', str:2, mov:8, rng:0, r:1, c:8,  corps:'R1', wave:1 },
+    { id:'R1S', side:'red', abbr:'63辎', name:'敌第 63 步兵师辎重队',            type:'sup', str:3, mov:8, rng:0, r:1, c:10, corps:'R1', wave:1 },
+    { id:'R1A', side:'red', abbr:'63-1', name:'敌第 187 步兵团第 1 营',          type:'inf', str:7, mov:6, rng:1, r:2, c:7,  corps:'R1', wave:1 },
+    { id:'R1B', side:'red', abbr:'63-2', name:'敌第 187 步兵团第 2 营',          type:'inf', str:7, mov:6, rng:1, r:2, c:8,  corps:'R1', wave:1 },
+    { id:'R1C', side:'red', abbr:'63-3', name:'敌第 188 步兵团第 1 营',          type:'inf', str:7, mov:6, rng:1, r:2, c:9,  corps:'R1', wave:1 },
+    { id:'R1D', side:'red', abbr:'63-4', name:'敌第 188 步兵团第 2 营（摩步）',    type:'mob', str:7, mov:8, rng:1, r:2, c:10, corps:'R1', wave:1 },
+    { id:'R1F', side:'red', abbr:'63炮', name:'敌第 63 步兵师炮兵营',            type:'art', str:5, mov:6, rng:5, r:1, c:7,  corps:'R1', wave:1, packed:1 },
+
+    /* ── 敌方 · 第二波 · 近卫装甲第 2 师（第 4 回合，从北调车场压下来） ── */
+    { id:'R2H', side:'red', abbr:'2H',   name:'敌近卫装甲第 2 师师部',            type:'hqd',  str:2, mov:8,  rng:0, r:0, c:4, corps:'R2', wave:2 },
+    { id:'R2A', side:'red', abbr:'2-1',  name:'敌近卫装甲第 5 团第 1 营（中坦）',  type:'marm', str:11, mov:10, rng:1, r:0, c:5, corps:'R2', wave:2 },
+    { id:'R2F', side:'red', abbr:'2炮',  name:'敌近卫装甲第 2 师自行火炮营',      type:'spa',  str:5,  mov:8,  rng:4, r:0, c:3, corps:'R2', wave:2 },
+
+    /* ── 敌方 · 第三波 · 第 9 突击工兵旅 + 独立重炮群（第 7 回合） ── */
+    { id:'R4H', side:'red', abbr:'9H',   name:'敌第 9 突击工兵旅旅部',            type:'hqb',  str:2, mov:8, rng:0, r:0, c:12, corps:'R4', wave:3 },
+    { id:'R4A', side:'red', abbr:'9工-1', name:'敌第 9 突击工兵旅第 1 营',        type:'eng',  str:6, mov:6, rng:1, r:0, c:13, corps:'R4', wave:3 },
+    { id:'R4B', side:'red', abbr:'9工-2', name:'敌第 9 突击工兵旅第 2 营',        type:'eng',  str:6, mov:6, rng:1, r:1, c:12, corps:'R4', wave:3 },
+    { id:'R3H', side:'red', abbr:'重炮H', name:'敌独立重炮群群部',                type:'hkg', str:2, mov:8, rng:0, r:0, c:15, corps:'R3', wave:3 },
+    { id:'R3A', side:'red', abbr:'重-1', name:'敌独立重炮群第 1 营',              type:'hr',  str:6, mov:5, rng:9, r:1, c:15, corps:'R3', wave:3, packed:1 }
+  ],
+  waves: [
+    { wave: 2, turn: 4, text: '敌军近卫装甲第 2 师从北调车场压下来，站线上全是坦克。' },
+    { wave: 3, turn: 7, text: '敌军突击工兵与重炮群同时到位：一个拆站房，一个轰站台。' }
+  ]
 },
 {
   id: 'C11', ch: 2, no: 5, name: '外环防线', type: '防御',
@@ -6382,6 +7275,23 @@ function applyEffect(ef) {
   }
   if (ef.kind === 'spawn') { spawnGroup(ef.group); return; }
 
+  /* 工事补给：工兵在本局中途补起一座工事（v5.0，C8 的"工兵连夜补墙"）。
+     文案说了补墙，代码就得真补——只写一句"补上了"而工事强度没变，
+     是那种"屏幕上完全看不出来"的假文案：玩家会看到战报说补了，
+     下一炮打上去还是原来那个数。
+     已经有的工事就地升级（换种类、修满耐久），没有的新建一座。 */
+  if (ef.kind === 'fort') {
+    const d = FORT[ef.fort] || FORT.H;
+    const f = (state.forts || []).find(x => x.r === ef.r && x.c === ef.c);
+    if (f) {
+      f.side = ef.side; f.kind = ef.fort; f.def = d.def; f.hp = d.hp; f.maxHp = d.hp;
+    } else {
+      state.forts.push({ r: ef.r, c: ef.c, side: ef.side, kind: ef.fort,
+                         def: d.def, hp: d.hp, maxHp: d.hp });
+    }
+    return;
+  }
+
   /* ── 以下四种只影响"看起来怎么样"，不改任何规则数值 ──
      banner : { kind:'banner', text, cls, ms }      横幅提示
      sfx    : { kind:'sfx',    name }                音效，键名对应 ASSETS.sfx
@@ -6421,6 +7331,29 @@ function checkEvents() {
 }
 
 /* ───────────────────────── 初始化 ───────────────────────── */
+/* 指挥部的机动（v5.0）：得跟得上自己的部队。
+   装甲旅部原来固定 8，而它的中坦营 10、轻坦侦察营 12——一个回合差两格，
+   三个回合就掉出旅部光环，那 2 点战力等于白买。装甲师师部同理。
+   规则：旅部 / 师部的机动 = **本编制里最快的地面主力**，封顶 HQ_MOV_CAP。
+   封顶的理由不是平衡，是语义：指挥车不是坦克。轻坦跑 12 是侦察单位的本事，
+   旅部跟着跑 12 就把"轻坦脱离指挥去穿插"这件事抹掉了——它本来就该追不上。
+   10 = 中坦的速度，跟得上队，不抢头名。
+   步兵师（下属全 6）一动不动：8 本来就比步兵快，不存在掉队。
+
+   算的是 **LEVEL.units 全量**，不是场上现有部队：wave 2/3 的装甲师师部
+   第 6 回合才进场，只按当下场上算的话它永远是 8——而那正是最需要它跟上的一波。 */
+const HQ_MOV_CAP = 10;
+function hqMobility(u) {
+  if (!u || !HQ_TYPES.includes(u.type) || !u.corps) return 0;
+  let m = 0;
+  for (const o of (LEVEL.units || [])) {
+    if (o.id === u.id || o.corps !== u.corps) continue;
+    if (HQ_TYPES.includes(o.type) || o.dm === 'air') continue;
+    if ((o.mov || 0) > m) m = o.mov;
+  }
+  return Math.min(m, HQ_MOV_CAP);
+}
+
 function makeUnit(u, spent) {
   const am = TYPE[u.type].am || 0;
   if (state.everSeen) state.everSeen[u.id] = 1;
@@ -6436,6 +7369,10 @@ function makeUnit(u, spent) {
      没写战力的（空降伞兵由 doDrop 现造）保持原样——这里补一个 0
      会把一支本来能打仗的伞兵连当场变成 0 战力。 */
   if (u.str !== undefined) unit.str = defStr(u);
+  /* 指挥部跟上自己的部队。只在"本编制有更快的兵"时才动，
+     所以步兵师师部的 8 一分不改，装甲师师部 8 → 10。 */
+  const hqMov = hqMobility(u);
+  if (hqMov > (unit.mov || 0)) unit.mov = hqMov;
   return unit;
 }
 
@@ -11546,7 +12483,7 @@ window.__WAR__ = {
      不然"崩溃后不能攻击"这条规则只能靠整局打完才知道对不对。 */
   isBroken, orgBreakLine, orgRallyLine, refreshBroken, disengaged, render, setRng,
   ORG_BREAK_DEF, ORG_RALLY_DEF,
-  isHQ, hqBonus, homeBonus, hqRadius, hqAura, makeUnit,
+  isHQ, hqBonus, homeBonus, hqRadius, hqAura, makeUnit, hqMobility, HQ_MOV_CAP,
   HQ_TYPES, ARTY_TYPES, CAPTURE_TYPES,
   /* 火炮射程换算与展收机制 */
   TOWED_TYPES, AT_LIKE, isTowed, minRange, inRangeTargets, doPack, doUnpack,

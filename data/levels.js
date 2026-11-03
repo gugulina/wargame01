@@ -5,8 +5,8 @@
    为什么是 .js 而不是 .json：项目要能双击直接打开，
    file:// 下 fetch 会被同源策略拦掉，<script src> 不会。 */
 window.CANGYU = {
-  "ver": "v4.27",
-  "srcSig": "456928:1c6ukyf",
+  "ver": "v5.0",
+  "srcSig": "501967:1vvnn8x",
   "storage": {
     "save": "wargame.lankou.save",
     "saveVer": 3,
@@ -33,7 +33,7 @@ window.CANGYU = {
       "total": 9,
       "main": 6,
       "sub": 3,
-      "ready": 0
+      "ready": 4
     },
     {
       "no": 3,
@@ -410,7 +410,7 @@ window.CANGYU = {
       },
       "red": {
         "cards": 15,
-        "str": 100
+        "str": 98
       }
     },
     {
@@ -423,22 +423,25 @@ window.CANGYU = {
       "when": "新历 1208 年 9 月 12 日",
       "where": "首都圈 · 岚京北郊",
       "teaser": "敌人的侦察兵已经能看见城里的钟楼。北郊这几个村子，是首都最后一道门槛。",
-      "ready": false,
+      "ready": true,
       "open": false,
-      "prevId": null,
+      "prevId": "C6",
       "noText": "第 1 关 · ",
       "win": "survive",
       "perfect": {
-        "ok": false,
-        "text": "尚未编成"
+        "ok": true,
+        "text": "部队幸存不少于七成，且「北郊西北村」不失守"
       },
+      "turns": 12,
+      "cols": 18,
+      "rows": 12,
       "blue": {
-        "cards": 0,
-        "str": 0
+        "cards": 24,
+        "str": 103
       },
       "red": {
-        "cards": 0,
-        "str": 0
+        "cards": 15,
+        "str": 96
       }
     },
     {
@@ -479,22 +482,25 @@ window.CANGYU = {
       "when": "新历 1208 年 10 月 2 日",
       "where": "首都圈 · 岚京城北水厂",
       "teaser": "两百万人喝的水从这里来。水厂一丢，城里的守军撑不过一周。",
-      "ready": false,
+      "ready": true,
       "open": false,
-      "prevId": null,
+      "prevId": "C7",
       "noText": "第 2 关 · ",
       "win": "survive",
       "perfect": {
-        "ok": false,
-        "text": "尚未编成"
+        "ok": true,
+        "text": "部队幸存不少于七成，且「水厂主厂区」不失守"
       },
+      "turns": 12,
+      "cols": 18,
+      "rows": 14,
       "blue": {
-        "cards": 0,
-        "str": 0
+        "cards": 17,
+        "str": 71
       },
       "red": {
-        "cards": 0,
-        "str": 0
+        "cards": 14,
+        "str": 76
       }
     },
     {
@@ -507,22 +513,25 @@ window.CANGYU = {
       "when": "新历 1208 年 10 月 14 日",
       "where": "首都圈 · 岚京市中心 · 广播大楼",
       "teaser": "大楼里的发射机还在播送。全城都在听这一个台。",
-      "ready": false,
+      "ready": true,
       "open": false,
-      "prevId": null,
+      "prevId": "C8",
       "noText": "第 3 关 · ",
       "win": "score",
       "perfect": {
-        "ok": false,
-        "text": "尚未编成"
+        "ok": true,
+        "text": "得分 30 以上（达成线 21）"
       },
+      "turns": 12,
+      "cols": 18,
+      "rows": 14,
       "blue": {
-        "cards": 0,
-        "str": 0
+        "cards": 17,
+        "str": 70
       },
       "red": {
-        "cards": 0,
-        "str": 0
+        "cards": 12,
+        "str": 63
       }
     },
     {
@@ -563,22 +572,25 @@ window.CANGYU = {
       "when": "新历 1208 年 10 月 28 日",
       "where": "首都圈 · 岚京中央车站",
       "teaser": "城里的补给全靠这个站台。站台底下还有三条没被炸断的隧道。",
-      "ready": false,
+      "ready": true,
       "open": false,
-      "prevId": null,
+      "prevId": "C9",
       "noText": "第 4 关 · ",
       "win": "score",
       "perfect": {
-        "ok": false,
-        "text": "尚未编成"
+        "ok": true,
+        "text": "得分 28 以上（达成线 16）"
       },
+      "turns": 12,
+      "cols": 18,
+      "rows": 14,
       "blue": {
-        "cards": 0,
-        "str": 0
+        "cards": 19,
+        "str": 75
       },
       "red": {
-        "cards": 0,
-        "str": 0
+        "cards": 15,
+        "str": 78
       }
     },
     {

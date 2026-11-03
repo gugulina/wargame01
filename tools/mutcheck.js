@@ -98,8 +98,8 @@ const MUTANTS = [
    '战斗机：打飞机明显强于打地面'],
 
   ['空投落不下也把载货扣掉（算错位置要赔一整趟运输）',
-   "    if (!p) {\n      log('空投失败：",
-   "    if (!p) {\n      u.load = null;\n      log('空投失败：",
+   "    if (!p) {\n      log('空投取消：",
+   "    if (!p) {\n      u.load = null;\n      log('空投取消：",
    '投不下去就不执行'],
 
   /* ── 第四关引出的三条：舰队补给 / 全灭判胜 / 附属关解锁 ── */
@@ -134,7 +134,7 @@ const MUTANTS = [
    '崩溃的部队列不出攻击目标'],
 
   ['崩溃的部队绕过 doAttack 也能打出去（删掉第二道闸）',
-   "  if (isBroken(att)) {\n    log(att.abbr + ' 建制崩溃，组织不起进攻。', 'sys');\n    return false;\n  }",
+   "  if (isBroken(att)) {\n    log(att.abbr + ' 建制崩溃，无力进攻。', 'sys');\n    return false;\n  }",
    '',
    '崩溃单位直接调 doAttack 也打不出去'],
 
@@ -303,7 +303,7 @@ const MUTANTS = [
    'HQ_TABS 与页签按钮一一对应', 'brief'],
 
   ['文案里塞回超出二战水平的装备（战斗机挂空空导弹）',
-   "'对空 +0.60：它是唯一能主动猎杀敌方飞机的兵种，制空权靠它抢'",
+   "'对空 +0.60：唯一能主动猎杀敌机的兵种，制空权靠它抢'",
    "'对空 +0.60：开着加力追上去，挂空空导弹见谁打谁'",
    '文案里没有超出二战水平的装备'],
 
@@ -691,7 +691,7 @@ const MUTANTS = [
   ['行军状态的拖曳炮仍能反击（收着炮还还手）',
    '  if (isTowed(def) && def.packed) return false;',
    '  /* 变异：展开状态闸被移除 */',
-   '战报写明「对方无法反击」'],
+   '战报写明「对方未能还手」'],
 
   /* 简报正文退回"只转义不渲染"：** 会原样印在纸上，玩家看到星号。
      注意"不残留 <b> 标签"那条不会红（星号不是标签），
@@ -1364,6 +1364,22 @@ const MUTANTS = [
    '  if (cur && !AI_TACTICS[cur.id].when(ctx)) { state.tactic = null; cur = null; }',
    '  if (false) { state.tactic = null; cur = null; }',
    '接力：有人过江之后立刻换成断退路'],
+
+  /* ── v5.0 指挥部机动 ── */
+  ['指挥部不封顶（旅部跟着轻坦跑 12，轻坦不再脱离指挥）',
+   '  return Math.min(m, HQ_MOV_CAP);',
+   '  return m;',
+   '但不跟着轻坦跑 12'],
+
+  ['指挥部只按场上部队算（wave 2 的装甲师师部永远 8）',
+   '  for (const o of (LEVEL.units || [])) {',
+   '  for (const o of (state.units || [])) {',
+   '晚到的装甲师师部也按全量编制算'],
+
+  ['指挥部不看编制（步兵师师部被别的编制的轻坦带走）',
+   '    if (o.id === u.id || o.corps !== u.corps) continue;',
+   '    if (o.id === u.id) continue;',
+   '步兵师师部一动不动'],
 
 ];
 

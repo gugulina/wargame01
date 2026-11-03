@@ -5413,6 +5413,34 @@ console.log('\n[59] 战术调度器：封锁线（合围）与断退路（v4.25�
      Object.keys(api.AI_TACTICS).every(k => api.AI_TACTICS[k].fire === undefined));
 }
 
+console.log('\n[60] 指挥部机动：跟得上自己的部队（v5.0）');
+{
+  /* 用户的原话是"装甲单位的 HQ 移动力提高一些，不然跟不上自己的部队"。
+     这条规则只有两个判据，但它两头的错法都很静默：
+       · 不封顶 → 旅部跟着轻坦跑 12，屏幕上没有任何异常，只是"轻坦不脱离指挥了"；
+       · 只看场上 → wave 2 的装甲师师部永远是 8，而第 6 回合那一波正需要它跟上。
+     所以断言同时钉住"抬到 10""不许到 12""步兵师部不动""晚到的也算"。 */
+  api.newGame({ level: 'C6', noSave: true });
+  const S = api.getState();
+  const by = id => S.units.find(u => u.id === id);
+  ok('前提：装甲旅旅部与它的中坦、轻坦都在场',
+     !!by('E3H') && !!by('E3A') && !!by('E3C'),
+     ['E3H', 'E3A', 'E3C'].map(i => !!by(i)).join(','));
+  ok('装甲旅旅部跟到中坦的速度（8 → 10）', by('E3H').mov === 10, String(by('E3H').mov));
+  ok('但不跟着轻坦跑 12（轻坦脱离指挥去穿插，本来就该追不上）',
+     by('E3C').mov === 12 && by('E3H').mov < by('E3C').mov,
+     by('E3C').mov + ' / ' + by('E3H').mov);
+  ok('步兵师师部一动不动（下属全 6，8 本来就够）',
+     by('E1H').mov === 8, String(by('E1H').mov));
+  /* 只按场上现有部队算的话，wave 2 的师部永远是 8。用关卡数据造一份验它。 */
+  const late = api.LEVEL.units.find(u => u.id === 'R2H');
+  ok('晚到的装甲师师部也按全量编制算（第 6 回合进场就是 10）',
+     !!late && api.makeUnit(late, false).mov === 10,
+     late ? String(api.makeUnit(late, false).mov) : '缺 R2H');
+  ok('封顶值就是 10，没有哪个指挥部能跑到 12', api.HQ_MOV_CAP === 10);
+  ok('不是"全关最快"：步兵师师部没被别的编制的轻坦带走', by('E1H').mov === 8);
+}
+
 console.log('\n通过 ' + pass + ' 项，失败 ' + fail + ' 项');
   process.exit(fail ? 1 : 0);
 })().catch(e => {
