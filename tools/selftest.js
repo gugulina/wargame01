@@ -5964,8 +5964,17 @@ console.log('\n[70] 工程目标 · 桥涵（v5.3）');
   ok('装药总数够把四座桥全炸一遍',
      (e1.charges + e2.charges) >= api.worksTotal() * 2,
      (e1.charges + e2.charges) + ' 份 / 需要 ' + (api.worksTotal() * 2));
+  /* 覆写机制单独测一次：造两支只有 chg 不同的单位。
+     **不能拿关卡里的两支工兵来测**——它们的覆写值和兵种默认值恰好都是 5，
+     把覆写整段删掉，断言照样绿（这条在 v5.3 体检里就是这么变成假防线的）。 */
+  const tChg = api.makeUnit({ id: 'T_chg', side: 'blue', abbr: '测装', name: '装药覆写测试',
+    type: 'engc', str: 2, mov: 6, rng: 1, r: 13, c: 0, chg: 9 }, true);
+  ok('关卡可以在单位上覆写装药', tChg.charges === 9, String(tChg.charges));
+  const tDef = api.makeUnit({ id: 'T_chg2', side: 'blue', abbr: '测默', name: '默认装药测试',
+    type: 'engc', str: 2, mov: 6, rng: 1, r: 13, c: 1 }, true);
+  ok('没写 chg 的走兵种默认值', tDef.charges === api.TYPE.engc.chg, String(tDef.charges));
   const rEng = S.units.find(u => u.side === 'red' && u.type === 'engc');
-  ok('没写 chg 的走兵种默认值',
+  ok('敌方工兵也按默认值配装药',
      rEng && rEng.charges === api.TYPE.engc.chg, rEng ? String(rEng.charges) : '无');
 
   /* ── 爆破：两次装药才塌，第一次只破桥面 ── */

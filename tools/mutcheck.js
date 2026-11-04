@@ -21,10 +21,20 @@ const cp = require('child_process');
 
 const ROOT = path.join(__dirname, '..');
 const SRC = path.join(ROOT, 'game', 'campaign.html');
-const TMP = path.join(ROOT, 'game', '_mut_campaign.html');
+/* 每个分片用**自己的**临时文件名。共用一条路径会让并行跑互相覆盖：
+   一片刚写完 _mut_campaign.html，另一片紧接着覆盖成自己的变异，
+   前一片再拿它去跑测试，读到的是别人的代码。症状是两轮跑出的
+   "假防线"数字对不上（实测 49 → 17，差三倍），以及 finally 里
+   unlink 撞车直接崩掉（v5.3 体检实测）。 */
+const SHARD_TAG = (() => {
+  const a = (process.argv.find(x => x.startsWith('--shard=')) || '').slice(8);
+  const m = /^(\d+)\/(\d+)$/.exec(a);
+  return m ? '_s' + m[1] : '';
+})();
+const TMP = path.join(ROOT, 'game', '_mut' + SHARD_TAG + '_campaign.html');
 /* v4.21 起 AI 是独立文件，AI 那些锚点要改它，并把 HTML 指向变异副本 */
 const AI_SRC = path.join(ROOT, 'game', 'ai.js');
-const AI_TMP = path.join(ROOT, 'game', '_mut_ai.js');
+const AI_TMP = path.join(ROOT, 'game', '_mut' + SHARD_TAG + '_ai.js');
 
 /* [说明, 原文锚点, 替换成, 期望变红的断言名（子串匹配）, 跑哪个脚本]
    每条盯一个机制，别贪多：一个变异只该打中一两条，打中一片说明断言互相耦合了。
@@ -1468,6 +1478,46 @@ const MUTANTS = [
    '      ? 1 : 1;',
    '只剩一支残兵不算守住'],
 
+  /* ── v5.3 夜战与工程目标 ────────────────────────────────────────
+     这七条在 v5.3 发布时只有一次手动反向验证，没有进常驻防线。
+     补进来的理由很简单：新机制最容易在"下次顺手改"时被打穿，
+     而它们全都不会让测试报错，只会让屏幕上的数字不对。 */
+
+  ['夜战不夹射界（照明区外也按原射程打）',
+   '  const nr = nightRangeFor(u);\n  if (nr !== null) r = Math.min(r, nr);',
+   '  const nr = nightRangeFor(u);\n  if (false) r = Math.min(r, nr);',
+   '照明区外：野炮射程被压到 2'],
+
+  ['照明区不再豁免射界（灯下也被压到 2 格）',
+   '  if (litAt(u.pos[0], u.pos[1])) return null;',
+   '  if (false) return null;',
+   '站在灯下不受夜战射界影响'],
+
+  ['爆破不扣装药（可以无限炸）',
+   '    u.charges -= 1;',
+   '    u.charges -= 0;',
+   '炸一次扣一份装药'],
+
+  ['装药用完也能炸（早退守卫失效）',
+   '    if (u.charges <= 0) {',
+   '    if (false) {',
+   '装药用完就炸不动'],
+
+  ['敌工兵站上断桥也不修（repair 不生效）',
+   '    w.hp = Math.min(w.maxHp, w.hp + w.repair);',
+   '    w.hp = Math.min(w.maxHp, w.hp + 0);',
+   '敌工兵站在断桥上能抢修'],
+
+  ['破袭判定不看断桥数（开局就判胜）',
+   "    state.result = down >= need ? 'win' : 'fail';",
+   "    state.result = 'win';",
+   '只断一座 → 判负'],
+
+  ['makeUnit 忽略关卡的装药覆写',
+   '  const chg = u.chg !== undefined ? u.chg : (TYPE[u.type].chg || 0);',
+   '  const chg = TYPE[u.type].chg || 0;',
+   '关卡可以在单位上覆写装药'],
+
   ['剩余回合不看撤离终局期限（右栏一直显示到关卡上限）',
    '  const cap = Number.isFinite(state.escFinalTurn)',
    '  const cap = false',
@@ -1496,8 +1546,10 @@ const baseAi = fs.existsSync(AI_SRC) ? fs.readFileSync(AI_SRC, 'utf8') : '';
    保留 ?v= 查询串：load.js / briefcheck 都会 split('?')[0] 再解析，
    留着能顺带验证"版本戳不影响加载"。 */
 function htmlPointingToMutAi(html) {
+  /* 指向**本分片**的变异副本，名字不能写死（见 TMP 上面那段）。 */
+  const mutAi = path.basename(AI_TMP);
   return html.replace(/<script src="([^"]*?)ai\.js(\?[^"]*)?"><\/script>/g,
-    (m, dir, q) => '<script src="' + (dir || '') + '_mut_ai.js' + (q || '') + '"></script>');
+    (m, dir, q) => '<script src="' + (dir || '') + mutAi + (q || '') + '"></script>');
 }
 
 const GREP = (process.argv.find(a => a.startsWith('--grep=')) || '').slice(7);
