@@ -58,7 +58,7 @@
      <link> 不会——跟 data/levels.js 必须用 <script src> 是同一个原因。
      ?v= 跟着顶栏版本走（tools/check.js 校验），否则改完样式玩家可能还在吃
      GitHub Pages 的十分钟缓存，看到的是一半新一半旧的页面。 -->
-<link rel="stylesheet" href="campaign.css?v=5.1">
+<link rel="stylesheet" href="campaign.css?v=5.2">
 <!-- 版本公告数据与菜单页共用一份（HQ 的「版本公告」页签读它）。
      放在 <head> 里同步加载：页签是玩家点了才渲染的，但真读不到时那一页要能
      说清"文件缺了"，而不是显示一片空白——异步加载失败是静默的。 -->
@@ -76,7 +76,7 @@
       <span class="pill" id="phasePill">我方阶段</span>
       <!-- 全项目唯一的版本标记：tools/export-levels.js 按这个 span 的原样文本抓版本号，
            开始页撤掉之后它挪到了顶栏，标签必须保持 <span id="verTag"> 这个形状 -->
-      <span id="verTag">v5.1</span>
+      <span id="verTag">v5.2</span>
       <!-- 存档异常：只在真的写失败时出现（隐私模式 / 配额满 / 被清理）。
            默认 display:none，别让它平时占位——一排胶囊里突然多一个红字，
            玩家第一反应是"我是不是哪里点坏了"。 -->
@@ -341,7 +341,7 @@
      引擎顶层的 window.__WAR__ 导出表直接引用 runAI / huntContact 等 38 个符号，
      那些是 function 声明，AI 后加载就会在导出那一刻报 ReferenceError；
      反过来 AI 引用引擎的 state / LEVEL / TYPE 全在函数体内，调用时才解析。 -->
-<script src="ai.js?v=5.1"></script>
+<script src="ai.js?v=5.2"></script>
 
 <script>
 /* ───────────────────────── 地形 ───────────────────────── */
@@ -1630,7 +1630,7 @@ const LEVELS = [
             { t: '撤出 6 支以上算超额。这关不比死了几个，比送出去几个。', hl: true }
           ],
           nums: [
-            { k: '回合', v: '12' },
+            { k: '回合', v: '14' },
             { k: '达成', v: '4 支撤出' },
             { k: '超额', v: '6 支撤出' }
           ]
@@ -2098,7 +2098,7 @@ const LEVELS = [
             { t: '青溪镇在北岸，是敌人的补给走廊。派兵去抢就是送人头。那 10 分挂在钩子上，别伸嘴。', hl: true }
           ],
           nums: [
-            { k: '回合', v: '12' },
+            { k: '回合', v: '14' },
             { k: '达成', v: '26 分' },
             { k: '超额', v: '30 分' }
           ]
@@ -3336,7 +3336,7 @@ const LEVELS = [
           nums: [
             { k: '部队', v: '9' },
             { k: '援军', v: '伞兵 1 支' },
-            { k: '回合', v: '12' },
+            { k: '回合', v: '14' },
             { k: '桥', v: '1 座' }
           ]
         },
@@ -3756,7 +3756,7 @@ const LEVELS = [
   when: '新历 1208 年 9 月 12 日', where: '首都圈 · 岚京北郊',
   teaser: '敌人的侦察兵已经能看见城里的钟楼。北郊这几个村子，是首都最后一道门槛。',
   ready: true,
-  win: { kind: 'survive', keep: ['vN'] },
+  win: { kind: 'survive', keep: ['vN'], minAlive: 0.4 },
   prev: {
     win:  '北郊防线守住了，敌人在城下停了十二天。这十二天里，城里的医院和电台往南撤空了。',
     fail: '北郊防线没能守住，敌人的前锋当天就看见了城墙。撤进城里的部队只剩编制的一半。'
@@ -3776,6 +3776,9 @@ const LEVELS = [
   cols: 18,
   rows: 12,
   blueSources: [[11, 8]],
+  /* 首都是内线（v5.2）：半径 12，够铺满整张图。
+     城郊野战不给 zoc:false——被合围就该断粮，那是这一关的战术内容。 */
+  supply: { blue: { r: 12 } },
   redSource: [0, 8],
   forts: [
     { r: 4, c: 2,  side: 'blue', kind: 'H' },
@@ -3882,7 +3885,7 @@ const LEVELS = [
           ],
           nums: [
             { k: '部队', v: '22' },
-            { k: '回合', v: '12' },
+            { k: '回合', v: '14' },
             { k: '村子', v: '2 座' }
           ]
         },
@@ -3911,7 +3914,7 @@ const LEVELS = [
             { t: '重炮不打步兵，专挑炮兵阵地和指挥部。炮兵打完就挪，指挥部离前线远一点。', hl: true }
           ],
           nums: [
-            { k: '回合', v: '12' },
+            { k: '回合', v: '14' },
             { k: '敌军波次', v: '3' },
             { k: '主阵地', v: '不能丢' }
           ]
@@ -4011,7 +4014,7 @@ const LEVELS = [
   when: '新历 1208 年 10 月 2 日', where: '首都圈 · 岚京城北水厂',
   teaser: '两百万人喝的水从这里来。水厂一丢，城里的守军撑不过一周。',
   ready: true,
-  win: { kind: 'survive', keep: ['plant'] },
+  win: { kind: 'survive', keep: ['plant'], minAlive: 0.4 },
   prev: {
     win:  '北郊守住了十四天，敌人绕到城东去了。城防司令部趁这两天把水厂的守备换成了能打的。',
     fail: '北郊失守，敌人当天就从北门进了城。水厂成了城北最后一个据点，身后已经没有防线。'
@@ -4032,6 +4035,8 @@ const LEVELS = [
   cols: 18,
   rows: 14,
   blueSources: [[12, 7]],
+  /* 同 C7：城郊野战，半径放大但补给线照样会被敌军掐断。 */
+  supply: { blue: { r: 12 } },
   redSource: [0, 8],
   forts: [
     { r: 5, c: 6,  side: 'blue', kind: 'B' },
@@ -4133,7 +4138,7 @@ const LEVELS = [
           ],
           nums: [
             { k: '部队', v: '17' },
-            { k: '回合', v: '12' },
+            { k: '回合', v: '14' },
             { k: '供水人口', v: '200 万' }
           ]
         },
@@ -4162,7 +4167,7 @@ const LEVELS = [
             { t: '看到工兵上来，先用炮打掉。**他们拆一座碉堡很快**，围墙破了就补不回来。', hl: true }
           ],
           nums: [
-            { k: '回合', v: '12' },
+            { k: '回合', v: '14' },
             { k: '必须守住', v: '主厂区' },
             { k: '敌军波次', v: '3' }
           ]
@@ -4263,6 +4268,9 @@ const LEVELS = [
   cols: 18,
   rows: 14,
   blueSources: [[7, 8]],
+  /* 市区：半径 12 + 内线道路网（zoc:false）。街区之间自有路网，
+     丢一条街不等于断粮——这一关的难点是守楼，不该是守粮道。 */
+  supply: { blue: { r: 12, zoc: false } },
   redSource: [0, 8],
   forts: [
     { r: 4, c: 6,  side: 'blue', kind: 'H' },
@@ -4352,7 +4360,7 @@ const LEVELS = [
           ],
           nums: [
             { k: '部队', v: '9' },
-            { k: '回合', v: '12' },
+            { k: '回合', v: '14' },
             { k: '收听人口', v: '200 万' }
           ]
         },
@@ -4381,7 +4389,7 @@ const LEVELS = [
             { t: '巷战里一栋楼比一条街值钱：守在里面，敌人要一层一层清；站在街上，一轮炮就没了。', hl: true }
           ],
           nums: [
-            { k: '回合', v: '12' },
+            { k: '回合', v: '14' },
             { k: '达成线', v: '21 分' },
             { k: '大楼', v: '12 分' }
           ]
@@ -4489,6 +4497,8 @@ const LEVELS = [
   cols: 18,
   rows: 14,
   blueSources: [[13, 8]],
+  /* 市区：同 C9，半径 12 + 内线道路网。 */
+  supply: { blue: { r: 12, zoc: false } },
   redSource: [0, 8],
   forts: [
     { r: 3, c: 8,  side: 'blue', kind: 'H' },
@@ -4585,7 +4595,7 @@ const LEVELS = [
           ],
           nums: [
             { k: '部队', v: '15' },
-            { k: '回合', v: '12' },
+            { k: '回合', v: '14' },
             { k: '站线', v: '12 条' }
           ]
         },
@@ -4614,7 +4624,7 @@ const LEVELS = [
             { t: '反坦克连摆站场北口那道缺口，那是坦克唯一能上站台的方向。别把它调去守站房。', hl: true }
           ],
           nums: [
-            { k: '回合', v: '12' },
+            { k: '回合', v: '14' },
             { k: '达成线', v: '16 分' },
             { k: '要点', v: '4 处' }
           ]
@@ -4694,11 +4704,249 @@ const LEVELS = [
   ]
 },
 {
+  /* 外环防线（v5.2）：第 2 章第 5 关，正关。
+     戏眼是一条粮道：东货场是城里最后一处还能卸粮的地方，
+     丢了它，城里的存粮从"一个月"变成"十天"——这不是分数，是守不守得住的问题。
+
+     **要点即补给源**是本关第一次用的机制（引擎见 supplySources 的要点分支）：
+     东货场的控制权在我方，它就往周围四格派补给；被敌人拿走，
+     那个方向的部队下一回合就从「充足」掉到「紧张」。
+     补给档位是玩家能直接看见的东西（部队面板 + 战力乘数），
+     所以"丢一个点"的重量第一次不用靠文案解释。
+
+     地图 18×14：北面 redSource 到南面 blueSource 有 12 行纵深，
+     够摆三道阵地；再窄就变成开局对撞（C11B 第一版踩过这个坑）。 */
   id: 'C11', ch: 2, no: 5, name: '外环防线', type: '防御',
   when: '新历 1208 年 11 月 15 日', where: '首都圈 · 岚京外环',
   teaser: '外环是包围圈的内缘。守住它，城里的粮食还能再进一个月。',
-  ready: false,
-  win: { kind: 'survive' }
+  ready: true,
+  win: { kind: 'survive', keep: ['yard'], minAlive: 0.4 },
+  /* 外环不是市中心：半径 5 只够铺到二线，前沿得靠东货场那个要点补给源。
+     zoc:false —— 环城道路网还在，敌人穿插到侧后不断粮；
+     但丢了货场就是真断粮（那个源直接消失）。 */
+  supply: { blue: { r: 5, zoc: false } },
+  prev: {
+    win:  '中央车站还在我们手里。那天夜里，第一列满载粮食的火车开进了站台，卸车卸到天亮。',
+    fail: '中央车站丢了。城里的粮食从那天起按人头配给，每人每天四两。'
+  },
+  intro: [
+    '十一月 · 阴。岚京外环。',
+    '包围圈合上了。城外的铁路、公路、桥梁，一条一条断在我们看不见的地方。',
+    '外环是包围圈的内缘，也是城里最后一圈还能站人的阵地。三个位置：东货场、西北哨所、东水塔。',
+    '东货场是粮道。城里还有多少粮，取决于这个货场还能卸几天车——它丢了，剩下的存粮撑不过十天。',
+    '我们的编成：第 301 预备役师两个营加火箭炮连，第 102 师两个营加反坦克连、工兵连，第 204 装甲旅一个中坦营、一个侦察营，卫戍第 1 旅两个守备营，军校生旅一个营。',
+    '敌人是第 63 步兵师加近卫装甲第 2 师的前锋。第 3 回合装甲上来，第 5 回合他们的重炮进入阵地。',
+    '任务：守住外环 14 个回合，东货场一天都不能丢。'
+  ],
+  /* 14 回合而不是 12（v5.2）：补给改充足之后，12 回合蓝方撑得太轻松
+     （达成率 88%）。"守多久"是防御关最自然的那根旋钮——
+     它改的是玩家要扛几轮，不是某支部队突然变强变弱。 */
+  maxTurns: 14,
+  cols: 18,
+  rows: 14,
+  blueSources: [[12, 8]],
+  redSource: [0, 8],
+  /* 六处工事砍到三处（v5.2）：外环是野战防线，不是永久要塞。
+     六个碉堡 + 城市地形 + 卫戍精锐叠在一起，30 局红方一次都没啃下来。 */
+  forts: [
+    { r: 7, c: 3,  side: 'blue', kind: 'H' },
+    { r: 9, c: 9,  side: 'blue', kind: 'H' },
+    { r: 11, c: 6, side: 'blue', kind: 'F' }
+  ],
+  /* 外环是城郊结合部，不是市中心（v5.2 首测 100% 后重画）：
+     原来 r4–r9 整片是城市格（防御 +0.85），蓝方蹲在里面、红方在平原上冲，
+     30 局一次都没打下来。现在只留东侧一块街区和西侧两处院落，
+     其余是林地（+0.25）与丘陵（+0.50）——防线还是好守，但不是保险箱。 */
+  map: [
+    '..................',
+    '..hh..........hh..',
+    '..hh..ff..ff..hh..',
+    '......ff..ff......',
+    '..tt..##..##..tt..',
+    '..ff..##..##..ff..',
+    '..ff..hh..hh..tt..',
+    '..tt..hh..hh..tt..',
+    '..ff..ff..ff..ff..',
+    '..ff..hh..hh..ff..',
+    '......ff..ff......',
+    '..ff..........ff..',
+    '..................',
+    '..................'
+  ],
+  objectives: [
+    /* 东货场：粮道。`supply:4` 让它成为一个补给源——这是这一关的机制核心。
+       **位置必须落在红方的主攻轴上**：第一版把它放在西北角（距红 6 格，
+       按距离本来是最近的），但红方从北面南下，主攻方向是中路的西北哨所，
+       三十局里东货场一次都没挨过打（战报里连一行归属变化都没有）。
+       挪到中路南段之后，它才真正成为"守不守得住"的问题。 */
+    { id: 'yard', name: '东货场', vp: 12, core: true, rule: 'contest', kind: 'town',
+      supply: 4, cells: [[6,10],[6,11],[7,10]] },
+    /* 西北哨所：侧翼警戒。它不值钱在补给，在"让敌人多走两回合"。 */
+    { id: 'outpost', name: '西北哨所', vp: 8, core: false, rule: 'contest', kind: 'town',
+      supply: 3, cells: [[5,2],[5,3],[6,2]] },
+    /* 东水塔：外环制高点，视野与炮校。丢了不掉粮，掉的是射界。 */
+    { id: 'easttower', name: '东水塔', vp: 8, core: false, rule: 'contest', kind: 'town',
+      supply: 3, cells: [[4,14],[4,15],[5,15]] }
+  ],
+  events: [
+    {
+      id: 'relief', desc: '外环接敌',
+      when: { kind: 'firstBlood' },
+      effects: [
+        { kind: 'say', beats: [
+          { who: '首都卫戍第 1 旅 · 旅部', side: 'blue', portrait: 'portBlue',
+            text: '东货场是我们的。\n谁丢的谁去捡回来，不用报我。' },
+          { who: '第 102 步兵师 · 师部', side: 'blue', portrait: 'portHQ',
+            text: '守得住就守，守不住就退到货场后面。\n别在平原上跟装甲拼消耗。' }
+        ] }
+      ]
+    },
+    {
+      id: 'railyard_gone', desc: '粮道告警',
+      when: { kind: 'turn', turn: 6 },
+      effects: [
+        { kind: 'log', text: '城里的粮食按人头配给了。市政府的人说，东货场多守一天，配给就能多加一两。', cls: 'hi' },
+        { kind: 'org', side: 'blue', delta: 3 }
+      ]
+    },
+    {
+      id: 'final_push', desc: '敌军总攻',
+      when: { kind: 'turn', turn: 9 },
+      effects: [
+        { kind: 'log', text: '敌人的炮火突然停了。前沿观察所说，他们看见坦克在往外环这边挪——要总攻了。', cls: 'r' },
+        { kind: 'mod', side: 'red', atk: 0.08, label: '外环总攻 · 敌军攻击 +8%' },
+        { kind: 'sfx', name: 'alarm' }
+      ]
+    },
+    {
+      id: 'last_stand', desc: '最后两回合',
+      when: { kind: 'turn', turn: 11 },
+      effects: [
+        { kind: 'log', text: '外环还在。城里的人开始从地下室往外看，他们听见炮声没有往前推。', cls: 'b' },
+        { kind: 'org', side: 'blue', delta: 4 }
+      ]
+    }
+  ],
+  story: {
+    briefing: {
+      pages: [
+        {
+          order: '防御命令 · 第 14 号',
+          kicker: '战役态势',
+          title: '外环是最后一圈',
+          paras: [
+            { t: '包围圈合上了。城外的铁路、公路、桥梁，一条一条断在我们看不见的地方。' },
+            { t: '外环是包围圈的内缘——**它丢了，城里就再没有能站人的阵地**。', hl: true },
+            { t: '三个位置：东货场、西北哨所、东水塔。东货场是粮道，城里还有多少粮，取决于它还能卸几天车。' }
+          ],
+          nums: [
+            { k: '防守', v: '14 回合' },
+            { k: '要点', v: '3 处' },
+            { k: '命脉', v: '东货场' }
+          ]
+        },
+        {
+          order: '补给须知 · 附页',
+          kicker: '这一关怎么玩',
+          title: '守住货场，就是守住粮',
+          paras: [
+            { t: '**东货场本身就是一个补给点**：它在我们手里，西段部队就是「充足」；被敌人拿走，那一侧的部队下一回合开始缺粮。', hl: true },
+            { t: '外环的补给只铺到二线。前沿能吃饱，全靠三个要点撑着——所以这一关的每一个点都不只是分数。' },
+            { t: '敌人从北面来，第 3 回合装甲上场，第 5 回合重炮进入阵地。**别在平原上跟装甲拼消耗**。', hl: true },
+            { t: '第 9 回合他们会总攻。那时候还站着的部队，就是这一关的全部答案。' }
+          ],
+          nums: [
+            { k: '货场', v: '补给源' },
+            { k: '装甲', v: '第 3 回合' },
+            { k: '总攻', v: '第 9 回合' }
+          ]
+        },
+        {
+          order: '任务简报',
+          kicker: '你的任务',
+          title: '守满十四回合',
+          paras: [
+            { t: '第 14 回合结束时，我方还在场上、**东货场还在我们手里**，算达成。' },
+            { t: '东货场被敌人拿走、或者我方全军覆没，当场判负。另外两处要点丢了不判负，但会少一层射界和缓冲。' },
+            { t: '城里的人在地下室里数炮声。**他们听见炮声没有往前推，就知道外环还在。**', hl: true }
+          ],
+          nums: [
+            { k: '回合', v: '14' },
+            { k: '必须守住', v: '东货场' },
+            { k: '判负', v: '丢货场' }
+          ]
+        }
+      ],
+      beats: [
+        { who: '首都卫戍第 1 旅 · 旅部', side: 'blue', portrait: 'portBlue',
+          text: '东货场是我们的。\n谁丢的谁去捡回来，不用报我。' },
+        { who: '第 301 预备役步兵师 · 师部', side: 'blue', portrait: 'portHQ',
+          text: '火箭炮只有三个基数。\n打完了，就只剩步枪了。' },
+        { who: '敌第 63 步兵师 · 师部', side: 'red', portrait: 'portRed',
+          text: '外环一破，城就是一口锅。\n先把锅盖掀了。' }
+      ]
+    }
+  },
+  corpsName: {
+    E1: '第 301 预备役步兵师', E2: '第 102 步兵师', E3: '第 204 装甲旅',
+    E4: '首都军校生旅', E5: '首都卫戍第 1 旅',
+    R1: '敌第 63 步兵师', R2: '敌近卫装甲第 2 师', R3: '敌独立重炮群'
+  },
+  units: [
+    /* ── 我方 · 第 301 预备役步兵师（师部 + 两个营 + 火箭炮连） ── */
+    { id:'E1H', side:'blue', abbr:'301H',  name:'新编第 301 预备役步兵师师部',      type:'hqd',  str:2, mov:8, rng:0, r:11, c:9,  corps:'E1', wave:1 },
+    { id:'E1A', side:'blue', abbr:'901-1', name:'第 901 团第 1 营',                type:'inf',  str:5, mov:6, rng:1, r:7,  c:6,  corps:'E1', wave:1 },
+    { id:'E1B', side:'blue', abbr:'901-2', name:'第 901 团第 2 营残部',            type:'inf',  str:5, mov:6, rng:1, r:7,  c:7,  corps:'E1', wave:1 },
+    { id:'E1R', side:'blue', abbr:'301火', name:'新编第 301 预备役步兵师火箭炮连',  type:'mlrs', str:4, mov:5, rng:6, r:10, c:9,  corps:'E1', wave:1, packed:1 },
+
+    /* ── 我方 · 第 102 步兵师（师部 + 两个营 + 反坦克连 + 工兵连） ── */
+    { id:'E2H', side:'blue', abbr:'102H',  name:'第 102 步兵师师部',              type:'hqd',  str:2, mov:8, rng:0, r:11, c:8,  corps:'E2', wave:1 },
+    { id:'E2A', side:'blue', abbr:'304-1', name:'第 304 步兵团第 1 营残部',        type:'inf',  str:5, mov:6, rng:1, r:6,  c:10, corps:'E2', wave:1 },
+    { id:'E2B', side:'blue', abbr:'304-2', name:'第 304 步兵团第 2 营残部',        type:'inf',  str:5, mov:6, rng:1, r:9,  c:11, corps:'E2', wave:1 },
+    { id:'E2T', side:'blue', abbr:'102反', name:'第 102 步兵师反坦克连',          type:'at',   str:3, mov:5, rng:1, r:7,  c:10, corps:'E2', wave:1 },
+    { id:'E2E', side:'blue', abbr:'102工', name:'第 102 步兵师工兵连',            type:'engc', str:2, mov:6, rng:1, r:10, c:10, corps:'E2', wave:1 },
+
+    /* ── 我方 · 第 204 装甲旅（旅部 + 中坦营 + 侦察营） ── */
+    { id:'E3H', side:'blue', abbr:'204H',  name:'第 204 装甲旅旅部',              type:'hqb',  str:2, mov:8,  rng:0, r:11, c:7,  corps:'E3', wave:1 },
+    { id:'E3A', side:'blue', abbr:'204-1', name:'第 204 装甲旅第 1 营（中坦）',     type:'marm', str:7, mov:10, rng:1, r:9,  c:7,  corps:'E3', wave:1 },
+    { id:'E3C', side:'blue', abbr:'204侦', name:'第 204 装甲旅侦察营（轻坦）',      type:'larm', str:5, mov:12, rng:1, r:4,  c:14, corps:'E3', wave:1 },
+
+    /* ── 我方 · 军校生旅与卫戍旅 ── */
+    { id:'E4H', side:'blue', abbr:'军校H',  name:'首都军校生旅旅部',              type:'hqb',  str:2, mov:8, rng:0, r:10, c:6,  corps:'E4', wave:1 },
+    { id:'E4A', side:'blue', abbr:'军校-1', name:'首都军校生旅第 1 营',            type:'inf',  str:6, mov:6, rng:1, r:8,  c:5,  corps:'E4', wave:1, traits:['cadet'] },
+    { id:'E5H', side:'blue', abbr:'卫戍H',  name:'首都卫戍第 1 旅旅部',            type:'hqb',  str:2, mov:8, rng:0, r:9,  c:3,  corps:'E5', wave:1 },
+    { id:'E5A', side:'blue', abbr:'卫1-1', name:'首都卫戍第 1 团第 1 营',          type:'gdn',  str:7, mov:6, rng:1, r:5,  c:3,  corps:'E5', wave:1, traits:['guard'] },
+    { id:'E5B', side:'blue', abbr:'卫1-2', name:'首都卫戍第 1 团第 2 营',          type:'gdn',  str:7, mov:6, rng:1, r:5,  c:2,  corps:'E5', wave:1, traits:['guard'] },
+
+    /* ── 敌方 · 第一波 · 第 63 步兵师（北面全线压） ── */
+    { id:'R1H', side:'red', abbr:'63H',   name:'敌第 63 步兵师师部',              type:'hqd', str:2, mov:8, rng:0, r:0,  c:8,  corps:'R1', wave:1 },
+    { id:'R1A', side:'red', abbr:'187-1', name:'敌第 187 步兵团第 1 营',          type:'inf', str:7, mov:6, rng:1, r:1,  c:4,  corps:'R1', wave:1 },
+    { id:'R1B', side:'red', abbr:'187-2', name:'敌第 187 步兵团第 2 营',          type:'inf', str:7, mov:6, rng:1, r:1,  c:8,  corps:'R1', wave:1 },
+    { id:'R1C', side:'red', abbr:'188-1', name:'敌第 188 步兵团第 1 营',          type:'inf', str:7, mov:6, rng:1, r:1,  c:12, corps:'R1', wave:1 },
+    { id:'R1D', side:'red', abbr:'188-2', name:'敌第 188 步兵团第 2 营（摩步）',    type:'mob', str:7, mov:8, rng:1, r:2,  c:15, corps:'R1', wave:1 },
+    /* 第 189 团补上来（v5.2 首测 100%，红方兵力不足）：
+       首测 30 局全达成、敌方损失 85%，说明五个营压不动一条三道纵深的防线。 */
+    { id:'R1E', side:'red', abbr:'189-1', name:'敌第 189 步兵团第 1 营',          type:'inf', str:7, mov:6, rng:1, r:2,  c:6,  corps:'R1', wave:1 },
+    { id:'R1F', side:'red', abbr:'189-2', name:'敌第 189 步兵团第 2 营',          type:'inf', str:7, mov:6, rng:1, r:2,  c:10, corps:'R1', wave:1 },
+    { id:'R1G', side:'red', abbr:'190-1', name:'敌第 190 步兵团第 1 营',          type:'inf', str:7, mov:6, rng:1, r:1,  c:2,  corps:'R1', wave:1 },
+
+    /* ── 敌方 · 第二波 · 近卫装甲第 2 师前指（第 5 回合） ── */
+    { id:'R2H', side:'red', abbr:'2H',    name:'敌近卫装甲第 2 师前指',            type:'hqd',  str:2, mov:8,  rng:0, r:0,  c:2,  corps:'R2', wave:2 },
+    { id:'R2A', side:'red', abbr:'2-1',   name:'敌近卫装甲第 5 团第 1 营（中坦）',  type:'marm', str:11, mov:10, rng:1, r:0,  c:5,  corps:'R2', wave:2 },
+    { id:'R2B', side:'red', abbr:'2-3',   name:'敌近卫装甲第 6 团第 1 营（中坦）',  type:'marm', str:10, mov:10, rng:1, r:0,  c:10, corps:'R2', wave:2 },
+    { id:'R2C', side:'red', abbr:'2-4',   name:'敌近卫装甲第 6 团第 2 营（装步）',  type:'mech', str:9,  mov:8,  rng:1, r:0,  c:14, corps:'R2', wave:2 },
+
+    /* ── 敌方 · 第三波 · 独立重炮群（第 8 回合） ── */
+    { id:'R3H', side:'red', abbr:'重炮H', name:'敌独立重炮群群部',                type:'hkg',  str:2, mov:8, rng:0, r:0,  c:16, corps:'R3', wave:3 },
+    { id:'R3A', side:'red', abbr:'重火',  name:'敌独立重炮群火箭炮营',            type:'mlrs', str:5, mov:5, rng:6, r:1,  c:16, corps:'R3', wave:3, packed:1 },
+    { id:'R3B', side:'red', abbr:'重-2',  name:'敌独立重炮群第 2 营',              type:'hr',   str:6, mov:5, rng:9, r:0,  c:15, corps:'R3', wave:3, packed:1 },
+    { id:'R3C', side:'red', abbr:'重-3',  name:'敌独立重炮群第 3 营（缺编）',        type:'hr',   str:4, mov:5, rng:9, r:1,  c:14, corps:'R3', wave:4, packed:1 }
+  ],
+  waves: [
+    { wave: 2, turn: 3, text: '近卫装甲第 2 师的前锋上来了。外环北面的公路上全是坦克。' },
+    { wave: 3, turn: 5, text: '敌军重炮进入阵地。这一回他们不打算省炮弹。' },
+    { wave: 4, turn: 10, text: '又有一批重炮推上来，在东面的土坡后面放列。' }
+  ]
 },
 {
   /* 护送关：胜负不看歼敌，看"出去多少人"。这类关卡是全篇节奏的换气口。
@@ -4739,6 +4987,9 @@ const LEVELS = [
   cols: 18,
   rows: 16,
   blueSources: [[13, 9], [13, 16]],
+  /* 市区 + 城郊公路：半径 12 + 内线道路网。车队走的是公路，
+     敌人卡住某一段并不等于全线断粮——补给要跟着公路网走。 */
+  supply: { blue: { r: 12, zoc: false } },
   redSource: [0, 8],
   forts: [
     { r: 6, c: 10, side: 'blue', kind: 'H' },
@@ -4903,7 +5154,7 @@ const LEVELS = [
 
     /* ── 我方 · 第 204 装甲旅（中坦 + 侦察） ── */
     { id:'E3A', side:'blue', abbr:'204-1', name:'第 204 装甲旅第 1 营（中坦）',     type:'marm', str:7, mov:10, rng:1, r:9,  c:13, corps:'E3', wave:1 },
-    { id:'E3C', side:'blue', abbr:'204侦', name:'第 204 装甲旅侦察营（轻坦）',      type:'larm', str:5, mov:12, rng:1, r:6,  c:13, corps:'E3', wave:1 },
+    { id:'E3C', side:'blue', abbr:'204侦', name:'第 204 装甲旅侦察营（轻坦）',      type:'larm', str:5, mov:12, rng:1, r:4,  c:14, corps:'E3', wave:1 },
     { id:'E3H', side:'blue', abbr:'204H',  name:'第 204 装甲旅旅部',              type:'hqb',  str:2, mov:8,  rng:0, r:11, c:13, corps:'E3', wave:1 },
 
     /* ── 我方 · 军校生旅与卫戍旅（各抽部队） ── */
@@ -4940,11 +5191,250 @@ const LEVELS = [
   ]
 },
 {
+  /* 岚京保卫战（v5.2）：第 2 章收尾，全章高潮。
+     前面五关都在城外，这一关敌人已经进城——地图第一次整片是街区，
+     红方从**两个方向**同时压（北面车站方向、东面城墙缺口），
+     蓝方只剩城防司令部和司令部周围六个街区。
+
+     戏眼是**倒计时**：守 14 回合，第 8 回合敌军总攻，第 10 回合
+     城防司令部把最后的宪兵连与工兵排派上来（wave:0 + spawn 事件）——
+     那是全战役最后一次增援，之后再也没有了。
+
+     胜负：守满 14 回合且城防司令部还在我方手里。司令部是 core 要点，
+     开局有人（空着的 core 会被两回合拿走，直接越过判负线）。 */
   id: 'C12', ch: 2, no: 6, name: '岚京保卫战', type: '防御',
   when: '新历 1208 年 12 月 6 日', where: '首都圈 · 岚京市区',
   teaser: '城还在。城外没有一支援军了。',
-  ready: false,
-  win: { kind: 'survive' }
+  ready: true,
+  win: { kind: 'survive', keep: ['hq'], minAlive: 0.5 },
+  /* 市区：全图充足 + 内线道路网。城里打巷战不该缺粮，缺的是人和弹药。 */
+  supply: { blue: { r: 12, zoc: false } },
+  prev: {
+    win:  '外环守住了。城里的粮食又撑了一个月，那个月里每一顿饭都算在我们头上。',
+    fail: '外环丢了。城里的存粮从那天起只能按十天算，市政府开始烧档案。'
+  },
+  intro: [
+    '十二月 · 雪。岚京市区。',
+    '外环还是丢了。敌人从北面和东面同时进城，坦克沿着两条主街往里推。',
+    '我们退到城防司令部周围六个街区。再往后，没有阵地了。',
+    '编成：第 102 师一个营加反坦克连，第 204 装甲旅旅部、一个中坦营、一个侦察营，卫戍第 1 旅两个守备营，军校生旅一个营，第 301 预备役师一个营。',
+    '第 301 师的火箭炮在外环打光了，炮手编进了步兵连。',
+    '敌人是近卫装甲第 2 师、第 63 步兵师残部，加上新调上来的第 41 步兵师。他们有四波，我们没有增援——除了第 10 回合城防司令部手里的那点人。',
+    '任务：守住司令部 14 个回合。'
+  ],
+  maxTurns: 14,
+  cols: 18,
+  rows: 14,
+  blueSources: [[13, 8]],
+  redSources: [[0, 4], [0, 13]],
+  forts: [
+    { r: 10, c: 5,  side: 'blue', kind: 'H' },
+    { r: 10, c: 12, side: 'blue', kind: 'H' },
+    { r: 8, c: 8,  side: 'blue', kind: 'B' },
+    { r: 12, c: 10, side: 'blue', kind: 'B' },
+    { r: 12, c: 4, side: 'blue', kind: 'F' }
+  ],
+  /* 整片是街区：市区巷战，城市格（def 0.85）成片是这一关的本来面目。
+     但中间留了两条 'ff' 和一条 'hh'——全城都是楼的话，
+     进攻方连个能站的地方都没有，红方会卡在边缘不动。 */
+  map: [
+    '..................',
+    '..tt..tt..tt..tt..',
+    '..tt..tt..tt..tt..',
+    '..tt..ff..ff..tt..',
+    '..tt..tt..tt..tt..',
+    '..##..##..##..##..',
+    '..tt..tt..tt..##..',
+    '..tt..hh..hh..tt..',
+    '..tt..tt..tt..tt..',
+    '..ff..tt..tt..ff..',
+    '..tt..tt..tt..tt..',
+    '..tt..ff..ff..tt..',
+    '......tt..tt......',
+    '..................'
+  ],
+  objectives: [
+    /* 城防司令部：全章的终点。core + keep。 */
+    { id: 'hq', name: '城防司令部', vp: 14, core: true, rule: 'hold', kind: 'town',
+      cells: [[12,6],[12,7],[13,6]] },
+    /* 中央广场：两条主街的交叉口，红方南北对进必须在这里会合。 */
+    { id: 'plaza', name: '中央广场', vp: 10, core: false, rule: 'contest', kind: 'town',
+      cells: [[6,10],[6,11],[7,10]] },
+    /* 东城墙缺口：敌人进城的那道口子。它丢了不判负，但红方会从那里直接压到广场。 */
+    { id: 'breach', name: '东城墙缺口', vp: 8, core: false, rule: 'contest', kind: 'town',
+      cells: [[4,14],[4,15],[5,15]] }
+  ],
+  events: [
+    {
+      id: 'last_city', desc: '巷战开始',
+      when: { kind: 'firstBlood' },
+      effects: [
+        { kind: 'say', beats: [
+          { who: '城防司令部 · 参谋长', side: 'blue', portrait: 'portHQ',
+            text: '各部队按街区编号报位置。\n从现在起，一条街就是一个阵地。' },
+          { who: '首都卫戍第 1 旅 · 旅部', side: 'blue', portrait: 'portBlue',
+            text: '卫戍旅在。\n司令部在我们就在。' }
+        ] }
+      ]
+    },
+    {
+      id: 'breach_lost', desc: '城墙缺口失守',
+      when: { kind: 'turn', turn: 5 },
+      effects: [
+        { kind: 'log', text: '东城墙的缺口被坦克撞开了。敌人沿着主街往广场推，炮弹落进居民楼。', cls: 'r' },
+        { kind: 'mod', side: 'red', atk: 0.06, label: '破城 · 敌军攻击 +6%' },
+        { kind: 'sfx', name: 'alarm' }
+      ]
+    },
+    {
+      id: 'general_assault', desc: '敌军总攻',
+      when: { kind: 'turn', turn: 6 },
+      effects: [
+        { kind: 'log', text: '敌人的炮火从凌晨打到中午，然后停了。前沿报告：他们不打算留预备队了。', cls: 'r' },
+        { kind: 'mod', side: 'red', atk: 0.10, label: '总攻 · 敌军攻击 +10%' },
+        { kind: 'org', side: 'blue', delta: -6 },
+        { kind: 'banner', text: '敌 军 总 攻', cls: 'r', ms: 2600 }
+      ]
+    },
+    {
+      id: 'last_reserve', desc: '最后的预备队',
+      when: { kind: 'turn', turn: 10 },
+      effects: [
+        { kind: 'spawn', group: 'BLUE_LAST' },
+        { kind: 'log', text: '城防司令部把最后两支队伍派上来了：宪兵连和工兵排。司令部的门岗只剩两个人。', cls: 'b' },
+        { kind: 'org', side: 'blue', delta: 4 }
+      ]
+    },
+    {
+      id: 'hold_on', desc: '最后两个回合',
+      when: { kind: 'turn', turn: 13 },
+      effects: [
+        { kind: 'log', text: '司令部还在。城里的收音机开始循环播送一句话：守军仍在城内。', cls: 'hi' },
+        { kind: 'org', side: 'blue', delta: 5 }
+      ]
+    }
+  ],
+  story: {
+    briefing: {
+      pages: [
+        {
+          order: '城防命令 · 最后一份',
+          kicker: '战役态势',
+          title: '城外没有一支援军了',
+          paras: [
+            { t: '外环丢了。敌人从北面和东面同时进城，坦克沿着两条主街往里推。' },
+            { t: '我们退到城防司令部周围六个街区。**再往后，没有阵地了**。', hl: true },
+            { t: '这不是一道防线，是一个地址。守住它，城就还在我们手里。' }
+          ],
+          nums: [
+            { k: '防守', v: '14 回合' },
+            { k: '增援', v: '1 次' },
+            { k: '退路', v: '没有' }
+          ]
+        },
+        {
+          order: '巷战须知 · 附页',
+          kicker: '这一关怎么玩',
+          title: '一条街就是一个阵地',
+          paras: [
+            { t: '城里全是街区，**防御加成高，但视线和机动都差**：坦克进巷子会被反坦克武器从窗口打。', hl: true },
+            { t: '敌人从北面和东面同时来。第 5 回合城墙缺口失守，第 6 回合总攻——那之后他们的攻击 +10%。' },
+            { t: '第 10 回合城防司令部会派上最后两支队伍（宪兵连、工兵排）。**那是全战役最后一次增援**。', hl: true },
+            { t: '司令部丢了就结束。它不是分数，是你还站在这里的证明。' }
+          ],
+          nums: [
+            { k: '总攻', v: '第 6 回合' },
+            { k: '增援', v: '第 10 回合' },
+            { k: '必须守住', v: '司令部' }
+          ]
+        },
+        {
+          order: '任务简报',
+          kicker: '你的任务',
+          title: '守满十四回合',
+          paras: [
+            { t: '第 14 回合结束时，我方还在场上、**城防司令部还在我们手里**，算达成。' },
+            { t: '司令部被敌人拿走、或者我方全军覆没，当场判负。' },
+            { t: '城里的收音机在循环播送同一句话。**只要司令部还开着机，那句话就不会停。**', hl: true }
+          ],
+          nums: [
+            { k: '回合', v: '14' },
+            { k: '必须守住', v: '司令部' },
+            { k: '增援', v: '1 次' }
+          ]
+        }
+      ],
+      beats: [
+        { who: '城防司令部 · 参谋长', side: 'blue', portrait: 'portHQ',
+          text: '各部队按街区编号报位置。\n从现在起，一条街就是一个阵地。' },
+        { who: '首都卫戍第 1 旅 · 旅部', side: 'blue', portrait: 'portBlue',
+          text: '卫戍旅在。\n司令部在我们就在。' },
+        { who: '敌近卫装甲第 2 师 · 师部', side: 'red', portrait: 'portRed',
+          text: '城里的守军不会投降。\n那就一条街一条街地拆。' }
+      ]
+    }
+  },
+  corpsName: {
+    E1: '第 301 预备役步兵师', E2: '第 102 步兵师', E3: '第 204 装甲旅',
+    E4: '首都军校生旅', E5: '首都卫戍第 1 旅', E6: '城防司令部直属',
+    R1: '敌近卫装甲第 2 师', R2: '敌第 63 步兵师', R3: '敌第 41 步兵师', R4: '敌独立重炮群'
+  },
+  units: [
+    /* ── 我方 · 第 102 步兵师（一个营 + 反坦克连） ── */
+    { id:'E2H', side:'blue', abbr:'102H',  name:'第 102 步兵师师部',              type:'hqd',  str:2, mov:8, rng:0, r:11, c:7,  corps:'E2', wave:1 },
+    { id:'E2A', side:'blue', abbr:'304-1', name:'第 304 步兵团第 1 营残部',        type:'inf',  str:5, mov:6, rng:1, r:9,  c:8,  corps:'E2', wave:1 },
+    { id:'E2T', side:'blue', abbr:'102反', name:'第 102 步兵师反坦克连',          type:'at',   str:3, mov:5, rng:1, r:7,  c:10, corps:'E2', wave:1 },
+
+    /* ── 我方 · 第 204 装甲旅（旅部 + 中坦营 + 侦察营） ── */
+    { id:'E3H', side:'blue', abbr:'204H',  name:'第 204 装甲旅旅部',              type:'hqb',  str:2, mov:8,  rng:0, r:11, c:9,  corps:'E3', wave:1 },
+    { id:'E3A', side:'blue', abbr:'204-1', name:'第 204 装甲旅第 1 营（中坦）',     type:'marm', str:7, mov:10, rng:1, r:9,  c:6,  corps:'E3', wave:1 },
+    { id:'E3C', side:'blue', abbr:'204侦', name:'第 204 装甲旅侦察营（轻坦）',      type:'larm', str:5, mov:12, rng:1, r:8,  c:14, corps:'E3', wave:1 },
+
+    /* ── 我方 · 卫戍旅与军校生旅 ── */
+    { id:'E5H', side:'blue', abbr:'卫戍H',  name:'首都卫戍第 1 旅旅部',            type:'hqb',  str:2, mov:8, rng:0, r:11, c:5,  corps:'E5', wave:1 },
+    { id:'E5A', side:'blue', abbr:'卫1-1', name:'首都卫戍第 1 团第 1 营',          type:'gdn',  str:7, mov:6, rng:1, r:8,  c:4,  corps:'E5', wave:1, traits:['guard'] },
+    { id:'E5B', side:'blue', abbr:'卫1-2', name:'首都卫戍第 1 团第 2 营',          type:'gdn',  str:7, mov:6, rng:1, r:12, c:10, corps:'E5', wave:1, traits:['guard'] },
+    { id:'E4H', side:'blue', abbr:'军校H',  name:'首都军校生旅旅部',              type:'hqb',  str:2, mov:8, rng:0, r:12, c:8,  corps:'E4', wave:1 },
+    { id:'E4A', side:'blue', abbr:'军校-1', name:'首都军校生旅第 1 营',            type:'inf',  str:6, mov:6, rng:1, r:10, c:8,  corps:'E4', wave:1, traits:['cadet'] },
+
+    /* ── 我方 · 第 301 预备役师（一个营，火箭炮已经打光了） ── */
+    { id:'E1H', side:'blue', abbr:'301H',  name:'新编第 301 预备役步兵师师部',      type:'hqd',  str:2, mov:8, rng:0, r:12, c:9,  corps:'E1', wave:1 },
+    { id:'E1B', side:'blue', abbr:'901-2', name:'第 901 团第 2 营残部',            type:'inf',  str:5, mov:6, rng:1, r:10, c:11, corps:'E1', wave:1 },
+
+    /* ── 我方 · 城防司令部（司令部本身也是一张指挥牌：没有它，
+       宪兵连与工兵排常年脱指，组织度每回合白掉一截） ── */
+    { id:'E6H', side:'blue', abbr:'城防H', name:'岚京城防司令部',                type:'hqd',  str:2, mov:8, rng:0, r:13, c:6,  corps:'E6', wave:1 },
+
+    /* ── 我方 · 最后两支（第 10 回合 spawn，全战役最后一次增援） ── */
+    { id:'E6A', side:'blue', abbr:'宪兵连', name:'城防司令部宪兵连',              type:'inf',  str:4, mov:6, rng:1, r:12, c:6,  corps:'E5', wave:0, group:'BLUE_LAST' },
+        { id:'E6B', side:'blue', abbr:'工兵排', name:'城防司令部工兵排',              type:'engc', str:2, mov:6, rng:1, r:13, c:10, corps:'E5', wave:0, group:'BLUE_LAST' },
+
+    /* ── 敌方 · 第一波 · 近卫装甲第 2 师（北面，第 1 回合就在城内） ── */
+    { id:'R1H', side:'red', abbr:'2H',   name:'敌近卫装甲第 2 师师部',            type:'hqd',  str:2, mov:8,  rng:0, r:0, c:4,  corps:'R1', wave:1 },
+    { id:'R1A', side:'red', abbr:'2-1',  name:'敌近卫装甲第 5 团第 1 营（中坦）',  type:'marm', str:11, mov:10, rng:1, r:1, c:3,  corps:'R1', wave:1 },
+    { id:'R1B', side:'red', abbr:'2-4',  name:'敌近卫装甲第 6 团第 2 营（装步）',  type:'mech', str:9,  mov:8,  rng:1, r:1, c:6,  corps:'R1', wave:1 },
+
+    /* ── 敌方 · 第二波 · 第 63 步兵师残部（东面，第 3 回合） ── */
+    { id:'R2H', side:'red', abbr:'63H',  name:'敌第 63 步兵师师部',              type:'hqd', str:2, mov:8, rng:0, r:0,  c:13, corps:'R2', wave:2 },
+    { id:'R2A', side:'red', abbr:'187-1', name:'敌第 187 步兵团第 1 营',          type:'inf', str:7, mov:6, rng:1, r:1,  c:12, corps:'R2', wave:2 },
+    { id:'R2B', side:'red', abbr:'188-1', name:'敌第 188 步兵团第 1 营',          type:'inf', str:7, mov:6, rng:1, r:1,  c:15, corps:'R2', wave:2 },
+
+    /* ── 敌方 · 第三波 · 第 41 步兵师（新调上来，第 6 回合） ── */
+    { id:'R3H', side:'red', abbr:'41H',  name:'敌第 41 步兵师师部',              type:'hkg', str:2, mov:8, rng:0, r:0,  c:9,  corps:'R3', wave:3 },
+    { id:'R3A', side:'red', abbr:'41-1', name:'敌第 41 步兵师第 1 团第 1 营',      type:'inf', str:7, mov:6, rng:1, r:1,  c:8,  corps:'R3', wave:3 },
+    { id:'R3B', side:'red', abbr:'41-2', name:'敌第 41 步兵师第 1 团第 2 营',      type:'inf', str:7, mov:6, rng:1, r:1,  c:10, corps:'R3', wave:3 },
+    { id:'R3C', side:'red', abbr:'41-3', name:'敌第 41 步兵师第 2 团第 1 营',      type:'inf', str:7, mov:6, rng:1, r:2,  c:14, corps:'R3', wave:3 },
+
+    /* ── 敌方 · 第四波 · 独立重炮群（第 9 回合） ── */
+    { id:'R4H', side:'red', abbr:'重炮H', name:'敌独立重炮群群部',                type:'hkg',  str:2, mov:8, rng:0, r:0,  c:16, corps:'R4', wave:4 },
+    { id:'R4A', side:'red', abbr:'重火',  name:'敌独立重炮群火箭炮营',            type:'mlrs', str:5, mov:5, rng:6, r:1,  c:16, corps:'R4', wave:4, packed:1 },
+    { id:'R4B', side:'red', abbr:'重-2',  name:'敌独立重炮群第 2 营',              type:'hr',   str:6, mov:5, rng:9, r:0,  c:15, corps:'R4', wave:4, packed:1 }
+  ],
+  waves: [
+    { wave: 2, turn: 3, text: '第 63 步兵师的残部从东面进城了。他们从城墙缺口往里灌。' },
+    { wave: 3, turn: 6, text: '新调上来的第 41 步兵师出现在北面。这支部队是生力军。' },
+    { wave: 4, turn: 9, text: '敌人的重炮推进到城内，开始平射。' }
+  ]
 },
 
 /* ─────────── 第 3 章 · 一步不退 ─────────── */
@@ -6504,14 +6994,43 @@ function inEnemyZOC(r, c, side) {
 }
 
 /* ───────────────────────── 补给 ───────────────────────── */
+/* 关卡的补给口径（v5.2）。**只对写了的关卡生效**：没写的关卡一律走老参数
+   （基地半径 3、扩散被敌方控制区掐断），第一章八关的历史平衡因此一点不动。
+
+   为什么需要这个字段：第二章的地图是 18 列 × 12–16 行，基地在最后一行、
+   阵地在 5–8 行，直线距离天然 5–8 格，而半径 3 的补给场只铺到 6 格。
+   开局实测 C11B 十六支蓝方只有两支「充足」——这不是"这关打得苦"，
+   是参数还按第一章的小图在配。首都周边是内线：环城铁路、公路、城内仓库群，
+   补给本就该铺得开。
+
+   `zoc:false` 比半径更窄一层：敌人穿插到侧后**不断粮道**。
+   只给市区巷战（C9/C10/C11B）——街区之间自有路网，丢一条街不等于断粮。
+   城郊野战（C7/C8）不给：被合围就该挨饿，那是这两关的战术内容。 */
+function supplyOpt(side) {
+  const o = (LEVEL.supply || {})[side] || {};
+  return { r: Number.isFinite(o.r) ? o.r : 3, zoc: o.zoc !== false };
+}
 function supplySources(side) {
   const out = [];
   const srcs = side === 'blue'
     ? (LEVEL.blueSources || [LEVEL.blueSource])
     : (LEVEL.redSources || [LEVEL.redSource]);
-  for (const src of srcs) out.push({ pos: src, r: 3, kind: '基地' });
+  const baseR = supplyOpt(side).r;
+  for (const src of srcs) out.push({ pos: src, r: baseR, kind: '基地' });
   for (const d of state.depots) if (d.side === side) out.push({ pos: [d.r, d.c], r: 4, kind: '补给点' });
   for (const u of alive(side)) if (u.type === 'sup') out.push({ pos: u.pos, r: 4, kind: '辎重' });
+  /* 要点补给源（v5.2）：有些位置本身就是粮道——货场、编组站、水厂。
+     `o.supply` 是这个源的半径，**只有控制权在我方时才给**：
+     丢了货场，那个方向的部队立刻从「充足」掉到「紧张」甚至「断绝」。
+     这比"丢点扣分"直接：玩家在部队面板上就能看见粮道断在哪一环。
+
+     注意它读的是 objectiveControl（state.ctrl），所以 updateControl 那边
+     控制权一变必须重算补给场，否则面板会停在旧档位（见 updateControl 末尾）。 */
+  for (const o of (LEVEL.objectives || [])) {
+    if (!o.supply) continue;
+    if (objectiveControl(o) !== side) continue;
+    out.push({ pos: o.cells[0], r: o.supply, kind: '要点' });
+  }
   return out;
 }
 
@@ -6533,6 +7052,7 @@ const SUPPLY_MOD = { '充足': 1.00, '紧张': 0.82, '断绝': 0.58 };
    返回 { key: { d, label, mod } }。 */
 function supplyField(side) {
   const srcs = supplySources(side);
+  const blockZoc = supplyOpt(side).zoc;
   const out = {};
   const pool = [];
   for (const s of srcs) {
@@ -6546,7 +7066,9 @@ function supplyField(side) {
     for (const n of neighbors(r, c)) {
       const t = terrainAt(n[0], n[1]);
       if (t.cost >= 99) continue;
-      if (inEnemyZOC(n[0], n[1], side)) continue;
+      /* zoc:false 的关卡不掐补给线（见 supplyOpt 的注释）。
+         默认仍然是掐——围住一支军队让它断粮，是这套补给规则存在的理由。 */
+      if (blockZoc && inEnemyZOC(n[0], n[1], side)) continue;
       const nd = d + 1;
       if (nd > rad + 3) continue;
       const key = kk(n[0], n[1]);
@@ -7348,6 +7870,7 @@ function ctrlState(obj) { return (state.ctrl && state.ctrl[obj.id]) || 'none'; }
 
 function updateControl(silent) {
   if (!state.ctrl) state.ctrl = {};
+  let changed = false;
   for (const o of LEVEL.objectives) {
     let b = 0, r = 0;
     for (const cell of o.cells) {
@@ -7373,11 +7896,16 @@ function updateControl(silent) {
     }
     if (next === prev) continue;
     state.ctrl[o.id] = next;
+    changed = true;
     if (!silent) {
       const who = { blue: '我军据守', red: '敌军占领', contested: '双方争夺' }[next] || '无人据守';
       log(o.name + '：' + who, next === 'red' ? 'r' : next === 'blue' ? 'b' : 'hi');
     }
   }
+  /* 要点当补给源用的关卡（v5.2）：控制权一变，粮道就变，
+     补给场必须立刻重算。放在这里而不是散在各个调用点——
+     updateControl 是控制权的唯一入口，漏一处就会"点丢了、面板还是充足"。 */
+  if (changed && LEVEL.objectives.some(o => o.supply)) refreshFields();
 }
 
 function objectiveControl(obj) {
@@ -7898,6 +8426,10 @@ function saveSnapshot() {
     escapedIds: (state.escapedIds || []).slice(),
     escortDone: state.escortDone || 0,
     escortIds: (state.escortIds || []).slice(),
+    /* 全部撤完之后的最后一个回合（v5.2）。不存的话读档会把这个期限丢掉，
+       关卡又回到打满 maxTurns——玩家明明已经送完了，却还要空转六回合。 */
+    escAllSaid: !!state.escAllSaid,
+    escFinalTurn: Number.isFinite(state.escFinalTurn) ? state.escFinalTurn : null,
     firstBlood: state.firstBlood || 0,
     escGoalSaid: !!state.escGoalSaid,
     ctrl: { ...state.ctrl },
@@ -8243,6 +8775,8 @@ function restoreGame(s) {
        玩家送出去三支、读个档又变成没送。 */
     escortDone: s.escortDone || 0,
     escortIds: Array.isArray(s.escortIds) ? s.escortIds.slice() : [],
+    escAllSaid: !!s.escAllSaid,
+    escFinalTurn: Number.isFinite(s.escFinalTurn) ? s.escFinalTurn : null,
     firstBlood: s.firstBlood || 0,
     escGoalSaid: !!s.escGoalSaid,
     flags: s.flags || {},
@@ -8306,6 +8840,8 @@ function pushUndo() {
     escapedIds: (state.escapedIds || []).slice(),
     escortDone: state.escortDone || 0,
     escortIds: (state.escortIds || []).slice(),
+    escAllSaid: !!state.escAllSaid,
+    escFinalTurn: Number.isFinite(state.escFinalTurn) ? state.escFinalTurn : null,
     log: state.log.slice(-60)
   }));
   if (undoStack.length > UNDO_MAX) undoStack.shift();
@@ -8357,6 +8893,12 @@ function doUndo() {
     state.escortDone = s.escortDone;
     state.escortIds = (s.escortIds || []).slice();
   }
+  /* 护送终局期限（v5.2）。**不能写成 `s.escFinalTurn || null`**：
+     合法值是数字，但 null 也是合法值（还没撤完），两种写法在这里等价；
+     真正要防的是旧快照里根本没这个键——那时也该回到"没有期限"。
+     和上面两条同一个道理：快照是那一刻的真相，缺项就按"没有"处理。 */
+  state.escAllSaid = !!s.escAllSaid;
+  state.escFinalTurn = Number.isFinite(s.escFinalTurn) ? s.escFinalTurn : null;
   state.log = s.log;
   clearSelection();
   refreshFields();
@@ -8504,6 +9046,10 @@ function newGame(opt) {
     /* 撤离关"够数了"的播报只播一次（v4.25）。不进存档，和 huntSaid 一样：
        读档后最多重播一句，比"整局看不到这句"好。 */
     escGoalSaid: false,
+    /* 车队全部撤完的"最后回合"（v5.2）。escFinalTurn 为 null 表示还没撤完；
+       一旦设上，右栏的剩余回合和 endBluePhase 的终局判断都跟着它走。 */
+    escAllSaid: false,
+    escFinalTurn: null,
   };
   state.units = LEVEL.units.filter(u => u.wave === 1).map(u => makeUnit(u, false));
   for (const u of LEVEL.units) {
@@ -9566,6 +10112,13 @@ function endBluePhase() {
     if (state.result) return;
     state.turn++;
     if (state.turn > LEVEL.maxTurns) { judgeFinal(); return; }
+    /* 车队全部撤完之后还有最后一个回合（见 noteEscortAllOut）：
+       第 N 回合走完、记 N+1，第 N+1 回合照常打，turn 变 N+2 时才结算。
+       位置必须**在 maxTurns 之后、进入我方阶段之前**——
+       放在前面会让最后一回合直接跳过，放在后面玩家就能多打一轮。 */
+    if (Number.isFinite(state.escFinalTurn) && state.turn > state.escFinalTurn) {
+      judgeFinal(); return;
+    }
     state.phase = 'blue';
     state.units.forEach(u => { u.moved = false; u.fired = false; });
     /* 多面进攻的记账跟着回合走：新回合谁都没打过谁，包抄记录清零 */
@@ -9800,7 +10353,15 @@ function perfectHint(lv) {
       const o = (L.objectives || []).find(x => x.id === id);
       return o ? o.name : id;
     });
-    return { ok: true, text: '部队幸存不少于七成' + (ids.length ? '，且「' + ids.join('」「') + '」不失守' : '') };
+    const need = Number.isFinite(w.minAlive)
+      ? Math.max(1, Math.ceil(L.units.filter(u => u.side === 'blue' && (u.wave || 1) !== 0).length * w.minAlive))
+      : 1;
+    /* 一条文案说清两件事：达成线（minAlive）和超额线（幸存七成）。
+       只写超额会让玩家以为"七成"是及格线；只写达成线又看不到超额。
+       七成那条在 judgeFinal 里，是 v4.18 定的完整建制线。 */
+    return { ok: true, text: '至少 ' + need + ' 支部队存活' +
+      (ids.length ? '，且「' + ids.join('」「') + '」不失守' : '') +
+      '（幸存七成以上为超额）' };
   }
   const ps = L.perfectScore;
   const ws = L.winScore;
@@ -9976,6 +10537,35 @@ function noteEscortGoalReached() {
       '还能再送几支就再送几支。', 'hi');
   FX.banner('任 务 达 成 · 还 能 再 送', 'b', 2200);
 }
+/* 全部车队都走出去了（v5.2）：弹一段对话，然后**再打一个完整回合**才收官。
+   为什么不在达成线（3 支）就触发：用户定的口径是"护送平民撤退后"——
+   达成线只是及格线，剩下两支还在路上时拉幕，等于把"还能多救几个人"吃掉。
+   为什么要多打一回合而不是立刻结算：最后一支车过线的那一刻，
+   侧翼往往还有部队在跟追击队对射；当场拉幕会让那场仗没有结果。
+   给一个回合收尾，玩家能撤就撤、能打就打，然后结算。
+
+   `escFinalTurn` 记的是"最后一个可行动回合"：
+   第 N 回合车队走完 → 记 N+1 → 第 N+1 回合照常打 → 结束阶段 turn 变 N+2
+   时才判 `turn > escFinalTurn`，结算。正好是一个完整回合，不多不少。 */
+function noteEscortAllOut() {
+  if (!state || state.escAllSaid) return;
+  if (escortPassed() < escortTotal()) return;
+  state.escAllSaid = true;
+  state.escFinalTurn = state.turn + 1;
+  log('◆ 五支车队全部驶出封锁线。再守一个回合，部队收拢后结束战斗。', 'hi');
+  FX.banner('车 队 全 部 撤 出 · 还 剩 一 回 合', 'b', 2600);
+  FX.sfx('win');
+  /* 对话框排在结算之后播：这一帧还在 settlePhase 里，
+     cutin 是排队执行的，不会打断当前结算。 */
+  FX.cutin({
+    who: '西郊撤离指挥部 · 车队领队', side: 'blue', portrait: 'portBlue',
+    text: '最后一辆车过线了。\n四十公里，五支车队，一个人没少。'
+  });
+  FX.cutin({
+    who: '第 102 步兵师 · 师部', side: 'blue', portrait: 'portHQ',
+    text: '知道了。\n各单位收拢，按顺序脱离接触——我们再守一个回合。'
+  });
+}
 function escortResult() {
   const n = escortPassed();
   if (n < escortNeed()) return 'fail';
@@ -10050,13 +10640,26 @@ function judgeFinal() {
   const w = winSpec();
 
   if (w.kind === 'survive') {
-    /* 活到最后一回合就算达成。keep 是"还必须拿在手里"的要点 */
+    /* 活到最后一回合就算达成。keep 是"还必须拿在手里"的要点。
+
+       `minAlive` 是**存活兵牌下限**（v5.2）：守到最后、要点也在，
+       但整个师只剩一支残兵，那不叫守住，叫打光了还没被赶走。
+       以前这里的判据是 `aliveNow > 0`——只要还有一个人站着就算赢，
+       于是"防御关"的达成率被这条线拉得很高（C7 补给改充足之后实测 83%，
+       其中一半是这种情况：阵地守住了，部队没了）。
+
+       分母用**开局在场的兵牌数**，不含 wave:0 的增援（增援是白给的人，
+       算进分母等于"越增援越难达成"）。没写这个字段的关卡默认 1，
+       与旧行为完全一致。 */
     const held = (w.keep || []).every(id => {
       const o = LEVEL.objectives.find(x => x.id === id);
       return !!o && objectiveControl(o) === 'blue';
     });
     const aliveNow = alive('blue').length;
-    state.result = (aliveNow > 0 && held) ? 'win' : 'fail';
+    const base = (LEVEL.units || []).filter(u => u.side === 'blue' && (u.wave || 1) !== 0).length;
+    const floor = Number.isFinite(w.minAlive) && base > 0
+      ? Math.max(1, Math.ceil(base * w.minAlive)) : 1;
+    state.result = (aliveNow >= floor && held) ? 'win' : 'fail';
     /* 超额 = 兵牌幸存 ≥ 初始的七成（v4.18 反馈第 6 条，原判据是"一个不损"）。
        "一个没损失"在炮兵面覆盖、多面进攻这些规则面前过于苛刻——
        打得漂亮和一个人不死是两回事，七成建制是更合理的"完整"线。 */
@@ -10118,6 +10721,7 @@ function checkEnd() {
       state.result = 'fail'; state.phase = 'over'; showOverlay(); render(); return;
     }
     noteEscortGoalReached();
+    noteEscortAllOut();
     return;
   }
   if (w.kind === 'survive') {
@@ -10631,6 +11235,15 @@ function renderBoard() {
   });
 }
 
+/* 本关还剩几个回合。**唯一来源**：护送关全部撤完之后，
+   关卡的有效终局会被提前到 escFinalTurn（见 noteEscortAllOut），
+   右栏、突围关的提示、坚守关的倒计时都要跟着它走——
+   三处各写一遍 `maxTurns - turn + 1`，改一处漏两处时屏幕上就会有两种说法。 */
+function turnsLeft() {
+  const cap = Number.isFinite(state.escFinalTurn)
+    ? Math.min(LEVEL.maxTurns, state.escFinalTurn) : LEVEL.maxTurns;
+  return Math.max(0, cap - state.turn + 1);
+}
 function renderHUD() {
   document.getElementById('turnPill').textContent = '第 ' + state.turn + ' / ' + LEVEL.maxTurns + ' 回合';
   const ph = state.phase === 'blue' ? '我方阶段' : state.phase === 'ai' ? '敌方行动' : '已结束';
@@ -10664,7 +11277,7 @@ function renderGoal() {
     }
     html += '<div class="row"><span>仍在战场</span><b>' + alive('blue').length + ' 支</b></div>';
     html += '<div class="row" style="font-size:11px"><span>走到绿色区域即撤出</span><b>剩 ' +
-            Math.max(0, LEVEL.maxTurns - state.turn + 1) + ' 回合</b></div>';
+            turnsLeft() + ' 回合</b></div>';
   } else if (w.kind === 'escort') {
     /* 护送关的进度条是"车队撤出几支"，不是战果分。三行就够：
        达成线、超额线、还在路上几支——玩家一眼能看出"要不要再冒个险"。 */
@@ -10678,9 +11291,9 @@ function renderGoal() {
     }
     html += '<div class="row"><span>车队在路上</span><b>' + alive('green').length + ' 支</b></div>';
     html += '<div class="row" style="font-size:11px"><span>车队沿公路西撤，路被堵住就停</span><b>剩 ' +
-            Math.max(0, LEVEL.maxTurns - state.turn + 1) + ' 回合</b></div>';
+            turnsLeft() + ' 回合</b></div>';
   } else if (w.kind === 'survive') {
-    const left = Math.max(0, LEVEL.maxTurns - state.turn + 1);
+    const left = turnsLeft();
     html += '<div class="row"><span>坚守回合</span><b class="' +
             (left <= 2 ? 'ok' : 'warn') + '">' + state.turn + ' / ' + LEVEL.maxTurns + '</b></div>';
     html += '<div class="vpbar"><i style="width:' +
@@ -13174,7 +13787,8 @@ window.__WAR__ = {
      这三种错法在界面上都不抛异常，只能靠断言守。 */
   hostileSide, friendlySides, foesOf, isAlly,
   escortSpec, escortNeed, escortPassed, escortTotal, escortTick,
-  inEscortExit, pathIndexOf, noteEscortGoalReached, escortResult,
+  inEscortExit, pathIndexOf, noteEscortGoalReached, noteEscortAllOut, escortResult,
+  turnsLeft, supplyOpt, refreshFields,
   ROCKET_SPLASH, escortLeadUnit, aiEscortGoal,
   /* 领域（陆 / 空 / 绿水 / 蓝水）：一件机制的四张脸——走哪格、和谁挤、
      谁能打它、界面怎么画。测试直接驱动 domainOf / moveCost / canHitAir，

@@ -384,6 +384,46 @@ for (const L of ready) {
       }
     }
   }
+  /* ── 存活下限（v5.2）──
+     survive 关的达成线。写成字符串或者 >1 的数会静默退回"一支就行"，
+     而"一支就行"正是这条线要修的毛病，所以在这里拦住。 */
+  if (w.minAlive !== undefined) {
+    if (w.kind !== 'survive') {
+      console.error('[3/4] ' + tag + '：minAlive 只对 survive 关有效，本关是 ' + w.kind);
+      bad++;
+    }
+    if (typeof w.minAlive !== 'number' || !(w.minAlive > 0) || w.minAlive > 1) {
+      console.error('[3/4] ' + tag + '：minAlive 必须是 0–1 之间的小数，现在是 ' +
+        JSON.stringify(w.minAlive));
+      bad++;
+    }
+  }
+  /* ── 关卡补给口径（v5.2）──
+     写错了不会报错，只会让某几支部队悄悄少三成到四成战力：
+     半径写成字符串就退回默认 3，zoc 写成 'false' 会被当成真值继续掐补给线。
+     这两种都是"跑得下去、只是这一关突然变难了"，所以在这里点名。 */
+  if (L.supply) {
+    const SIDES = ['blue', 'red', 'green'];
+    for (const side of Object.keys(L.supply)) {
+      const o = L.supply[side] || {};
+      if (SIDES.indexOf(side) < 0) {
+        console.error('[3/4] ' + tag + '：supply 里的阵营「' + side + '」不存在');
+        bad++;
+        continue;
+      }
+      if (o.r !== undefined &&
+          (!Number.isInteger(o.r) || o.r < 1 || o.r > 30)) {
+        console.error('[3/4] ' + tag + '：supply.' + side + '.r 必须是 1–30 的整数，现在是 ' +
+          JSON.stringify(o.r) + '（非整数会退回默认半径 3，且不会报错）');
+        bad++;
+      }
+      if (o.zoc !== undefined && typeof o.zoc !== 'boolean') {
+        console.error('[3/4] ' + tag + '：supply.' + side + '.zoc 必须是 true/false，现在是 ' +
+          JSON.stringify(o.zoc) + '（字符串 "false" 会被当成真值，补给线照样被掐断）');
+        bad++;
+      }
+    }
+  }
   /* 红方 AI 完全靠 LEVEL.objectives 找目标：一个都没有，全军原地不动。
      例外是护送关——那一关的推进轴是车队（aiEscortGoal），不是要点。 */
   if (!L.objectives.length && w.kind !== 'escort') {

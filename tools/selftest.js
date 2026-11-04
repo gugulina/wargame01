@@ -5694,6 +5694,206 @@ console.log('\n[64] 火箭炮：面覆盖与近界（v5.1）');
   ok('对照：普通炮兵只覆盖目标格，相邻格不挨打', e2.str === c2, c2 + ' → ' + e2.str);
 }
 
+console.log('\n[65] 补给：首都内线（v5.2）');
+{
+  /* 用户报的问题：第二章每一关开局都有部队「补给不足」。
+     根因不是数值，是地图从第一章的 9–12 列放大到 18 列之后，
+     基地半径 3 / 6 的老参数还按小图在配。 */
+  for (const id of ['C7', 'C8', 'C9', 'C10', 'C11B']) {
+    api.newGame({ level: id, noSave: true });
+    const S = api.getState();
+    const bad = S.units.filter(u => u.side === 'blue' && u.str > 0)
+      .filter(u => api.supplyOf(u, S.fields).label !== '充足')
+      .map(u => u.id + '/' + api.supplyOf(u, S.fields).label);
+    ok(id + ' 开局我军全员补给充足', bad.length === 0, bad.join(','));
+  }
+  /* 第一章不受影响：没有 supply 字段的关卡必须还是老参数（半径 3）。
+     这一条守的是"改第二章不能顺手把第一章的平衡也改了"。 */
+  api.newGame({ level: 'C1', noSave: true });
+  ok('没写 supply 的关卡仍用默认半径 3', api.supplyOpt('blue').r === 3,
+     String(api.supplyOpt('blue').r));
+  ok('默认仍然会被敌方控制区掐断补给线', api.supplyOpt('blue').zoc === true);
+
+  api.newGame({ level: 'C7', noSave: true });
+  ok('城郊野战（C7）放大半径但补给线照样会断', api.supplyOpt('blue').zoc === true);
+  api.newGame({ level: 'C9', noSave: true });
+  ok('市区巷战（C9）开内线道路网，穿插不断粮', api.supplyOpt('blue').zoc === false);
+
+  /* 只验字段抓不到 `const blockZoc = true` 那种变异（字段没动、行为变了），
+     所以还要验行为：把一支敌军摆在基地北面的粮道上，
+     zoc:false 的关卡应该能从别的路绕过去，充足格明显更多。
+     用 C11 而不是 C9：C9 的半径 12 铺满全图，绕多远都是「充足」，
+     量不出差别（第一版就在 C9 上测，变异没红）。 */
+  api.newGame({ level: 'C11', noSave: true });
+  const SZ = api.getState();
+  const redZ = SZ.units.find(u => u.side === 'red');
+  redZ.pos = [11, 7];
+  /* 比的是**距离**不是档位：档位只有三档，绕几格常常仍落在同一档里，
+     量不出差别（第一版比"充足格数"，变异后 127 → 127 纹丝不动）。
+     半径取 12 让两边都覆盖全图，才能逐格比 d。 */
+  const keepSupp = api.LEVEL.supply;
+  api.LEVEL.supply = { blue: { r: 12, zoc: true } };
+  api.refreshFields();
+  const withZoc = SZ.fields.blue;
+  api.LEVEL.supply = { blue: { r: 12, zoc: false } };
+  api.refreshFields();
+  const noZoc = SZ.fields.blue;
+  const closer = Object.keys(noZoc).filter(k => withZoc[k] && noZoc[k].d < withZoc[k].d);
+  ok('内线道路网：敌人堵住粮道时补给线绕得过去（距离更短）',
+     closer.length > 0, closer.length + ' 格更近');
+  api.LEVEL.supply = keepSupp;
+  api.refreshFields();
+  ok('红方不吃这个参数（外线进攻，该紧张还是紧张）',
+     api.supplyOpt('red').r === 3, String(api.supplyOpt('red').r));
+
+  /* 直接验行为，不只看字段：半径变了，同一格的档位必须跟着变高。
+     用 C7 的实测位置会受地形影响，所以自己造一张最小场地：
+     把基地放在角落，量同一格在 r=3 / r=6 下的档位。 */
+  /* 量"半径 3 够不够"要挑一关基地在边角的：C9 的基地在正中，
+     离它 5 格的格子本来就落在紧张带上，但那个位置是巧合，不是结论。
+     用 C7（基地 11,8）量 (6,8)：直线 5 格，正好在 3 格充足 / 6 格紧张的界内。 */
+  api.newGame({ level: 'C7', noSave: true });
+  const S3 = api.getState();
+  S3.units = S3.units.filter(u => u.side !== 'blue');
+  /* 这一关写了自己的 supply（半径 12），先摘掉才能量到默认参数。 */
+  const keepSupply = api.LEVEL.supply;
+  api.LEVEL.supply = undefined;
+  const f3 = api.supplyField('blue');
+  ok('半径 3 时 5 格外的部队是「紧张」或「断绝」',
+     f3['6,8'] && f3['6,8'].label !== '充足', f3['6,8'] ? f3['6,8'].label : '无');
+  api.LEVEL.supply = { blue: { r: 12 } };
+  const f12 = api.supplyField('blue');
+  ok('半径 12 时同一格变成「充足」', f12['6,8'] && f12['6,8'].label === '充足',
+     f12['6,8'] ? f12['6,8'].label : '无');
+  api.LEVEL.supply = keepSupply;
+}
+
+console.log('\n[66] 护送关：车队全部撤出后的一回合（v5.2）');
+{
+  api.newGame({ level: 'C11B', noSave: true });
+  const S = api.getState();
+  ok('开局没有终局期限', api.getState().escFinalTurn === null);
+  ok('开局剩余回合就是关卡回合数', api.turnsLeft() === api.LEVEL.maxTurns,
+     String(api.turnsLeft()));
+
+  /* 只凑够达成线（3 支）不该触发：剩下两支还在路上，拉幕等于把人丢了 */
+  S.escortDone = 3;
+  api.noteEscortAllOut();
+  ok('只到达成线不触发撤离成功', api.getState().escFinalTurn === null,
+     String(api.getState().escFinalTurn));
+
+  /* 全部走完才触发，并把终局提前到下一回合 */
+  S.escortDone = api.escortTotal();
+  const t0 = S.turn;
+  api.noteEscortAllOut();
+  ok('车队全部撤出 → 记下最后一个回合', S.escFinalTurn === t0 + 1,
+     t0 + ' → ' + S.escFinalTurn);
+  /* 触发发生在结算阶段（turn 还是 N），玩家看到界面时 endBluePhase 已经
+     把 turn 推到 N+1 了。所以这里要**照真实路径**推一格再量——
+     直接在当前 turn 上量会得到 2，那是"含已走完的这一回合"，屏幕上不会出现。 */
+  S.turn = t0 + 1;
+  ok('右栏剩余回合跟着变成 1', api.turnsLeft() === 1, String(api.turnsLeft()));
+  ok('只触发一次（重进 checkEnd 不会把期限往后推）', (() => {
+    const before = S.escFinalTurn;
+    S.turn += 3;                 // 再走几回合，期限也不该被重新推后
+    api.noteEscortAllOut();
+    return S.escFinalTurn === before;
+  })(), String(S.escFinalTurn));
+
+  /* 存档要带上：否则读档后这个期限丢掉，关卡又回到打满 maxTurns */
+  ok('存档带终局期限', api.saveSnapshot().escFinalTurn === S.escFinalTurn);
+  ok('存档带"已播报"标记', api.saveSnapshot().escAllSaid === true);
+
+  /* 撤销：pushUndo 在回合开始，回合中设的期限必须能被回滚掉 */
+  api.newGame({ level: 'C11B', noSave: true });
+  const S2 = api.getState();
+  api.pushUndo();
+  S2.escFinalTurn = 9; S2.escAllSaid = true;
+  api.doUndo();
+  ok('撤销回滚终局期限', api.getState().escFinalTurn === null,
+     String(api.getState().escFinalTurn));
+}
+
+console.log('\n[67] 防御关的存活下限（v5.2）');
+{
+  /* 旧判据是"还剩一支就算守住"：补给改充足之后 C7 的达成率因此冲到 83%。
+     这条线修的就是它。 */
+  api.newGame({ level: 'C7', noSave: true });
+  const S = api.getState();
+  const keepId = api.LEVEL.win.keep[0];
+  const obj = api.LEVEL.objectives.find(o => o.id === keepId);
+  const base = api.LEVEL.units.filter(u => u.side === 'blue' && (u.wave || 1) !== 0).length;
+  const need = Math.ceil(base * api.LEVEL.win.minAlive);
+
+  /* 只剩一支、但要点在手 → 仍然判负 */
+  const one = S.units.find(u => u.side === 'blue');
+  one.pos = obj.cells[0].slice();
+  one.str = Math.max(1, one.str);
+  S.units = [one];
+  S.turn = api.LEVEL.maxTurns;
+  api.judgeFinal();
+  ok('只剩一支残兵不算守住（判负）', S.result === 'fail', S.result || '未判');
+  ok('门槛按开局兵牌数算（' + base + ' 支 × ' + api.LEVEL.win.minAlive + ' = ' + need + '）',
+     need > 1, String(need));
+
+  /* 留够门槛数量、要点在手 → 达成 */
+  api.newGame({ level: 'C7', noSave: true });
+  const S2 = api.getState();
+  const obj2 = api.LEVEL.objectives.find(o => o.id === keepId);
+  const blue = S2.units.filter(u => u.side === 'blue').slice(0, need);
+  blue.forEach((u, i) => { u.pos = obj2.cells[i % obj2.cells.length].slice(); });
+  S2.units = blue;
+  S2.turn = api.LEVEL.maxTurns;
+  api.judgeFinal();
+  ok('留够门槛、要点在手 → 达成', S2.result === 'win' || S2.result === 'perfect',
+     S2.result || '未判');
+
+  /* 没写 minAlive 的关卡保持旧行为：一支就能达成。
+     这条守的是"加新字段不能顺手改掉老关卡的口径"。 */
+  api.newGame({ level: 'C1', noSave: true });
+  const S3 = api.getState();
+  ok('没写 minAlive 的关卡默认只要一支', !api.LEVEL.win.minAlive);
+  const keep3 = (api.LEVEL.win.keep || []);
+  if (!keep3.length) {
+    const one3 = S3.units.find(u => u.side === 'blue');
+    S3.units = [one3];
+    S3.turn = api.LEVEL.maxTurns;
+    api.judgeFinal();
+    ok('老关卡一支也能达成（口径没被改掉）',
+       S3.result === 'win' || S3.result === 'perfect', S3.result || '未判');
+  }
+}
+
+console.log('\n[68] 要点即补给源（v5.2）');
+{
+  api.newGame({ level: 'C11', noSave: true });
+  const S = api.getState();
+  const yard = api.LEVEL.objectives.find(o => o.id === 'yard');
+  ok('东货场带补给源半径', yard.supply > 0, String(yard.supply));
+  ok('要点是我方的时，它出现在补给源表里',
+     api.supplySources('blue').some(s => s.kind === '要点' && s.pos[0] === yard.cells[0][0]),
+     api.supplySources('blue').map(s => s.kind).join(','));
+
+  /* 找一支只靠这个要点供电的部队：基地半径够不到的。
+     有的话，把要点判给红方 → 它必须掉档。 */
+  const near = S.units.filter(u => u.side === 'blue' && u.str > 0)
+    .find(u => api.supplyOf(u, S.fields).label === '充足' &&
+      !api.supplySources('blue').some(s => s.kind === '基地' &&
+        Math.max(Math.abs(s.pos[0] - u.pos[0]), Math.abs(s.pos[1] - u.pos[1])) <= s.r));
+  ok('存在只靠要点补给的部队（否则这条机制没被测到）', !!near, near ? near.id : '无');
+
+  if (near) {
+    S.ctrl['yard'] = 'red';
+    api.refreshFields();
+    const after = api.supplyOf(near, S.fields).label;
+    ok('丢掉货场，那支部队立刻掉档', after !== '充足', after);
+    S.ctrl['yard'] = 'blue';
+    api.refreshFields();
+    ok('夺回货场，补给恢复', api.supplyOf(near, S.fields).label === '充足',
+       api.supplyOf(near, S.fields).label);
+  }
+}
+
 console.log('\n通过 ' + pass + ' 项，失败 ' + fail + ' 项');
   process.exit(fail ? 1 : 0);
 })().catch(e => {

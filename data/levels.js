@@ -5,8 +5,8 @@
    为什么是 .js 而不是 .json：项目要能双击直接打开，
    file:// 下 fetch 会被同源策略拦掉，<script src> 不会。 */
 window.CANGYU = {
-  "ver": "v5.1",
-  "srcSig": "528177:p8lmo2",
+  "ver": "v5.2",
+  "srcSig": "555705:db4kfg",
   "storage": {
     "save": "wargame.lankou.save",
     "saveVer": 3,
@@ -33,7 +33,7 @@ window.CANGYU = {
       "total": 9,
       "main": 6,
       "sub": 3,
-      "ready": 5
+      "ready": 7
     },
     {
       "no": 3,
@@ -151,7 +151,7 @@ window.CANGYU = {
       "win": "survive",
       "perfect": {
         "ok": true,
-        "text": "部队幸存不少于七成，且「要塞核心」不失守"
+        "text": "至少 1 支部队存活，且「要塞核心」不失守（幸存七成以上为超额）"
       },
       "turns": 8,
       "cols": 12,
@@ -275,7 +275,7 @@ window.CANGYU = {
       "win": "survive",
       "perfect": {
         "ok": true,
-        "text": "部队幸存不少于七成，且「跑道」不失守"
+        "text": "至少 1 支部队存活，且「跑道」不失守（幸存七成以上为超额）"
       },
       "turns": 10,
       "cols": 16,
@@ -306,7 +306,7 @@ window.CANGYU = {
       "win": "survive",
       "perfect": {
         "ok": true,
-        "text": "部队幸存不少于七成，且「港口要塞」「波尔瓦萨市」不失守"
+        "text": "至少 1 支部队存活，且「港口要塞」「波尔瓦萨市」不失守（幸存七成以上为超额）"
       },
       "turns": 20,
       "cols": 22,
@@ -368,7 +368,7 @@ window.CANGYU = {
       "win": "survive",
       "perfect": {
         "ok": true,
-        "text": "部队幸存不少于七成，且「桥南阵地」不失守"
+        "text": "至少 1 支部队存活，且「桥南阵地」不失守（幸存七成以上为超额）"
       },
       "turns": 12,
       "cols": 16,
@@ -399,7 +399,7 @@ window.CANGYU = {
       "win": "survive",
       "perfect": {
         "ok": true,
-        "text": "部队幸存不少于七成，且「北郊防线·西段」「北郊防线·东段」不失守"
+        "text": "至少 1 支部队存活，且「北郊防线·西段」「北郊防线·东段」不失守（幸存七成以上为超额）"
       },
       "turns": 14,
       "cols": 18,
@@ -430,7 +430,7 @@ window.CANGYU = {
       "win": "survive",
       "perfect": {
         "ok": true,
-        "text": "部队幸存不少于七成，且「北郊西北村」不失守"
+        "text": "至少 9 支部队存活，且「北郊西北村」不失守（幸存七成以上为超额）"
       },
       "turns": 12,
       "cols": 18,
@@ -489,7 +489,7 @@ window.CANGYU = {
       "win": "survive",
       "perfect": {
         "ok": true,
-        "text": "部队幸存不少于七成，且「水厂主厂区」不失守"
+        "text": "至少 7 支部队存活，且「水厂主厂区」不失守（幸存七成以上为超额）"
       },
       "turns": 12,
       "cols": 18,
@@ -603,22 +603,25 @@ window.CANGYU = {
       "when": "新历 1208 年 11 月 15 日",
       "where": "首都圈 · 岚京外环",
       "teaser": "外环是包围圈的内缘。守住它，城里的粮食还能再进一个月。",
-      "ready": false,
+      "ready": true,
       "open": false,
-      "prevId": null,
+      "prevId": "C10",
       "noText": "第 5 关 · ",
       "win": "survive",
       "perfect": {
-        "ok": false,
-        "text": "尚未编成"
+        "ok": true,
+        "text": "至少 7 支部队存活，且「东货场」不失守（幸存七成以上为超额）"
       },
+      "turns": 14,
+      "cols": 18,
+      "rows": 14,
       "blue": {
-        "cards": 0,
-        "str": 0
+        "cards": 17,
+        "str": 71
       },
       "red": {
-        "cards": 0,
-        "str": 0
+        "cards": 16,
+        "str": 100
       }
     },
     {
@@ -633,7 +636,7 @@ window.CANGYU = {
       "teaser": "车队有四十公里长，走不快。敌军的侦察机已经在头顶转了两天。",
       "ready": true,
       "open": false,
-      "prevId": "C10",
+      "prevId": "C11",
       "noText": "第 5 关 · 附属 · ",
       "win": "escort",
       "perfect": {
@@ -662,22 +665,25 @@ window.CANGYU = {
       "when": "新历 1208 年 12 月 6 日",
       "where": "首都圈 · 岚京市区",
       "teaser": "城还在。城外没有一支援军了。",
-      "ready": false,
+      "ready": true,
       "open": false,
-      "prevId": null,
+      "prevId": "C11",
       "noText": "第 6 关 · ",
       "win": "survive",
       "perfect": {
-        "ok": false,
-        "text": "尚未编成"
+        "ok": true,
+        "text": "至少 8 支部队存活，且「城防司令部」不失守（幸存七成以上为超额）"
       },
+      "turns": 14,
+      "cols": 18,
+      "rows": 14,
       "blue": {
-        "cards": 0,
-        "str": 0
+        "cards": 16,
+        "str": 63
       },
       "red": {
-        "cards": 0,
-        "str": 0
+        "cards": 13,
+        "str": 74
       }
     },
     {

@@ -1420,7 +1420,7 @@ const MUTANTS = [
    '敌军堵住公路，车队一步不动'],
 
   ['达成线一到就拉幕（看不见还能再送几支）',
-   '    noteEscortGoalReached();\n    return;',
+   '    noteEscortGoalReached();\n    noteEscortAllOut();\n    return;',
    "    state.result = 'win';\n    return;",
    '达成线到了不中途结算'],
 
@@ -1438,6 +1438,40 @@ const MUTANTS = [
    '    if (rocket) {\n      for (const n of neighbors(def.pos[0], def.pos[1])) {',
    '    if (false) {\n      for (const n of neighbors(def.pos[0], def.pos[1])) {',
    '相邻格也掉血'],
+
+  /* ── v5.2 补给口径 / 存活下限 / 护送终局 ──
+     这一批的共同点还是"跑得下去、只是某一关悄悄变难或变简单了"：
+     半径退回默认、zoc 参数失效、要点补给源不看控制权、
+     存活线退回"一支就行"——屏幕上都不会报错。 */
+  ['补给半径参数没被读取（第二章退回半径 3）',
+   "  return { r: Number.isFinite(o.r) ? o.r : 3, zoc: o.zoc !== false };",
+   "  return { r: 3, zoc: o.zoc !== false };",
+   'C7 开局我军全员补给充足'],
+
+  ['内线道路网不生效（敌人一穿插就断粮）',
+   '  const blockZoc = supplyOpt(side).zoc;',
+   '  const blockZoc = true;',
+   '内线道路网'],
+
+  ['要点补给源不看控制权（丢了货场照样有粮）',
+   "    if (objectiveControl(o) !== side) continue;\n    out.push({ pos: o.cells[0], r: o.supply, kind: '要点' });",
+   "    out.push({ pos: o.cells[0], r: o.supply, kind: '要点' });",
+   '丢掉货场，那支部队立刻掉档'],
+
+  ['护送进度按达成线算（还剩两支在路上就弹"全部撤离"）',
+   '  if (escortPassed() < escortTotal()) return;',
+   '  if (escortPassed() < escortNeed()) return;',
+   '只到达成线不触发撤离成功'],
+
+  ['存活下限不生效（只剩一支残兵也算守住）',
+   '      ? Math.max(1, Math.ceil(base * w.minAlive)) : 1;',
+   '      ? 1 : 1;',
+   '只剩一支残兵不算守住'],
+
+  ['剩余回合不看撤离终局期限（右栏一直显示到关卡上限）',
+   '  const cap = Number.isFinite(state.escFinalTurn)',
+   '  const cap = false',
+   '右栏剩余回合跟着变成 1'],
 
 ];
 
