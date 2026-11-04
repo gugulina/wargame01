@@ -58,7 +58,7 @@
      <link> 不会——跟 data/levels.js 必须用 <script src> 是同一个原因。
      ?v= 跟着顶栏版本走（tools/check.js 校验），否则改完样式玩家可能还在吃
      GitHub Pages 的十分钟缓存，看到的是一半新一半旧的页面。 -->
-<link rel="stylesheet" href="campaign.css?v=5.2">
+<link rel="stylesheet" href="campaign.css?v=5.3">
 <!-- 版本公告数据与菜单页共用一份（HQ 的「版本公告」页签读它）。
      放在 <head> 里同步加载：页签是玩家点了才渲染的，但真读不到时那一页要能
      说清"文件缺了"，而不是显示一片空白——异步加载失败是静默的。 -->
@@ -76,7 +76,7 @@
       <span class="pill" id="phasePill">我方阶段</span>
       <!-- 全项目唯一的版本标记：tools/export-levels.js 按这个 span 的原样文本抓版本号，
            开始页撤掉之后它挪到了顶栏，标签必须保持 <span id="verTag"> 这个形状 -->
-      <span id="verTag">v5.2</span>
+      <span id="verTag">v5.3</span>
       <!-- 存档异常：只在真的写失败时出现（隐私模式 / 配额满 / 被清理）。
            默认 display:none，别让它平时占位——一排胶囊里突然多一个红字，
            玩家第一反应是"我是不是哪里点坏了"。 -->
@@ -341,7 +341,7 @@
      引擎顶层的 window.__WAR__ 导出表直接引用 runAI / huntContact 等 38 个符号，
      那些是 function 声明，AI 后加载就会在导出那一刻报 ReferenceError；
      反过来 AI 引用引擎的 state / LEVEL / TYPE 全在函数体内，调用时才解析。 -->
-<script src="ai.js?v=5.2"></script>
+<script src="ai.js?v=5.3"></script>
 
 <script>
 /* ───────────────────────── 地形 ───────────────────────── */
@@ -368,6 +368,11 @@ const TERRAIN = {
   /* 港口码头：陆地设施，地面可通行。单独做一个字符而不是拿城市代替，
      是因为"码头"在关卡里是**舰队的补给依托**——supplyOf 按它判舰船补给，
      拿城市当码头会让"城里有人、码头荒着"这种局面判不出来。 */
+  /* 铁路（v5.3）：路基平整，沿线机动顺畅，和平原比只快不慢；
+     但它没有遮障——沿着铁路走等于把自己摆在最显眼的一条线上。
+     这一格的全部戏在**桥涵**上：铁路过河只有桥，桥断了整条线就停摆。 */
+  '-': { name: '铁路', cost: 1, def: 0,    cls: 't-rail',
+        note: '铁路路基，沿线机动顺畅。桥涵是它的命门：炸断一处，整条线要停半个月。' },
   'p': { name: '港口', cost: 2, def: 0.50, cls: 't-port',
         note: '码头区：岸桥、仓库与油料储罐。地面可通行，也是舰船靠泊补给的唯一依托。' }
 };
@@ -569,17 +574,19 @@ const TYPE = {
           '每次齐射打掉一发，弹药只有 3 发；静止且补给正常才 +1/回合',
           '行军、展开各占一回合，这期间既不能射击也还不了手',
           '**一次把某一段防线打薄**，不是用来连着砸同一个点的'] },
-  eng: { name: '工兵营', role: '工程作业', am: 0,
+  eng: { name: '工兵营', role: '工程作业', am: 0, chg: 4,
     abil: ['五类工事全都能修：堑壕 H / 碉堡 B / 要塞炮 P / 岸防炮 A / 防空阵地 F',
           '布雷：在相邻空格铺雷区，敌人进去掉 3 战力并停下',
           '排雷：清掉相邻格的地雷',
           '架桥：把相邻河流格改成渡口',
+          '**爆破：带 4 份装药，能炸桥涵、炸路基。装药用完就没有了**',
           '近战弱，得有人掩护'] },
-  engc: { name: '工兵连', role: '工程作业（缩编）', am: 0,
+  engc: { name: '工兵连', role: '工程作业（缩编）', am: 0, chg: 4,
     abil: ['只能修堑壕 H。没有混凝土，也没有装重炮的力气',
           '排雷：清掉相邻格的地雷',
-          '不能布雷、不能架桥（编制里没有舟桥和爆破分队）',
-          '战力 2，跟在步兵后面干活'] },
+          '不能布雷、不能架桥（编制里没有舟桥）',
+          '**爆破：按任务配发装药（通常三到四份），能炸桥涵。按份数用，用完了就得靠别的工兵**',
+          '战力低，跟在步兵后面干活'] },
   at:  { name: '反坦克连', role: '反装甲', am: 4,
     abil: ['反坦克炮，射程 1 格（0.8–1.5 km）。得放在坦克必经之路上',
           '打坦克营、装步营 ×1.8（+0.80）；打步兵、守备营 ×0.6（−0.40）',
@@ -3997,13 +4004,238 @@ const LEVELS = [
   ]
 },
 {
-  /* 附属 · 破袭。正关是"守"，这一关是"让对方守不成"——
-     同一片战场，反过来打。 */
+  /* 环城铁路（v5.3）：第 2 章第 1 关的附属关，全篇第一个「破袭」关。
+     戏眼一句话：**天亮时还有几座桥涵是断的**。正关是"守"，这一关是
+     "让对方守不成"——同一片战场，反过来打。
+
+     三条新规则都落在这里（引擎见 docs/04 §十六）：
+       ① 工程目标（LEVEL.works）：桥涵有耐久，工兵爆破一次扣一点；
+       ② 敌方抢修：红方工兵站在断桥上，每回合修回一点，修满就通车；
+       ③ 夜战：射界压到 2 格，照明区恢复——所以护卫必须贴着工兵走。
+
+     为什么是 4 座桥、达成线 3 座：teaser 说的是"拆三座桥涵"，
+     那是及格线；第 4 座（东涵洞）是超额。只有 3 座的话，
+     "炸满"和"达成"是同一件事，超额就没内容了。
+
+     地图 18×14：铁路横穿中间两行，三条小河从北到南切过去，
+     桥就架在三个交叉点上。玩家从南面两个方向摸进来，红方守在北面。
+     铁路格 cost 1——**双方都跑得快**，所以这一关的机动是"谁先到桥头"。 */
   id: 'C7B', ch: 2, no: 1, sub: true, name: '环城铁路', type: '附属 · 破袭',
   when: '新历 1208 年 9 月 20 日', where: '首都圈 · 环城铁路东段',
   teaser: '他们的弹药靠这条铁路运到城下。一晚上，拆三座桥涵，天亮前别让他们修好。',
-  ready: false,
-  win: { kind: 'score' }
+  ready: true,
+  win: { kind: 'demolish', need: 3 },
+  /* 夜战：射界 2 格。这一关没有炮兵，压射界的意义在**照明区**——
+     桥头有灯，站在灯下能打远、也更容易被打（见 terrainDefFor 的夜战分支）。 */
+  night: { cap: 2 },
+  lit: [
+    { r: 5, c: 3,  rad: 1 },   // 西桥北头的扳道房
+    { r: 5, c: 11, rad: 1 },   // 东桥北头的信号楼
+    { r: 4, c: 15, rad: 1 }    // 东涵洞旁的看守房
+  ],
+  prev: {
+    win:  '北郊守住了。卫戍旅在阵地上站了三天，撤下来的时候全旅没一个人掉队。',
+    fail: '北郊丢了。卫戍旅在阵地上站到最后一刻，撤下来的时候少了两个营。'
+  },
+  intro: [
+    '九月 · 夜。环城铁路东段。',
+    '城外的敌人靠这条铁路把弹药运到城下：一天三列，从东站一直卸到北郊的炮位。',
+    '我们要在一夜之间把它掐断。四个位置：西桥、中桥、东桥，还有东头那个涵洞。至少拆掉三座。',
+    '编成：第 102 步兵师工兵连、第 204 装甲旅工兵排、第 304 步兵团第 1 营残部、师反坦克连、旅侦察营。没有炮兵，没有坦克。',
+    '工兵只有两支，装药七份：师工兵连四份，旅工兵排三份。够炸三座桥，再补一处。一座桥要两趟装药才塌得下来，一趟就是一个整夜的小时。',
+    '敌人有一个铁路守备群沿线驻扎，两个工兵连，还有一支装甲巡逻队。**他们会抢修**：只要工兵站上断桥，一夜能修回一半。',
+    '天很黑。看得见的地方只有桥头的灯和扳道房，其余全是黑的。**灯下能打远，也最容易挨打。**',
+    '任务：天亮时，至少三座桥涵还是断的。'
+  ],
+  maxTurns: 9,
+  cols: 18,
+  rows: 14,
+  blueSources: [[12, 5], [12, 12]],
+  redSource: [1, 16],
+  forts: [
+    { r: 4, c: 3,  side: 'red', kind: 'H' },
+    { r: 4, c: 11, side: 'red', kind: 'H' },
+    { r: 3, c: 15, side: 'red', kind: 'B' },
+    { r: 12, c: 7, side: 'blue', kind: 'H' }
+  ],
+  map: [
+    '..................',
+    '..hh..ff..ff..hh..',
+    '..hh..ff..ff..hh..',
+    '..ff..ff..ff..ff..',
+    '..ff..hh..hh..ff..',
+    '..~~..~~..~~..ff..',
+    '--==--==--==------',
+    '--==--==--==------',
+    '..~~..~~..~~..ff..',
+    '..ff..hh..hh..ff..',
+    '..tt..ff..ff..tt..',
+    '..tt..ff..ff..tt..',
+    '..ff..........ff..',
+    '..................'
+  ],
+  /* 工程目标（v5.3）。cells 是桥涵本体占的格：工兵站在相邻一格或桥上都能爆破。
+     hp 2 = 两次装药；repair 1 = 敌工兵每回合修回一点（也就是两回合修通）。 */
+  works: [
+    { id: 'w_west',  name: '西桥',   note: '跨西河的三孔钢梁桥', hp: 2, repair: 1,
+      cells: [[6, 2], [6, 3], [7, 2], [7, 3]] },
+    { id: 'w_mid',   name: '中桥',   note: '全线最长的一座，双线并行', hp: 2, repair: 1,
+      cells: [[6, 6], [6, 7], [7, 6], [7, 7]] },
+    { id: 'w_east',  name: '东桥',   note: '跨东河的单线桥', hp: 2, repair: 1,
+      cells: [[6, 10], [6, 11], [7, 10], [7, 11]] },
+    { id: 'w_culv',  name: '东涵洞', note: '路基下的排水涵洞，塌了要重新填方', hp: 2, repair: 1,
+      cells: [[6, 15], [7, 15]] }
+  ],
+  objectives: [
+    /* 破袭关的要点只服务敌军 AI（红方要有"该守哪儿"的概念），
+       玩家不靠它得分——胜负只看桥涵。 */
+    { id: 'yard', name: '铁路调度场', vp: 10, core: true, rule: 'hold', kind: 'town',
+      cells: [[2, 15], [2, 16], [3, 16]] },
+    { id: 'signal', name: '东信号楼', vp: 6, core: false, rule: 'contest', kind: 'town',
+      cells: [[4, 11], [5, 11], [4, 12]] }
+  ],
+  events: [
+    {
+      id: 'go_in', desc: '开始潜入',
+      when: { kind: 'firstBlood' },
+      effects: [
+        { kind: 'say', beats: [
+          { who: '第 102 步兵师 · 工兵连', side: 'blue', portrait: 'portBlue',
+            text: '装药按两趟配。一趟炸桥面，一趟炸墩。\n别指望一趟就塌。' },
+          { who: '第 204 装甲旅 · 侦察营', side: 'blue', portrait: 'portHQ',
+            text: '桥头有灯。灯底下什么都看得见，包括我们。' }
+        ] }
+      ]
+    },
+    {
+      id: 'first_break', desc: '第一座桥断了',
+      when: { kind: 'turn', turn: 4 },
+      effects: [
+        { kind: 'log', text: '东边的天线上传来敌人的呼叫，重复了三遍同一个词：桥。守备群开始往铁路线上收。', cls: 'r' },
+        { kind: 'org', side: 'red', delta: 2 }
+      ]
+    },
+    {
+      id: 'repair_team', desc: '敌人的工兵上来了',
+      when: { kind: 'turn', turn: 6 },
+      effects: [
+        { kind: 'log', text: '敌人的工兵连从调度场出来了，带着枕木和钢轨。他们不打算等到天亮。', cls: 'r' },
+        { kind: 'sfx', name: 'alarm' },
+        { kind: 'mod', side: 'red', atk: 0.06, label: '守备群反扑 · 敌军攻击 +6%' }
+      ]
+    },
+    {
+      id: 'last_hour', desc: '最后一小时',
+      when: { kind: 'turn', turn: 9 },
+      effects: [
+        { kind: 'log', text: '东边开始泛白。还有最后一个小时——炸完就得走，天一亮敌人的飞机就出来了。', cls: 'hi' },
+        { kind: 'org', side: 'blue', delta: 3 }
+      ]
+    }
+  ],
+  story: {
+    briefing: {
+      pages: [
+        {
+          order: '破袭命令 · 第 3 号',
+          kicker: '战役态势',
+          title: '一晚上，四座桥',
+          paras: [
+            { t: '城外的敌人靠环城铁路把弹药运到城下：一天三列，从东站一直卸到北郊的炮位。' },
+            { t: '四个位置：西桥、中桥、东桥，还有东头路基下的涵洞。**至少拆掉三座。**', hl: true },
+            { t: '这不是一场仗，是一次作业。打完就走，别守阵地。' }
+          ],
+          nums: [
+            { k: '桥涵', v: '4 座' },
+            { k: '达成', v: '3 座' },
+            { k: '时间', v: '12 回合' }
+          ]
+        },
+        {
+          order: '作业须知 · 附页',
+          kicker: '这一关怎么玩',
+          title: '炸完还得守',
+          paras: [
+            { t: '工兵走到桥涵旁边，点「爆破」，**占掉整个回合**。一座桥要两趟装药才塌。', hl: true },
+            { t: '敌人有工兵。**只要他们站上断桥，一夜就能修回一半**；修满就通车，那一处白炸了。', hl: true },
+            { t: '把兵停在桥上、或者把敌人的工兵打掉——两条路都行。停在桥上是"物理占位"，最省事。' },
+            { t: '天黑，看得见的地方只有桥头的灯。**灯下能打远，也最容易挨打。**', hl: true }
+          ],
+          nums: [
+            { k: '每座', v: '2 趟装药' },
+            { k: '抢修', v: '1 / 回合' },
+            { k: '夜战', v: '射界 2 格' }
+          ]
+        },
+        {
+          order: '任务简报',
+          kicker: '你的任务',
+          title: '天亮时还断着三座',
+          paras: [
+            { t: '第 12 回合结束时，**至少 3 座桥涵仍是断的**，算达成。四座全断是超额。' },
+            { t: '炸断一座，敌军全线组织度掉 3 点——他们的弹药运不上来，炮就打不响。' },
+            { t: '工兵全打光了、桥还剩两座没断，这一夜就白熬了。**护住工兵。**', hl: true }
+          ],
+          nums: [
+            { k: '达成', v: '3 / 4' },
+            { k: '超额', v: '4 / 4' },
+            { k: '工兵', v: '2 支' }
+          ]
+        }
+      ],
+      beats: [
+        { who: '第 102 步兵师 · 工兵连', side: 'blue', portrait: 'portBlue',
+          text: '装药按两趟配。一趟炸桥面，一趟炸墩。\n别指望一趟就塌。' },
+        { who: '第 204 装甲旅 · 侦察营', side: 'blue', portrait: 'portHQ',
+          text: '桥头有灯。灯底下什么都看得见，包括我们。' },
+        { who: '敌第 63 步兵师 · 铁路守备群', side: 'red', portrait: 'portRed',
+          text: '桥断了就修。修不了就守。\n天亮之前，这条线不能停。' }
+      ]
+    }
+  },
+  corpsName: {
+    E2: '第 102 步兵师', E3: '第 204 装甲旅',
+    R1: '敌第 63 步兵师铁路守备群', R2: '敌第 63 步兵师工兵营', R3: '敌近卫装甲第 2 师巡逻支队'
+  },
+  units: [
+    /* ── 我方 · 破袭分队（6 支：2 工兵、3 护卫、1 指挥） ── */
+    { id:'E2H', side:'blue', abbr:'102H',  name:'第 102 步兵师师部',              type:'hqd',  str:2, mov:8, rng:0, r:12, c:8,  corps:'E2', wave:1 },
+    { id:'E2E', side:'blue', abbr:'102工', name:'第 102 步兵师工兵连',            type:'engc', str:2, mov:6, rng:1, r:12, c:5,  corps:'E2', wave:1, chg:4 },
+    { id:'E2A', side:'blue', abbr:'304-1', name:'第 304 步兵团第 1 营残部',        type:'inf',  str:4, mov:6, rng:1, r:11, c:6,  corps:'E2', wave:1 },
+    { id:'E2B', side:'blue', abbr:'304-2', name:'第 304 步兵团第 2 营残部',        type:'inf',  str:4, mov:6, rng:1, r:11, c:11, corps:'E2', wave:1 },
+    { id:'E2T', side:'blue', abbr:'102反', name:'第 102 步兵师反坦克连',          type:'at',   str:3, mov:5, rng:1, r:11, c:9,  corps:'E2', wave:1 },
+    { id:'E3H', side:'blue', abbr:'204前', name:'第 204 装甲旅前进指挥所',        type:'hqb',  str:2, mov:8, rng:0, r:12, c:14, corps:'E3', wave:1 },
+    { id:'E3E', side:'blue', abbr:'204工', name:'第 204 装甲旅工兵排',            type:'engc', str:2, mov:6, rng:1, r:12, c:12, corps:'E3', wave:1, chg:3 },
+    { id:'E3C', side:'blue', abbr:'204侦', name:'第 204 装甲旅侦察营（轻坦）',      type:'larm', str:5, mov:12, rng:1, r:10, c:13, corps:'E3', wave:1 },
+
+    /* ── 敌方 · 铁路守备群（沿铁路一字排开，四个营各守一处） ── */
+    { id:'R1H', side:'red', abbr:'守H',   name:'敌第 63 步兵师铁路守备群群部',    type:'hkg', str:2, mov:8, rng:0, r:2,  c:16, corps:'R1', wave:1 },
+    { id:'R1A', side:'red', abbr:'守1',   name:'敌铁路守备第 1 营',              type:'inf', str:4, mov:6, rng:1, r:4,  c:3,  corps:'R1', wave:1 },
+    { id:'R1B', side:'red', abbr:'守2',   name:'敌铁路守备第 2 营',              type:'inf', str:4, mov:6, rng:1, r:4,  c:7,  corps:'R1', wave:1 },
+    { id:'R1C', side:'red', abbr:'守3',   name:'敌铁路守备第 3 营',              type:'inf', str:4, mov:6, rng:1, r:4,  c:11, corps:'R1', wave:1 },
+    { id:'R1D', side:'red', abbr:'守4',   name:'敌铁路守备第 4 营',              type:'inf', str:4, mov:6, rng:1, r:4,  c:15, corps:'R1', wave:1 },
+
+    { id:'R1F', side:'red', abbr:'守炮',  name:'敌铁路守备群野炮连',            type:'art', str:4, mov:6, rng:5, r:2,  c:12, corps:'R1', wave:1 },
+
+    /* ── 敌方 · 工兵营（抢修主力，两个连分东西） ──
+       编制上营部带两个连：西头一个盯西桥/中桥，东头一个盯东桥/涵洞。
+       只给一个连的话，它在头三个回合就会被打掉，剩下的九回合桥断着没人管——
+       "敌人会抢修"这句简报就成了空话。 */
+    { id:'R2H', side:'red', abbr:'工H',   name:'敌第 63 步兵师工兵营营部',        type:'hkg', str:2, mov:8, rng:0, r:1,  c:13, corps:'R2', wave:1 },
+    { id:'R2E', side:'red', abbr:'工1',   name:'敌工兵营第 1 连',                type:'engc', str:3, mov:6, rng:1, r:5,  c:4,  corps:'R2', wave:1 },
+    { id:'R2F', side:'red', abbr:'工2',   name:'敌工兵营第 2 连',                type:'engc', str:3, mov:6, rng:1, r:5,  c:14, corps:'R2', wave:1 },
+
+    /* ── 敌方 · 装甲巡逻支队（第 5 回合从东面压上来） ── */
+    { id:'R3H', side:'red', abbr:'巡H',   name:'敌近卫装甲第 2 师巡逻支队指挥所', type:'hqd',  str:2, mov:8,  rng:0, r:1,  c:17, corps:'R3', wave:2 },
+    { id:'R3A', side:'red', abbr:'巡1',   name:'敌巡逻支队第 1 连（轻坦）',      type:'larm', str:5, mov:12, rng:1, r:0,  c:15, corps:'R3', wave:2 },
+    { id:'R3B', side:'red', abbr:'巡2',   name:'敌巡逻支队第 2 连（装步）',      type:'mech', str:6, mov:8,  rng:1, r:0,  c:17, corps:'R3', wave:2 }
+  ],
+  waves: [
+    /* 第 3 回合就放进来：原来排在第 5 回合，等它从东站开到桥头已经第 7 回合，
+       蓝方三座桥早炸完了——"装甲巡逻队"在战报里只剩一行进场提示。
+       提前两回合，它才真的赶上最后一场遭遇。 */
+    { wave: 2, turn: 3, text: '敌人的装甲巡逻支队沿铁路从东面压上来了。他们要先把整条线扫一遍。' }
+  ]
 },
 {
   /* 城市基础设施当要点（第 2 章的内容门槛）。
@@ -7346,9 +7578,49 @@ function terrainDefFor(u) {
      造出 ×3 以上的铁乌龟（docs/20 §五）。1.6 = 现有最大合法叠放 + 一点余量。 */
   return Math.max(0, Math.min(1.6, d));
 }
+/* ── 夜战（v5.3）────────────────────────────────────────────
+   夜里看不见远处：射程被压缩，**照明区里恢复正常**。
+
+   这条规则不是在"限制玩家"，是在解释夜战关的炮兵为什么是哑的：
+   重炮近界 3 格、射程压到 2 之后一个合法目标都没有（minRange 那条
+   自动生效，不必单写"火炮不能校射"）。自行炮与迫击炮近界 1，
+   还能在 2 格内直瞄——夜里能响的就是这几样。
+
+   为什么不做战争迷雾：整个系列的前提是全图可见，每一关的可读性
+   都建立在这上面。夜战改用几何约束表达"看不远"——玩家看得见战场、
+   但打不到远处。"看得见打不着"本身就是夜战的手感。
+
+   **照明区（LEVEL.lit）是这一关唯一的地形争夺**：被烧着的街区、
+   车站的灯、探照灯。写成圆而不是逐格列——一片街区动辄十几格，
+   逐格写既啰嗦又容易漏，而漏一格的后果是"这一格莫名其妙打得远"。 */
+function nightOn() { return !!(LEVEL && LEVEL.night); }
+function nightCap() {
+  const n = LEVEL && LEVEL.night;
+  const cap = (n && Number.isFinite(n.cap)) ? n.cap : 2;
+  return Math.max(1, cap);
+}
+function litAt(r, c) {
+  const list = (LEVEL && LEVEL.lit) || null;
+  if (!list) return false;
+  for (const z of list) {
+    if (hexDist([r, c], [z.r, z.c]) <= (Number.isFinite(z.rad) ? z.rad : 1)) return true;
+  }
+  return false;
+}
+/* 这支部队在夜里被压到几格。返回 null = 不受夜战影响（不在夜战关，或站在灯下）。
+   单独成一个函数是为了让面板、预判、AI 三处读同一个数——
+   以前 `attackRange` 只被 targetsFor 用到，面板另算一套，
+   于是"面板说能打 6 格、实际打不到"这种错在屏幕上长得像 bug。 */
+function nightRangeFor(u) {
+  if (!nightOn() || !u || !u.pos) return null;
+  if (litAt(u.pos[0], u.pos[1])) return null;
+  return nightCap();
+}
 function attackRange(u) {
   let r = u.rng;
   if (isArty(u) && fortKind(u) === 'P') r += 1;   // 要塞炮：驻守炮兵射程 +1
+  const nr = nightRangeFor(u);
+  if (nr !== null) r = Math.min(r, nr);
   return r;
 }
 /* 最小射程 = 火炮近界。按 1.5 km/格 从现实数据换算：
@@ -8239,6 +8511,12 @@ function makeUnit(u, spent) {
      给步兵凭空加三发炮弹，界面上会出现一个永远不减的"弹药 3 / 3"。 */
   const baseAm = TYPE[u.type].am || 0;
   const am = baseAm ? baseAm + traitSum(u, 'ammo') : 0;
+  /* 装药（v5.3）：只有工兵有，写 0 就是没有这个字段。
+     和弹药分开：弹药是"这一炮打几发"，装药是"这一仗能炸几次"，
+     两者的补给规则完全不同（弹药每回合补，装药整局不补）。
+     关卡可以在单位上覆写 `chg`：同是工兵连，破袭关配的装药
+     和架桥任务配的不是一个数——这是**关卡属性**，不是兵种属性。 */
+  const chg = u.chg !== undefined ? u.chg : (TYPE[u.type].chg || 0);
   if (state.everSeen) state.everSeen[u.id] = 1;
   const unit = {
     ...u, pos: [u.r, u.c], org: 100,
@@ -8246,7 +8524,8 @@ function makeUnit(u, spent) {
     /* packed = 收炮/行军状态。拖曳炮进场即行军状态，必须先展开。
        自行炮与直射单位没有这个概念，字段恒为 false。 */
     packed: u.packed === undefined ? false : !!u.packed,
-    ammo: am || undefined, maxAmmo: am || undefined
+    ammo: am || undefined, maxAmmo: am || undefined,
+    charges: chg || undefined
   };
   /* 定义里写了战力的，统一走 defStr（反坦克连 +1）。
      没写战力的（空降伞兵由 doDrop 现造）保持原样——这里补一个 0
@@ -8430,6 +8709,9 @@ function saveSnapshot() {
        关卡又回到打满 maxTurns——玩家明明已经送完了，却还要空转六回合。 */
     escAllSaid: !!state.escAllSaid,
     escFinalTurn: Number.isFinite(state.escFinalTurn) ? state.escFinalTurn : null,
+    /* 桥涵的耐久（v5.3）。只存 hp 不存 cells/name：那两样来自关卡数据，
+       关卡数据改了以后旧存档该跟着新数据走，而不是拖着一份旧坐标。 */
+    works: (state.works || []).map(w => ({ id: w.id, hp: w.hp })),
     firstBlood: state.firstBlood || 0,
     escGoalSaid: !!state.escGoalSaid,
     ctrl: { ...state.ctrl },
@@ -8630,6 +8912,21 @@ function validateSave(s) {
       if (!CARDS[id]) return { ok: false, msg: '存档里有不存在的战术卡「' + id + '」。' };
     }
   }
+  /* 桥涵耐久（v5.3）：不可信输入。`hp` 写成字符串会让 workDown 的
+     `w.hp <= 0` 变成字符串比较（"0" <= 0 是 true，但 "abc" <= 0 是 false），
+     结果是"桥看起来炸了、判定说没炸"，而且两条路径各自都不报错。
+     这里逐条夹到 [0, maxHp]，超出的直接拒绝——存档被改过就该说清楚。 */
+  if (s.works !== undefined) {
+    if (!Array.isArray(s.works)) return { ok: false, msg: '存档里的桥涵记录不是一个列表。' };
+    for (const w of s.works) {
+      if (!w || typeof w !== 'object' || typeof w.id !== 'string') {
+        return { ok: false, msg: '存档里有一条桥涵记录格式不对。' };
+      }
+      if (typeof w.hp !== 'number' || !Number.isFinite(w.hp) || w.hp < 0) {
+        return { ok: false, msg: '桥涵 ' + w.id + ' 的耐久不是有效数字。' };
+      }
+    }
+  }
   return { ok: true, msg: '', level: lv };
 }
 
@@ -8777,6 +9074,16 @@ function restoreGame(s) {
     escortIds: Array.isArray(s.escortIds) ? s.escortIds.slice() : [],
     escAllSaid: !!s.escAllSaid,
     escFinalTurn: Number.isFinite(s.escFinalTurn) ? s.escFinalTurn : null,
+    /* 按 id 回填，**不按数组下标**：以后给某一关加一座桥，
+       旧存档的下标会错位，那时"第三座桥"会变成另一座。
+       找不到 id 的（关卡被改过）就按关卡数据重建，宁可当没炸过。 */
+    works: (LEVEL.works || []).map(w => {
+      const old = (s.works || []).find(x => x && x.id === w.id);
+      const maxHp = Number.isFinite(w.hp) ? w.hp : 1;
+      return { id: w.id, name: w.name, cells: w.cells.map(c => c.slice()),
+               hp: old && Number.isFinite(old.hp) ? Math.max(0, Math.min(maxHp, old.hp)) : maxHp,
+               maxHp, repair: Number.isFinite(w.repair) ? w.repair : 1 };
+    }),
     firstBlood: s.firstBlood || 0,
     escGoalSaid: !!s.escGoalSaid,
     flags: s.flags || {},
@@ -8842,6 +9149,7 @@ function pushUndo() {
     escortIds: (state.escortIds || []).slice(),
     escAllSaid: !!state.escAllSaid,
     escFinalTurn: Number.isFinite(state.escFinalTurn) ? state.escFinalTurn : null,
+    works: (state.works || []).map(w => ({ id: w.id, hp: w.hp })),
     log: state.log.slice(-60)
   }));
   if (undoStack.length > UNDO_MAX) undoStack.shift();
@@ -8899,6 +9207,16 @@ function doUndo() {
      和上面两条同一个道理：快照是那一刻的真相，缺项就按"没有"处理。 */
   state.escAllSaid = !!s.escAllSaid;
   state.escFinalTurn = Number.isFinite(s.escFinalTurn) ? s.escFinalTurn : null;
+  /* 桥涵耐久跟着回滚。少了这一条，撤一下就能"炸完再撤、桥还是断的"，
+     连装药都省了——而撤销本来是为了收回误操作，不是战术。 */
+  if (Array.isArray(s.works)) {
+    for (const w of (state.works || [])) {
+      const old = s.works.find(x => x && x.id === w.id);
+      if (old && Number.isFinite(old.hp)) {
+        w.hp = Math.max(0, Math.min(w.maxHp, old.hp));
+      }
+    }
+  }
   state.log = s.log;
   clearSelection();
   refreshFields();
@@ -9050,8 +9368,23 @@ function newGame(opt) {
        一旦设上，右栏的剩余回合和 endBluePhase 的终局判断都跟着它走。 */
     escAllSaid: false,
     escFinalTurn: null,
+    /* 工程目标（v5.3）：桥涵的当前耐久。数组由 newGame 按 LEVEL.works 建，
+       这里留空数组是为了让 workAt / worksDown 在没有这个字段的老关卡上
+       拿到空表而不是 undefined（返回 undefined 的话 `.filter` 会当场崩，
+       而崩的地方是 settlePhase，看起来像"回合结束坏了"）。 */
+    works: [],
   };
   state.units = LEVEL.units.filter(u => u.wave === 1).map(u => makeUnit(u, false));
+  /* 工程目标（v5.3）：**每局新建一份**，不能直接引用 LEVEL.works。
+     引用的话，这一局炸掉的桥在重开时还是断的——而"重开"是玩家
+     最常用的一颗按钮，出这种错会被当成"关卡坏了"。 */
+  state.works = (LEVEL.works || []).map(w => ({
+    id: w.id, name: w.name,
+    cells: w.cells.map(c => c.slice()),
+    hp: Number.isFinite(w.hp) ? w.hp : 1,
+    maxHp: Number.isFinite(w.hp) ? w.hp : 1,
+    repair: Number.isFinite(w.repair) ? w.repair : 1
+  }));
   for (const u of LEVEL.units) {
     if (u.wave !== 1) continue;
     /* 绿方车队不进编制表：initStr 是"各军初始战力"，用来判伤亡比例；
@@ -9809,6 +10142,113 @@ function doBridge(u, pos) {
   clearSelection(); refreshFields(); render();
   saveGame();
 }
+/* ═════════════════ 工程目标（v5.3）═════════════════
+   LEVEL.works：这一关要破坏的工程目标——铁路桥、涵洞、抽水站。
+   它**不是工事（FORT）**：工事是"给这一格加防御"的掩体，会被炮火削耐久；
+   工程目标是画在地图上的任务，只有工兵能爆破、也只有工兵能修复。
+
+   数据结构：{ id, name, cells:[[r,c]...], hp, repair }
+     hp     打掉需要几次爆破（2 = 要炸两下）
+     repair 敌方工兵站上去每回合修回几点（默认 1）
+
+   为什么用"次数"而不是"伤害"：爆破是作业不是射击，
+   一次装药就是一个断口。次数玩家数得清——"还差一下"比"还差 1.7 战力"直觉。
+
+   **断了不拦路**：桥是铁路桥，断了车过不去，人照样能涉水、走便桥。
+   它的价值在胜负条件和那一句"敌军的弹药运不上来了"（断一座 → 红方全军
+   组织度 −3）。做成"断了不能通行"的话，玩家会开始拿它当路障用，
+   而这一关的题目是破袭，不是筑坝。 */
+function workAt(r, c) {
+  return (state.works || []).find(w =>
+    w.cells.some(x => x[0] === r && x[1] === c)) || null;
+}
+function workDown(w) { return !!w && w.hp <= 0; }
+function worksDown() { return (state.works || []).filter(workDown).length; }
+function worksTotal() { return (state.works || []).length; }
+/* 能爆破的只有工兵。炮兵团、反坦克连不算——他们"带着工兵装备"，
+   不等于"会干工程"，这也是工兵在编制里贵的原因。 */
+function demoUnits(side) {
+  return alive(side).filter(u => u.type === 'eng' || u.type === 'engc');
+}
+function demoReach(u) {
+  if (!u || !u.pos) return [];
+  return (state.works || []).filter(w => !workDown(w) &&
+    w.cells.some(c => hexDist(u.pos, c) <= 1));
+}
+function doDemolish(u, w) {
+  if (!u || !w) return false;
+  if (actedThisTurn(u)) {
+    log(u.abbr + ' 本回合已行动，装药来不及了。', 'sys');
+    return false;
+  }
+  if (workDown(w)) { log(w.name + ' 已经断了。', 'sys'); return false; }
+  /* 装药（v5.3）：整局不补。两支工兵一共七份（师工兵连 4、旅工兵排 3），
+     够炸三座桥**再补一处**——那多出来的一份就是给抢修的容错：
+     桥被修回去一次，还补得起。实测这条线很窄：六份（零容错）只有 15% 达成，
+     八份（容错两份）到 65%，中间没有档位，所以七份是唯一位于带内的配置。 */
+  if (u.charges !== undefined) {
+    if (u.charges <= 0) {
+      log(u.abbr + ' 的装药用完了，炸不动了。', 'sys');
+      return false;
+    }
+    u.charges -= 1;
+  }
+  pushUndo();
+  u.moved = true; u.fired = true;
+  noteAct(u, 'eng');
+  w.hp -= 1;
+  if (w.hp <= 0) {
+    w.hp = 0;
+    log(u.abbr + ' 在' + w.name + '完成爆破，桥涵塌了。敌军的弹药运不上来了。', 'b');
+    FX.banner('桥 涵 被 炸 断', 'b', 1900);
+    /* 断一座桥 = 敌人整条补给线在这儿打了个结。这条效果是**可见的**：
+       敌军面板上的组织度当场掉 3 点，下一回合都缓不回来。
+       不写这条的话，"炸桥"在战场上只剩一个胜负计数，玩家感觉不到它。 */
+    for (const e of alive('red')) e.org = Math.max(0, Math.min(100, e.org - 3));
+    log('  敌军全线组织度 −3。', 'r');
+  } else {
+    log(u.abbr + ' 在' + w.name + '装药起爆，桥面破开一个口子（还差 ' + w.hp + ' 下）。', 'b');
+  }
+  FX.sfx('shell');
+  FX.pop(workDown(w) ? '炸断' : '爆破', w.cells[0].slice(), workDown(w) ? 'b' : 'sys');
+  clearSelection(); refreshFields(); render();
+  saveGame();
+  return true;
+}
+/* 结算阶段的抢修。**只有敌军会修**——玩家这边的桥涵是任务目标，
+   炸断就是战果，没有"修回来"的选项（想反悔有撤销）。
+   红方工兵站在断桥上就修，位置是关键：玩家把桥口钉住、或者把工兵打掉，
+   它就修不上。这是这一关"炸完还得守"的全部机制。 */
+function worksTick() {
+  if (!state.works || !state.works.length) return;
+  for (const w of state.works) {
+    if (w.hp >= w.maxHp) continue;
+    const eng = alive('red').find(u =>
+      (u.type === 'eng' || u.type === 'engc') && workAt(u.pos[0], u.pos[1]) === w);
+    if (!eng) continue;
+    const before = w.hp;
+    w.hp = Math.min(w.maxHp, w.hp + w.repair);
+    if (before <= 0 && w.hp >= w.maxHp) {
+      /* 修满才算通车。hp 从 0 回到 1（满值 2）只是"接上了一半"，
+         写成"修通了"会让玩家以为白炸了一次，其实再补一下就断。 */
+      log('  ' + w.name + ' 被敌军工兵修通了。这一处白炸了。', 'r');
+      FX.banner(w.name + ' 被 修 通', 'r', 1800);
+    } else if (w.hp > 0) {
+      log('  敌军工兵正在抢修' + w.name + '（' + w.hp + ' / ' + w.maxHp + '）。', 'hi');
+    } else {
+      log('  敌军工兵在' + w.name + '上作业，断口还开着（' + w.hp + ' / ' + w.maxHp + '）。', 'hi');
+    }
+  }
+}
+/* 还有没有能接着炸的人。判"任务已经不可能完成"用它——
+   工兵全打光了、桥还剩两座没断，那就没有下一发装药了。 */
+function demoLeft() {
+  return alive('blue').some(u => u.type === 'eng' || u.type === 'engc') ||
+    (LEVEL.units || []).some(u => u.side === 'blue' &&
+      (u.type === 'eng' || u.type === 'engc') &&
+      (u.wave || 1) !== 1 && (u.wave || 1) !== 0);
+}
+
 /* ── 空投（运输机 / 运输舰唯一会做的事）───────────────────
    载什么不是兵种属性，是**关卡属性**：同一型运输机这一关运弹药、下一关运伞兵。
    所以写在单位的 `load` 上，由关卡数据给：`supply` / `para` / 不给就是空机。
@@ -10018,6 +10458,13 @@ function onHexClick(r, c) {
       if (state.mode === 'clear' && hexDist(eng.pos, [r, c]) === 1) { doClearMine(eng, [r, c]); return; }
       if (state.mode === 'bridge' && hexDist(eng.pos, [r, c]) === 1 &&
           LEVEL.map[r][c] === '~') { doBridge(eng, [r, c]); return; }
+      /* 爆破点的是**格子**不是目标 id：一格同时属于两座桥涵是不可能的，
+         而玩家眼睛看到的也是格子。点空处就什么都不做（不进 else），
+         否则"点歪了"会被当成一次失败的作业。 */
+      if (state.mode === 'demo' && hexDist(eng.pos, [r, c]) <= 1) {
+        const w = workAt(r, c);
+        if (w && !workDown(w)) { doDemolish(eng, w); return; }
+      }
     }
 
     if (u && u.side === 'blue') {
@@ -10174,6 +10621,11 @@ function fortFire() {
 function settlePhase() {
   /* 炮台自动开火：先于补给结算，固定伤害不吃组织度 */
   fortFire();
+
+  /* 敌军工兵抢修桥涵（v5.3）。排在结算最前面：
+     它是"这一回合敌人做了什么"，和炮台开火同一类，
+     排在组织度恢复之前，战报读起来才是"敌人修桥 → 双方缓过一口气"。 */
+  worksTick();
 
   /* 限时修正倒计时。放在回合末统一扣，而不是"用一次扣一次"——
      修正是"持续 N 个回合"的状态，不是消耗品。
@@ -10347,6 +10799,14 @@ function perfectHint(lv) {
     const goal = w.count || 1;
     const top = (typeof w.perfect === 'number' && w.perfect > 0) ? w.perfect : goal + 2;
     return { ok: true, text: '撤出 ' + top + ' 支以上（达成线 ' + goal + ' 支）' };
+  }
+  if (w.kind === 'demolish') {
+    /* 破袭（v5.3）。文案要把"还剩几座"和"敌人会修"这两件事都说出来——
+       只说"炸 3 座"的话，玩家炸完就走，天亮时发现全被修回去了。 */
+    const need = Number.isFinite(w.need) ? w.need : (L.works || []).length;
+    const tot = (L.works || []).length;
+    return { ok: true, text: '结束时至少 ' + need + ' 座桥涵仍是断的（共 ' +
+      tot + ' 座，全部炸断为超额）' };
   }
   if (w.kind === 'survive') {
     const ids = (w.keep || []).map(id => {
@@ -10670,6 +11130,16 @@ function judgeFinal() {
     }
   } else if (w.kind === 'reach') {
     state.result = reachResult();
+  } else if (w.kind === 'demolish') {
+    /* 破袭（v5.3）：天亮那一刻还有几座桥涵是断的。
+       **不比歼敌、不比占点**——这一关的全部成果就是那几个断口。
+       超额 = 三座全断且我方工兵还在（说明不是拿人命换的）。 */
+    const down = worksDown();
+    const need = Number.isFinite(w.need) ? w.need : worksTotal();
+    state.result = down >= need ? 'win' : 'fail';
+    if (state.result === 'win' && down >= worksTotal() && demoLeft()) {
+      state.result = 'perfect';
+    }
   } else if (w.kind === 'escort') {
     /* 护送和突围同一条口径：够数不中途结算，打满回合按撤出总数判。
        差别只在"谁在走"——reach 是玩家自己的兵牌走进撤离区，
@@ -10757,6 +11227,10 @@ function showOverlay() {
     ? { perfect: ['一个没少', '整条车队都走出了封锁线，一辆车都没丢。'],
         win:     ['护送达成', '车队冲出去了。公路上留下的车，没人会忘记。'],
         fail:    ['护送失败', '车队没能走出去，或者在路上就打光了。'] }
+    : w.kind === 'demolish'
+    ? { perfect: ['一列都没过去', '三座桥涵全断，敌人的弹药车在天亮前一辆也没开过来。'],
+        win:     ['破袭达成', '天亮时还断着的那几座桥，够敌人修上半个月。'],
+        fail:    ['破袭失败', '桥没炸够，或者被敌人的工兵连夜修通了。'] }
     : w.kind === 'survive'
     ? { perfect: ['完整坚守', '一个没损失，防线原封不动撑到了最后。'],
         win:     ['坚守成功', '撑到了预定时间，援军会记住这一天。'],
@@ -10778,6 +11252,16 @@ function showOverlay() {
     stats = row('撤出部队', escapedCount() + ' 支（达成 ' + escapeGoal() +
                 ' · 超额 ' + escapePerfect() + '）') +
             row('仍在战场', alive('blue').length + ' 支') +
+            row('我方剩余战力', now + ' / ' + lost) +
+            row('结束回合', state.turn + ' / ' + LEVEL.maxTurns);
+  } else if (w.kind === 'demolish') {
+    /* 破袭的统计只回答一个问题：还剩几座断着。
+       每座桥的当前耐久也列出来——玩家想知道"是被修通了几成"。 */
+    const need = Number.isFinite(w.need) ? w.need : worksTotal();
+    stats = row('炸断桥涵', worksDown() + ' / ' + worksTotal() + ' 座（达成线 ' + need + '）') +
+            (state.works || []).map(x =>
+              row(x.name, workDown(x) ? '已炸断' : '完好 ' + x.hp + ' / ' + x.maxHp)
+            ).join('') +
             row('我方剩余战力', now + ' / ' + lost) +
             row('结束回合', state.turn + ' / ' + LEVEL.maxTurns);
   } else if (w.kind === 'survive') {
@@ -11044,6 +11528,18 @@ function renderBoard() {
          护送关的"西口"用同一套染色（v5.1）：车队走到那儿就撤出，
          玩家看不见出口，就没法判断"这一波要挡多久"。 */
       if (inEscapeZone([r, c]) || inEscortExit([r, c])) cls += ' esczone';
+      /* 夜战（v5.3）：地形整体压暗、照明区提亮。
+         只压 .hex —— 兵牌是叠在格子上的独立层，压暗的只是地面，
+         番号和战力必须照旧读得清。 */
+      if (nightOn()) cls += ' nite';
+      if (litAt(r, c)) cls += ' lit';
+      /* 工程目标（v5.3）：桥涵本身要看得出来。
+         断了的那一格换成断口样式——它是这一关唯一的计分板，
+         玩家扫一眼地图就该知道"还剩几座"。 */
+      const wk = workAt(r, c);
+      if (wk) cls += workDown(wk) ? ' wdown' : ' work';
+      if (state.mode === 'demo' && state.selected &&
+          hexDist(state.selected.pos, [r, c]) <= 1 && wk && !workDown(wk)) cls += ' seldemo';
       const ftHere = fortAt(r, c);
       if (ftHere) cls += ftHere.side === 'blue' ? ' fb' : ' fr';
       const rk = kk(r, c);
@@ -11089,6 +11585,10 @@ function renderBoard() {
          （CSS 层叠不报错，只是少了东西）。这里用一个真实元素，互不干涉。
          只有 core 才描边：每关的非核心要点有 2–4 个，全描边等于没描。 */
       if (obj && obj.core) inner += '<i class="ocore" aria-hidden="true"></i>';
+      /* 桥涵标记：和 ocore 同一套做法（真实元素、不抢伪元素）。
+         断与不断只差这一个 class，CSS 负责画成"桥面"和"断口"。 */
+      if (wk) inner += '<i class="wmark' + (workDown(wk) ? ' wgone' : '') +
+                       '" aria-hidden="true"></i>';
       /* 兵牌错位只在**同一层**内做：一格两支地面部队要上下错开才看得见，
          但头顶那架飞机不该被挤到第三个位置上去——它另有"悬空"的视觉处理。
          同理，堆叠角标的数字只数地表部队，飞机不占那个名额。 */
@@ -11278,6 +11778,20 @@ function renderGoal() {
     html += '<div class="row"><span>仍在战场</span><b>' + alive('blue').length + ' 支</b></div>';
     html += '<div class="row" style="font-size:11px"><span>走到绿色区域即撤出</span><b>剩 ' +
             turnsLeft() + ' 回合</b></div>';
+  } else if (w.kind === 'demolish') {
+    /* 破袭关的进度条（v5.3）：还剩几座桥涵断着。
+       **这里只画，不判**——胜负在 judgeFinal 里判。
+       第一版把判定写进了渲染函数，于是每次重绘都在改 state.result：
+       开局第一帧就把一关判成了失败（render 里没有任何"是否结束"的守卫）。 */
+    const down = worksDown(), tot = worksTotal();
+    const need = Number.isFinite(w.need) ? w.need : tot;
+    html += '<div class="row"><span>炸断桥涵</span><b class="' +
+            (down >= need ? 'ok' : down > 0 ? 'warn' : 'bad') + '">' +
+            down + ' / ' + tot + ' 座</b></div>';
+    html += '<div class="vpbar"><i style="width:' +
+            Math.min(100, tot ? down / tot * 100 : 0) + '%"></i></div>';
+    html += '<div class="row" style="font-size:11px"><span>达成线 ' + need +
+            ' 座 · 敌军工兵会抢修</span><b>剩 ' + turnsLeft() + ' 回合</b></div>';
   } else if (w.kind === 'escort') {
     /* 护送关的进度条是"车队撤出几支"，不是战果分。三行就够：
        达成线、超额线、还在路上几支——玩家一眼能看出"要不要再冒个险"。 */
@@ -11417,6 +11931,19 @@ function unitOps(u) {
         const canBr = near.some(n => LEVEL.map[n[0]][n[1]] === '~');
         ops.push({ act: 'bridge', label: '架桥', hint: '', dis: !canBr, on: state.mode === 'bridge' });
       }
+      /* 爆破（v5.3）：只有这一关有工程目标时才出现。
+         没有桥可炸的关卡多一个灰按钮，玩家会以为是自己站位不对。 */
+      if ((state.works || []).length) {
+        /* 装药数写进按钮上。玩家最需要知道的是"我还够炸几次"，
+           而这一关的答案往往就是"刚好"。剩 0 份时按钮变灰并写原因，
+           否则点下去只会得到一句战报，看起来像操作没生效。 */
+        const left = u.charges === undefined ? null : u.charges;
+        const canDemo = demoReach(u).length > 0 && (left === null || left > 0);
+        ops.push({ act: 'demo',
+                   label: '爆破' + (left === null ? '' : '（剩 ' + left + ' 份）'),
+                   hint: left === 0 ? '装药已用完' : '占本回合',
+                   dis: !canDemo, on: state.mode === 'demo' });
+      }
     }
   }
 
@@ -11441,7 +11968,8 @@ const UOPS_HINT = {
   fort: '选一种工事，然后点本格或相邻格施工',
   mine: '点相邻空格布雷',
   clear: '点相邻雷区排雷',
-  bridge: '点相邻河流格架桥'
+  bridge: '点相邻河流格架桥',
+  demo: '点桥涵所在格安放装药（占本回合）'
 };
 
 /* ── 气泡定位 ──
@@ -11894,6 +12422,13 @@ function renderUnitBox() {
          '）正在射击：本格在它半径 2 内，每回合组织度 −' + aaSuppressOrg() +
          '%，且不能原地休整。飞出去才缓得回来。</div>';
   }
+  /* 装药（v5.3）：和弹药分开列。弹药每回合补，装药整局不补——
+     玩家要一眼看出"这支部队还能炸几次"，而不是"它还有几发炮弹"。 */
+  if (u.charges !== undefined && u.side === 'blue') {
+    h += '<div class="kv"><span>装药</span><b class="' +
+         (u.charges > 0 ? 'ok' : 'bad') + '">' + u.charges + ' 份' +
+         (u.charges > 0 ? '（整局不补）' : '（已用完）') + '</b></div>';
+  }
   h += '<div class="kv"><span>机动</span><b>' + u.mov + ' 点</b></div>';
   /* 射程以前对非炮兵一律写死 '1'——那时候战场上最远的东西就是炮，
      现在驱逐舰 8 格、战列舰 20 格，再写死就是骗人。 */
@@ -11901,6 +12436,17 @@ function renderUnitBox() {
     : (isArty(u) ? '最小 ' + minRange(u) + ' / 最大 ' + attackRange(u) : String(attackRange(u)));
   h += '<div class="kv"><span>射程</span><b>' + rngTxt +
        (isDirectArty(u) ? ' <span class="ok">（直瞄）</span>' : '') + '</b></div>';
+  /* 夜战必须写在射程下面一行。射程那一栏给的是**压缩后**的数，
+     不解释的话玩家会以为关卡数据写错了（"这门炮明明是 9 格"）。
+     照明区内的部队反过来要说明"为什么它还能打远"。 */
+  if (nightOn()) {
+    if (nightRangeFor(u) !== null) {
+      h += '<div class="kv"><span>夜战</span><b class="warn">射界 ' + nightCap() +
+           ' 格（进照明区恢复）</b></div>';
+    } else if (litAt(u.pos[0], u.pos[1])) {
+      h += '<div class="kv"><span>夜战</span><b class="ok">站在照明区里，不受限制</b></div>';
+    }
+  }
   /* 弹药同理：不止炮兵有。飞机有架次、军舰有炮弹，打完了都哑火。
      第二段是"下回合补不补"——玩家反馈（v4.17）里最实在的一条：
      面板只给一个 4 / 8，补弹的四个前置条件全看不见，只能靠记。
@@ -13789,6 +14335,11 @@ window.__WAR__ = {
   escortSpec, escortNeed, escortPassed, escortTotal, escortTick,
   inEscortExit, pathIndexOf, noteEscortGoalReached, noteEscortAllOut, escortResult,
   turnsLeft, supplyOpt, refreshFields,
+  /* 夜战（v5.3）：射界压缩与照明区 */
+  nightOn, nightCap, litAt, nightRangeFor,
+  /* 工程目标（v5.3）：桥涵的耐久、爆破、抢修 */
+  workAt, workDown, worksDown, worksTotal, demoUnits, demoReach,
+  doDemolish, worksTick, demoLeft,
   ROCKET_SPLASH, escortLeadUnit, aiEscortGoal,
   /* 领域（陆 / 空 / 绿水 / 蓝水）：一件机制的四张脸——走哪格、和谁挤、
      谁能打它、界面怎么画。测试直接驱动 domainOf / moveCost / canHitAir，

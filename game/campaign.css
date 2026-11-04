@@ -192,6 +192,54 @@
     background: #C6DCC0;
     box-shadow: inset 0 0 0 3px rgba(58,116,70,.50);
   }
+  /* 夜战（v5.3）：整片地面压暗，但**只压 .hex**——
+     兵牌是叠在格子之上的独立元素，番号与战力必须照旧读得清。
+     压的是"地面有多亮"，不是"玩家能看见多少"：这一系列不做战争迷雾，
+     夜战靠射界表达"看不远"，靠变暗表达"天黑了"。 */
+  .hex.nite { filter: brightness(.56) saturate(.72); }
+  .hex.nite:hover { filter: brightness(.68) saturate(.72); }
+  /* 照明区：被烧着的街区、车站的灯、探照灯。它是夜里唯一能打远的地方，
+     所以必须一眼认出来——暖色内发光 + 恢复亮度，比任何图标都直接。 */
+  .hex.lit {
+    filter: brightness(1.06) saturate(1.15);
+    box-shadow: inset 0 0 18px rgba(255,190,80,.85), inset 0 0 0 2px rgba(214,146,40,.55);
+  }
+  .hex.lit:hover { filter: brightness(1.12) saturate(1.15); }
+  /* 工程目标（v5.3）：桥涵。
+     画成"两道平行梁 + 一条斜撑"——铁路桥在俯视图里就是这个样子。
+     断掉的换成裂口（两道梁各断一半、斜撑歪掉），不靠颜色区分：
+     色盲玩家也要能一眼看出哪座还没炸。 */
+  .hex.work, .hex.wdown { cursor: pointer; }
+  .wmark {
+    position: absolute; inset: 0; pointer-events: none; z-index: 1;
+    display: block;
+  }
+  .wmark::before, .wmark::after {
+    content: ''; position: absolute; left: 50%; top: 50%;
+    width: 26px; height: 3px; background: #6B5B47; border-radius: 1px;
+    transform: translate(-50%, -50%) rotate(30deg);
+  }
+  .wmark::after {
+    background: #8A7A62;
+    transform: translate(-50%, -50%) rotate(-30deg);
+  }
+  .wmark.wgone::before {
+    background: #B4462F;
+    transform: translate(-50%, -50%) rotate(30deg) scaleX(.45);
+  }
+  .wmark.wgone::after {
+    background: #B4462F;
+    transform: translate(-50%, -50%) rotate(-30deg) scaleX(.45) translateX(6px);
+  }
+  /* 断了的桥涵整格加一圈暗红虚线，和"还有一座要炸"区分开 */
+  .hex.wdown { box-shadow: inset 0 0 0 2px rgba(160,60,40,.55); }
+  /* 爆破模式：能炸的格子亮一圈橙红，和布告雷区（selmine）分开 */
+  .hex.seldemo { box-shadow: inset 0 0 0 3px rgba(214,96,40,.85); }
+  .hex.lit.nite { animation: litFlicker 2.6s ease-in-out infinite; }
+  @keyframes litFlicker {
+    0%, 100% { box-shadow: inset 0 0 18px rgba(255,190,80,.85), inset 0 0 0 2px rgba(214,146,40,.55); }
+    50%      { box-shadow: inset 0 0 24px rgba(255,206,110,.95), inset 0 0 0 2px rgba(226,166,60,.70); }
+  }
   .oLabel.onObj { color: #34633A; }
   /* 战术卡待选目标：与"可攻击"（红）和"可移动"（蓝）都区分开，用金褐色脉冲 */
   .hex.cardtgt::after {
@@ -228,6 +276,16 @@
   .t-deep   { background: #6E93B4; }
   /* 港口：水泥码头，比城市偏冷、比机场偏绿——要和浅海挨着时仍能分界 */
   .t-port   { background: #A9B4A6; }
+  /* 铁路（v5.3）：深褐路基底 + 竖排枕木纹。
+     和道路（米白、纯色）必须一眼分开——这一关玩家要顺着铁路找桥，
+     道路只是"走得快"，铁路是"目标"。枕木纹用 repeating-linear-gradient，
+     不占伪元素（::before/::after 已经被要点染色和可移动描边占着）。 */
+  .t-rail {
+    background:
+      repeating-linear-gradient(90deg,
+        rgba(108,92,72,.55) 0 2px, rgba(0,0,0,0) 2px 7px),
+      #BCB1A0;
+  }
 
   .unit {
     width: 30px; height: 26px; border-radius: 3px; z-index: 3;

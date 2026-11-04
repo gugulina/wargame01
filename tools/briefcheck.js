@@ -1754,6 +1754,77 @@ function skip(name, why) {
     domU.window.close();
   }
 
+  console.log('[28] 夜战与桥涵的渲染（v5.3）');
+  /* 另起一个 DOM：上面那个已经停在 C1 的演示例子上，
+     同一个 window 里连开两关会把选中态、简报状态搅在一起。
+     selftest 是 stub DOM，只能验状态；这一组验的是"屏幕上多了什么"。 */
+  {
+    const domN = new JSDOM(html, {
+      runScripts: 'dangerously', pretendToBeVisual: true, virtualConsole: vc,
+      url: 'http://127.0.0.1/game/campaign.html?nointro=1'
+    });
+    const dn = domN.window.document;
+    await wait(600);
+    const W = domN.window.__WAR__;
+    /* 直接开局，不走简报：这一组验的是**棋盘**，
+       而简报要不要翻完跟它无关（走 ?lv= 在这里不生效，URL 参数只管演示）。 */
+    W.newGame({ level: 'C7B', noSave: true });
+    await wait(200);
+    const LV = W.LEVEL;
+    ok('进的是夜战关', LV.id === 'C7B', LV.id);
+
+    const hexAll = dn.querySelectorAll('#board .hex');
+    ok('棋盘格按关卡尺寸铺满', hexAll.length === LV.rows * LV.cols,
+       hexAll.length + ' / ' + (LV.rows * LV.cols));
+    /* 夜战压的是**地面**，不是整张棋盘：兵牌是独立层，
+       连兵牌一起压暗会让番号和战力看不清。 */
+    ok('每一格都挂了 nite（压暗的是地面）',
+       dn.querySelectorAll('#board .hex.nite').length === hexAll.length,
+       String(dn.querySelectorAll('#board .hex.nite').length));
+    /* 照明区只占几格。判"有没有"不够——把全图点亮也会绿，
+       所以要求它明显少于全图。 */
+    const litN = dn.querySelectorAll('#board .hex.lit').length;
+    ok('照明区被点亮，且只占少数格', litN > 0 && litN < hexAll.length / 4, String(litN));
+
+    /* 桥涵：4 座、14 格（西/中/东各 4 格，涵洞 2 格）。
+       判数量而不是"有没有"——少画一格，玩家就少一个可爆破位。 */
+    const wCells = LV.works.reduce((n, w) => n + w.cells.length, 0);
+    ok('桥涵格有专门的样式', dn.querySelectorAll('#board .hex.work').length === wCells,
+       dn.querySelectorAll('#board .hex.work').length + ' / ' + wCells);
+    ok('每格桥涵都有一个标记', dn.querySelectorAll('#board .wmark').length === wCells,
+       String(dn.querySelectorAll('#board .wmark').length));
+    ok('铁路地形认得出来', dn.querySelectorAll('#board .hex.t-rail').length > 0,
+       String(dn.querySelectorAll('#board .hex.t-rail').length));
+
+    /* 断桥：样式必须换成断口，不能只改颜色——
+       这一关的计分板就是地图上那几个断口，色盲玩家也得看得出来。 */
+    W.getState().works[0].hp = 0;
+    W.render();
+    await wait(60);
+    ok('断桥整格换成断口样式',
+       dn.querySelectorAll('#board .hex.wdown').length === LV.works[0].cells.length,
+       dn.querySelectorAll('#board .hex.wdown').length + ' / ' + LV.works[0].cells.length);
+    ok('断口标记带 wgone（形状变了，不只是变色）',
+       dn.querySelectorAll('#board .wmark.wgone').length === LV.works[0].cells.length,
+       String(dn.querySelectorAll('#board .wmark.wgone').length));
+    ok('断掉的桥涵不再算"待爆"', 
+       dn.querySelectorAll('#board .hex.work').length === wCells - LV.works[0].cells.length,
+       String(dn.querySelectorAll('#board .hex.work').length));
+
+    /* 爆破模式：能炸的格子要圈出来，否则玩家不知道站哪儿按爆破 */
+    const eng = W.getState().units.find(u => u.side === 'blue' && u.type === 'engc');
+    eng.pos = LV.works[1].cells[0].slice();
+    W.select(eng);
+    W.getState().mode = 'demo';
+    W.render();
+    await wait(60);
+    ok('爆破模式圈出可炸的格子',
+       dn.querySelectorAll('#board .hex.seldemo').length > 0,
+       String(dn.querySelectorAll('#board .hex.seldemo').length));
+
+    domN.window.close();
+  }
+
   console.log('');
   console.log('通过 ' + pass + ' 项' + (skipped ? ' · 跳过 ' + skipped + ' 项' : '') +
               '，失败 ' + fail + ' 项');

@@ -1012,6 +1012,74 @@ function aiEscortGoal(u) {
      · 夺取型：**还没归我**的要点，核心要点另有 2 格加权
      · 防守型：守军留在原地，预备队补受威胁的空缺口（见 aiHoldGoal）
    进攻型沿用夺取型的目标点：它靠 foePull 把走位往敌人身上拽，而不是换目标。 */
+/* 工兵该去修哪座桥（v5.3）。
+   选**离自己最近**的那座，不选全局最破的那座：两路的工兵各修各的，
+   不会一起跑到同一头去（那样一来另一头永远修不上，玩家的"分头炸"
+   就变成了必胜策略）。已经站在桥上的原地不动。 */
+function aiRepairGoal(u) {
+  const all = state.works || [];
+  if (!all.length) return null;
+  const broken = all.filter(w => w.hp < w.maxHp);
+  /* 没有断桥时**在桥头待命**，而不是跑去守调度场。
+     第一版这里直接 return null，于是两个工兵连整局都在往要点走，
+     玩家在南边炸桥，没有一个人回头看——30 局里桥一次都没被修过。
+     工兵的岗位就在桥边，这一条不需要"更聪明的 AI"来解释。 */
+  const list = broken.length ? broken : all;
+  for (const w of list) {
+    if (w.cells.some(c => c[0] === u.pos[0] && c[1] === u.pos[1])) {
+      return u.pos.slice();
+    }
+  }
+  let best = null, bd = Infinity;
+  for (const w of list) {
+    for (const c of w.cells) {
+      const d = hexDist(u.pos, c);
+      if (d < bd) { bd = d; best = c; }
+    }
+  }
+  return best;
+}
+
+/* 护桥（v5.3）：工程目标被打坏之后，附近的守备部队回防。
+   没有这一条，红方主力整夜都在往"调度场"走——玩家在南边炸桥，
+   四个守备营在北边守一个没人去的院子（实测 30 局，桥一次都没人救）。
+
+   触发条件写"距离"而不是"谁是最近的几支"：后者要遍历全表排序，
+   而这一关的守备营本来就沿铁路一字排开，按距离撒出去刚好一家一个。
+   上限 6 格，再远就不该回来——那边还有自己的阵地要守。 */
+function aiGuardWork(u) {
+  const all = state.works || [];
+  if (!all.length) return null;
+  const hurt = all.filter(w => w.hp < w.maxHp);
+  /* 桥没断的时候也要守——这是"驻防"，不是"救火"。
+     第一版只在 w.hp < maxHp 时才回防，于是开局四个守备营全往要点走：
+     玩家大摇大摆开到桥下，两趟装药，守备群还在北边院子里没出门
+     （实测 20 局 95%，红方差一点没拦住）。
+     这一关的番号就叫"铁路守备群"，它的阵地是桥头，不是调度场。
+     距离放宽到 4 格：再远的是要点守军，不该被抽走。 */
+  let best = null, bd = Infinity;
+  for (const w of (hurt.length ? hurt : all)) {
+    for (const c of w.cells) {
+      const d = hexDist(u.pos, c);
+      if (d < bd) { bd = d; best = w; }
+    }
+  }
+  const limit = hurt.length ? 6 : 4;
+  if (!best || bd > limit) return null;
+  /* 已经站在桥涵上就守死，别再往别处跑 */
+  if (best.cells.some(c => c[0] === u.pos[0] && c[1] === u.pos[1])) {
+    return u.pos.slice();
+  }
+  /* 站到桥的**靠敌一侧**：桥涵格本身，实在站不上就站最近的相邻格。
+     站在桥上是"用身体挡抢修队"，也是把玩家的爆破位挤掉。 */
+  let pick = null, pd = Infinity;
+  for (const c of best.cells) {
+    const d = hexDist(u.pos, c);
+    if (d < pd) { pd = d; pick = c; }
+  }
+  return pick;
+}
+
 function aiGoalFor(u, style, hunt) {
   const st = style || aiStyle();
   /* 战术指派优先于脾气与追击：断退路的两个人这一回合归调度器管。
@@ -1024,6 +1092,26 @@ function aiGoalFor(u, style, hunt) {
     const ht = aiHuntTarget(u);
     if (ht) return ht.pos.slice();
   } else if (tac) return tac;
+  /* 抢修（v5.3）：工兵的第一任务是补桥，不是推进。
+     放在**所有分支之前**（连战术指派都在它后面）是有理由的：
+     战术调度器管的是"往哪儿打"，而工兵站在断桥上这件事本身就是
+     这一关的胜负变量——把它交给脾气或战术去权衡，
+     守备型的工兵会在调度场里站一整夜，桥断着也没人管。
+
+     只认 eng / engc：炮兵团"带着工兵装备"，不等于会修桥。 */
+  if (state.works && state.works.length &&
+      (u.type === 'eng' || u.type === 'engc')) {
+    const rg = aiRepairGoal(u);
+    if (rg) return rg;
+  }
+  /* 护桥（v5.3）：桥被打坏时，附近的守备部队回防。
+     排在抢修之后、所有脾气与战术之前——桥断着是这一关的胜负手，
+     比"再拿一个要点"重要。工兵自己走 aiRepairGoal，不重复判。 */
+  if (state.works && state.works.length &&
+      u.type !== 'eng' && u.type !== 'engc' && !isHQ(u)) {
+    const gw = aiGuardWork(u);
+    if (gw) return gw;
+  }
   /* 护送关：推进轴换成人头攒动的公路。放在 hold 之前是故意的——
      守备型在这一关没有要点可抱，不换轴就一步不动。 */
   if (LEVEL.escort) {
@@ -1455,8 +1543,15 @@ async function runAI() {
       }
     }
 
+    /* 工兵站在桥涵上（抢修或在岗）时不主动开火（v5.3）。
+       它是技术兵种，开枪的代价是桥修不上；实测里它还会主动去打
+       战力高得多的护卫、被一枪反杀，于是整局没有一个人修桥。
+       想打它的人照样打得动——这里只是不给它"主动送死"的选项。 */
+    const onWork = (state.works || []).some(w =>
+      w.cells.some(c => c[0] === u.pos[0] && c[1] === u.pos[1]));
+
     /* 炮兵 / 直射单位：优先开火 */
-    if (u.rng > 0 && !u.fired) {
+    if (u.rng > 0 && !u.fired && !onWork) {
       const tg = targetsFor(u, state.fields, pushOpts);
       if (tg.length) {
         tg.sort((a, b) => scoreTarget(u, b, state.fields, style, hunt) - scoreTarget(u, a, state.fields, style, hunt));

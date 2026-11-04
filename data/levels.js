@@ -5,8 +5,8 @@
    为什么是 .js 而不是 .json：项目要能双击直接打开，
    file:// 下 fetch 会被同源策略拦掉，<script src> 不会。 */
 window.CANGYU = {
-  "ver": "v5.2",
-  "srcSig": "555705:db4kfg",
+  "ver": "v5.3",
+  "srcSig": "577838:1aablgr",
   "storage": {
     "save": "wargame.lankou.save",
     "saveVer": 3,
@@ -33,7 +33,7 @@ window.CANGYU = {
       "total": 9,
       "main": 6,
       "sub": 3,
-      "ready": 7
+      "ready": 8
     },
     {
       "no": 3,
@@ -454,22 +454,25 @@ window.CANGYU = {
       "when": "新历 1208 年 9 月 20 日",
       "where": "首都圈 · 环城铁路东段",
       "teaser": "他们的弹药靠这条铁路运到城下。一晚上，拆三座桥涵，天亮前别让他们修好。",
-      "ready": false,
+      "ready": true,
       "open": false,
-      "prevId": null,
+      "prevId": "C7",
       "noText": "第 1 关 · 附属 · ",
-      "win": "score",
+      "win": "demolish",
       "perfect": {
-        "ok": false,
-        "text": "尚未编成"
+        "ok": true,
+        "text": "结束时至少 3 座桥涵仍是断的（共 4 座，全部炸断为超额）"
       },
+      "turns": 9,
+      "cols": 18,
+      "rows": 14,
       "blue": {
-        "cards": 0,
-        "str": 0
+        "cards": 8,
+        "str": 24
       },
       "red": {
-        "cards": 0,
-        "str": 0
+        "cards": 12,
+        "str": 43
       }
     },
     {

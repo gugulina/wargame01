@@ -5894,6 +5894,136 @@ console.log('\n[68] 要点即补给源（v5.2）');
   }
 }
 
+console.log('\n[69] 夜战射界（v5.3）');
+{
+  /* 先确认"没有 night 字段的关卡一点不受影响"。
+     nightCap() 带默认值 2，一旦这个默认值漏进普通关，全战役的射程
+     都会被悄悄砍短——那种错在屏幕上只表现为"这炮怎么打不着"。 */
+  api.newGame({ level: 'C3', noSave: true });
+  ok('没有 night 字段的关卡不开夜战', api.nightOn() === false);
+  const dayU = api.getState().units.find(u => u.side === 'blue' && u.rng > 0);
+  ok('昼间单位不受夜战射界影响', api.nightRangeFor(dayU) === null);
+
+  api.newGame({ level: 'C7B', noSave: true });
+  const S = api.getState();
+  const LV = api.LEVEL;
+  ok('C7B 是夜战关', api.nightOn() === true);
+  ok('夜战射界 2 格', api.nightCap() === 2, String(api.nightCap()));
+
+  /* 挑一支**射程大于射界**的单位来测（守备群的野炮，5 格）。
+     拿射程 1 的步兵测，min(rng, cap) 恒等于 rng，测了等于没测。 */
+  const arty = S.units.find(u => u.side === 'red' && u.rng > api.nightCap());
+  ok('存在射程超过夜战射界的单位（否则这条测不到东西）', !!arty, arty ? arty.abbr : '无');
+  if (arty) {
+    ok('照明区外：野炮射程被压到 2', api.attackRange(arty) === 2, String(api.attackRange(arty)));
+  }
+
+  /* 照明区不压射界。灯是这一关唯一的地形争夺：站灯下能打远，
+     也意味着对面看得见你。 */
+  ok('照明中心被点亮', api.litAt(LV.lit[0].r, LV.lit[0].c) === true);
+  ok('照明区外是黑的', api.litAt(13, 0) === false);
+  const inLit = api.makeUnit({ id: 'T_lit', side: 'blue', abbr: '测灯', name: '照明区测试单位',
+    type: 'inf', str: 4, mov: 6, rng: 1, r: LV.lit[2].r, c: LV.lit[2].c }, true);
+  api.getState().units.push(inLit);
+  ok('站在灯下不受夜战射界影响', api.nightRangeFor(inLit) === null);
+
+  /* 重炮近界 3 > 夜界 2。这一条**不需要另写"夜里火炮不能校射"**：
+     两个数一比就没有合法目标了。写出来是把这条推理钉住，
+     免得以后有人"顺手"把 minRange 降到 2，重炮在夜里又活过来。 */
+  const hr = api.makeUnit({ id: 'T_hr', side: 'red', abbr: '测炮', name: '测试重炮营',
+    type: 'hr', str: 4, mov: 4, rng: 6, r: 13, c: 0 }, true);
+  api.getState().units.push(hr);
+  ok('夜战里重炮彻底哑火（近界 3 > 射界 2）',
+     api.attackRange(hr) < api.minRange(hr),
+     api.attackRange(hr) + ' / ' + api.minRange(hr));
+}
+
+console.log('\n[70] 工程目标 · 桥涵（v5.3）');
+{
+  api.newGame({ level: 'C7B', noSave: true });
+  const S = api.getState();
+  ok('C7B 有四座桥涵', api.worksTotal() === 4, String(api.worksTotal()));
+  ok('开局四座都完好', api.worksDown() === 0);
+  /* 这条是踩出来的：第一版把 demolish 判定写进 renderGoal，而 render
+     没有"这局是否已结束"的守卫——开局第一帧就把 state.result 改成 fail，
+     整关一进去就判负。判定只能留在 judgeFinal。 */
+  ok('开局不判胜负（判定不写在渲染里）', !S.result, String(S.result));
+
+  const w0 = S.works[0];
+  ok('桥涵格认得出来', api.workAt(w0.cells[0][0], w0.cells[0][1]) === w0);
+  ok('空地不是桥涵', api.workAt(13, 0) === null);
+
+  /* 装药可以在关卡里覆写：师工兵连 4 份、旅工兵排 3 份，共 7 份。
+     把"同是工兵连、装药按任务配"这件事钉在数据上——兵种表里的 4
+     只是默认值，不是每支工兵的实配。 */
+  const e1 = S.units.find(u => u.id === 'E2E');
+  const e2 = S.units.find(u => u.id === 'E3E');
+  ok('关卡覆写装药：师工兵连 4 份', e1 && e1.charges === 4, e1 ? String(e1.charges) : '无');
+  ok('关卡覆写装药：旅工兵排 3 份', e2 && e2.charges === 3, e2 ? String(e2.charges) : '无');
+  const rEng = S.units.find(u => u.side === 'red' && u.type === 'engc');
+  ok('没写 chg 的走兵种默认值',
+     rEng && rEng.charges === api.TYPE.engc.chg, rEng ? String(rEng.charges) : '无');
+
+  /* ── 爆破：两次装药才塌，第一次只破桥面 ── */
+  const eng = api.makeUnit({ id: 'T_eng', side: 'blue', abbr: '测工', name: '测试工兵连',
+    type: 'engc', str: 2, mov: 6, rng: 1, r: w0.cells[0][0], c: w0.cells[0][1] }, false);
+  S.units.push(eng);
+  ok('站在桥涵上可以爆破', api.demoReach(eng).length > 0, String(api.demoReach(eng).length));
+
+  const redOne = S.units.find(u => u.side === 'red' && u.str > 0);
+  const orgBefore = redOne ? redOne.org : 0;
+  const c0 = eng.charges;
+  api.doDemolish(eng, w0);
+  ok('炸一次扣一份装药', eng.charges === c0 - 1, c0 + ' → ' + eng.charges);
+  ok('第一次爆破只破开桥面，桥还没断',
+     !api.workDown(w0) && w0.hp === w0.maxHp - 1, String(w0.hp));
+  ok('爆破占掉整回合（之后不能再动）', api.actedThisTurn(eng) === true);
+
+  eng.moved = false; eng.fired = false;
+  api.doDemolish(eng, w0);
+  ok('第二次爆破把桥炸断', api.workDown(w0));
+  ok('断桥计数跟上', api.worksDown() === 1, String(api.worksDown()));
+  /* 断一座桥 = 敌军整条补给线打了个结：全线组织度 −3。
+     不写这条效果，"炸桥"在战场上就只剩一个胜负计数，玩家感觉不到它。 */
+  ok('断桥让敌军全线掉组织度', !!redOne && redOne.org === Math.max(0, orgBefore - 3),
+     orgBefore + ' → ' + (redOne ? redOne.org : '无'));
+
+  /* ── 装药用完：炸不动，而且不能白扣桥的血 ── */
+  eng.charges = 0; eng.moved = false; eng.fired = false;
+  const w1 = S.works[1], hp1 = w1.hp;
+  ok('装药用完就炸不动', api.doDemolish(eng, w1) === false && w1.hp === hp1, String(w1.hp));
+
+  /* ── 抢修：敌工兵站上断桥，一回合修回 repair 点 ── */
+  const ren = api.makeUnit({ id: 'T_ren', side: 'red', abbr: '测修', name: '测试敌工兵',
+    type: 'engc', str: 2, mov: 6, rng: 1, r: w0.cells[0][0], c: w0.cells[0][1] }, true);
+  S.units.push(ren);
+  const hpB = w0.hp;
+  api.worksTick();
+  ok('敌工兵站在断桥上能抢修', w0.hp === hpB + w0.repair, hpB + ' → ' + w0.hp);
+  ok('修到一半还没通车', !api.workDown(w0) && w0.hp < w0.maxHp, String(w0.hp));
+  api.worksTick();
+  ok('修满才算通车', w0.hp === w0.maxHp, String(w0.hp));
+
+  /* 没有工兵在桥上就没人修——"把桥口钉住"才有意义 */
+  const w2 = S.works[2];
+  w2.hp = 0;
+  const hp2 = w2.hp;
+  ren.pos = [13, 0];
+  api.worksTick();
+  ok('桥上没人就不修', w2.hp === hp2, String(w2.hp));
+
+  /* ── 胜负口径：天亮数断口 ── */
+  S.works.forEach(w => { w.hp = w.maxHp; });
+  S.works[0].hp = 0;
+  S.result = null;
+  api.judgeFinal();
+  ok('只断一座 → 判负', S.result === 'fail', String(S.result));
+  S.works[0].hp = 0; S.works[1].hp = 0; S.works[2].hp = 0;
+  S.result = null;
+  api.judgeFinal();
+  ok('断满三座 → 判胜', S.result === 'win' || S.result === 'perfect', String(S.result));
+}
+
 console.log('\n通过 ' + pass + ' 项，失败 ' + fail + ' 项');
   process.exit(fail ? 1 : 0);
 })().catch(e => {

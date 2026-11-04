@@ -414,6 +414,84 @@ async function blueTurnEscort() {
   }
 }
 
+/* ───────── 蓝方策略 D：破袭（demolish） ─────────
+   这一套只有两条指令：工兵去炸桥、护卫贴着工兵。
+   它不会挑"哪座桥好炸"，也不会在敌人上来抢修时换防——
+   真人有侦察营看视野、有反坦克连堵桥头，脚本的达成率应当明显偏低。
+   和突围那套一样，这是刻意的：脚本给的是**下限**。 */
+async function blueTurnDemolish() {
+  const st = api.getState();
+  const aliveBlue = () => api.alive('blue');
+  const isEng = u => u.type === 'eng' || u.type === 'engc';
+  const liveWorks = () => (st.works || []).filter(w => w.hp > 0);
+
+  for (const u of aliveBlue().slice()) {
+    if (!aliveBlue().includes(u)) continue;
+
+    /* 0. 工兵已经站在桥边：先炸。爆破占整回合，炸完这一回合就没了 */
+    if (isEng(u) && !u.moved && !u.fired) {
+      const near = api.demoReach(u);
+      if (near.length) {
+        const w = near.slice().sort((a, b) => b.hp - a.hp)[0];
+        if (api.doDemolish(u, w) !== false) continue;
+      }
+    }
+
+    /* 1. 有便宜就打。工兵门槛更高——它的正事是装药，不是对射 */
+    if (tryShoot(u, isEng(u) ? 0.90 : 0.75)) continue;
+
+    if (u.moved) continue;
+    if (api.isHQ(u) || u.type === 'sup') continue;
+
+    /* 2. 工兵往**全局最近的**未断桥涵走——两支工兵走同一座。
+       第一版让每支各找"离自己最近"的桥，结果是分头行动：护卫只能跟一支，
+       另一支孤军深入，被守备营一打就散，装药跟着丢（10 局 0%）。
+       集中两支护卫能同时罩住两支工兵，炸完一座再一起转移——
+       这也是这一关本来就该有的打法。 */
+    if (isEng(u)) {
+      const ws = liveWorks();
+      if (!ws.length) continue;
+      const engsAll = aliveBlue().filter(isEng);
+      let cr = 0, cc = 0;
+      for (const e of engsAll) { cr += e.pos[0]; cc += e.pos[1]; }
+      cr /= engsAll.length; cc /= engsAll.length;
+      let best = null, bd = Infinity;
+      for (const w of ws) for (const c of w.cells) {
+        const d = api.cheb([Math.round(cr), Math.round(cc)], c);
+        if (d < bd) { bd = d; best = c; }
+      }
+      if (best) stepToward(u, best);
+      continue;
+    }
+
+    /* 3. 护卫：站到工兵和敌人之间。
+       "贴着工兵"比"挡在前面"更重要——夜里射界只有 2 格，
+       离远了敌人摸到工兵跟前都不知道是谁先动的手。 */
+    const engs = aliveBlue().filter(isEng);
+    if (!engs.length) continue;
+    let g = engs[0], gd = Infinity;
+    for (const e of engs) {
+      const d = api.cheb(u.pos, e.pos);
+      if (d < gd) { gd = d; g = e; }
+    }
+    const reach = api.computeReach(u);
+    let best = null, bs = -Infinity;
+    for (const key in reach.stop) {
+      const p = key.split(',').map(Number);
+      const de = api.cheb(p, g.pos);
+      let md = Infinity;
+      for (const f of api.alive('red')) md = Math.min(md, api.cheb(p, f.pos));
+      const t = api.TERRAIN[L.map[p[0]][p[1]]];
+      /* 离工兵 1–2 格最好（贴太近没空间，离太远挡不住）；
+         敌人越近越能挡，但站到敌人格上没意义（走不进去，兜底扣分）。 */
+      let sc = -Math.abs(de - 1.5) * 2 - Math.min(md, 6) * 0.8 + t.def * 3;
+      if (md === 0) sc -= 8;
+      if (sc > bs) { bs = sc; best = p; }
+    }
+    if (best) api.doMove(u, best);
+  }
+}
+
 async function playOne(idx) {
   /* 可复现的骰子。--seed 给了值就按 (种子 + 局号) 派生每局的流，
      没给就保持原来的 Math.random——默认行为一点不变，
@@ -442,6 +520,7 @@ async function playOne(idx) {
     }
     if (kind === 'reach') await blueTurnBreakout();
     else if (kind === 'escort') await blueTurnEscort();
+    else if (kind === 'demolish') await blueTurnDemolish();
     else await blueTurnHold();
     if (st.result) break;
     const bs = st.units.filter(u => u.side === 'blue');
@@ -501,6 +580,14 @@ async function playOne(idx) {
     turn: st.turn,
     escaped: api.escapedCount(),
     escort: api.escortPassed(),
+    /* 破袭关：终局还剩几座桥是断的、蓝方手里还有几份装药。
+       只看达成率无法分辨"炸不动"和"炸够了时间不够"——
+       前者要加装药，后者要加回合，两个旋钮方向相反。 */
+    works: api.worksDown ? api.worksDown() : 0,
+    engAlive: st.units.filter(u => u.side === 'blue' &&
+      (u.type === 'eng' || u.type === 'engc')).length,
+    chargeLeft: st.units.filter(u => u.side === 'blue' &&
+      (u.type === 'eng' || u.type === 'engc')).reduce((s, u) => s + (u.charges || 0), 0),
     goal: api.escapeGoal(),
     /* 返回"保住了几个 keep 要点"的数字，**不能返回 "1/1" 这种字符串**。
        上一版返回的是 '0/1'，而 '0/1' 在 JS 里是 truthy——
@@ -535,7 +622,7 @@ async function playOne(idx) {
   const tally = { fail: 0, win: 0, perfect: 0, stuck: 0 };
   const evtTally = {};
   let scoreSum = 0, turnSum = 0, bLoss = 0, rLoss = 0, starveSum = 0, orgSum = 0, fortSum = 0;
-  let escapeSum = 0, escortSum = 0, keepNone = 0;
+  let escapeSum = 0, escortSum = 0, keepNone = 0, worksSum = 0, chargeSum = 0, engSum = 0;
   const kindSum = {};
   const ctrlTally = {};
   let blueAliveSum = 0, gdnSum = 0;
@@ -553,6 +640,7 @@ async function playOne(idx) {
     scoreSum += r.score; turnSum += r.turn;
     scores.push(r.score);
     escapeSum += r.escaped; escortSum += r.escort; if (!r.keepHeld) keepNone++;
+    worksSum += r.works; chargeSum += r.chargeLeft; engSum += r.engAlive;
     bLoss += r.blueLoss; rLoss += r.redLoss;
     blueAliveSum += r.blueAlive; gdnSum += r.gdnAlive;
     fortAccSum += r.fortAcc; coreAccSum += r.coreAcc;
@@ -603,6 +691,21 @@ async function playOne(idx) {
                 ' 支（车队共 ' + tot + ' 支）');
   } else if (kind === 'survive') {
     console.log('核心保有    ' + (ROUNDS - keepNone) + ' / ' + ROUNDS + ' 局');
+  } else if (kind === 'demolish') {
+    const tot = (L.works || []).length;
+    const need = (L.win && L.win.need) || tot;
+    console.log('平均炸断    ' + (worksSum / ROUNDS).toFixed(2) + ' / ' + tot +
+                ' 座（达成线 ' + need + '）');
+    /* 剩余装药是这一关的**真实瓶颈**：装药见底而桥数不够 = 数值卡死；
+       装药还有富余却没过 = 时间或伤亡卡死。两者要动的旋钮完全相反。
+       总份数按关卡编成现算，不写死——改一支工兵就得改一次报表的话，
+       这个数迟早会和关卡对不上。 */
+    const chargeTot = L.units
+      .filter(u => u.side === 'blue' && (u.type === 'eng' || u.type === 'engc'))
+      .reduce((s, u) => s + ((u.chg !== undefined ? u.chg : (api.TYPE[u.type] || {}).chg) || 0), 0);
+    console.log('剩余装药    ' + (chargeSum / ROUNDS).toFixed(2) + ' 份（共 ' + chargeTot + ' 份）');
+    console.log('工兵存活    ' + (engSum / ROUNDS).toFixed(2) + ' / ' +
+      L.units.filter(u => u.side === 'blue' && (u.type === 'eng' || u.type === 'engc')).length + ' 支');
   }
   console.log('平均回合    ' + (turnSum / ROUNDS).toFixed(2) + ' / ' + L.maxTurns);
   console.log('我方损失    ' + (bLoss / ROUNDS * 100).toFixed(1) + '%');
