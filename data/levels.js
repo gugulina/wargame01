@@ -6,7 +6,7 @@
    file:// 下 fetch 会被同源策略拦掉，<script src> 不会。 */
 window.CANGYU = {
   "ver": "v5.3",
-  "srcSig": "577838:1aablgr",
+  "srcSig": "579109:1i5m3ps",
   "storage": {
     "save": "wargame.lankou.save",
     "saveVer": 3,
@@ -461,7 +461,7 @@ window.CANGYU = {
       "win": "demolish",
       "perfect": {
         "ok": true,
-        "text": "结束时至少 3 座桥涵仍是断的（共 4 座，全部炸断为超额）"
+        "text": "结束时至少 3 座桥涵仍是断的（共 4 座；2 支工兵全都活着、且只损失三支以内为超额）"
       },
       "turns": 9,
       "cols": 18,

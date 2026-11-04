@@ -5953,13 +5953,17 @@ console.log('\n[70] 工程目标 · 桥涵（v5.3）');
   ok('桥涵格认得出来', api.workAt(w0.cells[0][0], w0.cells[0][1]) === w0);
   ok('空地不是桥涵', api.workAt(13, 0) === null);
 
-  /* 装药可以在关卡里覆写：师工兵连 4 份、旅工兵排 3 份，共 7 份。
-     把"同是工兵连、装药按任务配"这件事钉在数据上——兵种表里的 4
-     只是默认值，不是每支工兵的实配。 */
+  /* 装药：两支工兵各 5 份、共 10 份，**够把四座桥全炸一遍**（8 份）还剩两份。
+     第一版按"刚好三座"配 6 份，玩家炸到第三座就没料了，体感就是"炸药给少了"。
+     兵种表的 chg 只是默认值，关卡可以覆写（同是工兵连，任务不同配量不同）。 */
   const e1 = S.units.find(u => u.id === 'E2E');
   const e2 = S.units.find(u => u.id === 'E3E');
-  ok('关卡覆写装药：师工兵连 4 份', e1 && e1.charges === 4, e1 ? String(e1.charges) : '无');
-  ok('关卡覆写装药：旅工兵排 3 份', e2 && e2.charges === 3, e2 ? String(e2.charges) : '无');
+  ok('两支工兵各带 5 份装药',
+     e1 && e1.charges === 5 && e2 && e2.charges === 5,
+     (e1 ? e1.charges : '无') + ' / ' + (e2 ? e2.charges : '无'));
+  ok('装药总数够把四座桥全炸一遍',
+     (e1.charges + e2.charges) >= api.worksTotal() * 2,
+     (e1.charges + e2.charges) + ' 份 / 需要 ' + (api.worksTotal() * 2));
   const rEng = S.units.find(u => u.side === 'red' && u.type === 'engc');
   ok('没写 chg 的走兵种默认值',
      rEng && rEng.charges === api.TYPE.engc.chg, rEng ? String(rEng.charges) : '无');

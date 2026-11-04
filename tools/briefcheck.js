@@ -1811,6 +1811,41 @@ function skip(name, why) {
        dn.querySelectorAll('#board .hex.work').length === wCells - LV.works[0].cells.length,
        String(dn.querySelectorAll('#board .hex.work').length));
 
+    /* 爆破入口必须**看得见**。这一关唯一的得分手段藏在「行动 N」折叠菜单里，
+       实测第一反应是"这关是不是没做炸桥"——所以站在桥边时小胶囊要直接
+       写「可爆破」，站远了也要说清为什么不能炸。 */
+    const engB = W.getState().units.find(u => u.side === 'blue' && u.type === 'engc');
+    engB.pos = [13, 0];
+    W.select(engB);
+    await wait(80);
+    const capFar = dn.querySelector('#unitOps .uops-open');
+    ok('不贴桥时胶囊是普通「行动」',
+       !!capFar && !/可爆破/.test(capFar.textContent),
+       capFar ? capFar.textContent.trim() : '没有胶囊');
+    if (capFar) { capFar.click(); await wait(80); }
+    const btnFar = dn.querySelector('#unitOps button[data-op="demo"]');
+    ok('不贴桥时爆破按钮是灰的', !!btnFar && btnFar.disabled === true,
+       btnFar ? 'disabled=' + btnFar.disabled : '没有爆破按钮');
+    ok('灰按钮写清原因（要贴着桥涵）',
+       !!btnFar && /桥涵/.test(btnFar.textContent),
+       btnFar ? btnFar.textContent.trim() : '没有爆破按钮');
+    const closeB = dn.querySelector('#unitOps button[data-op="__close"]');
+    if (closeB) { closeB.click(); await wait(60); }
+
+    /* 站到**还没断的**那座：上面的断言已经把 works[0] 炸断了，
+       站在断桥上 demoReach 是空的，"可爆破"当然不出现。
+       这类"用前一组断言改过的状态"是测试里最常见的假红。 */
+    engB.pos = LV.works[1].cells[0].slice();
+    W.select(engB);
+    await wait(80);
+    const capNear = dn.querySelector('#unitOps .uops-open');
+    ok('站在桥边时胶囊直接写「可爆破」',
+       !!capNear && /可爆破/.test(capNear.textContent),
+       capNear ? capNear.textContent.trim() : '没有胶囊');
+    ok('可爆破胶囊带自己的样式（橙色标记）',
+       !!capNear && capNear.classList.contains('blow'),
+       capNear ? capNear.className : '没有胶囊');
+
     /* 爆破模式：能炸的格子要圈出来，否则玩家不知道站哪儿按爆破 */
     const eng = W.getState().units.find(u => u.side === 'blue' && u.type === 'engc');
     eng.pos = LV.works[1].cells[0].slice();

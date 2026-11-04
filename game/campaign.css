@@ -665,6 +665,15 @@
     background: none; border: 0; border-radius: 15px;
   }
   .uops.mini .uops-open:hover { background: #F2EDDF; color: var(--ink); }
+  /* 可爆破：小胶囊直接变橙。爆破是破袭关唯一的得分手段，
+     藏进折叠菜单的后果是玩家根本不知道这关能炸桥（实测第一反应
+     "这功能没做"）。这一个类就是"现在有得炸"的常驻回执。 */
+  .uops.mini .uops-open.blow {
+    color: #8A3A18; background: #F7E2D2;
+    box-shadow: inset 0 0 0 1px rgba(186,92,44,.45);
+  }
+  .uops.mini .uops-open.blow:hover { background: #F3D6C1; color: #7A2F10; }
+  .uops.mini .uops-open.blow i { color: #8A3A18; background: #EFC9B2; }
   .uops.mini .uops-open i {
     flex: 0 0 auto; font-style: normal; font-size: 9px; font-weight: 800;
     color: #6C675C; background: #E7E1D2; border-radius: 8px; padding: 0 4px;

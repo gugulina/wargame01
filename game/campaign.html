@@ -581,11 +581,11 @@ const TYPE = {
           '架桥：把相邻河流格改成渡口',
           '**爆破：带 4 份装药，能炸桥涵、炸路基。装药用完就没有了**',
           '近战弱，得有人掩护'] },
-  engc: { name: '工兵连', role: '工程作业（缩编）', am: 0, chg: 4,
+  engc: { name: '工兵连', role: '工程作业（缩编）', am: 0, chg: 5,
     abil: ['只能修堑壕 H。没有混凝土，也没有装重炮的力气',
           '排雷：清掉相邻格的地雷',
           '不能布雷、不能架桥（编制里没有舟桥）',
-          '**爆破：按任务配发装药（通常三到四份），能炸桥涵。按份数用，用完了就得靠别的工兵**',
+          '**爆破：按任务配发装药（通常五份），能炸桥涵。按份数用，用完了就得靠别的工兵**',
           '战力低，跟在步兵后面干活'] },
   at:  { name: '反坦克连', role: '反装甲', am: 4,
     abil: ['反坦克炮，射程 1 格（0.8–1.5 km）。得放在坦克必经之路上',
@@ -2330,7 +2330,7 @@ const LEVELS = [
     },
     {
       id: 'airlift', desc: '最后一批运输机',
-      when: { kind: 'turn', turn: 8 },
+      when: { kind: 'turn', turn: 9 },
       effects: [
         { kind: 'log', text: '无线电：最后一批运输机两小时后到，跑道必须清空。', cls: 'b' },
         { kind: 'org', side: 'blue', delta: 6 }
@@ -3069,7 +3069,7 @@ const LEVELS = [
     },
     {
       id: 'last_boat', desc: '最后一班船',
-      when: { kind: 'turn', turn: 9 },
+      when: { kind: 'turn', turn: 8 },
       effects: [
         { kind: 'log', text: '最后一班船拉响了汽笛。还没上船的人，只能往岸上退。', cls: 'hi' },
         { kind: 'org', side: 'blue', delta: 5 }
@@ -4042,7 +4042,8 @@ const LEVELS = [
     '城外的敌人靠这条铁路把弹药运到城下：一天三列，从东站一直卸到北郊的炮位。',
     '我们要在一夜之间把它掐断。四个位置：西桥、中桥、东桥，还有东头那个涵洞。至少拆掉三座。',
     '编成：第 102 步兵师工兵连、第 204 装甲旅工兵排、第 304 步兵团第 1 营残部、师反坦克连、旅侦察营。没有炮兵，没有坦克。',
-    '工兵只有两支，装药七份：师工兵连四份，旅工兵排三份。够炸三座桥，再补一处。一座桥要两趟装药才塌得下来，一趟就是一个整夜的小时。',
+    '工兵只有两支，每支带五份装药，一共十份——够把四座桥全炸一遍，还剩两份应急。一座桥要两趟装药才塌得下来，一趟就是一个整夜的小时。',
+    '**选中工兵，点「爆破」，再点桥涵所在的格子。** 站着炸也行，站在它相邻的一格也行。',
     '敌人有一个铁路守备群沿线驻扎，两个工兵连，还有一支装甲巡逻队。**他们会抢修**：只要工兵站上断桥，一夜能修回一半。',
     '天很黑。看得见的地方只有桥头的灯和扳道房，其余全是黑的。**灯下能打远，也最容易挨打。**',
     '任务：天亮时，至少三座桥涵还是断的。'
@@ -4075,7 +4076,9 @@ const LEVELS = [
     '..................'
   ],
   /* 工程目标（v5.3）。cells 是桥涵本体占的格：工兵站在相邻一格或桥上都能爆破。
-     hp 2 = 两次装药；repair 1 = 敌工兵每回合修回一点（也就是两回合修通）。 */
+     hp 2 = 两次装药；repair 1 = 敌工兵每回合修回一点（也就是两回合修通）。
+     装药十份（每支工兵五份）：四座桥全炸要八份，多出的两份给抢修容错。
+     达成线三座只要六份，所以"全炸"是可做到的——超额线才立得住。 */
   works: [
     { id: 'w_west',  name: '西桥',   note: '跨西河的三孔钢梁桥', hp: 2, repair: 1,
       cells: [[6, 2], [6, 3], [7, 2], [7, 3]] },
@@ -4200,12 +4203,12 @@ const LEVELS = [
   units: [
     /* ── 我方 · 破袭分队（6 支：2 工兵、3 护卫、1 指挥） ── */
     { id:'E2H', side:'blue', abbr:'102H',  name:'第 102 步兵师师部',              type:'hqd',  str:2, mov:8, rng:0, r:12, c:8,  corps:'E2', wave:1 },
-    { id:'E2E', side:'blue', abbr:'102工', name:'第 102 步兵师工兵连',            type:'engc', str:2, mov:6, rng:1, r:12, c:5,  corps:'E2', wave:1, chg:4 },
+    { id:'E2E', side:'blue', abbr:'102工', name:'第 102 步兵师工兵连',            type:'engc', str:2, mov:6, rng:1, r:12, c:5,  corps:'E2', wave:1, chg:5 },
     { id:'E2A', side:'blue', abbr:'304-1', name:'第 304 步兵团第 1 营残部',        type:'inf',  str:4, mov:6, rng:1, r:11, c:6,  corps:'E2', wave:1 },
     { id:'E2B', side:'blue', abbr:'304-2', name:'第 304 步兵团第 2 营残部',        type:'inf',  str:4, mov:6, rng:1, r:11, c:11, corps:'E2', wave:1 },
     { id:'E2T', side:'blue', abbr:'102反', name:'第 102 步兵师反坦克连',          type:'at',   str:3, mov:5, rng:1, r:11, c:9,  corps:'E2', wave:1 },
     { id:'E3H', side:'blue', abbr:'204前', name:'第 204 装甲旅前进指挥所',        type:'hqb',  str:2, mov:8, rng:0, r:12, c:14, corps:'E3', wave:1 },
-    { id:'E3E', side:'blue', abbr:'204工', name:'第 204 装甲旅工兵排',            type:'engc', str:2, mov:6, rng:1, r:12, c:12, corps:'E3', wave:1, chg:3 },
+    { id:'E3E', side:'blue', abbr:'204工', name:'第 204 装甲旅工兵排',            type:'engc', str:2, mov:6, rng:1, r:12, c:12, corps:'E3', wave:1, chg:5 },
     { id:'E3C', side:'blue', abbr:'204侦', name:'第 204 装甲旅侦察营（轻坦）',      type:'larm', str:5, mov:12, rng:1, r:10, c:13, corps:'E3', wave:1 },
 
     /* ── 敌方 · 铁路守备群（沿铁路一字排开，四个营各守一处） ── */
@@ -10182,10 +10185,10 @@ function doDemolish(u, w) {
     return false;
   }
   if (workDown(w)) { log(w.name + ' 已经断了。', 'sys'); return false; }
-  /* 装药（v5.3）：整局不补。两支工兵一共七份（师工兵连 4、旅工兵排 3），
-     够炸三座桥**再补一处**——那多出来的一份就是给抢修的容错：
-     桥被修回去一次，还补得起。实测这条线很窄：六份（零容错）只有 15% 达成，
-     八份（容错两份）到 65%，中间没有档位，所以七份是唯一位于带内的配置。 */
+  /* 装药（v5.3）：整局不补。两支工兵各五份、共十份，够把四座桥全炸一遍
+     还剩两份——多出来的就是给抢修的容错（桥被修回去一次，还补得起）。
+     第一版按"刚好三座"配六份，实测只有 15% 达成：被修一座就再也没料重炸。
+     零容错的数值不是难，是死。 */
   if (u.charges !== undefined) {
     if (u.charges <= 0) {
       log(u.abbr + ' 的装药用完了，炸不动了。', 'sys');
@@ -10802,11 +10805,15 @@ function perfectHint(lv) {
   }
   if (w.kind === 'demolish') {
     /* 破袭（v5.3）。文案要把"还剩几座"和"敌人会修"这两件事都说出来——
-       只说"炸 3 座"的话，玩家炸完就走，天亮时发现全被修回去了。 */
+       只说"炸 3 座"的话，玩家炸完就走，天亮时发现全被修回去了。
+       超额写"两支工兵都活着"，不写"全部炸断"：后者在 9 回合里做不到，
+       挂在面板上等于给玩家画一条永远够不着的线。 */
     const need = Number.isFinite(w.need) ? w.need : (L.works || []).length;
     const tot = (L.works || []).length;
+    const eng = (L.units || []).filter(u => u.side === 'blue' &&
+      (u.type === 'eng' || u.type === 'engc')).length;
     return { ok: true, text: '结束时至少 ' + need + ' 座桥涵仍是断的（共 ' +
-      tot + ' 座，全部炸断为超额）' };
+      tot + ' 座；' + eng + ' 支工兵全都活着、且只损失三支以内为超额）' };
   }
   if (w.kind === 'survive') {
     const ids = (w.keep || []).map(id => {
@@ -11133,11 +11140,20 @@ function judgeFinal() {
   } else if (w.kind === 'demolish') {
     /* 破袭（v5.3）：天亮那一刻还有几座桥涵是断的。
        **不比歼敌、不比占点**——这一关的全部成果就是那几个断口。
-       超额 = 三座全断且我方工兵还在（说明不是拿人命换的）。 */
+
+       超额曾经写成"四座全断"，那条线**数学上走不通**：9 个回合里
+       光在四座桥之间转移就要花掉大半，实测 300 局一次都没出现
+       （脚本平均只断 2.6 座，装药还剩两份——瓶颈是回合，不是炸药）。
+       现在的口径是"**两支工兵都活着，且整个分队只损失三支以内**"：
+       说明这三座是打下来的，不是拿人命填的。只判"工兵活着"不够——
+       实测那样超额率 42–60%，等于把及格线往下挪了一格。 */
     const down = worksDown();
     const need = Number.isFinite(w.need) ? w.need : worksTotal();
     state.result = down >= need ? 'win' : 'fail';
-    if (state.result === 'win' && down >= worksTotal() && demoLeft()) {
+    const startN = (LEVEL.units || []).filter(u => u.side === 'blue' &&
+      (u.wave || 1) === 1).length;
+    if (state.result === 'win' && demoUnits('blue').length >= 2 &&
+        alive('blue').length >= startN - 3) {
       state.result = 'perfect';
     }
   } else if (w.kind === 'escort') {
@@ -11938,10 +11954,16 @@ function unitOps(u) {
            而这一关的答案往往就是"刚好"。剩 0 份时按钮变灰并写原因，
            否则点下去只会得到一句战报，看起来像操作没生效。 */
         const left = u.charges === undefined ? null : u.charges;
-        const canDemo = demoReach(u).length > 0 && (left === null || left > 0);
+        const near = demoReach(u).length;
+        const canDemo = near > 0 && (left === null || left > 0);
+        /* 灰着的时候**必须说清为什么**。"占本回合"对一个点不动的按钮
+           等于什么都没说——玩家会以为是这一关没做这个功能。
+           三种原因分开写：没装药 / 站太远 / 可以炸。 */
         ops.push({ act: 'demo',
                    label: '爆破' + (left === null ? '' : '（剩 ' + left + ' 份）'),
-                   hint: left === 0 ? '装药已用完' : '占本回合',
+                   hint: left === 0 ? '装药已用完'
+                       : near > 0 ? '占本回合'
+                       : '站到桥涵上或相邻一格',
                    dis: !canDemo, on: state.mode === 'demo' });
       }
     }
@@ -12155,10 +12177,19 @@ function syncUnitOps() {
        也点题"现在鼠标该落在地图的蓝格上"。剩几点机动直接放在胶囊上，
        不然得为了看数字再展开一次。 */
     const moving = state.mode === 'move';
-    box.innerHTML = '<button class="uops-open" data-op="__open" title="' +
-      (moving ? '移动中：点蓝格走位，Esc 退出' : '展开：移动 / 工程 / 火炮') + '">' +
-      (moving ? '移动中<i>' + u.mov + ' 点</i>' : '行动<i>' + ops.length + '</i>') +
-      '</button>';
+    /* 工兵站在桥边时，小胶囊直接写「可爆破」。
+       这一关的爆破是**唯一得分手段**，藏在「行动 5」这个折叠菜单里，
+       玩家根本不会去点——实测第一反应是"这关没做炸桥"。
+       有得炸就把话说在面上；没有才退回「行动 N」。 */
+    const canBlow = ops.some(o => o.act === 'demo' && !o.dis);
+    const lab = moving ? '移动中<i>' + u.mov + ' 点</i>'
+      : canBlow ? '可爆破<i>' + (u.charges === undefined ? '' : u.charges + ' 份') + '</i>'
+      : '行动<i>' + ops.length + '</i>';
+    box.innerHTML = '<button class="uops-open' + (canBlow ? ' blow' : '') +
+      '" data-op="__open" title="' +
+      (moving ? '移动中：点蓝格走位，Esc 退出'
+       : canBlow ? '可爆破：点开选「爆破」，再点桥涵' : '展开：移动 / 工程 / 火炮') + '">' +
+      lab + '</button>';
     box.classList.remove('hidden');
     box.querySelectorAll('button[data-op]').forEach(b => {
       b.addEventListener('click', () => runOp(b.dataset.op));
