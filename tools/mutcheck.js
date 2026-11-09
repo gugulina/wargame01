@@ -1518,6 +1518,30 @@ const MUTANTS = [
    '  const chg = TYPE[u.type].chg || 0;',
    '关卡可以在单位上覆写装药'],
 
+  /* ── v5.3 代码检查补的四条：都是"屏幕上不报错、只是数字不对" ──
+     这四条原本都靠人眼看出来，没有常驻防线。加进来的判据和
+     docs/04 §十七 的踩坑记录一一对应。 */
+
+  ['扣装药排在快照之前（撤销不退装药）',
+   '  pushUndo();\n  if (u.charges !== undefined) u.charges -= 1;',
+   '  if (u.charges !== undefined) u.charges -= 1;\n  pushUndo();',
+   '撤销爆破：装药退回来'],
+
+  ['修通判据只看"一次修满"（多回合修通不播报）',
+   'if (before < w.maxHp && w.hp >= w.maxHp) {',
+   'if (before <= 0 && w.hp >= w.maxHp) {',
+   '修满要播报'],
+
+  ['结算面板漏掉 escort 分支（显示"要点得分 0 / undefined"）',
+   "  } else if (w.kind === 'escort') {\n    /* 护送关的结算面板",
+   "  } else if (w.kind === 'escortX') {\n    /* 护送关的结算面板",
+   '护送关结算面板写「车队撤出」', 'brief'],
+
+  ['半损的桥也叫"完好"（完好 1 / 2）',
+   "                : '受损 ' + x.hp + ' / ' + x.maxHp)",
+   "                : '完好 ' + x.hp + ' / ' + x.maxHp)",
+   '半损的桥写「受损」', 'brief'],
+
   ['剩余回合不看撤离终局期限（右栏一直显示到关卡上限）',
    '  const cap = Number.isFinite(state.escFinalTurn)',
    '  const cap = false',

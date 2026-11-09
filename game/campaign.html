@@ -180,7 +180,7 @@
       <!-- 返回首页（玩家反馈 v4.17）：打完这一关想换关、看进度、换战术卡，
            以前只能先"重新开始"或者摸顶栏那个小「菜单」。
            结算页是玩家停下来的地方，出口就该在这里。 -->
-      <button id="mHome" class="m-ghost">返回首页</button>
+      <button id="mHome">返回首页</button>
     </div>
     <p class="m-note hidden" id="mNextNote"></p>
   </div>
@@ -10189,14 +10189,18 @@ function doDemolish(u, w) {
      还剩两份——多出来的就是给抢修的容错（桥被修回去一次，还补得起）。
      第一版按"刚好三座"配六份，实测只有 15% 达成：被修一座就再也没料重炸。
      零容错的数值不是难，是死。 */
-  if (u.charges !== undefined) {
-    if (u.charges <= 0) {
-      log(u.abbr + ' 的装药用完了，炸不动了。', 'sys');
-      return false;
-    }
-    u.charges -= 1;
+  if (u.charges !== undefined && u.charges <= 0) {
+    log(u.abbr + ' 的装药用完了，炸不动了。', 'sys');
+    return false;
   }
+  /* 扣装药必须排在 pushUndo **之后**（v5.3 代码检查）。
+     反过来的话，快照里存的是"已经扣过一份"的状态：撤销时桥恢复了，
+     装药却不退——实测 5 份炸一次变 4，撤销后仍是 4。
+     10 份只够炸四座加一次容错，误点两下撤销就打不满达成线，
+     而屏幕上没有任何提示（兵牌面板不显示装药，只有按钮上那个数字）。
+     可对照 doAttack：那里也是先 pushUndo、再扣弹药。 */
   pushUndo();
+  if (u.charges !== undefined) u.charges -= 1;
   u.moved = true; u.fired = true;
   noteAct(u, 'eng');
   w.hp -= 1;
@@ -10231,9 +10235,13 @@ function worksTick() {
     if (!eng) continue;
     const before = w.hp;
     w.hp = Math.min(w.maxHp, w.hp + w.repair);
-    if (before <= 0 && w.hp >= w.maxHp) {
-      /* 修满才算通车。hp 从 0 回到 1（满值 2）只是"接上了一半"，
-         写成"修通了"会让玩家以为白炸了一次，其实再补一下就断。 */
+    if (before < w.maxHp && w.hp >= w.maxHp) {
+      /* 修满才算通车。判据是"这一次把耐久补满"，**不是"从零一次修满"**。
+         原来写的是 `before <= 0 && …`，于是只有 repair ≥ maxHp 的桥会播报；
+         C7B 全是 hp 2 / repair 1，两回合修通的那一刻走的是"正在抢修
+         （2 / 2）"那条分支——桥悄悄通了，没有横幅、没有"这一处白炸了"。
+         玩家在断桥上补射一发、以为还断着，天亮结算发现只断了两座判负，
+         而战报里找不到任何一句提示（v5.3 代码检查实测）。 */
       log('  ' + w.name + ' 被敌军工兵修通了。这一处白炸了。', 'r');
       FX.banner(w.name + ' 被 修 通', 'r', 1800);
     } else if (w.hp > 0) {
@@ -11270,13 +11278,29 @@ function showOverlay() {
             row('仍在战场', alive('blue').length + ' 支') +
             row('我方剩余战力', now + ' / ' + lost) +
             row('结束回合', state.turn + ' / ' + LEVEL.maxTurns);
+  } else if (w.kind === 'escort') {
+    /* 护送关的结算面板一度漏了这一支（v5.3 代码检查发现）。
+       没有它就会掉进最后的 else，显示"要点得分 0 / undefined 分"——
+       这一关根本不算分，而玩家最想看的"车队撤出几支"一个字都没有。
+       五种目标类型 × 四个渲染口（目标栏 / 结算面板 / 终局判定 / 超额提示），
+       加新类型时最容易漏的就是结算面板：它不在任何一条断言里。 */
+    const eg = escortNeed(), etot = escortTotal();
+    stats = row('车队撤出', escortPassed() + ' 支（达成 ' + eg + ' · 满员 ' + etot + '）') +
+            row('车队在路上', alive('green').length + ' 支') +
+            row('我方剩余战力', now + ' / ' + lost) +
+            row('结束回合', state.turn + ' / ' + LEVEL.maxTurns);
   } else if (w.kind === 'demolish') {
     /* 破袭的统计只回答一个问题：还剩几座断着。
        每座桥的当前耐久也列出来——玩家想知道"是被修通了几成"。 */
     const need = Number.isFinite(w.need) ? w.need : worksTotal();
     stats = row('炸断桥涵', worksDown() + ' / ' + worksTotal() + ' 座（达成线 ' + need + '）') +
+            /* 三档分开写：炸了一半的桥原来也叫"完好 1 / 2"，
+               "完好"和"只剩一半"并列在一行里，玩家第一眼会以为是自己看错了。
+               这一栏是玩家判断"要不要回头补一发"的唯一依据。 */
             (state.works || []).map(x =>
-              row(x.name, workDown(x) ? '已炸断' : '完好 ' + x.hp + ' / ' + x.maxHp)
+              row(x.name, workDown(x) ? '已炸断'
+                : x.hp >= x.maxHp ? '完好'
+                : '受损 ' + x.hp + ' / ' + x.maxHp)
             ).join('') +
             row('我方剩余战力', now + ' / ' + lost) +
             row('结束回合', state.turn + ' / ' + LEVEL.maxTurns);

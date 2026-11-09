@@ -1860,6 +1860,54 @@ function skip(name, why) {
     domN.window.close();
   }
 
+  console.log('[29] 结算面板的五种目标类型（v5.3 代码检查）');
+  /* 这一组守的是"加新胜负类型时漏改渲染口"。
+     五种 kind × 四个渲染口（目标栏 renderGoal / 结算面板 / judgeFinal /
+     perfectHint），v5.1 加 escort 时前三个都跟进了，**结算面板漏了**——
+     它掉进最后的积分分支，显示"要点得分 0 / undefined 分"，
+     而护送关根本不算分，玩家最想看的"车队撤出几支"一个字都没有。
+     这类漏改不会让任何断言变红，因为在屏幕上是"一句奇怪的话"，
+     不是异常——只有真去读一眼面板才看得见。 */
+  {
+    const domS = new JSDOM(html, {
+      runScripts: 'dangerously', pretendToBeVisual: true, virtualConsole: vc,
+      url: 'http://127.0.0.1/game/campaign.html?nointro=1'
+    });
+    const ds = domS.window.document;
+    await wait(600);
+    const WS = domS.window.__WAR__;
+    const stats = () => [...ds.getElementById('mStats').querySelectorAll('.stat')]
+      .map(r => r.textContent.replace(/\s+/g, ' ').trim());
+
+    WS.newGame({ level: 'C11B', noSave: true });
+    await wait(80);
+    WS.judgeFinal();
+    await wait(120);
+    const rEsc = stats();
+    ok('护送关结算面板写「车队撤出」',
+       rEsc.some(r => /车队撤出/.test(r)), rEsc.join(' | ').slice(0, 70));
+    ok('护送关结算面板不出现 undefined',
+       !rEsc.some(r => /undefined/.test(r)), rEsc.join(' | ').slice(0, 70));
+
+    WS.newGame({ level: 'C7B', noSave: true });
+    const ST = WS.getState();
+    ST.works[0].hp = 1;   // 炸了一半
+    ST.works[1].hp = 0;   // 炸断
+    await wait(80);
+    WS.judgeFinal();
+    await wait(120);
+    const rB = stats();
+    /* "完好 1 / 2"是自相矛盾的：完好就是没动过，掉了一半是受损。
+       这一栏是玩家判断"要不要回头补一发"的唯一依据。 */
+    ok('半损的桥写「受损」，不写「完好 1 / 2」',
+       rB.some(r => /受损/.test(r)) && !rB.some(r => /完好\s*1/.test(r)),
+       rB.join(' | ').slice(0, 90));
+    ok('炸断的桥写「已炸断」', rB.some(r => /已炸断/.test(r)),
+       rB.join(' | ').slice(0, 90));
+
+    domS.window.close();
+  }
+
   console.log('');
   console.log('通过 ' + pass + ' 项' + (skipped ? ' · 跳过 ' + skipped + ' 项' : '') +
               '，失败 ' + fail + ' 项');

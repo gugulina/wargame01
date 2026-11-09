@@ -6014,8 +6014,16 @@ console.log('\n[70] 工程目标 · 桥涵（v5.3）');
   api.worksTick();
   ok('敌工兵站在断桥上能抢修', w0.hp === hpB + w0.repair, hpB + ' → ' + w0.hp);
   ok('修到一半还没通车', !api.workDown(w0) && w0.hp < w0.maxHp, String(w0.hp));
+  const nLog = S.log.length;
   api.worksTick();
   ok('修满才算通车', w0.hp === w0.maxHp, String(w0.hp));
+  /* 修满必须播报（v5.3 代码检查）。判据曾经写成 `before <= 0 && 修满`，
+     于是只有 repair ≥ maxHp 的桥会报"修通"；C7B 全是 hp 2 / repair 1，
+     两回合修通的那一刻走的是"正在抢修（2 / 2）"，桥悄悄通了、没有横幅，
+     玩家在断桥上补射一发、天亮结算才发现只断了两座判负。 */
+  ok('修满要播报「修通」，不能只写"正在抢修"',
+     S.log.slice(nLog).some(l => /修通/.test(l.text)),
+     S.log.slice(nLog).map(l => l.text.trim()).join(' | ').slice(0, 80));
 
   /* 没有工兵在桥上就没人修——"把桥口钉住"才有意义 */
   const w2 = S.works[2];
@@ -6035,6 +6043,30 @@ console.log('\n[70] 工程目标 · 桥涵（v5.3）');
   S.result = null;
   api.judgeFinal();
   ok('断满三座 → 判胜', S.result === 'win' || S.result === 'perfect', String(S.result));
+
+  /* ── 撤销要连装药一起退（v5.3 代码检查） ──
+     快照顺序踩过一次：先扣装药、再 pushUndo，快照里存的就是"已扣过"的账。
+     撤销后桥的耐久恢复了、装药却不退——实测 5 份炸一次变 4，撤销后仍是 4。
+     10 份只够炸四座加一次容错，误点两下撤销就打不满达成线，
+     而兵牌面板不显示装药，玩家连"我少了一份"都看不出来。
+     可对照 doAttack：那里一直是先 pushUndo、再扣弹药。 */
+  api.newGame({ level: 'C7B', noSave: true });
+  const S2 = api.getState();
+  const eng2 = S2.units.find(u => u.side === 'blue' && u.type === 'engc');
+  const wc = S2.works[3];
+  eng2.pos = wc.cells[0].slice();
+  const cBefore = eng2.charges;
+  api.doDemolish(eng2, wc);
+  ok('爆破扣一份装药', eng2.charges === cBefore - 1,
+     cBefore + ' → ' + eng2.charges);
+  api.doUndo();
+  const S3 = api.getState();
+  const eng3 = S3.units.find(u => u.id === eng2.id);
+  const wc3 = S3.works.find(x => x.id === wc.id);
+  ok('撤销爆破：装药退回来', !!eng3 && eng3.charges === cBefore,
+     eng3 ? String(eng3.charges) : '无');
+  ok('撤销爆破：桥的耐久也退回来', !!wc3 && wc3.hp === wc.maxHp,
+     wc3 ? String(wc3.hp) : '无');
 }
 
 console.log('\n通过 ' + pass + ' 项，失败 ' + fail + ' 项');
