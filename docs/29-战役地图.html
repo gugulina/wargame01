@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>苍屿战役 · 战区地图</title>
+<style>
+  :root {
+    --paper: #F5F2EA;
+    --land: #EDE7D9;
+    --sea: #DCE8F0;
+    --ink: #2C2C2A;
+    --muted: #6B675E;
+    --line: #CFC8B8;
+    --blue: #185FA5;
+    --red: #A32D2D;
+    --mtn: #C4B79C;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--paper); color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+    font-size: 14px; line-height: 1.6;
+  }
+  .wrap { max-width: 1400px; margin: 0 auto; padding: 20px 24px 32px; }
+  header { border-bottom: 1px solid var(--line); padding-bottom: 14px; margin-bottom: 18px; }
+  h1 { font-size: 20px; font-weight: 500; margin: 0 0 4px; letter-spacing: .04em; }
+  .sub { color: var(--muted); font-size: 13px; }
+  .disclaimer {
+    display: inline-block; margin-top: 10px; padding: 5px 10px;
+    border: 1px solid var(--line); border-radius: 6px;
+    background: #FFFDF7; color: var(--muted); font-size: 12px;
+  }
+  .layout { display: flex; gap: 20px; align-items: flex-start; }
+  .mapframe {
+    flex: 1 1 auto; min-width: 0;
+    background: #FFFDF7; border: 1px solid var(--line); border-radius: 10px;
+    padding: 10px;
+  }
+  svg { display: block; width: 100%; height: auto; }
+  svg text { paint-order: stroke; stroke: #FFFDF7; stroke-width: 3px; stroke-linejoin: round; }
+  svg text.badge { stroke: none; }
+  .fronts { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 10px; }
+  .frow { display: flex; align-items: center; gap: 8px; font-size: 12px; margin-bottom: 6px; color: var(--ink); }
+  .fbadge { width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid; flex: 0 0 18px;
+            display: inline-flex; align-items: center; justify-content: center; font-size: 10px; }
+  .side { flex: 0 0 300px; }
+  .panel {
+    background: #FFFDF7; border: 1px solid var(--line); border-radius: 10px;
+    padding: 16px; margin-bottom: 14px;
+  }
+  .panel h2 { font-size: 15px; font-weight: 500; margin: 0 0 10px; }
+  .chapters { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+  button {
+    font: inherit; font-size: 12px; padding: 5px 10px; cursor: pointer;
+    background: transparent; color: var(--ink);
+    border: 1px solid var(--line); border-radius: 6px;
+  }
+  button:hover { border-color: var(--muted); }
+  button.on { background: var(--ink); color: #FFF; border-color: var(--ink); }
+  .meta { font-size: 12px; color: var(--muted); margin: 0 0 6px; }
+  .teaser { font-size: 13px; margin: 10px 0; }
+  .note {
+    font-size: 12px; color: var(--ink); background: #F1EFE8;
+    border-radius: 6px; padding: 10px 12px; margin-top: 10px;
+  }
+  .note b { font-weight: 500; }
+  .legend { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; font-size: 12px; }
+  .lg { display: flex; align-items: center; gap: 7px; }
+  .sw { width: 22px; height: 0; border-top: 3px solid; flex: 0 0 22px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 9px; }
+  footer { margin-top: 18px; font-size: 12px; color: var(--muted); }
+  .causes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 14px; }
+  .cause {
+    background: #FFFDF7; border: 1px solid var(--line);
+    border-radius: 10px; padding: 12px 14px; font-size: 12px;
+  }
+  .cause b { display: block; font-weight: 500; font-size: 13px; margin-bottom: 5px; }
+  @media (max-width: 900px) {
+    .layout { flex-direction: column; }
+    .side { flex: 1 1 auto; width: 100%; }
+    .causes { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>苍屿战役 · 战区地图</h1>
+    <div class="sub">架空战区示意 · 与 <code>docs/29-世界观设定.md</code> 配套 · 点章节看战线推进</div>
+    <div class="disclaimer">全部国家、地名、边界均为虚构，不对应任何现实地域；坐标为示意，非实测，不含经纬度。</div>
+  </header>
+
+  <div class="layout">
+    <div class="mapframe">
+      <svg id="map" viewBox="0 0 820 620" role="img" aria-label="苍屿战役架空战区示意图">
+        <title>苍屿战役架空战区示意图</title>
+        <desc>虚构半岛国家苍屿与北方灰原联合体之间的战区，标有雾岭山脉、青溪、岚口机场、波尔瓦萨港、岚京与长湾海峡，可按章节切换战线。</desc>
+        <defs>
+          <marker id="arR" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M1 1L9 5L1 9" fill="none" stroke="#A32D2D" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+          </marker>
+          <marker id="arB" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M1 1L9 5L1 9" fill="none" stroke="#185FA5" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+          </marker>
+        </defs>
+        <rect x="0" y="0" width="820" height="620" fill="#DCE8F0"/>
+        <path id="land" d="M60,120 L600,120 L635,150 L650,205 L665,250 L655,310 L640,370 L620,430 L600,480 L570,520 L520,545 L470,555 L440,535 L410,555 L350,560 L280,555 L200,545 L130,530 L60,510 Z"
+              fill="#EDE7D9" stroke="#8A8578" stroke-width="1.2"/>
+        <g id="static"></g>
+        <g id="fronts"></g>
+        <g id="places"></g>
+        <g id="labels"></g>
+      </svg>
+    </div>
+
+    <div class="side">
+      <div class="panel">
+        <h2>章节战线</h2>
+        <div class="chapters" id="chapters"></div>
+      </div>
+      <div class="panel">
+        <h2 id="chName">总览</h2>
+        <p class="meta" id="chSpan"></p>
+        <p class="meta" id="chWhere"></p>
+        <p class="teaser" id="chTeaser"></p>
+        <div class="note" id="chNote"></div>
+        <div class="fronts" id="chFronts"></div>
+      </div>
+      <div class="panel">
+        <h2>图例</h2>
+        <div class="legend">
+          <div class="lg"><span class="sw" style="border-color:#A32D2D"></span>灰原推进</div>
+          <div class="lg"><span class="sw" style="border-color:#185FA5"></span>苍屿行动</div>
+          <div class="lg"><span class="sw" style="border-color:#185FA5;border-top-style:dashed"></span>撤退 / 相持</div>
+          <div class="lg"><span class="sw" style="border-color:#8A8578;border-top-style:dotted"></span>因果连线</div>
+          <div class="lg"><span class="dot" style="background:#185FA5"></span>我方要点</div>
+          <div class="lg"><span class="dot" style="background:#A32D2D"></span>敌方 / 境外</div>
+          <div class="lg"><span class="dot" style="background:#8A7F68"></span>地形 / 交通</div>
+          <div class="lg"><span class="dot" style="background:#C4B79C"></span>雾岭山脉</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="causes">
+    <div class="cause"><b>① 开战 · 海峡通道</b>灰原要的是长湾海峡的通道：北岸岚口机场 + 南部唯一深水港波尔瓦萨，两端成对拿到才掐得断苍屿的海运进口。C1 西线与 C4 南线是同一目标的两只手。</div>
+    <div class="cause"><b>② 翻盘 · 优势失效</b>机场始终没启用、冬季封山钉住进攻方、C4 分舰队从「不出港当岸防炮台」改成第 5 章出港。不是我方变强，是敌方陆军优势的适用条件消失。</div>
+    <div class="cause"><b>③ 终局 · 停战线</b>条件回到开战目标：灰原放弃对海峡的主张。「城下之盟」是结构终点，「灰原首都」只是逼签的筹码，「胜利日」是确认停战线，不是灭国。</div>
+  </div>
+
+  <footer>
+    地名与方位依据：<code>docs/01-战役设定.md</code>（一、二、五节）、<code>data/levels.js</code> 的 chapters / where / when、
+    <code>docs/29-世界观设定.md</code>。序章「军校沙盘」是教学习作，不在战区内。
+    本图为设定示意，不是关卡六角格地图（那套由 <code>game/campaign.html</code> 按 1 格 ≈ 1.5 km 渲染）。
+  </footer>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var NS = 'http://www.w3.org/2000/svg';
+  var $ = function (id) { return document.getElementById(id); };
+  function el(tag, attrs, text) {
+    var n = document.createElementNS(NS, tag);
+    Object.keys(attrs || {}).forEach(function (k) { n.setAttribute(k, attrs[k]); });
+    if (text != null) n.textContent = text;
+    return n;
+  }
+  function add(parent, tag, attrs, text) { var n = el(tag, attrs, text); parent.appendChild(n); return n; }
+
+  /* ── 地名：坐标是示意，全部来自已写定的设定与关卡 where ── */
+  var PLACES = [
+    { id: 'huiyuan', x: 400, y: 52,  name: '灰原联合体', kind: 'enemy', label: 'dy', note: '北方资源型联邦 · 境外' },
+    { id: 'huiling', x: 250, y: 100, name: '灰岭',       kind: 'enemy', label: 'up', note: '第 8 章 · 境外' },
+    { id: 'huijing', x: 545, y: 44,  name: '灰原首都',   kind: 'enemy', label: 'up', note: '第 8 章终局目标 · 境外' },
+    { id: 'beiling', x: 145, y: 178, name: '北岭要塞',   kind: 'fort',  label: 'up', note: 'C1 · 西部边陲，第 6 章「北岭归来」' },
+    { id: 'qingxi',  x: 300, y: 238, name: '青溪渡口',   kind: 'pass',  label: 'up', note: 'C2 / C2B · 青溪仅两处渡口之一' },
+    { id: 'lankou',  x: 610, y: 190, name: '岚口机场',   kind: 'air',   label: 'up', note: 'C3 / C3B · 北部唯一可起降运输机的机场' },
+    { id: 'bolwasa', x: 560, y: 515, name: '波尔瓦萨港', kind: 'port',  label: 'up', note: 'C4 / C4B · 南部海岸唯一深水港' },
+    { id: 'nanling', x: 330, y: 428, name: '17 号桥',    kind: 'bridge',label: 'up', note: 'C5 · 中部南岭公路' },
+    { id: 'tiezhen', x: 540, y: 395, name: '铁砧高地',   kind: 'obj',   label: 'up', note: '第 4 章「破灭神话」' },
+    { id: 'lanjing', x: 400, y: 492, name: '岚京',       kind: 'capital',label: 'dy', note: '首都 · 南部平原 · 第 2 章首都圈' },
+    { id: 'shuichang', x: 352, y: 468, name: '城北水厂', kind: 'obj', label: 'none', note: 'C8' },
+    { id: 'chezhan',   x: 418, y: 478, name: '中央车站', kind: 'obj', label: 'none', note: 'C10' },
+    { id: 'guangbo',   x: 400, y: 452, name: '广播大楼', kind: 'obj', label: 'none', note: 'C9' },
+    { id: 'tieLu',     x: 455, y: 452, name: '环城铁路', kind: 'obj', label: 'none', note: 'C7B' }
+  ];
+  var FOCUS_ALL = PLACES.map(function (p) { return p.id; });
+
+  /* ── 静态地形 ── */
+  var st = $('static');
+  /* 境外灰原：北部淡红带，不用「国界」字样 */
+  add(st, 'rect', { x: 60, y: 20, width: 540, height: 100, fill: '#F6E7E3', opacity: .75 });
+  add(st, 'line', { x1: 60, y1: 120, x2: 600, y2: 120, stroke: '#B9A6A0', 'stroke-width': 1.2, 'stroke-dasharray': '5 4' });
+  add(st, 'text', { x: 330, y: 110, fill: '#A32D2D', 'font-size': 12 }, '以北为灰原高地（战前边界 · 示意）');
+
+  /* 雾岭山脉：横贯中部的三角脊线 */
+  var ridge = [80, 140, 200, 260, 320, 380, 440, 500, 560, 610];
+  ridge.forEach(function (x, i) {
+    var y = 348 + (i % 3) * 9;
+    add(st, 'polygon', {
+      points: (x - 17) + ',' + (y + 16) + ' ' + x + ',' + (y - 14) + ' ' + (x + 17) + ',' + (y + 16),
+      fill: '#C4B79C', stroke: '#8A7F68', 'stroke-width': .8
+    });
+  });
+  add(st, 'text', { x: 92, y: 318, fill: '#7A6F58', 'font-size': 13, 'letter-spacing': '2' }, '雾岭山脉 · 冬季封山');
+
+  /* 青溪：横贯北部，两处渡口 */
+  add(st, 'path', {
+    d: 'M60,222 C180,232 240,246 300,238 C400,226 520,232 655,244',
+    fill: 'none', stroke: '#4A90B8', 'stroke-width': 3.2, 'stroke-linecap': 'round'
+  });
+  add(st, 'text', { x: 80, y: 264, fill: '#3B7799', 'font-size': 12 }, '青溪 · 两处渡口');
+
+  /* 岚江：从雾岭北麓流向东北，岚口在东岸 */
+  add(st, 'path', {
+    d: 'M500,330 C545,290 580,240 642,208',
+    fill: 'none', stroke: '#4A90B8', 'stroke-width': 2.4, 'stroke-linecap': 'round', opacity: .85
+  });
+  add(st, 'text', { x: 520, y: 292, fill: '#3B7799', 'font-size': 11 }, '岚江');
+
+  /* 边陲公路 / 三号公路 / 南岭公路 */
+  add(st, 'path', { d: 'M60,152 L145,178 L300,238', fill: 'none', stroke: '#B9A98C', 'stroke-width': 2, 'stroke-dasharray': '6 4' });
+  add(st, 'text', { x: 74, y: 146, fill: '#8A7F68', 'font-size': 11 }, '边陲公路');
+  add(st, 'path', { d: 'M170,196 C250,300 330,380 400,492', fill: 'none', stroke: '#B9A98C', 'stroke-width': 2, 'stroke-dasharray': '6 4' });
+  add(st, 'text', { x: 150, y: 216, fill: '#8A7F68', 'font-size': 11 }, '三号公路');
+  add(st, 'path', { d: 'M330,428 C400,440 480,450 540,395', fill: 'none', stroke: '#B9A98C', 'stroke-width': 1.6, 'stroke-dasharray': '5 4' });
+  add(st, 'text', { x: 352, y: 446, fill: '#8A7F68', 'font-size': 11 }, '南岭公路');
+
+  /* 水域标注 */
+  add(st, 'text', { x: 682, y: 300, fill: '#3B7799', 'font-size': 13, 'letter-spacing': '2' }, '长湾海峡');
+  add(st, 'text', { x: 686, y: 320, fill: '#6B8CA3', 'font-size': 11 }, '北岸 = 岚口机场群');
+  add(st, 'text', { x: 686, y: 338, fill: '#6B8CA3', 'font-size': 11 }, '进口航道');
+  add(st, 'text', { x: 440, y: 592, fill: '#3B7799', 'font-size': 12, 'text-anchor': 'middle' }, '潮汐湾 · 第 5 章登陆场');
+  add(st, 'text', { x: 150, y: 590, fill: '#6B8CA3', 'font-size': 11 }, '南部海域');
+
+  /* 比例尺（示意，不换算现实距离） */
+  add(st, 'line', { x1: 62, y1: 604, x2: 162, y2: 604, stroke: '#6B675E', 'stroke-width': 1.5 });
+  add(st, 'line', { x1: 62, y1: 600, x2: 62, y2: 608, stroke: '#6B675E', 'stroke-width': 1.5 });
+  add(st, 'line', { x1: 162, y1: 600, x2: 162, y2: 608, stroke: '#6B675E', 'stroke-width': 1.5 });
+  add(st, 'text', { x: 172, y: 608, fill: '#6B675E', 'font-size': 11 }, '示意比例（非实测）');
+
+  /* ── 地名符号 ── */
+  var pg = $('places'), lg = $('labels');
+  var COLOR = { enemy: '#A32D2D', fort: '#185FA5', pass: '#185FA5', air: '#185FA5',
+                port: '#185FA5', bridge: '#8A7F68', obj: '#8A7F68', capital: '#185FA5' };
+  PLACES.forEach(function (p) {
+    var c = COLOR[p.kind];
+    var g = add(pg, 'g', { 'data-id': p.id, style: 'cursor:default' });
+    add(g, 'title', {}, p.name + ' — ' + p.note);
+    if (p.kind === 'capital') {
+      add(g, 'circle', { cx: p.x, cy: p.y, r: 9, fill: '#FFFDF7', stroke: c, 'stroke-width': 2 });
+      add(g, 'circle', { cx: p.x, cy: p.y, r: 3.5, fill: c });
+    } else if (p.kind === 'air') {
+      add(g, 'rect', { x: p.x - 7, y: p.y - 7, width: 14, height: 14, fill: '#FFFDF7', stroke: c, 'stroke-width': 1.6 });
+      add(g, 'path', { d: 'M' + (p.x - 4) + ',' + (p.y + 2) + ' L' + p.x + ',' + (p.y - 4) + ' L' + (p.x + 4) + ',' + (p.y + 2) + ' Z', fill: c });
+    } else if (p.kind === 'port') {
+      add(g, 'circle', { cx: p.x, cy: p.y, r: 6, fill: '#FFFDF7', stroke: c, 'stroke-width': 1.6 });
+      add(g, 'line', { x1: p.x - 9, y1: p.y - 9, x2: p.x + 9, y2: p.y - 9, stroke: c, 'stroke-width': 1.6 });
+    } else if (p.kind === 'enemy') {
+      add(g, 'path', { d: 'M' + p.x + ',' + (p.y - 7) + ' L' + (p.x + 7) + ',' + p.y + ' L' + p.x + ',' + (p.y + 7) + ' L' + (p.x - 7) + ',' + p.y + ' Z', fill: '#FFFDF7', stroke: c, 'stroke-width': 1.6 });
+    } else if (p.kind === 'obj') {
+      add(g, 'circle', { cx: p.x, cy: p.y, r: 3.4, fill: c });
+    } else {
+      add(g, 'circle', { cx: p.x, cy: p.y, r: 5.5, fill: '#FFFDF7', stroke: c, 'stroke-width': 1.6 });
+      add(g, 'circle', { cx: p.x, cy: p.y, r: 1.8, fill: c });
+    }
+    if (p.label !== 'none') {
+      var ly = p.label === 'up' ? p.y - 14 : p.y + 24;
+      var t = add(lg, 'text', {
+        x: p.x, y: ly, 'text-anchor': 'middle', 'font-size': 12,
+        fill: p.kind === 'enemy' ? '#A32D2D' : '#2C2C2A', 'data-label': p.id
+      }, p.name);
+      t.style.pointerEvents = 'none';
+    }
+  });
+
+  /* ── 章节与战线 ── */
+  var CHAPTERS = [
+    { no: 0, name: '总览', span: '新历 1207.08 – 1211.03', where: '苍屿全境 · 长湾海峡',
+      teaser: '一条从边境崩溃到停战线的完整战线。灰色是地形，红蓝是两军。',
+      note: '<b>读图顺序：</b>先找东边的长湾海峡和南部唯一深水港——这两处决定了整场战争为什么打、又为什么能翻盘。序章「军校沙盘」是教学，不在这张图上。',
+      focus: FOCUS_ALL,
+      paths: [
+        { d: 'M70,150 C220,175 420,180 610,190', side: 'red', label: '西线正面' },
+        { d: 'M70,150 C220,300 400,440 560,515', side: 'red', label: '南线绕击' },
+        { d: 'M400,492 C330,400 300,300 145,178', side: 'blue', dash: '6 5', label: '反攻回推' }
+      ] },
+    { no: 1, name: '艰难时刻', span: '新历 1207 年 9 月 – 1208 年 8 月', where: '北岭 – 青溪 – 岚口 – 波尔瓦萨',
+      teaser: '边境七十二小时崩溃。你带着被留下来的人一路打一路退，退到不能再退。',
+      note: '<b>因果①：</b>两条红箭头不是敌人换方向，是同一个目标的两端——北岸机场与南部深水港。虚线把两端连起来，就是灰原真正要掐的那条海峡通道。',
+      focus: ['beiling','qingxi','lankou','bolwasa','nanling','lanjing'],
+      paths: [
+        { d: 'M70,150 L145,178 L300,238 L610,190', side: 'red', at: .62, label: '西线正面 → 北岸机场' },
+        { d: 'M70,150 C230,320 410,440 560,515', side: 'red', at: .20, label: '南线绕击' },
+        { d: 'M145,178 C240,300 330,400 400,492', side: 'blue', dash: '6 5', at: .62, label: '主力东撤' },
+        { d: 'M610,190 C640,300 620,420 560,515', side: 'link', label: '同一目标的两端' }
+      ] },
+    { no: 2, name: '兵临城下', span: '新历 1208 年 9 月 – 1208 年 12 月', where: '岚京北郊 – 环城铁路 – 中央车站',
+      teaser: '首都圈成了最后一道防线。敌军的炮口已经能打到城里的钟楼。',
+      note: '<b>内线作战：</b>城还在自己手里，补给就该充足。水厂、电厂、车站、广播大楼成了要点——丢水厂全城断水，丢车站城里断粮。C12「全战役最后一次增援」也在这里。',
+      focus: ['lanjing','shuichang','chezhan','guangbo','tieLu'],
+      paths: [
+        { d: 'M400,492 m-58,0 a58,42 0 1,0 116,0 a58,42 0 1,0 -116,0', side: 'blue', dash: '5 4', label: '首都圈内线' },
+        { d: 'M300,400 C340,430 370,455 400,492', side: 'red', label: '敌军入城' }
+      ] },
+    { no: 3, name: '一步不退', span: '新历 1209 年 1 月 – 1209 年 5 月', where: '雾岭雪线 – 青溪冰面 – 三号公路',
+      teaser: '冬天封了山，也封了补给。没有援军，没有弹药，脚下这块地不退。',
+      note: '<b>因果②之一：</b>冬季机动 −1、侦察 −1、空中出动 −1。规则对双方一视同仁，但守方只要不退就达标，进攻方必须重新打开节奏——所以这一章是相持，不是反攻。',
+      focus: ['qingxi','nanling','lankou'],
+      paths: [
+        { d: 'M80,362 C250,352 440,360 620,362', side: 'blue', width: 3.5, label: '冬季相持线 · 一步不退' }
+      ] },
+    { no: 4, name: '破灭神话', span: '新历 1209 年 6 月 – 1209 年 10 月', where: '铁砧高地 – 长湾北岸 – 海峡',
+      teaser: '灰原近卫装甲师从没输过。这一章要做的事，就是让这句话变成过去式。',
+      note: '<b>拐点：</b>「近卫装甲第 2 师不可战胜」被打破，敌方优势的心理面先塌。这支部队在 C4 把波尔瓦萨码头碾平，玩家等了四章才在 C20 清账。',
+      focus: ['tiezhen','lankou','bolwasa'],
+      paths: [
+        { d: 'M540,395 C590,330 630,260 650,205', side: 'blue', label: '推向长湾北岸' },
+        { d: 'M650,205 C610,280 575,340 540,395', side: 'red', dash: '6 5', label: '近卫装甲第 2 师' }
+      ] },
+    { no: 5, name: '战略决战', span: '新历 1209 年 11 月 – 1210 年 3 月', where: '潮汐湾 – 长湾海峡 – 岚京外海',
+      teaser: '双方主力全部投入。这一仗打完，战争的方向就定了。',
+      note: '<b>因果②之二：</b>C4 那支分舰队「不出港，炮口对着岸上」是被当岸防炮台用，不是打没了。制海权一直在苍屿手里；到第 5 章改成出港，才有潮汐湾登陆与海峡突破。不是新装备，是既有海军换了用法。',
+      focus: ['bolwasa','lankou','lanjing'],
+      paths: [
+        { d: 'M440,585 C500,520 600,420 655,300', side: 'blue', width: 3.2, at: .38, label: '分舰队出港 · 登陆 → 海峡突破' },
+        { d: 'M655,300 C610,360 570,440 560,515', side: 'red', dash: '6 5', at: .78, label: '港口反击' }
+      ] },
+    { no: 6, name: '反攻号角', span: '新历 1210 年 4 月 – 1210 年 8 月', where: '青溪 – 岚口 – 雾岭 – 北岭',
+      teaser: '从渡江开始，一站一站往回打。回到北岭要塞那天，那里只剩断墙。',
+      note: '<b>情绪章：</b>地名复用是全篇最强的装置——第 1 关亲手丢掉的渡口、被迫放弃的岚口、守了八个回合的北岭，逐点收回。第 311 团与机场守备营长「守了九年」的回收位也在这里。',
+      focus: ['lanjing','nanling','qingxi','lankou','beiling'],
+      paths: [
+        { d: 'M400,492 C360,440 330,428 300,238', side: 'blue', label: '青溪再夺' },
+        { d: 'M300,238 C420,215 520,200 610,190', side: 'blue', label: '岚口收复 / 机场再开' },
+        { d: 'M300,238 C230,215 180,195 145,178', side: 'blue', label: '北岭归来' }
+      ] },
+    { no: 7, name: '决胜一击', span: '新历 1210 年 9 月 – 1210 年 12 月', where: '灰原第 7 旅 – 三号公路 – 口袋',
+      teaser: '把他们的主力装进口袋，然后收紧。',
+      note: '<b>长线回收：</b>灰原第 7 旅从 C1 北岭一路追了三年，在这里被装进口袋。全篇唯一一次空降作战在附属关「空降断桥」。',
+      focus: ['qingxi','beiling','nanling'],
+      paths: [
+        { d: 'M170,196 C260,220 420,230 520,260 C560,300 460,340 330,330 C220,320 160,260 170,196 Z',
+          side: 'blue', dash: '7 5', label: '口袋收紧' },
+        { d: 'M400,492 C360,400 320,330 300,238', side: 'blue', label: '向北合围' }
+      ] },
+    { no: 8, name: '伟大胜利', span: '新历 1211 年 1 月 – 1211 年 3 月', where: '岚京 – 灰岭 – 灰原首都',
+      teaser: '解围、反攻、终局。最后一仗不在我们的土地上打。',
+      note: '<b>因果③：</b>终局条件是灰原放弃对海峡的主张，所以「城下之盟」才是结构终点，「灰原首都」只是逼签的筹码。注意章节表里城下之盟是第 2 关、灰原首都是第 4 关——别写成「打进首都才逼签」。',
+      focus: ['lanjing','huiling','huijing','huiyuan'],
+      paths: [
+        { d: 'M400,492 C360,340 300,200 250,100', side: 'blue', label: '解围 → 灰岭' },
+        { d: 'M250,100 C350,70 450,55 545,44', side: 'blue', label: '城下之盟' },
+        { d: 'M400,492 C480,360 520,200 545,44', side: 'link', label: '停战线' }
+      ] }
+  ];
+
+  function frontPath(p) {
+    var color = p.side === 'red' ? '#A32D2D' : (p.side === 'link' ? '#8A8578' : '#185FA5');
+    var attrs = {
+      d: p.d, fill: 'none', stroke: color,
+      'stroke-width': p.width || 2.2, 'stroke-linecap': 'round', 'stroke-linejoin': 'round',
+      'marker-end': p.side === 'link' ? '' : (p.side === 'red' ? 'url(#arR)' : 'url(#arB)')
+    };
+    if (p.dash) attrs['stroke-dasharray'] = p.dash;
+    if (p.side === 'link') attrs['stroke-dasharray'] = '3 5';
+    return attrs;
+  }
+
+  function render(ch) {
+    var fg = $('fronts');
+    fg.textContent = '';
+    ch.paths.forEach(function (p) {
+      add(fg, 'path', frontPath(p));
+    });
+    /* 长标签放图上会和山脉/河流标题抢位置（实测挤成一片）。
+       改成：图上只留编号圆点，文字统一进右侧「本章战线」列表。 */
+    var list = $('chFronts');
+    list.textContent = '';
+    ch.paths.forEach(function (p, i) {
+      var color = p.side === 'red' ? '#A32D2D' : (p.side === 'link' ? '#8A8578' : '#185FA5');
+      if (p.label) {
+        var row = document.createElement('div');
+        row.className = 'frow';
+        var fb = document.createElement('span');
+        fb.className = 'fbadge';
+        fb.style.color = color;
+        fb.style.borderColor = color;
+        fb.textContent = String(i + 1);
+        row.appendChild(fb);
+        var tx = document.createElement('span');
+        tx.textContent = p.label;
+        row.appendChild(tx);
+        list.appendChild(row);
+      }
+      var path = el('path', { d: p.d, fill: 'none', stroke: 'none' });
+      fg.appendChild(path);
+      var at = (p.at == null) ? .5 : p.at;
+      var pt;
+      try { pt = path.getPointAtLength(path.getTotalLength() * at); } catch (e) { return; }
+      add(fg, 'circle', { cx: pt.x, cy: pt.y, r: 9, fill: '#FFFDF7', stroke: color, 'stroke-width': 1.6 });
+      var num = add(fg, 'text', {
+        x: pt.x, y: pt.y + 3.6, 'text-anchor': 'middle', 'font-size': 11,
+        fill: color, 'class': 'badge'
+      }, String(i + 1));
+      num.style.pointerEvents = 'none';
+    });
+
+    /* 非本章重点的地名淡出，但不隐藏：全图关系要一直看得见 */
+    var focus = {};
+    ch.focus.forEach(function (id) { focus[id] = 1; });
+    Array.prototype.forEach.call(pg.children, function (g) {
+      g.setAttribute('opacity', focus[g.getAttribute('data-id')] ? '1' : '.42');
+    });
+    Array.prototype.forEach.call(lg.children, function (t) {
+      t.setAttribute('opacity', focus[t.getAttribute('data-label')] ? '1' : '.42');
+    });
+
+    $('chName').textContent = ch.no === 0 ? '总览' : '第 ' + ch.no + ' 章 · ' + ch.name;
+    $('chSpan').textContent = ch.span;
+    $('chWhere').textContent = ch.where;
+    $('chTeaser').textContent = ch.teaser;
+    $('chNote').innerHTML = ch.note;
+    Array.prototype.forEach.call($('chapters').children, function (b) {
+      b.className = (+b.getAttribute('data-no') === ch.no) ? 'on' : '';
+    });
+  }
+
+  var nav = $('chapters');
+  CHAPTERS.forEach(function (ch) {
+    var b = document.createElement('button');
+    b.setAttribute('data-no', ch.no);
+    b.textContent = ch.no === 0 ? '总览' : String(ch.no);
+    b.title = ch.name;
+    b.onclick = function () { render(ch); };
+    nav.appendChild(b);
+  });
+  render(CHAPTERS[0]);
+})();
+</script>
+</body>
+</html>
