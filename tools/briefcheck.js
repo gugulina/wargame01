@@ -193,7 +193,12 @@ function skip(name, why) {
   ok('第二句说话人与数据一致', hasTxt(cs2, BP.beats[1].who), BP.beats[1].who);
   const p2 = cs2.querySelector('.cs-portrait');
   ok('旅长走立绘位不是符号位', !!p2 && !p2.classList.contains('sig'));
-  ok('无素材时退化为占位字', cs2.textContent.indexOf('立绘位') >= 0);
+  /* 素材缺失是降级，不是错误：旅长这一格画人物剪影（有人，只是还没画脸），
+     不再把「立绘位」三个字的美术排期贴在玩家脸上。
+     符号位那条说的是相反的意思——"这里没有人"，两者不能混。 */
+  ok('无素材时退化为人物剪影', !!p2 && p2.classList.contains('fig'));
+  ok('剪影位有内置人物图标', !!cs2.querySelector('.cs-portrait.fig svg'));
+  ok('人物位不显示占位字', cs2.textContent.indexOf('立绘位') < 0);
 
   console.log('[7] 连点走完三段对话');
   for (let i = 0; i < 6; i++) {
@@ -1347,7 +1352,10 @@ function skip(name, why) {
        mechTxt.indexOf('怎么用') >= 0);
     /* 文案口径：字段名不能漏到玩家面前。这几个是最容易手滑写进去的
        （`dm`/`atk`/`rng` 在引擎注释里到处都是，复制一段注释过来就中招）。 */
-    const badTerms = ['atk', 'dm:', 'rng', 'orgTick', '未实现', '未登场', '`'];
+    /* keep 是体检 S1 补的：win.keep 的字段名曾被印进 C5 简报。
+       HQ 这两页现在没有，但机制页/图鉴照着规则数据生成，
+       将来哪条 effect 直接从代码拷过来就会漏到玩家面前。 */
+    const badTerms = ['atk', 'dm:', 'rng', 'orgTick', 'keep', '未实现', '未登场', '`'];
     const foundBad = badTerms.filter(t => mechTxt.indexOf(t) >= 0);
     ok('机制页文案里没有代码层表述', foundBad.length === 0, '命中：' + foundBad.join(' / '));
 

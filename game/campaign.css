@@ -1187,6 +1187,11 @@
      给个电台符号，玩家立刻知道这是通讯，不是某个人站在你面前。 */
   .cs-portrait.sig { background: #E9E4D8; }
   .cs-portrait.sig .sig-ico { width: 48px; height: 48px; opacity: .40; }
+  /* 剪影位：说话人确实是个人（师长、副官、车队领队），只是立绘还没画。
+     和符号位分开——电台符号说"这里没有人"，剪影说"有人，看不清脸"。
+     比符号大一号、更淡：它占的是立绘的位置，不是图标的位置。 */
+  .cs-portrait.fig { background: #E9E4D8; }
+  .cs-portrait.fig .sig-ico { width: 72px; height: 72px; opacity: .26; }
   /* 立绘是 176 高，台词常常只有两三行，右边会空出一大块。
      让 .cs-body 自己撑满卡片高度、"点击继续"用 margin-top:auto 贴底，
      右下角就不是空白而是一个明确的操作提示。 */
@@ -1275,6 +1280,7 @@
     .cs-card { padding: 16px 18px; gap: 12px; }
     .cs-portrait { flex: 0 0 90px; width: 90px; height: 120px; }
     .cs-portrait.sig .sig-ico { width: 34px; height: 34px; }
+    .cs-portrait.fig .sig-ico { width: 52px; height: 52px; }
     .cs-text { font-size: 13.5px; line-height: 1.7; }
 
     /* 触摸目标放大 */

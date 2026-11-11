@@ -460,7 +460,7 @@
     <div class="box">
       <h3>怎么玩</h3>
       <ol>
-        <li>点自己的<b>兵牌</b>选中，再点兵牌旁的「<b>行动</b>」→「<b>移动</b>」，脚下才亮起<b>蓝格</b>（可走）；<b>红格</b>是可打。</li>
+        <li>点自己的<b>部队</b>选中，再点它旁边的「<b>行动</b>」→「<b>移动</b>」，脚下才亮起<b>蓝格</b>（可走）；<b>红格</b>是可打。</li>
         <li>开火前先看<b>优势比</b>：3 : 1 稳，1 : 1 是拼命。</li>
         <li>步坦炮工各管一摊，工兵能修工事、架桥、布雷。</li>
         <li>打完点<b>结束我方阶段</b>，回合交给敌方。</li>
@@ -535,8 +535,8 @@
     if (!box) return;
     const N = (window.CANGYU_NOTES && window.CANGYU_NOTES.notes) || [];
     if (!N.length) {
-      box.innerHTML = '<div class="n-more">读不到版本公告（data/notes.js）。' +
-        '本地可以在项目根目录确认这个文件还在。</div>';
+      box.innerHTML = '<div class="n-more">读不到版本公告。' +
+        '这不影响作战；稍后重进再试，若一直如此，请把情况反馈给维护者。</div>';
       return;
     }
     const items = N.slice(0, NOTES_SHOW);
@@ -559,10 +559,9 @@
     levelsBox.innerHTML = '';
     const box = document.createElement('div');
     box.className = 'fatal';
-    box.innerHTML = '<b>读不到关卡数据（data/levels.js）。</b><br>' +
-      '如果在浏览器里看到这一行，多半是文件缺失或浏览器禁用了本地脚本。<br>' +
-      '修复：在项目根目录跑 <code>node tools/export-levels.js</code>，然后刷新。<br>' +
-      '也可以直接进 <a href="game/campaign.html">game/campaign.html</a>，那边不依赖这个文件。';
+    box.innerHTML = '<b>读不到关卡数据。</b><br>' +
+      '先刷新页面重试；若仍是这样，可能是浏览器禁用了本地脚本。<br>' +
+      '也可以<a href="game/campaign.html">直接进入战场</a>——那边不依赖关卡列表。';
     levelsBox.appendChild(box);
     return;
   }

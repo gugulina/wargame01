@@ -2258,7 +2258,10 @@ console.log('\n[34] 手册文案的显示规矩（加粗 / 不许露代码 / 不
      这类东西只有在**渲染结果**上才看得出来，所以断言打在渲染口，不扫源码：
      扫源码会把注释里的同样字眼一起命中，改注释还得改测试，很快就没人维护。 */
   const bad = [
-    [/atk\s*里|check\.js|TYPE\.|abil\b|attMod/, '代码字段名'],
+    /* keep / delta / wave 是体检 S1 补进来的：C5 简报曾把 win.keep 的字段名
+       原样印成「桥南四格是 keep 条件」。只加词还不够——关卡文案以前压根
+       不在 texts 里，见下面新加的收集段，否则加一百个禁用词也拦不住。 */
+    [/atk\s*里|check\.js|TYPE\.|abil\b|attMod|\bkeep\b|\bdelta\b|\bwave\b/, '代码字段名'],
     [/`/, '反引号'],
     [/导弹|喷气|直升机|无人机|雷达制导|电子对抗/, '超出二战水平的装备'],
     [/\*\*/, '没有被转换的加粗标记']
@@ -2280,8 +2283,37 @@ console.log('\n[34] 手册文案的显示规矩（加粗 / 不许露代码 / 不
     texts.push(c.name + '|' + c.desc + '|' + c.note);
   }
   api.AIDE.forEach(x => texts.push(x.q + '|' + x.a));
+  /* 机制页也要收：它是玩家学规则的主页面，篇幅比图鉴还长。
+     v5.3 体检时这一处漏收，结果机制页上的五个错数字一条断言都没拦住。 */
+  (api.MECH || []).forEach(g => (g.items || []).forEach(m =>
+    texts.push(m.k + '|' + m.when + '|' + m.effect + '|' + m.tip)));
+  Object.keys(api.UNIT_INFO || {}).forEach(k => texts.push(String(api.UNIT_INFO[k].intro || '')));
+  /* 关卡简报 / 态势 / 对白同样是玩家可见文案，而且恰恰是字段名最容易漏进来的
+     地方：C5 的「keep 条件」就在简报里，[34] 以前只收图鉴、机制页、战术卡，
+     禁用词表再长也扫不到它。按来源收全，让上面四条正则一起过一遍。 */
+  const levelCopy = [];
+  api.LEVELS.forEach(L => {
+    const A = [L.name, L.teaser || '', L.when || '', L.where || ''];
+    (L.intro || []).forEach(t => A.push(t));
+    const bp = (L.story || {}).briefing || {};
+    (bp.pages || []).forEach(p => {
+      A.push(p.kicker || '', p.title || '', p.order || '');
+      (p.paras || []).forEach(x => A.push(x.t));
+      (p.nums || []).forEach(x => A.push(x.k + ' ' + x.v));
+    });
+    (bp.beats || []).forEach(b => A.push(b.text));
+    if (L.prev) A.push(L.prev.win || '', L.prev.fail || '');
+    A.filter(Boolean).forEach(t => levelCopy.push(t));
+  });
+  texts.push(...levelCopy);
 
   ok('前提：确实收上来一批文案', texts.length > 120, texts.length + ' 条');
+  ok('前提：关卡简报文案也进了禁用词扫描', levelCopy.length > 500,
+     levelCopy.length + ' 条');
+  /* 词表写空 / 正则写错时，下面四条全是"零命中即通过"。
+     拿当年那句原话当试金石，保证 keep 这条真的会命中。 */
+  ok('前提：字段名禁用表认得出「keep 条件」',
+     bad[0][0].test('桥南四格是 keep 条件'));
 
   for (const [re, why] of bad) {
     /* 加粗标记例外：`**` 允许存在于**原始数据**里（bold() 负责转换），
@@ -6067,6 +6099,531 @@ console.log('\n[70] 工程目标 · 桥涵（v5.3）');
      eng3 ? String(eng3.charges) : '无');
   ok('撤销爆破：桥的耐久也退回来', !!wc3 && wc3.hp === wc.maxHp,
      wc3 ? String(wc3.hp) : '无');
+}
+
+/* ───────── 七十一、机制页 / 副官页的数字与代码对账（v5.3 文案体检 P0） ─────────
+   HQ 的机制页与副官页是玩家学规则的唯一地方，而上面的数字过去全靠手抄。
+   v5.3 体检一次查出五处抄错：补给点半径写成 3（代码 4）、"坦克三型都免疫
+   行进间射击"（ARM_FIRE 里根本没有重坦）、有效战力写成线性（ORG_CURVE = 1.30，
+   40 点只剩三成不是四成）、"停着不动能回 12 点"（12 是敌方的，我方 7）、
+   指挥部光环写成 +10/+8（实际是 15 + 光环值 = 25/23）。
+   五处都不是"改了代码忘了改文案"，而是文案从来没跟代码对过账。
+   所以这里每一条都**先从代码量出真值，再要求文案里出现这个真值**：
+   规则一改，量出来的数就变，文案没跟着改就红。这是唯一能防复发的做法。
+
+   匹配一律用"关键词 + 一个短句窗口 + 数字"，不锁整句——
+   锁整句的话改一次措辞就红一片，测试很快会被人当噪音删掉。 */
+console.log('\n[71] 机制页 / 副官页的数字与代码对账（v5.3 文案体检）');
+{
+  const mechItems = (api.MECH || []).reduce((a, g) => a.concat(g.items || []), []);
+  const mechText = k => {
+    const m = mechItems.find(x => x.k === k) || {};
+    return api.bold([m.when, m.effect, m.tip].filter(Boolean).join(' '));
+  };
+  const aideText = frag =>
+    api.bold(String((api.AIDE.find(x => x.q.indexOf(frag) >= 0) || {}).a || ''));
+  const abilText = t => api.bold((api.TYPE[t].abil || []).join(' '));
+  /* 关键词之后 24 字以内必须出现这个数（跨逗号不跨句号）。窗口给得宽，
+     措辞随便改；数字错了、或者压根没写，一样红。
+     val 整段按字面量转义——它常常是 "+7" "×0.82" 这种带正则元字符的串。 */
+  const rx = s => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const near = (text, word, val) =>
+    new RegExp(rx(word) + '[^。]{0,24}' + rx(val)).test(text);
+  const has = (text, val) => text.indexOf(String(val)) >= 0;
+
+  ok('前提：机制页收得到条目', mechItems.length > 20, mechItems.length + ' 条');
+  ok('前提：副官页收得到条目', api.AIDE.length >= 15, api.AIDE.length + ' 条');
+
+  /* ── 1. 补给源半径：从 supplySources 读，不从文案读 ── */
+  api.newGame({ level: 'C3', noSave: true });
+  const supU = api.uid('B3S');
+  supU.pos = [3, 9];                       // 北岸，离两个蓝方基地都很远
+  api.doDepot(supU);
+  const srcs = api.supplySources('blue');
+  const rOf = kind => { const s = srcs.find(x => x.kind === kind); return s ? s.r : NaN; };
+  const rDepot = rOf('补给点'), rSup = rOf('辎重');
+  api.newGame({ level: 'C1', noSave: true });
+  const rDef = api.supplyOpt('blue').r;                      /* 没覆写的关吃默认值 */
+  const rsOver = api.LEVELS.map(l => ((l.supply || {}).blue || {}).r).filter(Number.isFinite);
+  const rMax = Math.max.apply(null, rsOver);
+  ok('前提：补给点与辎重的半径都读到了', [rDepot, rSup].every(Number.isFinite),
+     rSup + '/' + rDepot);
+  ok('前提：确有关卡覆写过基地半径', rMax > rDef, rDef + ' → ' + rMax);
+
+  const mSup = mechText('补给');
+  ok('机制页 · 补给点半径与代码一致（' + rDepot + ' 格）', near(mSup, '补给点', rDepot + ' 格'), mSup.slice(0, 110));
+  ok('机制页 · 辎重队半径与代码一致（' + rSup + ' 格）', near(mSup, '辎重队', rSup + ' 格'), mSup.slice(0, 110));
+  ok('机制页 · 野战关基地半径与代码一致（' + rDef + ' 格）', near(mSup, '基地', rDef + ' 格'), mSup.slice(0, 110));
+  ok('机制页 · 城内关基地半径与代码一致（' + rMax + ' 格）', has(mSup, rMax + ' 格'), mSup.slice(0, 110));
+  ok('机制页 · 要点源只在我方手里时才算源', /只在我方手里时才算源/.test(mSup), mSup.slice(0, 200));
+  ok('机制页 · 补给不再写成"半径 3 格的补给点"', !/补给点[^。]{0,14}3 格/.test(mSup), mSup.slice(0, 110));
+
+  const aSup = aideText('补给怎么算');
+  ok('副官页 · 补给点半径与代码一致（' + rDepot + ' 格）', near(aSup, '补给点', rDepot + ' 格'), aSup.slice(0, 110));
+  ok('副官页 · 城内关基地半径与代码一致（' + rMax + ' 格）', has(aSup, rMax + ' 格'), aSup.slice(0, 110));
+  ok('副官页 · 不再写成"基地半径 3 格内充足"', !/基地半径 \d/.test(aSup), aSup.slice(0, 110));
+
+  /* 三档乘数：SUPPLY_MOD 是唯一的表，文案里的 ×1.00 / ×0.82 / ×0.58 都从它取 */
+  for (const label of ['充足', '紧张', '断绝']) {
+    const v = '×' + api.SUPPLY_MOD[label].toFixed(2);
+    ok('机制页 · 「' + label + '」乘数 ' + v, has(mSup, v), mSup.slice(0, 160));
+    ok('副官页 · 「' + label + '」乘数 ' + v, has(aSup, v), aSup.slice(0, 160));
+  }
+
+  /* ── 2. 原地休整与指挥部光环的恢复量：量，不抄 ──
+     base 写死在 settlePhase 里（光环内 15 + 光环值；脱指 我方 7 / 敌方 12），
+     没有常量可读，只能"静止一回合看涨了多少"。
+     前置条件逐条卡死——不是指挥部自己（hqBonus 恒 0，拿它量会漏掉光环那一档）、
+     没崩、没特性自带恢复、伞下没高炮、补给不断绝：
+     少卡一条，量出来就是几个机制的合计，跟文案对不上还查不出是哪一条。
+     关卡也不是随手挑的：红方部队在 C1 / C7 全被师部光环罩着，量不到脱指那一档。 */
+  const restGain = (level, side, wantAura) => {
+    api.newGame({ level, noSave: true });
+    const Sx = api.getState();
+    const u = api.alive(side).find(x =>
+      !api.isHQ(x) && x.str > 0 && !api.isBroken(x) && api.traitSum(x, 'orgTick') === 0 &&
+      !api.aaSuppressed(x) && api.supplyOf(x, Sx.fields).label !== '断绝' &&
+      (wantAura ? api.hqBonus(x) > 0 : api.hqBonus(x) === 0));
+    if (!u) return null;
+    u.org = 50; u.moved = false; u.fired = false;
+    const aura = api.hqBonus(u);
+    api.settlePhase();
+    return { gain: u.org - 50, aura, type: u.type };
+  };
+  const gBlue = restGain('C1', 'blue', false);
+  const gRed = restGain('C3', 'red', false);
+  const gBde = restGain('C1', 'blue', true);        /* 旅部光环 8 */
+  const gDiv = restGain('C7', 'blue', true);        /* 师部光环 10 */
+  ok('前提：四档休整恢复量都量到了', [gBlue, gRed, gBde, gDiv].every(Boolean),
+     [gBlue, gRed, gBde, gDiv].map(x => x && x.gain).join('/'));
+  ok('前提：两档光环分别来自旅部与师部（' + api.hqAura('hqb') + ' / ' + api.hqAura('hqd') + '）',
+     gBde.aura === api.hqAura('hqb') && gDiv.aura === api.hqAura('hqd'),
+     gBde.aura + '/' + gDiv.aura);
+  ok('前提：光环内确实比脱指恢复得多', gDiv.gain > gBlue.gain && gBde.gain > gBlue.gain,
+     gBlue.gain + ' → ' + gBde.gain + '/' + gDiv.gain);
+
+  /* 断绝那一口也是量出来的：清空补给场比找一格荒野可靠（不会因为地图改了而失效） */
+  const gCut = (() => {
+    api.newGame({ level: 'C1', noSave: true });
+    const Sx = api.getState();
+    const u = api.alive('blue').find(x =>
+      !api.isHQ(x) && x.str > 0 && !api.isBroken(x) && api.traitSum(x, 'orgTick') === 0);
+    if (!u) return null;
+    u.org = 50; u.moved = false; u.fired = false;
+    Sx.fields = { blue: {}, red: {} };
+    if (api.supplyOf(u, Sx.fields).label !== '断绝') return null;
+    api.settlePhase();
+    return 50 - u.org;
+  })();
+  ok('前提：补给断绝每回合确实掉组织度', gCut > 0, String(gCut));
+
+  const mOrg = mechText('组织度');
+  ok('机制页 · 我方休整恢复量（+' + gBlue.gain + '）', near(mOrg, '我方', '+' + gBlue.gain), mOrg.slice(0, 150));
+  ok('机制页 · 敌方休整恢复量（+' + gRed.gain + '）', near(mOrg, '敌方', '+' + gRed.gain), mOrg.slice(0, 150));
+  ok('机制页 · 师部光环恢复量（+' + gDiv.gain + '）', has(mOrg, '+' + gDiv.gain), mOrg.slice(0, 150));
+  ok('机制页 · 旅部光环恢复量（+' + gBde.gain + '）', has(mOrg, '+' + gBde.gain), mOrg.slice(0, 150));
+  ok('机制页 · 断绝每回合掉 ' + gCut + ' 点', near(mOrg, '断补给每回合掉', gCut), mOrg.slice(0, 150));
+
+  const mHQ = mechText('指挥部光环');
+  ok('机制页 · 光环那一档写到 +' + gDiv.gain, has(mHQ, '+' + gDiv.gain), mHQ.slice(0, 150));
+  ok('机制页 · 光环那一档写到 +' + gBde.gain, has(mHQ, '+' + gBde.gain), mHQ.slice(0, 150));
+  ok('机制页 · 不再残留把光环值当恢复量的旧口径（+' + api.hqAura('hqd') + ' / +' + api.hqAura('hqb') + '）',
+     !has(mHQ, '+' + api.hqAura('hqd')) && !has(mHQ, '+' + api.hqAura('hqb')), mHQ.slice(0, 150));
+  ok('机制页 · 说的是「指挥部」不是「指挥牌」', mHQ.indexOf('指挥牌') < 0, mHQ.slice(0, 90));
+
+  for (const [t, g] of [['hqd', gDiv], ['hkc', gDiv], ['hqb', gBde], ['hkg', gBde]]) {
+    ok('图鉴 · ' + api.TYPE[t].name + ' 写的是 +' + g.gain + '/回合',
+       has(abilText(t), '+' + g.gain + '/回合'), abilText(t));
+    ok('图鉴 · ' + api.TYPE[t].name + ' 不再写 +' + api.hqAura(t) + '/回合（那是光环值不是恢复量）',
+       !has(abilText(t), '+' + api.hqAura(t) + '/回合'), abilText(t));
+  }
+  /* 图鉴 intro 不许承诺"每回合都恢复"：移动过或开过火就没有这一口 */
+  for (const t of ['hqd', 'hqb', 'hkc']) {
+    const it = api.bold(String((api.UNIT_INFO[t] || {}).intro || ''));
+    ok('图鉴介绍 · ' + api.TYPE[t].name + ' 说的是「休整时」而不是「每回合」',
+       it.indexOf('每回合多恢复') < 0, it.slice(0, 80));
+  }
+
+  /* ── 3. 行进间射击的免疫名单：逐型对账 ARM_FIRE ── */
+  const mArm = mechText('装甲突击');
+  const CN_N = ['零', '一', '二', '三', '四', '五', '六', '七', '八'];
+  ok('前提：重坦确实不在 ARM_FIRE 里', !api.ARM_FIRE.includes('harm'), api.ARM_FIRE.join(','));
+  ok('机制页 · 免疫的是' + CN_N[api.ARM_FIRE.length] + '型（与 ARM_FIRE 同长）',
+     has(mArm, '这' + CN_N[api.ARM_FIRE.length] + '型'), mArm.slice(0, 150));
+  ok('机制页 · 明说重坦不在此列', /重坦不在此列/.test(mArm), mArm.slice(0, 170));
+  ok('机制页 · 不再写"坦克三型都免疫"', !/三型都是/.test(mArm), mArm.slice(0, 150));
+  ok('图鉴 · 重坦自己写着机动后射击 −10%', /机动过再射击 −10%/.test(abilText('harm')), abilText('harm'));
+  /* 反向也要盯：ARM_FIRE 里的每一型，图鉴都得自称能打了就走。
+     以后谁把自行火炮从名单里摘出去，这一条跟着红。 */
+  ok('图鉴 · ARM_FIRE 里每一型都写着机动后能正常射击',
+     api.ARM_FIRE.every(t => /装甲突击|移动后当回合就能射击|移动后射击无惩罚/.test(abilText(t))),
+     api.ARM_FIRE.filter(t => !/装甲突击|移动后|机动后/.test(abilText(t))).join(','));
+
+  /* ── 4. 组织度系数：按 ORG_CURVE 算出来的档位，不许写成线性 ──
+     副官页过去写的是"有效战力 = 战力 × (组织度 / 100)"，而代码是 (org/100)^1.30。
+     差别在低组织度段最大：40 点线性是四成，实际只剩三成——
+     玩家按线性估 damage，会以为崩溃线以上的部队还能打。 */
+  const CN_F = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十'];
+  const cheng = f => {
+    const x = Math.round(f * 20) / 2;
+    return Number.isInteger(x) ? CN_F[x] + '成' : CN_F[Math.floor(x)] + '成半';
+  };
+  ok('前提：曲线确实比线性陡（40 点不到四成）', api.orgFactor(40) < 0.40,
+     api.orgFactor(40).toFixed(3) + '，ORG_CURVE = ' + api.ORG_CURVE);
+  const aOrg = aideText('组织度是什么');
+  for (const o of [75, 60, 50, 40, 25]) {
+    const word = cheng(api.orgFactor(o));
+    ok('副官页 · 组织度 ' + o + ' 剩' + word, near(aOrg, o + ' ', word), aOrg.slice(0, 170));
+  }
+  ok('副官页 · 不再把有效战力写成线性', !/组织度 \/ 100/.test(aOrg), aOrg.slice(0, 110));
+
+  /* ── 5. 防空压制与自筑工事：两处数字同样从代码取 ── */
+  const F = api.FORT.F.suppress;
+  const aAA = aideText('防空阵地除了挡飞机');
+  ok('副官页 · 压制半径 ' + F.rng + ' 格', has(aAA, '半径 ' + F.rng + ' 格'), aAA.slice(0, 130));
+  ok('副官页 · 每回合组织度 −' + F.org, has(aAA, '−' + F.org), aAA.slice(0, 130));
+  ok('副官页 · 压制下限 ' + F.floor, has(aAA, F.floor), aAA.slice(0, 260));
+  ok('副官页 · 敌方休整恢复量（+' + gRed.gain + '）', near(aAA, '每回合回', gRed.gain + ' 点'), aAA.slice(0, 170));
+  ok('副官页 · 我方休整恢复量（+' + gBlue.gain + '）', near(aAA, '我方那', gBlue.gain + ' 点'), aAA.slice(0, 200));
+  for (const o of [60, 40]) {
+    const word = cheng(api.orgFactor(o));
+    ok('副官页 · 防空那一条的组织度档位 ' + o + ' 剩' + word, near(aAA, '掉到 ' + o, word), aAA.slice(0, 260));
+  }
+
+  api.newGame({ level: 'C1', noSave: true });
+  const digger = api.alive('blue').find(u => api.canSelfFortify(u));
+  ok('前提：找得到能自筑工事的部队', !!digger, digger && digger.type);
+  digger.fortify = 0; digger.moved = false; digger.fired = false;
+  const tickOne = api.selfFortifyTick(digger);
+  api.selfFortifyTick(digger); api.selfFortifyTick(digger);
+  const tickCap = digger.fortify;
+  const mFort = mechText('部队自筑工事');
+  ok('机制页 · 自筑工事每回合 +' + Math.round(tickOne * 100) + '%',
+     has(mFort, '+' + Math.round(tickOne * 100) + '%'), mFort);
+  ok('机制页 · 自筑工事累计上限 +' + Math.round(tickCap * 100) + '%',
+     has(mFort, '+' + Math.round(tickCap * 100) + '%'), mFort);
+  ok('机制页 · 自筑工事点名了 ' + api.SELF_FORTIFY_TYPES.length + ' 个兵种',
+     api.SELF_FORTIFY_TYPES.every(t => /步兵|守备营|反坦克连/.test(mFort)), mFort);
+}
+
+console.log('\n[72] 接敌无线电 / 术语口径 / 机制页完整性（v5.3 文案体检 P1）');
+{
+  const mechItems = (api.MECH || []).reduce((a, g) => a.concat(g.items || []), []);
+  const mechText = k => {
+    const m = mechItems.find(x => x.k === k) || {};
+    return api.bold([m.when, m.effect, m.tip].filter(Boolean).join(' '));
+  };
+
+  /* ── 1. 接敌无线电不许复读简报 ──
+     简报对白是出击前纸上抬起头的口述，接敌无线电是"打响了"那一刻的通报。
+     v5.3 之前第二章八关把那 16 句原样抄了一遍——玩家在简报里刚读过，
+     第一枪响时又读到同一句，演出就变成了复读机。
+     这条只查"不是副本"，不查写得好不好：好坏只能人看，副本能机器判。 */
+  const norm = s => String(s || '').replace(/\s/g, '');
+  const fbBeats = L => (L.events || []).reduce((a, ev) => {
+    if (!ev.when || ev.when.kind !== 'firstBlood') return a;
+    for (const fx of (ev.effects || [])) {
+      (fx.beats || []).forEach(b => a.push({ id: ev.id, text: b.text }));
+      if (fx.text && fx.kind !== 'banner') a.push({ id: ev.id, text: fx.text });
+    }
+    return a;
+  }, []);
+  const dup = [];
+  const levels = api.LEVELS.filter(L => fbBeats(L).length);
+  for (const L of levels) {
+    const brief = ((((L.story || {}).briefing || {}).beats) || []).map(b => norm(b.text));
+    for (const b of fbBeats(L)) if (brief.includes(norm(b.text))) dup.push(L.id + '/' + b.id);
+  }
+  ok('前提：确有一批关卡挂了接敌无线电', levels.length >= 12, levels.length + ' 关');
+  ok('接敌无线电没有一句是本关简报对白的副本', dup.length === 0, dup.join(' '));
+
+  /* 反过来也要有：只查"不复读"的话，把整段删空也能变绿。
+     每关至少两句、每句至少十二个字，删了就红。
+     门槛不敢往高定：第一关第一句是「打响了。都听着：要塞在这儿。我们不走。」，
+     十九个字，全游戏的开场白就该这么短。这条查的是"没被删空"，不是"写得够长"。 */
+  const thin = [];
+  for (const L of levels) {
+    const bs = fbBeats(L);
+    if (bs.length < 2) thin.push(L.id + '（只有 ' + bs.length + ' 句）');
+    bs.forEach(b => { if (norm(b.text).length < 12) thin.push(L.id + '/' + b.id + '（' + norm(b.text).length + ' 字）'); });
+  }
+  ok('接敌无线电没有被删空', thin.length === 0, thin.slice(0, 4).join(' '));
+
+  /* 同一关里两句不能是同一个人自言自语：说话人要不同 */
+  const sameWho = levels.filter(L => {
+    const bs = ((L.events || []).find(e => e.when && e.when.kind === 'firstBlood') || {}).effects || [];
+    const beats = (bs[0] || {}).beats || [];
+    return beats.length > 1 && new Set(beats.map(b => b.who)).size === 1;
+  }).map(L => L.id);
+  ok('接敌无线电是一问一答，不是一个人说两句', sameWho.length === 0, sameWho.join(' '));
+
+  /* ── 2. 术语口径：战报里骰点叫「判」，手册不许写回「骰」 ──
+     这是引擎里早就定下的口径（"「骰」是桌游词，参谋部不会在通报里写它"），
+     但机制页与副官页各自漂回了「掷骰」「骰子」。
+     断言同时盯两头：文案里不许出现，引擎源码里必须还留着那句原话。 */
+  const copyTexts = [];
+  mechItems.forEach(m => copyTexts.push(m.k + m.when + m.effect + m.tip));
+  api.AIDE.forEach(x => copyTexts.push(x.q + x.a));
+  Object.keys(api.TYPE).forEach(k => copyTexts.push((api.TYPE[k].abil || []).join('')));
+  Object.keys(api.UNIT_INFO || {}).forEach(k => copyTexts.push(String(api.UNIT_INFO[k].intro || '')));
+  api.CARD_IDS.forEach(id => copyTexts.push(api.CARDS[id].short + api.CARDS[id].desc + api.CARDS[id].note));
+  api.LEVELS.forEach(L => fbBeats(L).forEach(b => copyTexts.push(b.text)));
+  ok('玩家可见文案里没有「骰」', !copyTexts.some(t => /骰/.test(t)),
+     copyTexts.filter(t => /骰/.test(t)).map(t => t.slice(0, 40)).join(' ⏐ '));
+  ok('玩家可见文案里没有「兵牌」', !copyTexts.some(t => /兵牌/.test(t)),
+     copyTexts.filter(t => /兵牌/.test(t)).map(t => t.slice(0, 40)).join(' ⏐ '));
+  ok('机制页说的是「判点」', /判点/.test(mechText('优势比与判点')), mechText('优势比与判点').slice(0, 90));
+
+  /* ── 3. 击退：机制页引用的战报原话必须与引擎拼出来的一致 ──
+     以前这里引的是一句引擎从来没写过的话（「退路被堵死，挤作一团」），
+     玩家照着手册去战报栏里找，永远找不到。
+     两头都盯：文案里的数字对 PUSH_BLOCK_ORG，引擎源码里那句原话还在。 */
+  const mPush = mechText('击退');
+  const pushQuote = '退路被堵，建制混乱（组织度 −' + api.PUSH_BLOCK_ORG + '）';
+  ok('机制页 · 击退堵死扣 ' + api.PUSH_BLOCK_ORG + ' 点组织度',
+     mPush.indexOf('扣 ' + api.PUSH_BLOCK_ORG + ' 点') >= 0, mPush.slice(0, 200));
+  ok('机制页 · 引用的战报原话与引擎一致', mPush.indexOf(pushQuote) >= 0, mPush.slice(0, 240));
+  ok('前提：引擎里确实拼这句战报', /退路被堵，建制混乱（组织度 −/.test(code));
+
+  /* ── 4. 机制页「特殊单位」必须点名 TRAITS 里的每一个特性 ──
+     v5.1 加了卫戍精锐没往机制页写：玩家在部队面板上看见这四个字，
+     翻遍手册查不到它是什么。以后每加一个特性，这条会替他提醒一次。 */
+  const mSpec = mechText('特殊单位');
+  const traitKeys = Object.keys(api.TRAITS);
+  ok('前提：TRAITS 里不止两个特性', traitKeys.length >= 3, traitKeys.join(','));
+  for (const k of traitKeys) {
+    ok('机制页 · 特殊单位点名了「' + api.TRAITS[k].name + '」',
+       mSpec.indexOf(api.TRAITS[k].name) >= 0, mSpec.slice(0, 220));
+    const pct = ['atk', 'def'].filter(f => api.TRAITS[k][f])
+      .map(f => '+' + Math.round(api.TRAITS[k][f] * 100) + '%');
+    ok('机制页 · 「' + api.TRAITS[k].name + '」的修正值与 TRAITS 一致',
+       pct.every(p => mSpec.indexOf(p) >= 0), pct.join(' ') + ' ⏐ ' + mSpec.slice(0, 220));
+    const tick = api.TRAITS[k].orgTick;
+    ok('机制页 · 「' + api.TRAITS[k].name + '」的自回复 ' + tick + ' 点与 TRAITS 一致',
+       new RegExp(api.TRAITS[k].name + '[^；]{0,40}' + tick + ' 点').test(mSpec),
+       mSpec.slice(0, 220));
+  }
+  ok('机制页 · 说清了自回复不要求原地休整', /不要求原地休整/.test(mSpec), mSpec.slice(0, 240));
+  ok('机制页 · 说清了补给断绝时自回复失效', /补给断绝时失效/.test(mSpec), mSpec.slice(0, 240));
+
+  /* ── 5. 修正值一律写百分数 ──
+     引擎自己的显示口径就是百分数：fmtPct、侧栏自筑工事、工事提示、特性徽章、
+     战报里的多面进攻，全是 Math.round(v*100)+'%'。图鉴写 +0.15 而面板显示 +15%，
+     同一条规则两种写法，玩家得自己换算。小数形式只留给代码字段。 */
+  /* ── 5b. 菜单页 / 配牌页读的是导出副本，口径要一起管 ──
+     体检 B3：「第三方面军」只留在 data/levels.js 的 C2 关卡卡上，引擎里早已改成
+     「西部方面军」——allCopy 以前只收引擎文案，于是引擎全绿、玩家选关第一眼
+     看到的还是旧番号。把两份副本的玩家可见字符串也收进来，下面几条口径断言
+     就同时管住菜单页与配牌页，不用重写一遍正则。
+     用 vm 取值而不是 grep 源文件：副本是 window.X = {...}，只有取字符串值才不会
+     把 srcSig、字段名之类的代码内容当成文案误报。 */
+  const fsCopy = require('fs'), vmCopy = require('vm');
+  const exportTexts = [], exportData = [];
+  for (const rel of ['data/levels.js', 'data/cards.js']) {
+    const sb = { window: {} };
+    vmCopy.createContext(sb);
+    vmCopy.runInContext(fsCopy.readFileSync(
+      require('path').join(__dirname, '..', rel), 'utf8'), sb);
+    exportData.push(sb.window);
+    (function collect(o) {
+      if (typeof o === 'string') { exportTexts.push(o); return; }
+      if (Array.isArray(o)) { o.forEach(collect); return; }
+      if (o && typeof o === 'object') for (const k of Object.keys(o)) collect(o[k]);
+    })(sb.window);
+  }
+  const lvData = exportData[0].CANGYU || {}, cdData = exportData[1].WARGAME_CARDS || {};
+  /* 前提断言不能省：文件被清空 / 换了路径时，exportTexts 为空，
+     下面所有 some/filter 都会"零命中即通过"，绿得毫无意义。 */
+  ok('前提：两份导出副本确实读到了关卡与战术卡文案',
+     (lvData.levels || []).length > 10 && (cdData.cards || []).length >= 3 &&
+     exportTexts.length > 300,
+     '关卡 ' + (lvData.levels || []).length + ' / 卡 ' + (cdData.cards || []).length +
+     ' / 字符串 ' + exportTexts.length);
+  const allCopy = copyTexts.slice();
+  allCopy.push(...exportTexts);
+  api.LEVELS.forEach(L => {
+    allCopy.push(L.name, L.teaser || '', L.when || '', L.where || '');
+    (L.intro || []).forEach(t => allCopy.push(t));
+    const bp = ((L.story || {}).briefing || {}).pages || [];
+    bp.forEach(p => {
+      allCopy.push(p.kicker || '', p.title || '', p.order || '');
+      (p.paras || []).forEach(x => allCopy.push(x.t));
+      (p.nums || []).forEach(x => allCopy.push(x.k + ' ' + x.v));
+    });
+    (((L.story || {}).briefing || {}).beats || []).forEach(b => allCopy.push(b.text));
+    if (L.prev) allCopy.push(L.prev.win || '', L.prev.fail || '');
+  });
+  const dec = allCopy.filter(t => /[+\-−]0\.\d/.test(String(t)));
+  ok('玩家可见文案里没有小数修正值（一律百分数）', dec.length === 0,
+     dec.map(t => String(t).slice(0, 50)).join(' ⏐ '));
+  /* 只盯"当修饰符用"的 ASCII 减号：前面是空白或左括号才算。
+     番号里的 `1-1 营` 是编制写法，不是负号，不能误伤。 */
+  const ascii = allCopy.filter(t => /[\s（(/]-\d/.test(String(t)));
+  ok('玩家可见文案里的负号是 −，不是 ASCII -', ascii.length === 0,
+     ascii.map(t => String(t).slice(0, 50)).join(' ⏐ '));
+
+  /* ── 6. 番号与视角口径 ──
+     第三方面军与西部方面军是同一支，用户定的口径是统一叫西部方面军。
+     allCopy 在 5b 里已并入菜单页/配牌页副本，所以这条同时管住两边：
+     以前只扫引擎 allCopy，旧番号才能一直留在 data/levels.js 的关卡卡上。
+     「这一关怎么玩」是设计者口吻，简报是命令文书，不该出现。 */
+  const oldArmy = allCopy.filter(t => /第三方面军/.test(String(t)));
+  ok('引擎与导出副本里都不再出现「第三方面军」（统一为西部方面军）', oldArmy.length === 0,
+     oldArmy.map(t => String(t).slice(0, 50)).join(' ⏐ '));
+  ok('前提：西部方面军确实在用', allCopy.some(t => /西部方面军/.test(String(t))));
+  const meta = allCopy.filter(t => /这一关怎么玩|物理占位/.test(String(t)));
+  ok('简报里没有设计者口吻的 kicker', meta.length === 0, meta.join(' ⏐ '));
+
+  /* ── 7. 公告页：旧叫法留着，但得有一句注解 ──
+     历史条目按当时的用词存档，不回头改；玩家读到「兵牌」时要能对上今天的部队图标。 */
+  ok('公告页开头解释了「兵牌」就是部队图标',
+     /早期公告里的「兵牌」就是现在的<b>部队图标<\/b>/.test(code));
+  const notesSrc = require('fs').readFileSync(
+    require('path').join(__dirname, '..', 'data', 'notes.js'), 'utf8');
+  const v5block = notesSrc.slice(notesSrc.indexOf("ver: 'v5.3'"), notesSrc.indexOf("ver: 'v4.27'"));
+  ok('前提：切到了 v5.x 公告段', v5block.length > 500, v5block.length + ' 字符');
+  ok('v5.x 公告不再用「兵牌」', !/兵牌/.test(v5block),
+     (v5block.match(/.{0,30}兵牌.{0,30}/g) || []).join(' ⏐ '));
+  ok('v5.x 公告不再把光环写成「2 点战力」', !/2 点战力/.test(v5block));
+}
+
+console.log('\n[73] 指挥部被摧毁的真实代价（v5.3 文案体检 P2）');
+{
+  /* 图鉴以前写「被摧毁时本旅全体组织度 −20」，机制页写「对应部队全体组织度重罚」。
+     实测：removeUnit() 没有 HQ 分支，打掉旅部本旅 org 变化为 0。
+     真正发生的是 hqBonus() 只遍历 alive()，光环永久归零，休整从 +23 掉回 +7。
+     两头都盯：引擎不许悄悄加回即时罚，文案不许再承诺一个不存在的数字。 */
+  let measured = 0, orgDelta = 0, auraLost = 0;
+  for (const id of ['C1', 'C3', 'C7', 'C11']) {
+    api.newGame({ level: id });
+    const st = api.getState();
+    const hq = st.units.find(u => u.side === 'blue' && u.type === 'hqb');
+    if (!hq) continue;
+    const kin = st.units.filter(u => u.side === 'blue' && u.corps === hq.corps && u !== hq);
+    if (!kin.length) continue;
+    const before = kin.map(u => u.org);
+    const had = kin.map(u => api.hqBonus(u));
+    st.units = st.units.filter(u => u !== hq);   // 与 removeUnit 的数值效果等价
+    measured++;
+    orgDelta += kin.reduce((s, u, i) => s + (u.org - before[i]), 0);
+    auraLost += had.filter((a, i) => a > 0 && api.hqBonus(kin[i]) === 0).length;
+  }
+  ok('前提：四关都能测到旅部被摧毁', measured >= 4, measured + ' 关');
+  ok('引擎 · 打掉旅部不当场扣组织度', orgDelta === 0, '合计 ' + orgDelta);
+  ok('引擎 · 打掉旅部后光环永久归零', auraLost > 0, auraLost + ' 支失去光环');
+  ok('前提：removeUnit 里确实没有 HQ 分支',
+     !/function removeUnit[\s\S]{0,600}?isHQ/.test(code));
+
+  const ab = t => (api.TYPE[t].abil || []).join(' ');
+  for (const t of ['hqd', 'hqb', 'hkg', 'hkc']) {
+    ok('图鉴 · ' + api.TYPE[t].name + ' 说的是光环永久消失',
+       /光环永久消失/.test(ab(t)), ab(t));
+    ok('图鉴 · ' + api.TYPE[t].name + ' 不再承诺即时组织度罚',
+       !/被摧毁时.*组织度 -/.test(ab(t)), ab(t));
+    ok('图鉴 · ' + api.TYPE[t].name + ' 写清掉回 +7', /掉回 \+7/.test(ab(t)), ab(t));
+  }
+  const mAura = (api.MECH || []).reduce((a, g) => a.concat(g.items || []), [])
+    .find(m => m.k === '指挥部光环') || {};
+  const auraTxt = api.bold([mAura.when, mAura.effect, mAura.tip].filter(Boolean).join(' '));
+  ok('机制页 · 光环那条不再写「组织度重罚」', !/组织度重罚/.test(auraTxt), auraTxt.slice(0, 200));
+  ok('机制页 · 光环那条明说不会当场扣组织度', /不会当场扣组织度/.test(auraTxt), auraTxt.slice(0, 240));
+}
+
+console.log('\n[74] 文案数值与规则值对账（体检 B1 防复发）');
+{
+  /* C8 泵房 intro 曾写「掉 8 点」，而 events[pump_lost].effects 是 delta:-5、
+     同一关的数字条写「−5 组织度」、简报也写 5 点——8 是误抄了要点 vp:8。
+     三处文案各自都通顺，只有把数字和规则值摆在一起才看得出来。
+     规则值一律从运行时 LEVELS / 引擎源码取，不在断言里写死数字：
+     以后调平衡改了 delta，断言跟着新值走，不会拦着不让改。
+     只认"变化量"句式；C3「每回合组织度 −12」是防空阵地的持续参数，不参与。 */
+  /* 断桥（demolish）的敌军 org 重罚写在判定里，不在 events 表里。
+     锚定 alive('red') 那一段：宽松的 /\.org - (\d+)/ 在引擎里有 5 处，取错就假绿。 */
+  const demPenalty = /alive\('red'\)\)\s*\w+\.org\s*=\s*Math\.max\([\s\S]{0,140}?\.org\s*-\s*(\d+)\s*\)/.exec(code);
+  ok('前提：读到了断桥的敌军组织度重罚数值', !!demPenalty,
+     demPenalty ? demPenalty[1] + ' 点' : "没匹配到 alive('red') 的 org 扣减");
+
+  const orgDeltas = L => (L.events || []).reduce((a, e) => a.concat(
+    (e.effects || []).filter(f => f && f.kind === 'org' && typeof f.delta === 'number')
+      .map(f => Math.abs(f.delta))), []);
+  const claims = [];
+  api.LEVELS.forEach(L => {
+    const A = [];
+    (L.intro || []).forEach(t => A.push(['态势', t]));
+    const bp = (L.story || {}).briefing || {};
+    (bp.pages || []).forEach(p => {
+      (p.paras || []).forEach(x => A.push(['简报', x.t]));
+      (p.nums || []).forEach(x => A.push(['数字条', x.k + ' ' + x.v]));
+    });
+    (bp.beats || []).forEach(b => A.push(['对白', b.text]));
+    const rules = orgDeltas(L);
+    if (L.win && L.win.kind === 'demolish' && demPenalty) rules.push(Number(demPenalty[1]));
+    A.forEach(([src, t]) => {
+      const s = String(t);
+      for (const m of s.matchAll(/组织度[^。；！]{0,12}?(?:立刻|马上)?\s*(?:掉|降|减|扣|加|升|恢复|补)\s*(\d+)\s*点/g))
+        claims.push({ id: L.id, src, val: Number(m[1]), rules, txt: s.slice(0, 70) });
+      for (const m of s.matchAll(/[−+]\s*(\d+)\s*组织度/g))
+        claims.push({ id: L.id, src, val: Number(m[1]), rules, txt: s.slice(0, 70) });
+    });
+  });
+  /* 同样要防"零命中即通过"：正则写松了、字段名改了，claims 会悄悄变空。 */
+  ok('前提：至少抽到 3 条组织度数值承诺', claims.length >= 3, '实得 ' + claims.length + ' 条');
+
+  const mismatch = claims.filter(c => c.rules.indexOf(c.val) < 0);
+  ok('文案承诺的组织度数值在规则里有对应', mismatch.length === 0,
+     mismatch.map(c => c.id + ' ' + c.src + ' 写 ' + c.val + ' 点，规则只有 [' +
+       c.rules.join(',') + ']：' + c.txt).join(' ⏐ '));
+
+  /* 同一关的数字条 / 简报 / 态势写的是同一件事，不许一个数改了另一处没跟。 */
+  const byLevel = {};
+  claims.forEach(c => (byLevel[c.id] = byLevel[c.id] || []).push(c.val));
+  const mixed = Object.keys(byLevel).filter(id => new Set(byLevel[id]).size > 1);
+  ok('同一关的数字条与正文写的是同一个组织度数值', mixed.length === 0,
+     mixed.map(id => id + ': ' + byLevel[id].join(' / ')).join(' ⏐ '));
+}
+
+console.log('\n[75] 要点分值与「最值钱」措辞（体检 S4 防复发）');
+{
+  /* C10 简报曾写「站台 12 分，是全场最值钱的一处」，可站房也是 12 分——
+     并列最高写成唯一最高级，会把玩家往另一处同样 12 分的要点上带偏。
+     C9 是 12 / 10 / 10 / 8，大楼确实唯一最高，写「最值钱」没错，
+     所以判据是"并列时不许写"，不是"一律不许写"。 */
+  const SUPER = /最值钱|最贵|分值最高|最高分|分数最高|最划算/;
+  /* 收集口径与 [74] 一致：只收玩家读得到的关卡文案，不扫代码注释
+     （注释里「要塞最值钱的地方」是说地形，不是要点分值）。 */
+  const copyOf = L => {
+    const A = [L.teaser || ''];
+    (L.intro || []).forEach(t => A.push(t));
+    const bp = (L.story || {}).briefing || {};
+    (bp.pages || []).forEach(p => {
+      (p.paras || []).forEach(x => A.push(x.t));
+      (p.nums || []).forEach(x => A.push(x.k + ' ' + x.v));
+    });
+    (bp.beats || []).forEach(b => A.push(b.text));
+    return A.filter(Boolean).map(String);
+  };
+  const tied = [], solo = [], tieBad = [], soloHit = [];
+  api.LEVELS.forEach(L => {
+    const vps = (L.objectives || []).map(o => o.vp).filter(v => typeof v === 'number');
+    if (!vps.length) return;
+    const top = Math.max.apply(null, vps);
+    const n = vps.filter(v => v === top).length;
+    const hits = copyOf(L).filter(t => SUPER.test(t));
+    if (n > 1) {
+      tied.push(L.id);
+      hits.forEach(t => tieBad.push(L.id + '（并列 ' + n + ' 处 ' + top + ' 分）：' + t.slice(0, 60)));
+    } else {
+      solo.push(L.id);
+      if (hits.length) soloHit.push(L.id);
+    }
+  });
+  /* 两个前提都不能省：没有并列关、或词表写空时，下面那条都会"零命中即通过"。 */
+  ok('前提：既有并列最高的关，也有唯一最高的关',
+     tied.length > 0 && solo.length > 0,
+     '并列 ' + tied.length + ' 关 / 唯一 ' + solo.length + ' 关');
+  ok('前提：最高级措辞在唯一最高的关里确实出现过（词表没写空）',
+     soloHit.length > 0, '命中 ' + soloHit.join(','));
+  ok('并列最高的关不写唯一最高级措辞', tieBad.length === 0, tieBad.join(' ⏐ '));
 }
 
 console.log('\n通过 ' + pass + ' 项，失败 ' + fail + ' 项');

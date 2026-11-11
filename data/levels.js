@@ -6,7 +6,7 @@
    file:// 下 fetch 会被同源策略拦掉，<script src> 不会。 */
 window.CANGYU = {
   "ver": "v5.3",
-  "srcSig": "580276:ufvfeo",
+  "srcSig": "582112:jg260j",
   "storage": {
     "save": "wargame.lankou.save",
     "saveVer": 3,
@@ -174,7 +174,7 @@ window.CANGYU = {
       "type": "突围",
       "when": "新历 1207 年 11 月 27 日",
       "where": "青溪 · 上游渡口",
-      "teaser": "第三方面军快被合上了。第 107 步兵师和第 201 坦克旅在东边，撕开封锁线，至少四支部队过江。",
+      "teaser": "西部方面军快被合上了。第 107 步兵师和第 201 坦克旅在东边，撕开封锁线，至少四支部队过江。",
       "ready": true,
       "open": false,
       "prevId": "C1",
