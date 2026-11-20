@@ -165,8 +165,8 @@ const MUTANTS = [
    '导入被污染的存档 → 失败并说明原因'],
 
   ['兵种合法性不校验（改坏的兵种能写进存档）',
-   "    if (!TYPE[u.type]) return { ok: false, msg: '部队 ' + u.id + ' 的兵种「' + u.type + '」不存在。' };",
-   '',
+   "    if (!hasOwn(TYPE, u.type)) {",
+   '    if (false) {',
    '兵种不存在 → 拒绝'],
 
   /* ── v4.6 体检补的存档防线 ── */
@@ -181,8 +181,8 @@ const MUTANTS = [
    '兵牌名里带标签 → 拒绝'],
 
   ['地图只验行数不验地形字符（一行引号能撕开棋盘 HTML）',
-   "      if (!TERRAIN[ch]) return { ok: false, msg: '存档地图第 ' + (r + 1) + ' 行有未知地形「' + ch + '」。' };",
-   '',
+   "      if (!hasOwn(TERRAIN, ch)) return { ok: false, msg: '存档地图第 ' + (r + 1) + ' 行有未知地形「' + ch + '」。' };",
+   "      if (false) return { ok: false, msg: '存档地图第 ' + (r + 1) + ' 行有未知地形「' + ch + '」。' };",
    '地图里出现未知地形字符 → 拒绝'],
 
   ['战报条数不限（一份档能塞十万条把渲染拖死）',
@@ -313,8 +313,8 @@ const MUTANTS = [
    'HQ_TABS 与页签按钮一一对应', 'brief'],
 
   ['文案里塞回超出二战水平的装备（战斗机挂空空导弹）',
-   "'对空 +0.60：唯一能主动猎杀敌机的兵种，制空权靠它抢'",
-   "'对空 +0.60：开着加力追上去，挂空空导弹见谁打谁'",
+   "'对空 +60%：唯一能主动猎杀敌机的兵种，制空权靠它抢'",
+   "'对空 +60%：开着加力追上去，挂空空导弹见谁打谁'",
    '文案里没有超出二战水平的装备'],
 
   /* 防空压制（驱散）：三条都是少写一句守卫就会静默失效的地方。 */
@@ -1493,14 +1493,20 @@ const MUTANTS = [
    '  if (false) return null;',
    '站在灯下不受夜战射界影响'],
 
+  /* v5.3 AI 轮：原地待命的早退。删掉之后 stepToward 会把"目标就是脚下"的部队
+     挪走——闸门里看不出来（单点断言），只会表现为 C7B 工兵修一回合走一回合。 */
+  ['目标就是脚下也会被挪走（原地待命早退失效）',
+   '  if (goal[0] === u.pos[0] && goal[1] === u.pos[1]) return;',
+   '  if (false) return;',
+   'stepToward 目标是脚下时原地不动'],
   ['爆破不扣装药（可以无限炸）',
-   '    u.charges -= 1;',
-   '    u.charges -= 0;',
+   '  if (u.charges !== undefined) u.charges -= 1;',
+   '  if (u.charges !== undefined) u.charges -= 0;',
    '炸一次扣一份装药'],
 
   ['装药用完也能炸（早退守卫失效）',
-   '    if (u.charges <= 0) {',
-   '    if (false) {',
+   '  if (u.charges !== undefined && u.charges <= 0) {',
+   '  if (false) {',
    '装药用完就炸不动'],
 
   ['敌工兵站上断桥也不修（repair 不生效）',
@@ -1577,15 +1583,34 @@ function htmlPointingToMutAi(html) {
 }
 
 const GREP = (process.argv.find(a => a.startsWith('--grep=')) || '').slice(7);
+/* --check-anchors：只做锚点定位，不跑测试（0.2 秒）。
+   为什么需要它：锚点是**跟随代码**的字符串，引擎里改一行（例如 v5.3 把
+   `!TYPE[x]` 换成 `hasOwn(TYPE, x)`）就会让某几条静默失效；而全量变异要十几分钟，
+   没人会为"改了一行代码"去跑。把它挂进 `npm test`，锚点腐烂当天就红。 */
+const CHECK_ANCHORS = process.argv.includes('--check-anchors');
 /* --shard=k/n：只跑下标 k, k+n, k+2n… 的条目，用来把全量拆成几份并行跑。
-   231 条串行要两个多小时，改一条断言根本等不起；拆四份各自独立进程，
-   彼此只读自己的临时文件（拷一份仓库跑），互不干扰。 */
+   248 条串行要十几分钟（单条 selftest ≈1.8s / briefcheck ≈15.8s），改一条断言根本等不起；
+   拆四份各自独立进程，彼此只读自己的临时文件（拷一份仓库跑），互不干扰。 */
 const SHARD = (() => {
   const a = (process.argv.find(x => x.startsWith('--shard=')) || '').slice(8);
   const m = /^(\d+)\/(\d+)$/.exec(a);
   return m ? { k: Number(m[1]), n: Number(m[2]) } : null;
 })();
 let bad = 0, fromAi = 0;
+
+/* 锚点快检：不开子进程，只回答"这张表的每一行还找得到落点吗" */
+if (CHECK_ANCHORS) {
+  const lost = [];
+  for (const [name, old] of MUTANTS) {
+    const okHtml = !!resolve(baseHtml, old, '');
+    const okAi = baseAi ? !!resolve(baseAi, old, '') : false;
+    if (!okHtml && !okAi) lost.push(name);
+  }
+  console.log('变异锚点：' + MUTANTS.length + ' 条，失效 ' + lost.length + ' 条');
+  lost.forEach(n => console.log('  ? ' + n));
+  process.exit(lost.length ? 1 : 0);
+}
+
 try {
   for (let mi = 0; mi < MUTANTS.length; mi++) {
     const [name, old, neu, expect, runner] = MUTANTS[mi];

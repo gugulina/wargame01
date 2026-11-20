@@ -255,7 +255,7 @@ function bandDefense(objs, side) {
       if (o.cells.some(c => hexDist(u.pos, c) <= 2)) { hit = true; break; }
     }
     if (!hit) continue;
-    s += u.str * (Math.max(0, Math.min(100, u.org)) / 100) *
+    s += u.str * orgFactor(u.org) *
          (1 + (terrainAt(u.pos[0], u.pos[1]).def || 0));
   }
   return s / Math.max(1, objs.length);
@@ -1179,10 +1179,13 @@ function aiMoveScore(u, p, goal, style, hunt) {
     for (const f of foesOf(u.side)) mind = Math.min(mind, hexDist(p, f.pos));
     if (mind < Infinity) s -= Math.min(mind, 8) * HUNT_PULL;
   }
-  /* 防守型把己方工事当成家：一格碉堡/要塞炮比多两格的空地值钱。 */
+  /* 防守型把己方工事当成家：一格碉堡/要塞炮比多两格的空地值钱。
+     必须查 fortWorking：被打掉的工事只剩一个壳，不提供任何防御，
+     不查的话守军会往"已经炸平的碉堡"里钻（aiHoldGarrison / aiRetreatScore
+     都查了，只有这里漏了）。 */
   if (st.digIn) {
     const f = fortAt(p[0], p[1]);
-    if (f && f.side === u.side) s += 2.5;
+    if (f && f.side === u.side && fortWorking(f)) s += 2.5;
   }
   /* 炮兵怕贴脸——这条与脾气无关，谁的炮被贴住都打不出东西。 */
   if (isArty(u)) {
@@ -1631,21 +1634,33 @@ async function runAI() {
     const goal = goalOf(u);
     const stuckTowed = isTowed(u) && !u.packed;    // 没收到炮，挪不动
     if (goal && !u.moved && !stuckTowed) {
+      /* 目标就是脚下 = 原地待命（v5.3 AI 轮）。
+         以前这里只遍历 reach.stop，而 computeReach 会把**起点从 stop 里删掉**，
+         于是"待命"根本不是一个候选：被指派守桥的工兵、被钉在封锁线上的营，
+         只要拿到"留在原地"的目标，就一定会挪一格。
+         玩家的观感是"敌人在要点之间来回换掩体"、C7B 的工兵修一回合走一回合。 */
+      const stay = goal[0] === u.pos[0] && goal[1] === u.pos[1];
       const reach = computeReach(u);
-      let best = null, bs = -Infinity;
-      for (const key in reach.stop) {
-        const p = key.split(',').map(Number);
-        /* 落点打分收进 aiMoveScore：三种脾气的系数差异全在 AI_STYLES 里，
-           runAI 这边只负责"遍历可达格、取最高分"。 */
-        const s = aiMoveScore(u, p, goal, style, hunt);
-        if (s > bs) { bs = s; best = p; }
+      let best = stay ? u.pos.slice() : null, bs = -Infinity;
+      if (!stay) {
+        for (const key in reach.stop) {
+          const p = key.split(',').map(Number);
+          /* 落点打分收进 aiMoveScore：三种脾气的系数差异全在 AI_STYLES 里，
+             runAI 这边只负责"遍历可达格、取最高分"。 */
+          const s = aiMoveScore(u, p, goal, style, hunt);
+          if (s > bs) { bs = s; best = p; }
+        }
       }
       if (best) {
         /* 破口要在挪窝之前判：走完再算，computeReach 会把刚用掉的机动力
            又算回来，"卡住"就不再是事实了。 */
         const bt = aiBreakthroughTarget(u, style, state.fields);
-        doMove(u, best);
-        await sleep(200);
+        /* 原地待命时不要调 doMove：它会把 moved 置真、还会推快照，
+           等于白花一次行动与一个存档点。 */
+        if (!stay) {
+          doMove(u, best);
+          await sleep(200);
+        }
         if (u.rng > 0 && !u.fired) {
           const tg = targetsFor(u, state.fields, pushOpts);
           if (tg.length) {

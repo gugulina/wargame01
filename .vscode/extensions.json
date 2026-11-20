@@ -1,0 +1,13 @@
+{
+  // VS Code 打开这个文件夹时会提示安装。只列真的用得上的，不堆清单。
+  "recommendations": [
+    // 在编辑器里起一个本地服务看 www/（发布物）用；直接看游戏不需要它
+    "ritwickdey.liveserver",
+    // 改文案/文档时看 diff
+    "eamodio.gitlens"
+  ],
+  "unwantedRecommendations": [
+    // 单文件 1.4 万行的引擎上跑全量格式化，只会把对齐好的代码打散
+    "esbenp.prettier-vscode"
+  ]
+}

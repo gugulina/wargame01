@@ -2065,6 +2065,50 @@ console.log('\n[31] 存档内容校验（导入路径与本地读档共用一套
      !api.validateSave(c17).ok && /战术卡/.test(api.validateSave(c17).msg),
      api.validateSave(c17).msg);
 
+  /* ── v5.3 全维度体检 P0：`turn` 是**漏网的那个字段** ──
+     上面十条把兵牌名/简写/编制号/地图/工事/修正/牌组逐个封死，唯独 turn 没验。
+     而 turn 有两个渲染口是裸拼 innerHTML 的：HQ 存档页「第 N 回合」、
+     菜单页「继续推演」副标题。实测（2026-11-11）：turn 写成
+     `"><img src=x id=pwnTurn onerror=alert(1)>` 时 validateSave 返回 ok，
+     首页真的多出一个由攻击者控制的 img 节点。
+     这里守两道：**校验拒绝**（本节）与**渲染转义**（briefcheck 测真实 DOM）。 */
+  const c18 = clone(); c18.turn = '"><img src=x id=pwnTurn onerror=alert(1)>';
+  ok('回合数里带标签 → 拒绝（存档导入 XSS）',
+     !api.validateSave(c18).ok && /回合/.test(api.validateSave(c18).msg),
+     api.validateSave(c18).msg);
+
+  const c19 = clone(); c19.turn = 1e6;
+  ok('回合数是离谱的大数 → 拒绝',
+     !api.validateSave(c19).ok && /回合/.test(api.validateSave(c19).msg),
+     api.validateSave(c19).msg);
+
+  const c20 = clone(); c20.turn = 0;
+  ok('回合数 0（不在 1..上限 内）→ 拒绝', !api.validateSave(c20).ok, api.validateSave(c20).msg);
+
+  /* 撤离 / 护送名单：checkEscape / escortTick 里直接 .push，字符串当场 TypeError */
+  const c21 = clone(); c21.escapedIds = 'not-an-array';
+  ok('已撤出名单不是列表 → 拒绝',
+     !api.validateSave(c21).ok && /名单/.test(api.validateSave(c21).msg),
+     api.validateSave(c21).msg);
+
+  /* 原型键：`!TYPE['__proto__']` 是 false（继承来的），旧校验会放行，
+     随后 select() 里 `ty.abil.map` 抛 TypeError。 */
+  const c22 = clone(); c22.units[0].type = '__proto__';
+  ok('兵种写成 __proto__ → 拒绝（原型键不算兵种）',
+     !api.validateSave(c22).ok && /兵种/.test(api.validateSave(c22).msg),
+     api.validateSave(c22).msg);
+
+  /* 兵牌上的可选数值：面板会拼 `u.mov + ' 点'`、`u.charges + ' 份'` */
+  const c23 = clone(); c23.units[0].charges = '<img src=x>';
+  ok('装药数不是数字 → 拒绝',
+     !api.validateSave(c23).ok && /装药/.test(api.validateSave(c23).msg),
+     api.validateSave(c23).msg);
+
+  const c24 = clone(); c24.ctrl = 'oops';
+  ok('要点控制表不是对象 → 拒绝',
+     !api.validateSave(c24).ok && /要点控制/.test(api.validateSave(c24).msg),
+     api.validateSave(c24).msg);
+
   /* **反向那条同样重要**：正常存档里全是中文字段，校验不能把它们一起杀掉。
      这一条漏了的话，上面十条全绿也可能是因为校验把所有人都拒了。 */
   ok('中文兵牌名 / 编制号照常通过（校验没误杀）',
@@ -3771,6 +3815,9 @@ console.log('\n[48] 三种 AI 脾气 / 炮兵打堆叠格 / 撤销返还战术�
      api.aiFireGate(inf, defOnObj, { ratio: 0.05, flanked: false }, A.seize, false) > 0.65);
   ok('防守型：要点目标本身值 0.15 折扣（0.75 → 0.60）',
      Math.abs(api.aiFireGate(gun, defOnObj, { ratio: 0.05, flanked: false }, A.hold, false) - 0.60) < 1e-9);
+  ok('进攻型：同样吃价值折扣（0.30 → 0.15）',
+     Math.abs(api.aiFireGate(gun, defOnObj, { ratio: 0.05, flanked: false }, A.assault, false) - 0.15) < 1e-9);
+
   ok('进攻型：同样吃价值折扣（0.30 → 0.15）',
      Math.abs(api.aiFireGate(gun, defOnObj, { ratio: 0.05, flanked: false }, A.assault, false) - 0.15) < 1e-9);
 
@@ -6624,6 +6671,222 @@ console.log('\n[75] 要点分值与「最值钱」措辞（体检 S4 防复发�
   ok('前提：最高级措辞在唯一最高的关里确实出现过（词表没写空）',
      soloHit.length > 0, '命中 ' + soloHit.join(','));
   ok('并列最高的关不写唯一最高级措辞', tieBad.length === 0, tieBad.join(' ⏐ '));
+}
+
+/* ══════════ 原地待命必须是合法候选（v5.3 AI 轮）══════════
+   根因：`computeReach` 会把**起点从 stop 里删掉**，而 runAI 的地面分支
+   只遍历 `reach.stop`、`stepToward` 也只遍历 `reach.stop`。
+   于是"目标就是脚下"的部队（驻桥工兵、被钉在封锁线上的营、要点守备）
+   永远拿不到"不动"这个候选，一定会挪一格。
+
+   后果不是崩溃，是三个机制**静默半速**：
+     · C7B 的工兵修一回合、走一回合（回合末结算要求工兵站在桥上）；
+     · C2 的封锁线首回合就散开，T13 每两回合开关一次；
+     · 站在要点上的守军每回合抖一格，玩家看到的是"敌人在换掩体"。
+
+   这类缺陷端到端跑一局看不出来，只能直接问函数。 */
+{
+  console.log('[61] 原地待命 (v5.3 AI 轮)');
+  const api2 = api;
+  api2.newGame({ level: 'C7B', noSave: true });
+  const eng = api2.alive('red').find(u => u.type === 'eng' || u.type === 'engc');
+  ok('前提：C7B 有敌方工兵', !!eng, eng ? eng.abbr : '没有');
+  if (eng) {
+    const before = eng.pos.slice();
+    api2.stepToward(eng, before.slice());
+    ok('stepToward 目标是脚下时原地不动（抢修不会被自己挪走）',
+       eng.pos[0] === before[0] && eng.pos[1] === before[1],
+       JSON.stringify(before) + ' → ' + JSON.stringify(eng.pos));
+    ok('原地待命不消耗行动（moved 仍假，还能开火）', !eng.moved, String(eng.moved));
+  }
+}
+
+/* ══════════ 战役抉择与关卡变体（v5.4）══════════
+   这套东西坏了不会报错：玩家做了选择，后面的关卡却按默认变体跑，
+   表现只是"这关好像和说好的不一样"。所以每一条都要单独问。 */
+{
+  console.log('[64] 战役抉择与关卡变体 (v5.4)');
+  const KEY = api.PROGRESS_KEY;
+  const LS = sandbox.localStorage;
+  const saved = LS.getItem(KEY);          // 这一段会改进度，跑完必须还原
+
+  const setF = f => LS.setItem(KEY, JSON.stringify({ cleared: {}, played: {}, deck: null, last: null, flags: f }));
+  const flagsNow = () => (JSON.parse(LS.getItem(KEY) || '{}').flags) || {};
+
+  /* 一、抉择表自身的完整性 */
+  ok('抉择表非空', api.CHOICES.length >= 3, String(api.CHOICES.length));
+  const badTable = [];
+  for (const c of api.CHOICES) {
+    const lv = api.LEVELS.find(l => l.id === c.after);
+    if (!lv || !lv.ready) badTable.push(c.id + '：after 关卡不存在或未实装');
+    if (!Array.isArray(c.options) || c.options.length < 2) badTable.push(c.id + '：选项不足两个');
+    const ids = new Set((c.options || []).map(o => o.id));
+    if (ids.size !== (c.options || []).length) badTable.push(c.id + '：选项 id 重复');
+    for (const o of c.options || []) {
+      /* 约定：旗标键必须等于 choice id。不相等的话，levelVariant 里的 when
+         会写一个永远匹配不上的键——选择生效了，变体却永远不触发。 */
+      if (!o.flag || !Object.prototype.hasOwnProperty.call(o.flag, c.id)) badTable.push(c.id + '/' + o.id + '：旗标键不是 choice id');
+      if (!o.note) badTable.push(c.id + '/' + o.id + '：没写后果说明（玩家看不见代价）');
+    }
+  }
+  ok('每条抉择都指向真实关卡、选项唯一、旗标键规范、带后果说明',
+     badTable.length === 0, badTable.join('；'));
+
+  /* 二、待办判定与写入 */
+  setF({});
+  ok('无旗标时 C2 有待做的抉择', !!api.pendingChoice('C2'));
+  ok('无旗标时 C3 有待做的抉择', !!api.pendingChoice('C3'));
+  ok('没有抉择的关卡不弹（C1）', !api.pendingChoice('C1'));
+  api.setChoice('c2_bridge', 'blow');
+  ok('选择写入进度（flags 里能读回）', flagsNow().c2_bridge === 'blow', JSON.stringify(flagsNow()));
+  ok('做过选择后不再重复询问', !api.pendingChoice('C2'));
+  api.setChoice('c2_bridge', '不存在的选项');
+  ok('非法选项不写入、不抛错', flagsNow().c2_bridge === 'blow');
+
+  /* 三、变体真的改了这一关 */
+  setF({});
+  api.newGame({ level: 'C3', noSave: true });
+  const base = api.getState();
+  const baseUnits = base.units.length;
+  ok('无旗标：C3 不加部队、不位移波次',
+     base.waveShift === 0 && base.variantId === null && baseUnits === 30,
+     'shift=' + base.waveShift + ' units=' + baseUnits);
+
+  setF({ c2_bridge: 'blow' });
+  api.newGame({ level: 'C3', noSave: true });
+  const blown = api.getState();
+  ok('炸桥：岚口敌军波次整体晚一个回合',
+     blown.waveShift === 1 && blown.variantId === 'c3_late',
+     'shift=' + blown.waveShift + ' variant=' + blown.variantId);
+
+  setF({ c2_bridge: 'keep' });
+  api.newGame({ level: 'C3', noSave: true });
+  const kept = api.getState();
+  ok('保桥：岚口多一支工兵连（能修能架桥）',
+     kept.variantId === 'c3_bridge_kept' &&
+     kept.units.filter(u => u.type === 'engc').length === 2,
+     'variant=' + kept.variantId + ' engc=' + kept.units.filter(u => u.type === 'engc').length);
+
+  setF({ c3_hold: 'air' });
+  api.newGame({ level: 'C4', noSave: true });
+  const aa = api.getState().units.filter(u => u.id === 'B4AA');
+  setF({ c3_hold: 'city' });
+  api.newGame({ level: 'C4', noSave: true });
+  const en = api.getState().units.filter(u => u.id === 'B4EN');
+  ok('机场带出的东西不同：防空连 vs 工兵营',
+     aa.length === 1 && aa[0].type === 'aac' && en.length === 1 && en[0].type === 'eng',
+     (aa[0] || {}).type + ' / ' + (en[0] || {}).type);
+
+  setF({ c7b_bridges: 'all' });
+  api.newGame({ level: 'C8', noSave: true });
+  const s1 = api.getState();
+  setF({ c7b_bridges: 'spare' });
+  api.newGame({ level: 'C8', noSave: true });
+  const s2 = api.getState();
+  ok('铁路全炸：水厂的敌军波次晚到；留桥：多一支工兵连',
+     s1.waveShift === 1 && s2.waveShift === 0 &&
+     s2.units.filter(u => u.type === 'engc').length === s1.units.filter(u => u.type === 'engc').length + 1,
+     'all shift=' + s1.waveShift + ' / spare shift=' + s2.waveShift);
+
+  /* 四、变体部队要落在合法格子上：写在别处会当场叠进敌占格或河里，
+     而这种错误只在那一关的开局画面里看得出来。 */
+  const badPos = [];
+  for (const lv of api.LEVELS) {
+    for (const v of (lv.variants || [])) {
+      for (const u of (v.extraUnits || [])) {
+        const ch = (lv.mapSrc || lv.map || [])[u.r] && (lv.mapSrc || lv.map)[u.r][u.c];
+        const t = api.TERRAIN[ch];
+        if (!t) { badPos.push(lv.id + '/' + u.id + '：坐标越界'); continue; }
+        if (t.cost >= 99) badPos.push(lv.id + '/' + u.id + '：落在不可通行地形 ' + ch);
+        const other = (lv.units || []).find(x => x.r === u.r && x.c === u.c && x.id !== u.id);
+        if (other) badPos.push(lv.id + '/' + u.id + '：与 ' + other.id + ' 同格');
+      }
+    }
+  }
+  ok('变体部队都落在可通行、未占用的格子上', badPos.length === 0, badPos.join('；'));
+
+  /* 还原进度：后面还有别的用例要读它 */
+  if (saved === null) LS.removeItem(KEY); else LS.setItem(KEY, saved);
+}
+
+/* ══════════ 地块贴图与地形的对应（v5.4 美术轮）══════════
+   贴图路径写错的表现是"地图悄悄变回纯色"——不报错、不进日志，
+   只有真去看图才发现。所以映射必须断言：
+   ① 地形表里每个 class 都有一条映射；② 映射的每个值都非空且在 ASSETS.ui 里。 */
+{
+  console.log('[67] 地块贴图映射 (v5.4)');
+  const terrain = api.TERRAIN || {};
+  const tileOf = api.TILE_OF || {};
+  const ui = (api.ASSETS && api.ASSETS.ui) || {};
+
+  const missMap = [];
+  for (const ch of Object.keys(terrain)) {
+    const cls = terrain[ch].cls;
+    if (!Object.prototype.hasOwnProperty.call(tileOf, cls)) missMap.push(terrain[ch].name + '（' + cls + '）');
+  }
+  ok('每种地形都有对应的贴图条目', missMap.length === 0, missMap.join('、'));
+
+  const badVal = [];
+  for (const cls of Object.keys(tileOf)) {
+    const v = tileOf[cls];
+    if (typeof v !== 'string' || !v) { badVal.push(cls + '：空'); continue; }
+    if (!/^terrain\/[a-z]+\.png$/.test(v)) badVal.push(cls + '：路径不像地块图（' + v + '）');
+    const inUi = Object.keys(ui).some(k => ui[k] === v);
+    if (!inUi) badVal.push(cls + '：ASSETS.ui 里没有这个文件（' + v + '）');
+  }
+  ok('贴图路径规范且都登记在 ASSETS.ui 里', badVal.length === 0, badVal.join('；'));
+
+  const hexSlots = ['hexPlain', 'hexForest', 'hexHill', 'hexTown', 'hexAir', 'hexRoad',
+                    'hexFord', 'hexRiver', 'hexShoal', 'hexDeep', 'hexPort', 'hexRail'];
+  const emptySlots = hexSlots.filter(k => typeof ui[k] !== 'string' || !ui[k]);
+  ok('12 个地块槽位都已填上素材', emptySlots.length === 0, emptySlots.join('、'));
+
+  /* 反向：ASSETS.ui 里不该有"填了但地形表用不到"的图（白占体积）。
+     冬季图由 TILE_OF_W 引用，两套合起来才算"用到"——漏掉冬季那八张会误报。 */
+  const used = new Set([...Object.values(tileOf), ...Object.values(api.TILE_OF_W || {})]);
+  const orphan = Object.keys(ui).filter(k => /^hex/.test(k) && typeof ui[k] === 'string' && ui[k] && !used.has(ui[k]));
+  ok('没有孤儿地块图（登记了却没被地形用到）', orphan.length === 0, orphan.join('、'));
+}
+
+/* ══════════ 冬季地块变体（v5.4）══════════
+   冬季是"同一套材质换配色"，不是第二套美术。坏了的表现很温和：
+   第 3 章整章变回秋季色，或者某个地形在冬天变纯色——都不会报错。 */
+{
+  console.log('[70] 冬季地块变体 (v5.4)');
+  const ui = (api.ASSETS && api.ASSETS.ui) || {};
+  const w = api.TILE_OF_W || {};
+
+  const wSlots = Object.keys(w).map(k => w[k]).filter(Boolean);
+  ok('冬季映射覆盖 8 个地形', Object.keys(w).length === 8 && wSlots.length === 8,
+     Object.keys(w).join(','));
+
+  const badW = [];
+  for (const cls of Object.keys(w)) {
+    const v = w[cls];
+    if (typeof v !== 'string' || !/^terrain\/winter\/[a-z]+\.png$/.test(v)) badW.push(cls + '：' + v);
+    else if (!Object.keys(ui).some(k => ui[k] === v)) badW.push(cls + '：ASSETS.ui 未登记');
+  }
+  ok('冬季贴图路径规范且都登记在 ASSETS.ui', badW.length === 0, badW.join('；'));
+
+  /* 秋季有、冬季没有的地形（机场/浅海/深海/港口）在冬天必须回落到普通图，
+     不能变成纯色——"这格冬天没有素材"不该让地图破一个洞。 */
+  const fallback = [];
+  for (const cls of ['t-air', 't-shoal', 't-deep', 't-port']) {
+    if (!w[cls] && !api.TILE_OF[cls]) fallback.push(cls + '：连普通图都没有');
+  }
+  ok('冬季没做的地形会回落到普通贴图', fallback.length === 0, fallback.join('；'));
+
+  /* seasonOf 的优先级：关卡声明 > URL 预览 > 默认 */
+  const L0 = api.LEVEL;
+  const keep = L0.season;
+  L0.season = 'winter';
+  ok('关卡声明 winter 时 seasonOf 返回 winter', api.seasonOf() === 'winter', api.seasonOf());
+  ok('冬季时 tileFor 给出雪地图', /winter\//.test(String(api.tileFor('t-plain'))), String(api.tileFor('t-plain')));
+  delete L0.season;
+  ok('没有声明时默认秋季且给普通图',
+     api.seasonOf() === 'autumn' && !/winter\//.test(String(api.tileFor('t-plain'))),
+     api.seasonOf() + ' / ' + api.tileFor('t-plain'));
+  if (keep !== undefined) L0.season = keep;
 }
 
 console.log('\n通过 ' + pass + ' 项，失败 ' + fail + ' 项');

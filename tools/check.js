@@ -157,11 +157,14 @@ const { api } = loadGame(file);
       }
     }
   };
-  ['sfx', 'bgm', 'story'].forEach(k => walk(api.ASSETS[k], k));
+  /* ui 槽位以前是 null（没素材），2026-11 起地块贴图接上了，
+     所以它也要 stat 一遍：贴图路径写错的表现是"地图变回纯色"，不报错。 */
+  ['sfx', 'bgm', 'story', 'ui'].forEach(k => walk(api.ASSETS[k], k));
   if (!bad) {
     const cnt = o => Object.keys(o || {}).filter(x => typeof o[x] === 'string').length;
     console.log('[1c/4] 素材引用正常：音效 ' + cnt(api.ASSETS.sfx) + ' 个、音乐 ' +
-      cnt(api.ASSETS.bgm) + ' 首、图片 ' + cnt(api.ASSETS.story) + ' 张，全部在磁盘上');
+      cnt(api.ASSETS.bgm) + ' 首、图片 ' + cnt(api.ASSETS.story) + ' 张、地块 ' +
+      cnt(api.ASSETS.ui) + ' 张，全部在磁盘上');
   }
   fail += bad;
 }

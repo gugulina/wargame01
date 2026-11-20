@@ -3,19 +3,86 @@
 > **v4.17–v4.26 之间没出过包**，versionCode 是手改的，从 10 一路涨到 18。
 > v19 是第一个真正装着 4.27 引擎的包；它不是 v9 的下一版，中间隔了十个版本。
 
-**当前包**：`苍屿战役-v19.apk`（versionCode 19 / versionName 4.27）· 7,849,232 字节 ≈ 7.49 MiB
-**上一版**：v9（versionCode 9 / versionName 4.15）· 7,743,691 字节 —— v19 净增 105,541 字节
-（跨了十个版本：中间补了关卡、兵种与公告，`data/notes.js` 现在 32 条、README 到 90 KB。
-这是 `clean assembleDebug` 的数字；与 v9 的差值里含版本公告面板和几版关卡数据）
-**更早**：v8 · 7,736,355 ｜ v7 · 7,722,590 ｜ v6 · 7.4 MB ｜ v5 · 26 MB
-—— v5 那 26 MB 不是优化问题，是把开发 leftovers 打进了包
-**构建**：Capacitor 8.5.3 + Gradle 8.14.3 + JDK 21 + Android SDK 36
+**当前包**：`dist/苍屿战役-v5.3-code32-debug.apk`（versionCode **32** / versionName **5.4**）· **8,253,124 字节 ≈ 7.57 MiB**（2026-11-13 构建：先出 code 24，UI 优化后重出 **code 26**，过程见 §零）
+**上一版**：`苍屿战役-v19.apk`（versionCode 19 / versionName 4.27）· 7,849,232 字节 ≈ 7.49 MiB
+**更早**：v9（code 9 / 4.15）· 7,743,691 ｜ v8 ｜ v7 ｜ v6 ｜ v5（26 MB——把开发 leftovers 打进了包）
+**构建**：Capacitor 8.6.0 + Gradle 8.14.3 + JDK 21.0.2 + Android SDK 36（build-tools 35/36）
 
 > 这份文档原先叫"测试报告"，里面有一批数对不上（写 Capacitor 7 实际是 8.5.3、写最低 API 21
 > 实际 `minSdkVersion = 24`，还有几条本机无从复现的性能数字）。v6 重写：**能复现的流程写死，
 > 没测过的明确标"未验证"**，不拿估计当结论。
 
 ---
+
+## 零、2026-11-13 的 v5.3 包（code 24）
+
+### 0.1 结论
+
+| 项 | 值 |
+|---|---|
+| 产物 | `dist/苍屿战役-v5.3-code32-debug.apk` · 8,253,124 B（7.57 MiB） |
+| 清单 | `package com.cangyu.wargame` · `versionCode 32` · `versionName 5.3` · `minSdk 24` · `targetSdk 36` · label **苍屿战役** |
+| 包内引擎 | `#verTag` v5.3，且包含 2026-11-11 那批修复：C3 超额 35、存档 `turn` 校验、C9 编成文案、C7B「9 回合」、动态操作说明 |
+| 签名 | **debug**（不可上架，只能自测/内部分发） |
+| 真机 | **未验证**（本机无设备、无 adb 连接） |
+
+### 0.2 这台机器上是从零搭的（原文档假设 Windows 上已有 JDK/SDK/Gradle）
+
+工具链全部落在项目内、且**不进版本库**：
+
+```
+.tools/jdk/              OpenJDK 21.0.2（华为镜像，192 MB，19s）
+.tools/android-sdk/      cmdline-tools + platforms;android-36 + build-tools 35.0.0/36.0.0 + platform-tools 37.0.3
+.tools/gradle-8.14.3/    Gradle 发行版（华为镜像，131 MB，13s）
+.tools/gradle-home/      GRADLE_USER_HOME（~99 MB 依赖缓存）
+.tools/android-user/     ANDROID_USER_HOME（AGP 想写 ~/.android，这里给它一个能写的位置）
+.tools/tmp/              java.io.tmpdir（AGP 的 CompressAssets 要写临时文件）
+```
+
+**为什么要这么摆**：本机是沙箱环境，Java 子进程只能写工作区内的路径。于是四个"默认在用户目录"的位置必须逐个改道——`GRADLE_USER_HOME`、`ANDROID_USER_HOME`、`java.io.tmpdir`、以及 SDK 本身。
+
+### 0.3 四个坑（下次重搭会再踩）
+
+1. **Gradle 需要 `~/.gradle`** → 报 `Could not initialize native services`。改道 `GRADLE_USER_HOME` 即可。
+2. **AGP 需要 `~/.android`** → 报 `Failed to create service AndroidLocationsBuildService`。改道 `ANDROID_USER_HOME`；**不要同时设 `ANDROID_SDK_HOME`**，两个都设会报"Several environment variables contain different paths"。
+3. **`sdkmanager` 连不上 Google 的仓库**（`Fetch remote repository` IO 异常）→ 直接按 `repository2-3.xml` 里的 URL 下 zip 手工铺目录：`platforms/android-36`、`build-tools/{35.0.0,36.0.0}`、`platform-tools`。还要手写 `licenses/android-sdk-license`（三行哈希），否则 AGP 拒绝。
+4. **PowerShell 5.1 的 `Set-Content -Encoding utf8` 会写 BOM** → Groovy 报 `Unexpected character: '﻿'`。改 `build.gradle` 用 `[IO.File]::WriteAllText(..., UTF8Encoding($false))`。
+
+另外：**中文路径**。项目在 `Documents\兵棋游戏`，AGP 与 aapt2 对非 ASCII 路径并不稳。做法是建一个 ASCII 联接点：
+
+```powershell
+cmd /c mklink /J C:\dev\wargame "C:\Users\ASUS\Documents\兵棋游戏"
+```
+
+构建在 `C:\dev\wargame\android` 里跑，产物再拷回 `dist/`。**仓库内容没变**，只是给构建器一条纯 ASCII 的路。
+
+### 0.4 复现（四个命令）
+
+```powershell
+$env:JAVA_HOME="C:\dev\wargame\.tools\jdk"
+$env:ANDROID_HOME="C:\dev\wargame\.tools\android-sdk"
+$env:ANDROID_USER_HOME="C:\dev\wargame\.tools\android-user"
+$env:GRADLE_USER_HOME="C:\dev\wargame\.tools\gradle-home"
+$env:GRADLE_OPTS="-Dorg.gradle.native=false -Djava.io.tmpdir=C:\dev\wargame\.tools\tmp"
+$env:TMP=$env:TEMP="C:\dev\wargame\.tools\tmp"
+
+cd C:\dev\wargame
+node tools/build-www.js                       # 43 文件 4.44 MB
+node node_modules\@capacitor\cli\bin\capacitor copy android
+cd android; ..\.tools\gradle-8.14.3\bin\gradle.bat --no-daemon assembleDebug
+```
+
+版本号在 `android/app/build.gradle`（`versionCode 32` / `versionName "5.4"`）。**`android/` 不入库**，所以每台机器 `cap add android` 之后都要重新改一次——这正是"版本号没有单一真源"的老问题（见 `docs/30` §8.3）。
+
+### 0.5 验收怎么做的
+
+1. `aapt2 dump badging`：核对 package / versionCode / versionName / minSdk / targetSdk / label（结果见 0.1）。
+2. 解包读 `assets/public/game/campaign.html`：确认 v5.3 与四处修复文案都在（不是拷了旧 `www`）。
+3. 体积对比：v19 7.49 MiB → v26 7.57 MiB（+84 KB，来自新增的关卡文案与 UI 字号调整）。
+4. **没做**：真机安装、WebView 音频自动播放、后台保活、存档持久化、横竖屏——仍然待验。
+
+---
+
 
 ## 一、包体：22.5 MB → 4.00 MB
 
@@ -66,7 +133,7 @@ cd android && ./gradlew clean assembleDebug   # 发版加 clean
 
 - **JDK 21**：`C:/Program Files/Eclipse Adoptium/jdk-21.0.12.101-hotspot`
   Capacitor 8 要 JDK 21+，JDK 17 会报 `invalid target release: 21`
-- **Android SDK**：`C:/Users/泽宇/AppData/Local/Android/Sdk`（compileSdk / targetSdk 36，minSdk 24）
+- **Android SDK**：`C:/Users/<用户名>/AppData/Local/Android/Sdk`（compileSdk / targetSdk 36，minSdk 24）
   光设 `ANDROID_HOME` 不一定够——Gradle 只认 `android/local.properties` 里的 `sdk.dir`。
   该文件**不入库**（`cap add android` 也不生成），换机器要手写一行：
   `sdk.dir=C\:\\Users\\<用户名>\\AppData\\Local\\Android\\Sdk`。缺它会直接停在

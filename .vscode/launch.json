@@ -1,0 +1,45 @@
+{
+  // F5 直接调试。浏览器调试用内置的 js-debug（Edge），不用装扩展。
+  // 注意：游戏是纯静态的，用 file:// 打开即可，不需要起服务器。
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "调试：菜单页（Edge）",
+      "type": "msedge",
+      "request": "launch",
+      "file": "${workspaceFolder}/index.html",
+      "webRoot": "${workspaceFolder}",
+      "sourceMaps": false
+    },
+    {
+      "name": "调试：引擎（Edge，自动挑第一关）",
+      "type": "msedge",
+      "request": "launch",
+      "file": "${workspaceFolder}/game/campaign.html",
+      "webRoot": "${workspaceFolder}/game",
+      "sourceMaps": false
+    },
+    {
+      // 调试测试脚本：断点直接打在 tools/selftest.js 里
+      "name": "调试：selftest（Node）",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/tools/selftest.js",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
+    },
+    {
+      // 调试引擎本身：断点可以打在 game/campaign.html 的内联脚本里，
+      // 走的是 tools/load.js 的 vm 加载（和测试同一套加载路径）
+      "name": "调试：引擎逻辑（Node + vm）",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/tools/autoplay-campaign.js",
+      "args": ["game/campaign.html", "1", "--level=C1", "--seed=1234", "--no-gate"],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
+    }
+  ]
+}

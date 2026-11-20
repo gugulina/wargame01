@@ -57,7 +57,14 @@
     font: 13px/1.55 -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
     -webkit-font-smoothing: antialiased;
   }
-  .app { display: flex; gap: 16px; padding: 16px; align-items: flex-start; }
+  .app {
+    display: flex; gap: 16px; align-items: flex-start;
+    padding: 16px;
+    padding-top: max(16px, env(safe-area-inset-top));
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
+    padding-left: max(16px, env(safe-area-inset-left));
+    padding-right: max(16px, env(safe-area-inset-right));
+  }
   main { flex: 1; min-width: 0; }
 
   .topbar {
@@ -65,13 +72,13 @@
     background: var(--card); border: 1px solid var(--line); border-radius: 10px;
     padding: 10px 14px; margin-bottom: 10px;
   }
-  .topbar h1 { font-size: 15px; font-weight: 650; margin: 0; letter-spacing: .2px; }
-  .topbar .sub { color: var(--ink3); font-size: 12px; }
+  .topbar h1 { font-size: 16px; font-weight: 650; margin: 0; letter-spacing: .2px; }
+  .topbar .sub { color: var(--ink3); font-size: 14px; }
   .topbar .spacer { flex: 1; }
   /* 版本号：一排胶囊中间夹一个朴素小字，跟它们保持同一字号，别抢眼 */
-  #verTag { color: var(--ink3); font-size: 11px; letter-spacing: .3px; }
+  #verTag { color: var(--ink3); font-size: 12px; letter-spacing: .3px; }
   .pill {
-    padding: 3px 9px; border-radius: 20px; font-size: 12px; font-weight: 600;
+    padding: 3px 9px; border-radius: 20px; font-size: 14px; font-weight: 600;
     background: #F1EEE5; color: var(--ink2); border: 1px solid var(--line);
   }
   .pill.b { background: var(--blue-bg); color: var(--blue); border-color: #C9DBEC; }
@@ -94,13 +101,13 @@
   #boardWrap.grabbing { user-select: none; }
   .legend {
     display: flex; gap: 14px; align-items: center; flex-wrap: wrap;
-    padding: 8px 4px 0; font-size: 11.5px; color: var(--ink3);
+    padding: 8px 4px 0; font-size: 12px; color: var(--ink3);
   }
   .legend span { display: inline-flex; align-items: center; }
   /* 括号里的补充说明：小一号、更淡，不能抢正题的字重 */
   /* 图例里那半句注解原来是 #B3ADA0（2.00:1）10px，属于"设计上就没打算让人看清"。
      改成跟正文注解同一个 ink2、11px：图例是第一次进战场时唯一的说明书。 */
-  .legend em { font-style: normal; font-size: 11px; color: var(--ink2); margin-left: 2px; }
+  .legend em { font-style: normal; font-size: 12px; color: var(--ink2); margin-left: 2px; }
   .legend .k {
     display: inline-block; width: 11px; height: 11px; border-radius: 3px;
     margin-right: 5px; vertical-align: -1px;
@@ -124,6 +131,15 @@
   .hex {
     position: absolute;
     width: var(--hex-w); height: var(--hex-h);
+    /* 地块贴图（v5.4）：--tile 由 renderBoard 逐格写入，缺图时退回 .t-* 的底色。
+       贴图 96×110 比六边形外接框（约 47×54）大，配合 --tx/--ty 的 ±8px 偏移，
+       相邻同地形格不会看出是同一张图。 */
+    background-image: var(--tile, none);
+    /* 按格子尺寸的百分比铺满：96/46.8 ≈ 205%、110/54 ≈ 204%。
+       写死像素的话，以后改 HEX_S 就得回来同步这里。 */
+    background-size: 205% 204%;
+    background-position: var(--tx, 0px) var(--ty, 0px);
+    background-repeat: repeat;
     clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
     cursor: pointer;
     display: flex; align-items: center; justify-content: center;
@@ -157,7 +173,7 @@
     position: absolute; left: 2px; top: 50%; transform: translateY(-50%);
     width: 10px; height: 12px; border-radius: 2px;
     display: flex; align-items: center; justify-content: center;
-    font-size: 8.5px; line-height: 1; font-weight: 800; z-index: 6;
+    font-size: 9px; line-height: 1; font-weight: 800; z-index: 6;
     letter-spacing: 0; pointer-events: none;
   }
   .fbadge.blue { background: #EAF1F8; color: #185FA5; box-shadow: 0 0 0 1px rgba(24,95,165,.75); }
@@ -176,7 +192,7 @@
     position: absolute; right: 2px; top: 50%; transform: translateY(-50%);
     width: 11px; height: 12px; border-radius: 2px;
     display: flex; align-items: center; justify-content: center;
-    font-size: 8.5px; line-height: 1; font-weight: 800; z-index: 6;
+    font-size: 9px; line-height: 1; font-weight: 800; z-index: 6;
     letter-spacing: 0; pointer-events: none;
   }
   .dbadge.blue { background: #FFF1D2; color: #8A5A16; box-shadow: 0 0 0 1px rgba(138,90,22,.72); }
@@ -189,8 +205,10 @@
      ::before 已经归要点染色、::after 归移动/攻击高亮，撤离格正好可能同时是可达格。
      用元素自身的 background 与 inset box-shadow，三层就能叠着看。 */
   .hex.esczone {
-    background: #C6DCC0;
-    box-shadow: inset 0 0 0 3px rgba(58,116,70,.50);
+    background-color: #C6DCC0;
+    /* 用一层半透明内阴影压色，而不是换背景色：
+       换了背景色就把地块贴图盖掉了，撤离区会变成"没有地形的地块"。 */
+    box-shadow: inset 0 0 0 3px rgba(58,116,70,.55), inset 0 0 0 999px rgba(120,170,120,.16);
   }
   /* 夜战（v5.3）：整片地面压暗，但**只压 .hex**——
      兵牌是叠在格子之上的独立元素，番号与战力必须照旧读得清。
@@ -262,33 +280,24 @@
       rgba(176,126,30,.42) 0 4px, rgba(176,126,30,.10) 4px 8px);
   }
 
-  .t-plain  { background: #EDEAE0; }
-  .t-forest { background: #CBDCC0; }
-  .t-hill   { background: #DDD1B6; }
-  .t-town   { background: #D0C9BA; }
-  .t-air    { background: #D9DDE3; }
-  .t-road   { background: #F4F1E7; }
-  .t-ford   { background: #B6D2E5; }
-  .t-river  { background: #A5C7DE; }
-  /* 浅海 / 深海：比河流更冷、更深。深海要一眼看出"这不是河的延长"，
-     否则玩家会把蓝水舰开进内河、再回来问为什么进不去。 */
-  .t-shoal  { background: #9FC4DC; }
-  .t-deep   { background: #6E93B4; }
-  /* 港口：水泥码头，比城市偏冷、比机场偏绿——要和浅海挨着时仍能分界 */
-  .t-port   { background: #A9B4A6; }
-  /* 铁路（v5.3）：深褐路基底 + 竖排枕木纹。
-     和道路（米白、纯色）必须一眼分开——这一关玩家要顺着铁路找桥，
-     道路只是"走得快"，铁路是"目标"。枕木纹用 repeating-linear-gradient，
-     不占伪元素（::before/::after 已经被要点染色和可移动描边占着）。 */
-  .t-rail {
-    background:
-      repeating-linear-gradient(90deg,
-        rgba(108,92,72,.55) 0 2px, rgba(0,0,0,0) 2px 7px),
-      #BCB1A0;
-  }
+  /* 地形底色（v5.4）：只负责"贴图加载不出来时是什么颜色"。
+     纹理全部交给 assets/terrain/*.png —— 以前在这里用 CSS 渐变画过纹理，
+     和贴图叠在一起会脏，已移除。 */
+  .t-plain  { background-color: #EDEAE0; }
+  .t-forest { background-color: #CBDCC0; }
+  .t-hill   { background-color: #DDD1B6; }
+  .t-town   { background-color: #D0C9BA; }
+  .t-air    { background-color: #D9DDE3; }
+  .t-road   { background-color: #F4F1E7; }
+  .t-ford   { background-color: #B6D2E5; }
+  .t-river  { background-color: #A5C7DE; }
+  .t-shoal  { background-color: #9FC4DC; }
+  .t-deep   { background-color: #6E93B4; }
+  .t-port   { background-color: #A9B4A6; }
+  .t-rail   { background-color: #BCB1A0; }
 
   .unit {
-    width: 30px; height: 26px; border-radius: 3px; z-index: 3;
+    width: 34px; height: 28px; border-radius: 3px; z-index: 3;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     font-size: 9px; line-height: 1.1; font-weight: 700; color: #fff;
     border: 1px solid rgba(0,0,0,.18);
@@ -345,13 +354,21 @@
      后定义的 sel 实线框要盖住这里的虚线框。 */
   .unit.kin { outline: 2px dashed var(--cgc, #6B6A63); outline-offset: 1px; }
   .unit.sel { outline: 2px solid #1F1E1A; outline-offset: 1px; box-shadow: 0 0 0 4px rgba(31,30,26,.16); }
-  .unit .n { font-size: 8px; letter-spacing: -.3px; opacity: .95; }
-  .unit .s { font-size: 10px; font-weight: 800; line-height: 1.05; }
+  .unit .n { font-size: 10px; letter-spacing: -.3px; opacity: .95; }
+  .unit .s { font-size: 11px; font-weight: 800; line-height: 1.05; }
   .unit .orgbar {
     position: absolute; left: 2px; right: 2px; bottom: 1px; height: 3px;
     background: rgba(0,0,0,.28); border-radius: 2px; overflow: hidden;
   }
   .unit .orgbar i { display: block; height: 100%; background: rgba(255,255,255,.85); }
+  /* 本回合已行动：右上角一个小勾。原来只有 .spent 的 42% 透明，
+     叠在彩色格子上几乎看不出来，玩家会反复点同一支部队。 */
+  .unit .act {
+    position: absolute; right: 1px; top: 1px; width: 11px; height: 11px; border-radius: 50%;
+    background: rgba(20,20,18,.72); color: #fff; font-size: 9px; line-height: 11px;
+    font-weight: 800; text-align: center; z-index: 5; pointer-events: none;
+  }
+  .unit.spent { opacity: .62; }
   /* 建制崩溃：红边 + 右下「崩」角标。
      为什么不用"兵牌变灰"：灰是 .spent（本回合行动已用完）的语义，
      两者会撞在一起；而崩溃是**状态**不是消耗，用红边区分得开。 */
@@ -359,7 +376,7 @@
   .unit.broken .orgbar i { background: #F2B8B0; }
   .unit .brk {
     position: absolute; right: -2px; top: -4px; z-index: 8;
-    background: #C0392B; color: #fff; font-size: 8px; font-weight: 800;
+    background: #C0392B; color: #fff; font-size: 9px; font-weight: 800;
     line-height: 11px; height: 11px; padding: 0 2px; border-radius: 3px;
     pointer-events: none;
   }
@@ -379,7 +396,7 @@
     position: absolute; left: auto; right: 1px; top: 21px;
     padding: 0 3px; height: 11px; border-radius: 6px;
     background: rgba(31,30,26,.80); color: #fff;
-    font-size: 8.5px; font-weight: 800; line-height: 11px;
+    font-size: 9px; font-weight: 800; line-height: 11px;
     z-index: 7; pointer-events: none; letter-spacing: 0; white-space: nowrap;
   }
 
@@ -387,7 +404,7 @@
     position: absolute; z-index: 5; pointer-events: none;
     transform: translate(-50%, -50%);
     background: rgba(43,42,38,.82); color: #fff;
-    font-size: 9.5px; font-weight: 600; letter-spacing: .3px;
+    font-size: 9px; font-weight: 600; letter-spacing: .3px;
     padding: 2px 6px; border-radius: 4px; white-space: nowrap;
     box-shadow: 0 1px 3px rgba(0,0,0,.30);
   }
@@ -412,13 +429,30 @@
     box-shadow: inset 0 0 0 2.5px rgba(190,142,30,.95), inset 0 0 0 4.5px rgba(255,255,255,.5);
   }
 
-  aside.side { width: 330px; flex: 0 0 330px; }
+  /* 右栏四张卡（战术卡/态势/详情/战报）高度不定：选中部队后"详情"一长，
+   就把"战报"顶出视口、整页跟着变高。改成栏内滚动：栏本身贴住视口，
+   卡片多了在自己的滚动条里走，地图和操作栏位置不动。 */
+aside.side {
+  width: 330px; flex: 0 0 330px;
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  padding-right: 2px;
+}
+/* 再给"态势 / 详情"两块各自封顶：栏内滚动只解决"页面不变高"，
+   但详情一长仍会把战报挤到看不见——战报是打每一枪都要看的东西，不能被挤走。 */
+#goalBox, #unitBox {
+  max-height: 27vh; overflow-y: auto; overscroll-behavior: contain;
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 14px), transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 14px), transparent 100%);
+}
   .block {
     background: var(--card); border: 1px solid var(--line); border-radius: 10px;
     padding: 11px 13px; margin-bottom: 10px;
   }
   .block-h {
-    font-size: 11px; font-weight: 700; letter-spacing: 1px; color: var(--ink3);
+    font-size: 12px; font-weight: 700; letter-spacing: 1px; color: var(--ink3);
     text-transform: uppercase; margin-bottom: 8px;
   }
   /* block-h 里的右侧小字（战术卡剩余数）。用 em + margin-left:auto，
@@ -432,7 +466,7 @@
      这个面板宽 330px，两张并排就放不下"炮火准备 · 目标组织度 −20"这种句子，
      而玩家恰恰要读这一句才知道该用哪张。 */
   .tcbar { display: flex; flex-direction: column; gap: 5px; }
-  .tcbar .tc-empty { font-size: 11px; color: var(--ink3); line-height: 1.6; }
+  .tcbar .tc-empty { font-size: 12px; color: var(--ink3); line-height: 1.6; }
   .tc {
     display: flex; align-items: baseline; gap: 6px; width: 100%;
     text-align: left; cursor: pointer; font-family: inherit;
@@ -441,11 +475,11 @@
   }
   .tc:hover { background: #F3F0E4; }
   .tc .tc-k {
-    flex: 0 0 auto; font-size: 9px; font-weight: 800; letter-spacing: .5px;
+    flex: 0 0 auto; font-size: 10px; font-weight: 800; letter-spacing: .5px;
     color: #fff; background: #6B6656; border-radius: 3px; padding: 1px 4px;
   }
-  .tc .tc-n { font-size: 12px; font-weight: 700; flex: 0 0 auto; }
-  .tc .tc-d { font-size: 10.5px; color: var(--ink3); flex: 1 1 auto; line-height: 1.45; }
+  .tc .tc-n { font-size: 14px; font-weight: 700; flex: 0 0 auto; }
+  .tc .tc-d { font-size: 10px; color: var(--ink3); flex: 1 1 auto; line-height: 1.45; }
   /* 等待选目标的那张：整条反色，地图上同时会把合法目标圈出来 */
   .tc.on { background: #2B2A26; border-color: #2B2A26; }
   .tc.on .tc-n { color: #fff; }
@@ -454,22 +488,28 @@
   .tc.used { opacity: .42; cursor: default; }
   .tc.used .tc-n { text-decoration: line-through; }
   .tc.off { opacity: .55; cursor: default; }
-  .tc .tc-key { flex: 0 0 auto; font-size: 9.5px; color: var(--ink3); font-variant-numeric: tabular-nums; }
-  .row { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 2px 0; font-size: 12px; }
+  .tc .tc-key { flex: 0 0 auto; font-size: 10px; color: var(--ink3); font-variant-numeric: tabular-nums; }
+  .row { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 2px 0; font-size: 14px; }
   .row span { color: var(--ink2); }
   .row b { font-weight: 650; }
   .ok { color: #2E7D4F; } .warn { color: #A5762A; } .bad { color: var(--red); }
-  .vpbar { height: 5px; background: #EDEAE0; border-radius: 3px; overflow: hidden; margin: 6px 0 4px; }
+  .vpbar { position: relative; height: 5px; background: #EDEAE0; border-radius: 3px; margin: 6px 0 4px; }
+  /* 达成线刻度：竖细线压在条上。以前条的分母是 perfectScore、文字写 winScore，
+     两个数对不上；现在同用「全场总分」，这条线告诉玩家及格线在哪。 */
+  .vpbar u {
+    position: absolute; top: -2px; bottom: -2px; width: 2px; margin-left: -1px;
+    background: var(--ink); opacity: .38; border-radius: 1px;
+  }
   .vpbar i { display: block; height: 100%; background: var(--blue); border-radius: 3px; transition: width .3s; }
   /* 教学关科目清单。三态：done（已讲）/ now（正在讲）/ wait（还没讲）。
      now 用左边一条蓝色竖条标出来，别再靠加粗——一屏里加粗太多了，看不出重点。 */
-  .dtitle { margin: 10px 0 6px; font-size: 11px; font-weight: 700; letter-spacing: 1px;
+  .dtitle { margin: 10px 0 6px; font-size: 12px; font-weight: 700; letter-spacing: 1px;
             color: var(--ink3); text-transform: uppercase; }
   .drills { display: flex; flex-direction: column; gap: 2px; }
   .drill { display: grid; grid-template-columns: 16px 34px 1fr; align-items: baseline;
            gap: 6px; padding: 4px 6px 4px 5px; border-left: 2px solid transparent;
-           border-radius: 0 5px 5px 0; font-size: 11.5px; line-height: 1.45; }
-  .drill i { font-style: normal; font-size: 10.5px; font-weight: 700; color: var(--ink3);
+           border-radius: 0 5px 5px 0; font-size: 12px; line-height: 1.45; }
+  .drill i { font-style: normal; font-size: 10px; font-weight: 700; color: var(--ink3);
              text-align: center; }
   .drill b { font-weight: 650; color: var(--ink2); white-space: nowrap; }
   .drill span { color: var(--ink3); }
@@ -480,7 +520,9 @@
   .drill.now b { color: var(--blue); }
   .drill.now span { color: var(--ink); }
 
-  .btns { display: flex; gap: 8px; margin-bottom: 10px; }
+  .btns { display: flex; gap: 8px; margin-bottom: 10px; justify-content: center; }
+  /* 主按钮 320px 就够显眼；拉满整行时比地图还重，反而压住了棋盘 */
+  .btns #btnEnd { flex: 0 1 320px; }
   button {
     flex: 1; padding: 9px 10px; border-radius: 8px; border: none; cursor: pointer;
     font: inherit; font-weight: 650; background: var(--ink); color: #fff;
@@ -493,7 +535,7 @@
   button:disabled { opacity: .4; cursor: default; }
 
   .ub-head { display: flex; align-items: baseline; gap: 7px; margin-bottom: 2px; }
-  .ub-name { font-size: 13px; font-weight: 650; }
+  .ub-name { font-size: 14px; font-weight: 650; }
   .tag {
     font-size: 10px; font-weight: 700; padding: 1px 5px; border-radius: 3px;
     background: #F1EEE5; color: var(--ink2);
@@ -501,27 +543,40 @@
   .tag.b { background: var(--blue-bg); color: var(--blue); }
   .tag.ally { background: var(--ally-bg); color: var(--ally); }
   .tag.r { background: var(--red-bg); color: var(--red); }
-  .ub-meta { color: var(--ink3); font-size: 11px; margin-bottom: 7px; }
+  .ub-meta { color: var(--ink3); font-size: 12px; margin-bottom: 7px; }
   /* 取消选中的可发现性提示。它存在的理由：取消有三条路（点自己 / Esc / 右键），
      但界面上没有任何一个东西长得像"取消"——玩家卡住时正盯着这块面板，
      写在这儿比写进说明页有用。淡一点，不跟正文抢注意力。 */
-  .ub-esc { color: #A9A296; font-size: 10px; margin: -4px 0 7px; }
+  .ub-esc { color: var(--ink3); font-size: 10px; margin: -4px 0 7px; }
   .grp { border-top: 1px dashed var(--line); padding-top: 7px; margin-top: 7px; }
   .grp-h { font-size: 10px; font-weight: 700; color: var(--ink3); letter-spacing: .6px; margin-bottom: 4px; }
-  .kv { display: flex; justify-content: space-between; font-size: 12px; padding: 1.5px 0; }
+  .kv { display: flex; justify-content: space-between; font-size: 14px; padding: 1.5px 0; }
   .kv span { color: var(--ink2); }
   .kv b { font-weight: 650; }
-  .abil { font-size: 11.5px; color: var(--ink2); padding: 2px 0 2px 9px; position: relative; line-height: 1.45; }
+  .abil { font-size: 12px; color: var(--ink2); padding: 2px 0 2px 9px; position: relative; line-height: 1.45; }
   .abil::before { content: '·'; position: absolute; left: 2px; color: var(--ink3); }
   .tgt {
     padding: 5px 7px; background: #FAF8F3; border-radius: 5px; margin-top: 4px;
-    font-size: 11.5px; line-height: 1.4;
+    font-size: 12px; line-height: 1.4;
   }
   .tgt.bad { background: #FBF0F0; }
   .tgt b { font-weight: 700; }
-  .hint { color: var(--ink3); font-size: 11.5px; line-height: 1.5; }
+  .hint { color: var(--ink3); font-size: 12px; line-height: 1.5; }
 
-  .log { max-height: 210px; overflow-y: auto; font-size: 11.5px; line-height: 1.6; }
+  /* 默认收起：4 行（约 5.4em）。展开后 210px。 */
+  .log.collapsed { max-height: 5.4em; }
+  .log-more {
+    margin-left: auto; flex: 0 0 auto; font-size: 11px; font-weight: 600;
+    color: var(--ink3); background: none; border: none; padding: 2px 4px;
+    cursor: pointer; text-decoration: underline; text-underline-offset: 2px;
+  }
+  .log-more:hover { color: var(--ink); }
+  .log {
+    max-height: 210px; overflow-y: auto; font-size: 12px; line-height: 1.6;
+    padding-top: 4px;
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 12px);
+    mask-image: linear-gradient(to bottom, transparent 0, #000 12px);
+  }
   .log div { padding: 1px 0; border-bottom: 1px solid #F6F4EE; }
   .log .b { color: var(--blue); }
   .log .r { color: var(--red); }
@@ -538,11 +593,27 @@
     box-shadow: 0 12px 40px rgba(0,0,0,.2);
   }
   .modal h2 { margin: 0 0 6px; font-size: 18px; }
-  .modal p { color: var(--ink2); font-size: 12.5px; margin: 6px 0; }
-  .modal .stat { display: flex; justify-content: space-between; padding: 3px 0; font-size: 12.5px; }
+  .modal p { color: var(--ink2); font-size: 14px; margin: 6px 0; }
+  .modal .stat { display: flex; justify-content: space-between; padding: 3px 0; font-size: 14px; }
   /* 结算按钮组：通关时"下一关"是主按钮，重开降为次要。
      只做一个按钮盒子的原因——下一关可能还不存在，得能整块消失。 */
-  .m-acts { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+  /* 战役抉择（v5.4）：结算面板里的一次永久选择。
+   两个大按钮并排，各自带一行后果说明——必须让两边的代价同时可见。 */
+.m-choice { margin: 14px 0 4px; padding: 12px 14px; border-radius: 8px;
+  background: #F7F4EA; border: 1px solid #DCD4BE; }
+.m-choice h3 { margin: 0 0 6px; font-size: 15px; letter-spacing: .4px; }
+.m-choice h3::before { content: '▲ '; color: #8A5A16; font-size: 12px; }
+.m-choice-p { margin: 0 0 10px; font-size: 13px; line-height: 1.7; color: var(--ink2); }
+.m-choice-opts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+@media (max-width: 560px) { .m-choice-opts { grid-template-columns: 1fr; } }
+.m-choice-btn { text-align: left; padding: 9px 11px; border-radius: 7px;
+  border: 1px solid #C9BFA4; background: #fff; cursor: pointer; font: inherit; color: inherit;
+  transition: border-color .13s, background .13s; }
+.m-choice-btn:hover { border-color: #8A5A16; background: #FFFDF6; }
+.m-choice-btn:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.m-choice-btn b { display: block; font-size: 14px; margin-bottom: 3px; }
+.m-choice-btn em { display: block; font-style: normal; font-size: 12px; color: var(--ink3); line-height: 1.55; }
+.m-acts { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
   .m-acts button { width: 100%; margin: 0; }
   #mNext { background: #2B2A26; color: #FBF9F3; border-color: #2B2A26; font-weight: 600; }
   #mNext:hover { background: #403E38; }
@@ -557,7 +628,7 @@
      结算面板的"下一关"按钮和下方说明就踩到了这一点（一直显示）。
      这里补上通用规则：后者更具体的专属规则优先级更高，不受影响。 */
   .hidden { display: none; }
-  .m-note { font-size: 11.5px; color: var(--ink3); margin: 8px 0 0; text-align: center; }
+  .m-note { font-size: 12px; color: var(--ink3); margin: 8px 0 0; text-align: center; }
 
   /* ───────── 操作说明 ─────────
      和结果弹窗共用遮罩，内容更长、可滚动。窄屏单列，宽屏双列。 */
@@ -568,16 +639,16 @@
     box-shadow: 0 12px 40px rgba(0,0,0,.2);
   }
   .tips-card h2 { margin: 0 0 2px; font-size: 18px; }
-  .tips-card .tips-sub { color: var(--ink3); font-size: 12px; margin: 0 0 4px; }
+  .tips-card .tips-sub { color: var(--ink3); font-size: 14px; margin: 0 0 4px; }
   .tips-card h3 {
-    margin: 16px 0 6px; font-size: 11.5px; letter-spacing: .6px;
+    margin: 16px 0 6px; font-size: 12px; letter-spacing: .6px;
     text-transform: uppercase; color: var(--ink3); font-weight: 700;
   }
-  .tips-card p, .tips-card li { font-size: 12.5px; color: var(--ink2); line-height: 1.7; margin: 3px 0; }
+  .tips-card p, .tips-card li { font-size: 14px; color: var(--ink2); line-height: 1.7; margin: 3px 0; }
   .tips-card ul { margin: 4px 0; padding-left: 17px; }
   .tips-card b { color: var(--ink); }
   .tips-card kbd {
-    display: inline-block; padding: 0 5px; border-radius: 3px; font-size: 11px;
+    display: inline-block; padding: 0 5px; border-radius: 3px; font-size: 12px;
     background: #F1EFE8; box-shadow: 0 0 0 1px rgba(0,0,0,.10); color: var(--ink);
     font-family: inherit;
   }
@@ -591,14 +662,14 @@
     width: min(420px, calc(100vw - 28px));
     box-shadow: 0 12px 40px rgba(0,0,0,.2);
   }
-  .set-card h2 { margin: 0 0 2px; font-size: 17px; }
-  .set-card .set-sub { color: var(--ink3); font-size: 12px; margin: 0 0 14px; }
+  .set-card h2 { margin: 0 0 2px; font-size: 18px; }
+  .set-card .set-sub { color: var(--ink3); font-size: 14px; margin: 0 0 14px; }
   .set-row {
     display: grid; grid-template-columns: 72px 1fr 46px;
     align-items: center; gap: 10px; margin: 10px 0;
   }
-  .set-row label { font-size: 12.5px; color: var(--ink2); }
-  .set-row b { font-size: 12px; color: var(--ink2); text-align: right; font-weight: 600; }
+  .set-row label { font-size: 14px; color: var(--ink2); }
+  .set-row b { font-size: 14px; color: var(--ink2); text-align: right; font-weight: 600; }
   .set-row input[type=range] {
     -webkit-appearance: none; appearance: none;
     width: 100%; height: 4px; border-radius: 3px; background: #E3DFD3; outline: none;
@@ -616,12 +687,12 @@
   .set-row input[type=range]:focus-visible { box-shadow: 0 0 0 2px rgba(58,110,165,.55); }
   .set-btns { grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 16px; }
   .set-btns button {
-    padding: 7px 10px; font-size: 12px; border-radius: 7px; cursor: pointer;
+    padding: 7px 10px; font-size: 14px; border-radius: 7px; cursor: pointer;
     background: #F6F4EC; color: var(--ink2); border: 1px solid var(--line);
   }
   .set-btns button:hover { background: #EFECE1; }
   .set-card .set-ok {
-    width: 100%; margin-top: 12px; padding: 9px 10px; font-size: 13px;
+    width: 100%; margin-top: 12px; padding: 9px 10px; font-size: 14px;
     border-radius: 7px; cursor: pointer; background: #2B2A26; color: #FBF9F3;
     border: 1px solid #2B2A26; font-weight: 600;
   }
@@ -629,11 +700,11 @@
   .tips-card button { margin-top: 18px; width: 100%; }
   .tipsbtn {
     width: 26px; height: 26px; border-radius: 50%; padding: 0;
-    font-size: 13px; font-weight: 800; line-height: 1; flex: 0 0 26px;
+    font-size: 14px; font-weight: 800; line-height: 1; flex: 0 0 26px;
   }
   .hqbtn {
     height: 26px; padding: 0 9px; border-radius: 4px;
-    font: inherit; font-size: 11px; font-weight: 800; letter-spacing: .5px;
+    font: inherit; font-size: 12px; font-weight: 800; letter-spacing: .5px;
     flex: 0 0 auto;
   }
 
@@ -661,7 +732,7 @@
   .uops.mini .uops-open {
     display: flex; align-items: center; gap: 5px;
     width: auto; padding: 4px 10px; margin: 0;
-    font-size: 11.5px; font-weight: 700; color: var(--ink2);
+    font-size: 12px; font-weight: 700; color: var(--ink2);
     background: none; border: 0; border-radius: 15px;
   }
   .uops.mini .uops-open:hover { background: #F2EDDF; color: var(--ink); }
@@ -675,16 +746,16 @@
   .uops.mini .uops-open.blow:hover { background: #F3D6C1; color: #7A2F10; }
   .uops.mini .uops-open.blow i { color: #8A3A18; background: #EFC9B2; }
   .uops.mini .uops-open i {
-    flex: 0 0 auto; font-style: normal; font-size: 9px; font-weight: 800;
+    flex: 0 0 auto; font-style: normal; font-size: 10px; font-weight: 800;
     color: #6C675C; background: #E7E1D2; border-radius: 8px; padding: 0 4px;
   }
   .uops-h {
-    font-size: 8.5px; font-weight: 800; letter-spacing: 1.6px;
-    color: #A8925F; padding: 2px 5px 5px;
+    font-size: 10px; font-weight: 800; letter-spacing: 1.6px;
+    color: #6E5B33; padding: 2px 5px 5px;
   }
   .uops button {
     display: flex; align-items: baseline; gap: 6px; width: 100%;
-    font: inherit; font-size: 11px; text-align: left; cursor: pointer;
+    font: inherit; font-size: 12px; text-align: left; cursor: pointer;
     padding: 5px 7px; border: none; background: none; border-radius: 3px;
     color: var(--ink);
   }
@@ -693,7 +764,7 @@
   .uops button:disabled { color: #BDB7AA; cursor: default; background: none; }
   .uops button b { flex: 1; font-weight: 600; }
   .uops button i {
-    font-style: normal; font-size: 9.5px; color: var(--ink3); flex: 0 0 auto;
+    font-style: normal; font-size: 10px; color: var(--ink3); flex: 0 0 auto;
   }
   .uops button.on i { color: #185FA5; }
   /* 底部两个"非作业"动作并排：收起 / 取消。
@@ -742,13 +813,13 @@
   }
   .hq-title { flex: 0 0 auto; }
   .hq-kicker {
-    display: block; font-size: 9.5px; font-weight: 800; letter-spacing: 2.4px;
-    color: #A8925F; margin-bottom: 2px;
+    display: block; font-size: 10px; font-weight: 800; letter-spacing: 2.4px;
+    color: #6E5B33; margin-bottom: 2px;
   }
-  .hq-title h2 { margin: 0; font-size: 17px; letter-spacing: 2px; }
+  .hq-title h2 { margin: 0; font-size: 18px; letter-spacing: 2px; }
   .hq-tabs { display: flex; gap: 2px; flex: 1; justify-content: center; }
   .hq-tabs button {
-    font: inherit; font-size: 12px; font-weight: 600; padding: 6px 15px;
+    font: inherit; font-size: 14px; font-weight: 600; padding: 6px 15px;
     border: 1px solid transparent; background: none; color: var(--ink2);
     border-radius: 4px; cursor: pointer;
   }
@@ -769,7 +840,7 @@
   /* 图鉴：分组标题 + 两列卡片 */
   .hq-group { margin-bottom: 20px; }
   .hq-gh {
-    font-size: 10.5px; font-weight: 800; letter-spacing: 2px; color: #A8925F;
+    font-size: 10px; font-weight: 800; letter-spacing: 2px; color: #6E5B33;
     padding-bottom: 6px; border-bottom: 1px solid #E7E1D2; margin-bottom: 10px;
   }
   .hq-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
@@ -778,21 +849,21 @@
     background: #FFFDF8;
   }
   .dex-h { display: flex; align-items: baseline; gap: 7px; margin-bottom: 2px; }
-  .dex-h b { font-size: 12.5px; }
+  .dex-h b { font-size: 14px; }
   /* 类别徽章。原来这里放的是兵种定位（斜体小字），现在定位单独一行、
      类别做成徽章：**类别是玩家判断"该不该派它上"的第一眼**，
      定位是第二眼，两者字号语气不该一样。 */
   .dex-cat {
-    font-size: 9px; color: #7A6A46; background: #F1EAD8;
+    font-size: 10px; color: #5F5233; background: #F1EAD8;
     border: 1px solid #E4D9BE; border-radius: 999px;
     padding: 1px 7px 2px; letter-spacing: .5px; white-space: nowrap;
   }
   .dex-role {
-    font-size: 9.5px; color: #A8925F; letter-spacing: 1px; font-weight: 700;
+    font-size: 10px; color: #6E5B33; letter-spacing: 1px; font-weight: 700;
     margin-bottom: 5px;
   }
   .dex-intro {
-    margin: 0 0 7px; font-size: 10.5px; line-height: 1.7; color: var(--ink2);
+    margin: 0 0 7px; font-size: 10px; line-height: 1.7; color: var(--ink2);
     padding-bottom: 7px; border-bottom: 1px dashed #EAE3D2;
   }
   .dex-st {
@@ -802,7 +873,7 @@
   .dex-st b { color: var(--ink2); font-weight: 700; }
   .dex ul { margin: 0; padding-left: 13px; }
   .dex li {
-    font-size: 10.5px; line-height: 1.62; color: var(--ink2);
+    font-size: 10px; line-height: 1.62; color: var(--ink2);
     margin-bottom: 2px;
   }
   .dex li::marker { color: #C9BFA6; }
@@ -816,15 +887,15 @@
     background: #FFFDF8;
   }
   .mech-h {
-    font-size: 12px; font-weight: 800; color: #3A362E; margin-bottom: 7px;
+    font-size: 14px; font-weight: 800; color: #3A362E; margin-bottom: 7px;
     padding-bottom: 6px; border-bottom: 1px solid #F0EADB;
   }
   .mech-b { display: flex; gap: 9px; align-items: flex-start; margin-bottom: 6px; }
   .mech-t {
-    flex: 0 0 68px; font-size: 9.5px; font-weight: 700; letter-spacing: .5px;
-    color: #A8925F; padding-top: 2px;
+    flex: 0 0 68px; font-size: 10px; font-weight: 700; letter-spacing: .5px;
+    color: #6E5B33; padding-top: 2px;
   }
-  .mech-b p { margin: 0; font-size: 10.5px; line-height: 1.72; color: var(--ink2); }
+  .mech-b p { margin: 0; font-size: 10px; line-height: 1.72; color: var(--ink2); }
   /* 「怎么用」单独染色：前两段是规则，这一段是决策——玩家真正要记的是它 */
   .mech-tip .mech-t { color: #7C6A3E; }
   .mech-tip p { color: #4A4438; }
@@ -835,24 +906,24 @@
     background: #FFFDF8; margin-bottom: 10px;
   }
   .note-h { display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px; }
-  .note-h b { font-size: 12px; color: #3A362E; letter-spacing: .5px; }
+  .note-h b { font-size: 14px; color: #3A362E; letter-spacing: .5px; }
   .note-tag {
-    font-size: 9px; color: #7A6A46; background: #F1EAD8;
+    font-size: 10px; color: #5F5233; background: #F1EAD8;
     border: 1px solid #E4D9BE; border-radius: 999px; padding: 1px 7px 2px;
   }
-  .note-date { margin-left: auto; font-size: 9.5px; color: var(--ink3); letter-spacing: .5px; }
-  .note-title { font-size: 11px; font-weight: 700; color: #4A4438; margin-bottom: 5px; }
+  .note-date { margin-left: auto; font-size: 10px; color: var(--ink3); letter-spacing: .5px; }
+  .note-title { font-size: 12px; font-weight: 700; color: #4A4438; margin-bottom: 5px; }
   .note ul { margin: 0; padding-left: 13px; }
-  .note li { font-size: 10.5px; line-height: 1.7; color: var(--ink2); margin-bottom: 2px; }
+  .note li { font-size: 10px; line-height: 1.7; color: var(--ink2); margin-bottom: 2px; }
   .note li::marker { color: #C9BFA6; }
 
   /* 战术卡 */
   .card-bar {
     display: flex; align-items: center; gap: 10px; margin-bottom: 14px;
     padding: 9px 12px; background: #F5F1E7; border-radius: 4px;
-    border: 1px solid #E4DCCC; font-size: 11.5px; color: var(--ink2);
+    border: 1px solid #E4DCCC; font-size: 12px; color: var(--ink2);
   }
-  .card-bar b { color: var(--ink); font-size: 13px; }
+  .card-bar b { color: var(--ink); font-size: 14px; }
   .card-bar .warn { color: var(--red); font-weight: 700; }
   .card-list { display: flex; flex-direction: column; gap: 8px; }
   .tcard {
@@ -863,16 +934,16 @@
   .tcard.on { border-color: #3A6EA5; background: #F4F8FC; }
   .tcard-l { flex: 1; min-width: 0; }
   .tcard-h { display: flex; align-items: center; gap: 7px; margin-bottom: 3px; }
-  .tcard-h b { font-size: 13px; }
+  .tcard-h b { font-size: 14px; }
   .tcard-tag {
-    font-size: 9px; font-weight: 800; letter-spacing: 1px;
+    font-size: 10px; font-weight: 800; letter-spacing: 1px;
     padding: 1px 5px; border-radius: 2px;
     background: #EDE8DB; color: #8A7A55;
   }
-  .tcard-d { font-size: 11.5px; color: var(--ink); line-height: 1.6; margin-bottom: 3px; }
-  .tcard-n { font-size: 10.5px; color: var(--ink3); line-height: 1.6; }
+  .tcard-d { font-size: 12px; color: var(--ink); line-height: 1.6; margin-bottom: 3px; }
+  .tcard-n { font-size: 10px; color: var(--ink3); line-height: 1.6; }
   .tcard-b {
-    flex: 0 0 auto; font: inherit; font-size: 11px; font-weight: 700;
+    flex: 0 0 auto; font: inherit; font-size: 12px; font-weight: 700;
     padding: 6px 13px; border-radius: 4px; cursor: pointer;
     border: 1px solid #2B2A26; background: #2B2A26; color: #FBF9F3;
     white-space: nowrap;
@@ -885,48 +956,48 @@
   .aide-intro {
     display: flex; gap: 12px; align-items: flex-start;
     padding: 13px 15px; margin-bottom: 16px;
-    background: #F5F1E7; border-left: 3px solid #A8925F; border-radius: 3px;
+    background: #F5F1E7; border-left: 3px solid #6E5B33; border-radius: 3px;
   }
   .aide-av {
     flex: 0 0 40px; width: 40px; height: 40px; border-radius: 50%;
     background: #2B2A26; color: #F0E6CC;
     display: flex; align-items: center; justify-content: center;
-    font-size: 15px; font-weight: 800; letter-spacing: 0;
+    font-size: 16px; font-weight: 800; letter-spacing: 0;
   }
-  .aide-intro p { margin: 0; font-size: 11.5px; line-height: 1.75; color: var(--ink2); }
+  .aide-intro p { margin: 0; font-size: 12px; line-height: 1.75; color: var(--ink2); }
   .aide-intro b { color: var(--ink); }
   .aide-q {
     border: 1px solid #E2DCCD; border-radius: 4px; margin-bottom: 7px;
     background: #FFFDF8; overflow: hidden;
   }
   .aide-q > button {
-    width: 100%; text-align: left; font: inherit; font-size: 12px;
+    width: 100%; text-align: left; font: inherit; font-size: 14px;
     font-weight: 650; padding: 10px 13px; cursor: pointer;
     background: none; border: none; color: var(--ink);
     display: flex; align-items: center; gap: 8px;
   }
   .aide-q > button:hover { background: #F7F3E9; }
   .aide-q > button::before {
-    content: '＋'; color: #A8925F; font-weight: 800; font-size: 11px;
+    content: '＋'; color: #6E5B33; font-weight: 800; font-size: 12px;
     flex: 0 0 auto;
   }
   .aide-q.open > button::before { content: '－'; }
   .aide-a {
-    padding: 0 13px 12px 34px; font-size: 11.5px; line-height: 1.8;
+    padding: 0 13px 12px 34px; font-size: 12px; line-height: 1.8;
     color: var(--ink2); display: none;
   }
   .aide-q.open .aide-a { display: block; }
   .aide-a b { color: var(--ink); }
   .aide-a code {
     background: #F0EBDD; padding: 0 4px; border-radius: 2px;
-    font-size: 10.5px; color: #7A6A44;
+    font-size: 10px; color: #7A6A44;
   }
   /* 素材来源（指挥部最后一页）。这是合规页：CC-BY 要求分发时署名，
      所以它得能在游戏里打开，而不是只躺在仓库的 CREDITS.md 里。
      排版上刻意把"用在哪"放左边、文件名放右边——玩家先看到的是用途，
      需要核对授权的人才去看文件名。 */
   .cred-note {
-    font-size: 10.5px; line-height: 1.75; color: var(--ink3);
+    font-size: 10px; line-height: 1.75; color: var(--ink3);
     margin: -4px 0 8px;
   }
   .cred-list { border-top: 1px solid var(--line); }
@@ -934,7 +1005,7 @@
     padding: 8px 0; border-bottom: 1px dotted var(--line);
   }
   .cred-top { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
-  .cred-top b { font-size: 11.5px; color: var(--ink); }
+  .cred-top b { font-size: 12px; color: var(--ink); }
   .cred-file {
     font-size: 10px; color: var(--ink3);
     font-family: ui-monospace, "SF Mono", Consolas, monospace;
@@ -945,7 +1016,7 @@
     /* 「CC BY 4.0」中间有空格，不加 nowrap 会在窄容器里断成两行 */
     white-space: nowrap;
   }
-  .cred-by { font-size: 10.5px; line-height: 1.7; color: var(--ink2); margin-top: 2px; }
+  .cred-by { font-size: 10px; line-height: 1.7; color: var(--ink2); margin-top: 2px; }
   .cred-by a { color: var(--blue); text-decoration: none; border-bottom: 1px solid #BFD1E6; }
   .cred-by a:hover { border-bottom-color: var(--blue); }
   /* 窄屏：许可证徽标不再靠右，免得把文件名挤成两行 */
@@ -963,12 +1034,12 @@
     .uops-h { flex: 1 0 100%; padding: 1px 4px 3px; }
     .uops button {
       flex: 1 0 calc(50% - 2px); width: auto; min-width: 0;
-      padding: 6px 6px; font-size: 11.5px;
+      padding: 6px 6px; font-size: 12px;
     }
     .uops button b { flex: 1; }
     /* 底部那排（收起 / 取消）独占一行，两个键平分宽度 */
     .uops-foot { flex: 1 0 100%; margin-top: 2px; }
-    .uops-foot .uops-x { flex: 1 1 0; margin-top: 0; padding: 5px 4px; font-size: 10.5px; }
+    .uops-foot .uops-x { flex: 1 1 0; margin-top: 0; padding: 5px 4px; font-size: 10px; }
     /* 收起态在窄屏也不能被上面的 flex-wrap 拉满整行 */
     .uops.mini { display: block; padding: 0; max-width: none; }
     .uops.mini .uops-open { width: auto; padding: 6px 12px; }
@@ -979,7 +1050,7 @@
     .hq-card { width: 100%; height: 100%; border-radius: 0; border: none; }
     .hq-head { padding: 11px 12px 9px; gap: 8px; flex-wrap: wrap; }
     .hq-tabs { order: 3; flex: 1 0 100%; justify-content: flex-start; gap: 4px; }
-    .hq-tabs button { padding: 5px 10px; font-size: 11px; }
+    .hq-tabs button { padding: 5px 10px; font-size: 12px; }
     .hq-body { padding: 13px 12px 24px; }
     .hq-grid { grid-template-columns: 1fr; }
   }
@@ -1024,14 +1095,14 @@
     to   { opacity: 1; transform: none; }
   }
   .brief-kicker {
-    font-size: 10.5px; letter-spacing: 2.6px; color: var(--ink3); margin-bottom: 8px;
+    font-size: 10px; letter-spacing: 2.6px; color: var(--ink3); margin-bottom: 8px;
   }
   .brief-title {
-    margin: 0 0 15px; font-size: 21px; line-height: 1.4; font-weight: 700;
+    margin: 0 0 15px; font-size: 20px; line-height: 1.4; font-weight: 700;
     letter-spacing: .5px; color: var(--ink);
   }
   .brief-body p {
-    margin: 0 0 11px; font-size: 13px; line-height: 1.95; color: var(--ink2);
+    margin: 0 0 11px; font-size: 14px; line-height: 1.95; color: var(--ink2);
   }
   .brief-body p b { color: var(--ink); font-weight: 650; }
   .brief-body p.hl {
@@ -1046,10 +1117,10 @@
     background: #F5F1E6; border-radius: 3px; padding: 8px 10px;
   }
   .brief-nums span {
-    display: block; font-size: 9.5px; letter-spacing: 1.1px;
+    display: block; font-size: 10px; letter-spacing: 1.1px;
     color: var(--ink3); margin-bottom: 2px;
   }
-  .brief-nums b { font-size: 15px; font-weight: 700; color: var(--ink); }
+  .brief-nums b { font-size: 16px; font-weight: 700; color: var(--ink); }
   .brief-nums b.r { color: var(--red); }
   .brief-foot {
     margin-top: 20px; padding-top: 13px; border-top: 1px solid #E4DECF;
@@ -1062,14 +1133,14 @@
      ▸ 折到第二行，看起来像按钮坏了。 */
   .brief-acts { display: flex; align-items: center; gap: 20px; flex: 0 0 auto; }
   .brief-next {
-    padding: 8px 17px; border-radius: 4px; font: inherit; font-size: 12.5px;
+    padding: 8px 17px; border-radius: 4px; font: inherit; font-size: 14px;
     font-weight: 600; background: #2B2A26; color: #FBF9F3;
     border: 1px solid #2B2A26; cursor: pointer;
     transition: background .15s; flex: 0 0 auto; white-space: nowrap;
   }
   .brief-next:hover { background: #403E38; }
   .brief-skip {
-    font: inherit; font-size: 11px; color: var(--ink3); background: none;
+    font: inherit; font-size: 12px; color: var(--ink3); background: none;
     border: none; cursor: pointer; padding: 4px 6px;
     text-decoration: underline; text-underline-offset: 3px;
     flex: 0 0 auto; white-space: nowrap;
@@ -1080,11 +1151,11 @@
     .brief { padding: 12px; }
     .brief-paper { padding: 22px 18px 16px 28px; }
     .brief-paper::before { left: 15px; }
-    .brief-top { font-size: 9.5px; letter-spacing: 1.5px; margin-bottom: 16px; }
+    .brief-top { font-size: 10px; letter-spacing: 1.5px; margin-bottom: 16px; }
     .brief-title { font-size: 18px; margin-bottom: 12px; }
-    .brief-body p { font-size: 12.5px; line-height: 1.85; }
+    .brief-body p { font-size: 14px; line-height: 1.85; }
     .brief-nums { grid-template-columns: repeat(auto-fit, minmax(64px, 1fr)); gap: 6px; }
-    .brief-nums b { font-size: 14px; }
+    .brief-nums b { font-size: 16px; }
     .brief-foot { margin-top: 16px; gap: 8px; }
     .brief-acts { gap: 12px; }
   }
@@ -1113,7 +1184,7 @@
     will-change: transform, opacity;
   }
   .dmgpop.b { color: var(--blue); }
-  .dmgpop.sys { color: var(--ink2); font-size: 11.5px; font-weight: 600; }
+  .dmgpop.sys { color: var(--ink2); font-size: 12px; font-weight: 600; }
   @keyframes popUp {
     0%   { opacity: 0; transform: translate(-50%, -50%) scale(.72); }
     16%  { opacity: 1; transform: translate(-50%, -74%) scale(1.1); }
@@ -1140,7 +1211,7 @@
   .bn {
     padding: 8px 22px; border-radius: 4px; white-space: nowrap;
     background: rgba(43,42,38,.88); color: #fff;
-    font-size: 15px; font-weight: 700; letter-spacing: 1px;
+    font-size: 16px; font-weight: 700; letter-spacing: 1px;
     box-shadow: 0 6px 24px rgba(0,0,0,.22);
     animation: bnLife 2.5s ease forwards;
   }
@@ -1179,7 +1250,7 @@
     flex: 0 0 132px; width: 132px; height: 176px; border-radius: 12px;
     background: #EDE9DF center top / cover no-repeat; border: 1px solid var(--line);
     display: flex; align-items: center; justify-content: center;
-    color: var(--ink3); font-size: 11px; text-align: center; line-height: 1.3;
+    color: var(--ink3); font-size: 12px; text-align: center; line-height: 1.3;
     position: relative; overflow: hidden;
   }
   /* 符号位：没有人物出场的说话人（「方面军司令部 · 电话」）走这里。
@@ -1197,17 +1268,17 @@
      右下角就不是空白而是一个明确的操作提示。 */
   .cs-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
   .cs-who {
-    font-size: 12px; font-weight: 700; letter-spacing: 1px;
+    font-size: 14px; font-weight: 700; letter-spacing: 1px;
     color: var(--blue); margin-bottom: 5px;
   }
   .cs-who.r { color: var(--red); }
   .cs-text {
-    font-size: 14px; line-height: 1.78; min-height: 3.6em;
+    font-size: 16px; line-height: 1.78; min-height: 3.6em;
     white-space: pre-wrap; word-break: break-word;
   }
   .cs-next {
     margin-top: auto; padding-top: 10px;
-    text-align: right; font-size: 11.5px; color: var(--ink3);
+    text-align: right; font-size: 12px; color: var(--ink3);
     user-select: none; cursor: pointer;
   }
   .cs-next:hover { color: var(--ink2); }
@@ -1234,7 +1305,7 @@
   /* 首次进入的手势提示：放在地图下方，不遮任何东西 */
   .zhint {
     display: none; margin-top: 7px; padding: 6px 12px; border-radius: 20px;
-    background: rgba(43,42,38,.80); color: #fff; font-size: 11.5px;
+    background: rgba(43,42,38,.80); color: #fff; font-size: 12px;
     text-align: center; pointer-events: none;
     opacity: 1; transition: opacity .5s;
   }
@@ -1251,11 +1322,11 @@
     .topbar {
       flex-wrap: wrap; gap: 6px 8px; padding: 8px 10px; margin-bottom: 8px;
     }
-    .topbar h1 { font-size: 14px; }
-    .topbar .sub { font-size: 11px; }
+    .topbar h1 { font-size: 16px; }
+    .topbar .sub { font-size: 12px; }
     .topbar .spacer { flex: 0 0 100%; height: 0; }
 
-    .pill { font-size: 11px; padding: 2px 8px; }
+    .pill { font-size: 12px; padding: 2px 8px; }
     /* 顶栏挤的时候先收版本号，关卡名和回合数比它重要 */
     #verTag { display: none; }
 
@@ -1268,24 +1339,40 @@
     /* .zctrl 的显示不再靠断点切换：桌面端现在也要缩放按钮 */
     .zhint { display: block; }
 
-    .legend { gap: 8px 10px; font-size: 10.5px; padding-top: 6px; }
-    .legend .lg-note { margin-left: 0; flex: 0 0 100%; }
+    /* 图例：13 项在 390px 上要折三行，吃掉近 90px 竖向空间。
+       改成单行横向滚动，信息不丢、高度减到一行；角标说明仍单独占一行。 */
+    .legend {
+      gap: 0 12px; font-size: 10px; padding-top: 6px;
+      flex-wrap: nowrap; overflow-x: auto; white-space: nowrap;
+      -webkit-overflow-scrolling: touch; scrollbar-width: none;
+    }
+    .legend::-webkit-scrollbar { display: none; }
+    .legend > span { flex: 0 0 auto; }
+    .legend .lg-note { margin-left: 0; flex: 0 0 auto; }
 
     /* 横幅在窄屏要收窄：15px 字号 + 不换行会占掉半张地图 */
     #bannerHost { top: 13vh; width: 100%; padding: 0 12px; }
     .bn {
-      font-size: 12.5px; padding: 6px 14px; letter-spacing: .3px;
+      font-size: 14px; padding: 6px 14px; letter-spacing: .3px;
       white-space: normal; text-align: center; max-width: 92vw; line-height: 1.5;
     }
     .cs-card { padding: 16px 18px; gap: 12px; }
     .cs-portrait { flex: 0 0 90px; width: 90px; height: 120px; }
     .cs-portrait.sig .sig-ico { width: 34px; height: 34px; }
     .cs-portrait.fig .sig-ico { width: 52px; height: 52px; }
-    .cs-text { font-size: 13.5px; line-height: 1.7; }
+    .cs-text { font-size: 14px; line-height: 1.7; }
 
     /* 触摸目标放大 */
-    .btns button { min-height: 44px; font-size: 15px; }
-    .block-h { font-size: 12px; }
+    .btns button { min-height: 44px; font-size: 16px; }
+    /* 拇指可达优先：窄屏上主按钮恢复整行 */
+    .btns #btnEnd { flex: 1 1 auto; }
+    /* 顶栏图标按钮只有符号，26px 太小，按 WCAG 2.5.8 抬到 44 */
+    .topbar .hqbtn, .topbar .tipsbtn { min-width: 40px; min-height: 40px; padding: 0 8px; }
+    #seasonPill { display: none; }
+    /* 缩放键 38px：再大就盖住右侧一列格子了（仍高于 24px 的可点下限） */
+    .zctrl { grid-template-columns: repeat(2, 38px); gap: 6px; }
+    .zctrl button { height: 38px; }
+    .block-h { font-size: 14px; }
     #unitBox button, .side button { min-height: 36px; }
 
     /* 操作栏在地图正下方：卡片式白底 + 轻微阴影，跟地图和图例都拉开距离 */
@@ -1318,13 +1405,13 @@
     /* 顶栏压成一行，把高度让给地图 */
     .topbar { flex-wrap: nowrap; padding: 6px 10px; margin-bottom: 6px; }
     .topbar .spacer { flex: 1 1 auto; height: auto; }
-    .topbar h1 { font-size: 13px; }
+    .topbar h1 { font-size: 14px; }
     .topbar .sub { display: none; }
     .legend { display: none; }
     /* 提示浮在底部，不占布局高度 */
     .zhint {
       position: fixed; left: 50%; transform: translateX(-50%);
-      bottom: 6px; margin: 0; z-index: 40; font-size: 11px;
+      bottom: 6px; margin: 0; z-index: 40; font-size: 12px;
     }
   }
 
@@ -1332,3 +1419,21 @@
   @media (hover: none) {
     .hex:hover { filter: none; }
   }
+
+/* 系统的"减少动态效果"：关震屏、闪烁与位移，只保留透明度变化。
+   v5.3 全维度体检 P2：引擎这一层原本一条都没有，而 index.html 是做了的。 */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+  }
+  .hex.shake, .fx-shake { animation: none !important; }
+}
+
+/* 手机长按会弹"拷贝/查询"，拖一下就把番号选成蓝色高亮——地图上这是纯噪声。
+   只关地图与兵牌，正文区保持可选（玩家要复制战报）。 */
+#board, .hex, .unit, .uops, .zctrl {
+  -webkit-user-select: none; user-select: none;
+  -webkit-touch-callout: none;
+}

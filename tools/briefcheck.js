@@ -2,7 +2,7 @@
    用 jsdom 跑真 DOM，验证的是"点下去会发生什么"，不是纯函数。
 
    跑法（jsdom 装在托管 node 的 workspace 里，不在本仓库）：
-     NODE_PATH="C:/Users/泽宇/.workbuddy/binaries/node/workspace/node_modules" \
+     NODE_PATH="C:/Users/<用户名>/.workbuddy/binaries/node/workspace/node_modules" \
      node tools/briefcheck.js
 
    为什么单独一个文件而不是塞进 selftest.js：selftest 用 vm + stub DOM，
@@ -1180,6 +1180,22 @@ function skip(name, why) {
     ok('署名带得回源头（freesound 链接 ≥ 4 条）',
        body.querySelectorAll('a[href*="freesound.org"]').length >= 4,
        body.querySelectorAll('a[href*="freesound.org"]').length + ' 条');
+
+    /* 图片台账（v5.3 全维度体检）：音效这条线有 CREDITS.md 兜着，图片一张都没有。
+       这里只守"在役的图有没有登记过"——**填得对不对只能人看**，但"加图不登记"
+       必须能被测试抓住，否则台账三个月就变成摆设（docs/24 的行号就是这么烂掉的）。 */
+    const ledgerPath = path.join(baseDir2, 'ASSETS-CREDITS.md');
+    const hasLedger = fs.existsSync(ledgerPath);
+    ok('图片素材台账存在（game/assets/ASSETS-CREDITS.md）', hasLedger, ledgerPath);
+    if (hasLedger) {
+      const ledger = fs.readFileSync(ledgerPath, 'utf8');
+      const storyFiles = Object.keys(W.ASSETS.story || {})
+        .map(k => W.ASSETS.story[k]).filter(Boolean);
+      const notListed = storyFiles.filter(p => ledger.indexOf(path.basename(p)) < 0);
+      ok('ASSETS 里在役的剧情图都在台账里点了名',
+         storyFiles.length > 0 && notListed.length === 0,
+         notListed.length ? '没登记：' + notListed.join(' / ') : '共 ' + storyFiles.length + ' 张');
+    }
   }
 
   console.log('[25] 敌情检视与堆叠目标选择（真 DOM）');
@@ -1914,6 +1930,132 @@ function skip(name, why) {
        rB.join(' | ').slice(0, 90));
 
     domS.window.close();
+  }
+
+  console.log('[30] 右栏战报折叠与「已行动」角标（v5.3 UI 轮）');
+  {
+    const domL = new JSDOM(html, {
+      runScripts: 'dangerously', pretendToBeVisual: true, virtualConsole: vc,
+      url: 'http://127.0.0.1/game/campaign.html?nointro=1'
+    });
+    const dl = domL.window.document;
+    await wait(600);
+    const WL = domL.window.__WAR__;
+    WL.newGame({ level: 'C9', noSave: true });
+
+    const logEl = dl.getElementById('log');
+    const more = dl.getElementById('logMore');
+    /* 默认收起：右栏四张卡里战报最占地方，一进来就铺满会把「详情」顶走 */
+    ok('战报默认是收起状态', logEl.classList.contains('collapsed'), logEl.className);
+    ok('收起时按钮写「展开」且 aria-expanded=false',
+       !!more && more.textContent.trim() === '展开' && more.getAttribute('aria-expanded') === 'false',
+       more ? more.textContent.trim() + ' / ' + more.getAttribute('aria-expanded') : '没有按钮');
+
+    more.click();
+    ok('点「展开」后不再收起', !logEl.classList.contains('collapsed'), logEl.className);
+    ok('展开后按钮改「收起」且 aria-expanded=true',
+       more.textContent.trim() === '收起' && more.getAttribute('aria-expanded') === 'true',
+       more.textContent.trim() + ' / ' + more.getAttribute('aria-expanded'));
+
+    /* 已行动角标：只靠 .spent 的透明度，玩家认不出"这支部队这回合动过了"。
+       直接改状态再重画，断的是渲染口有没有把 ✓ 挂上去。 */
+    WL.alive('blue').slice(0, 2).forEach(u => { u.moved = true; });
+    WL.render();
+    const spent = dl.querySelectorAll('.unit.spent');
+    const acted = dl.querySelectorAll('.unit.spent .act');
+    ok('已行动的兵牌带 ✓ 角标', spent.length >= 2 && acted.length === spent.length,
+       spent.length + ' 支已行动 / ' + acted.length + ' 个角标');
+    ok('只有已行动的兵牌挂角标',
+       dl.querySelectorAll('.unit .act').length === spent.length,
+       dl.querySelectorAll('.unit .act').length + ' 个 ✓ / ' + dl.querySelectorAll('.unit').length + ' 支');
+
+    domL.window.close();
+  }
+
+  console.log('[33] 冬季预览开关（v5.4）');
+  {
+    /* URL 预览参数：第 3 章还没实装，美术需要一个不改关卡数据也能看雪地的口子。
+       这里断的不是"参数解析"，而是"解析完真的换成了雪地图"。 */
+    const domW = new JSDOM(html, {
+      runScripts: 'dangerously', pretendToBeVisual: true, virtualConsole: vc,
+      url: 'http://127.0.0.1/game/campaign.html?nointro=1&season=winter'
+    });
+    const dw = domW.window.document;
+    await wait(600);
+    const WW = domW.window.__WAR__;
+    WW.newGame({ level: 'C1', noSave: true });
+    const hexes = [...dw.querySelectorAll('#board .hex')];
+    const winter = hexes.filter(el => (el.getAttribute('style') || '').includes('terrain/winter/'));
+    ok('?season=winter 时格子吃雪地图', winter.length > 50,
+       winter.length + ' / ' + hexes.length);
+    ok('顶栏季节胶囊显示冬季',
+       dw.getElementById('seasonPill').textContent.trim() === '冬季',
+       dw.getElementById('seasonPill').textContent.trim());
+    domW.window.close();
+  }
+
+  console.log('[32] 地块贴图挂到每个格子上（v5.4 美术轮）');
+  {
+    const domT = new JSDOM(html, {
+      runScripts: 'dangerously', pretendToBeVisual: true, virtualConsole: vc,
+      url: 'http://127.0.0.1/game/campaign.html?nointro=1'
+    });
+    const dt = domT.window.document;
+    await wait(600);
+    const WT = domT.window.__WAR__;
+    WT.newGame({ level: 'C1', noSave: true });
+    const hexes = [...dt.querySelectorAll('#board .hex')];
+    /* --tile 是挂在 inline style 上的 CSS 变量：CSS 里 background-image: var(--tile)。
+       没有它，这一格就退回纯色——地图"看起来没换美术"就是这个原因。 */
+    const withTile = hexes.filter(el => (el.getAttribute('style') || '').includes('--tile:'));
+    ok('每一格都挂了地块贴图', hexes.length > 50 && withTile.length === hexes.length,
+       withTile.length + ' / ' + hexes.length);
+    const sample = hexes.find(el => (el.getAttribute('style') || '').includes('terrain/'));
+    ok('贴图路径指向 assets/terrain', !!sample,
+       sample ? (sample.getAttribute('style') || '').slice(0, 90) : '没有任何一格带 terrain 路径');
+    /* 相邻同地形格要有不同偏移，否则一眼看出是同一张图重复铺 */
+    const offs = new Set(hexes.map(el => {
+      const m = /--tx:(-?\d+)px/.exec(el.getAttribute('style') || '');
+      const m2 = /--ty:(-?\d+)px/.exec(el.getAttribute('style') || '');
+      return m && m2 ? m[1] + ',' + m2[1] : '';
+    }));
+    ok('贴图偏移有变化（不是整张图平铺）', offs.size > 8, offs.size + ' 种偏移');
+    domT.window.close();
+  }
+
+  console.log('[31] 移动模式下点到走不到的地方要有反馈（v5.3 UI 轮）');
+  {
+    const domH = new JSDOM(html, {
+      runScripts: 'dangerously', pretendToBeVisual: true, virtualConsole: vc,
+      url: 'http://127.0.0.1/game/campaign.html?nointro=1'
+    });
+    const dh = domH.window.document;
+    await wait(600);
+    const WH = domH.window.__WAR__;
+    WH.newGame({ level: 'C9', noSave: true });
+    const st = WH.getState();
+    const u = WH.alive('blue').find(x => x.type === 'inf') || WH.alive('blue')[0];
+    WH.select(u);
+    st.mode = 'move';
+    st.reachable = WH.computeReach(u);
+    WH.render();
+
+    /* 找一格"在图上但不在可达范围里"的格子——真实玩家最容易点的那种（远处） */
+    let far = null;
+    for (let r = 0; r < 8 && !far; r++) {   /* 前几行里找一个不可达格就够了 */
+      for (let c = 0; c < 6; c++) {
+        if (st.reachable.stop[r + ',' + c] === undefined) { far = [r, c]; break; }
+      }
+    }
+    const before = dh.querySelectorAll('#bannerHost .bn').length;
+    if (far) WH.onHexClick(far[0], far[1]);
+    await wait(120);
+    const after = dh.querySelectorAll('#bannerHost .bn').length;
+    ok('点走不到的格子会弹一句提示（不再是静默无反应）',
+       !!far && after === before + 1, far ? before + ' → ' + after : '没找到不可达格');
+    ok('提示之后仍在移动模式（不用重新点「移动」）', st.mode === 'move', st.mode);
+
+    domH.window.close();
   }
 
   console.log('');

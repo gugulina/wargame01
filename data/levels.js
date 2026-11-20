@@ -5,8 +5,8 @@
    为什么是 .js 而不是 .json：项目要能双击直接打开，
    file:// 下 fetch 会被同源策略拦掉，<script src> 不会。 */
 window.CANGYU = {
-  "ver": "v5.3",
-  "srcSig": "582112:9wj6qd",
+  "ver": "v5.4",
+  "srcSig": "603127:1gb8udv",
   "storage": {
     "save": "wargame.lankou.save",
     "saveVer": 3,
@@ -244,7 +244,7 @@ window.CANGYU = {
       "win": "score",
       "perfect": {
         "ok": true,
-        "text": "得分 30 以上（达成线 26）"
+        "text": "得分 35 以上（达成线 30）"
       },
       "turns": 12,
       "cols": 20,
@@ -453,7 +453,7 @@ window.CANGYU = {
       "type": "附属 · 破袭",
       "when": "新历 1208 年 9 月 20 日",
       "where": "首都圈 · 环城铁路东段",
-      "teaser": "他们的弹药靠这条铁路运到城下。一晚上，拆三座桥涵，天亮前别让他们修好。",
+      "teaser": "他们的弹药靠这条铁路运到城下。一晚上，拆两座桥涵，天亮前别让他们修好。",
       "ready": true,
       "open": false,
       "prevId": "C7",
@@ -461,7 +461,7 @@ window.CANGYU = {
       "win": "demolish",
       "perfect": {
         "ok": true,
-        "text": "结束时至少 3 座桥涵仍是断的（共 4 座；2 支工兵全都活着、且只损失三支以内为超额）"
+        "text": "结束时至少 2 座桥涵仍是断的（共 4 座；2 支工兵全都活着、且只损失三支以内为超额）"
       },
       "turns": 9,
       "cols": 18,
@@ -523,7 +523,7 @@ window.CANGYU = {
       "win": "score",
       "perfect": {
         "ok": true,
-        "text": "得分 30 以上（达成线 21）"
+        "text": "得分 30 以上（达成线 22）"
       },
       "turns": 12,
       "cols": 18,
@@ -582,7 +582,7 @@ window.CANGYU = {
       "win": "score",
       "perfect": {
         "ok": true,
-        "text": "得分 28 以上（达成线 20）"
+        "text": "得分 34 以上（达成线 22）"
       },
       "turns": 12,
       "cols": 18,

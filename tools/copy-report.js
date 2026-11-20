@@ -445,5 +445,28 @@ p('|---|---|---|---|');
 notes.notes.forEach(n => p('| ' + (n.ver || '—') + ' | ' + (n.date || '') + ' | ' + (n.tag || '') + ' | ' + String(n.title || '').replace(/\|/g, '\\|') + ' |'));
 p('');
 
-fs.writeFileSync(path.join(ROOT, 'docs/24-游戏文案总表.md'), L.join('\n') + '\n');
+/* --check：只比对、不写盘（约 0.2 秒）。
+   为什么需要：docs/24 是**生成物**，但以前没有任何闸门盯着它。
+   v5.3 体检时就撞见过一次"改了引擎文案、表还停在上一版"——
+   表本身没错，错在没人发现它过期。挂进 `npm test` 就行。 */
+const CHECK = process.argv.includes('--check');
+const OUT = path.join(ROOT, 'docs/24-游戏文案总表.md');
+const next = L.join('\n') + '\n';
+if (CHECK) {
+  const cur = fs.existsSync(OUT) ? fs.readFileSync(OUT, 'utf8') : '';
+  if (cur === next) {
+    console.log('✓ docs/24 与引擎一致（' + L.length + ' 行）');
+    process.exit(0);
+  }
+  /* 只报第一处差异的行号，够定位了；不用把两份全文打出来 */
+  const a = cur.split('\n'), b = next.split('\n');
+  let line = 0;
+  while (line < Math.max(a.length, b.length) && a[line] === b[line]) line++;
+  console.log('✗ docs/24 已过期：第 ' + (line + 1) + ' 行起不一致');
+  console.log('  文件：' + (a[line] === undefined ? '（文件更短，缺内容）' : a[line].slice(0, 80)));
+  console.log('  应为：' + (b[line] === undefined ? '（应更短）' : b[line].slice(0, 80)));
+  console.log('  修法：node tools/copy-report.js');
+  process.exit(1);
+}
+fs.writeFileSync(OUT, next);
 console.log('已写 docs/24-游戏文案总表.md，' + L.length + ' 行');

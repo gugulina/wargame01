@@ -5,8 +5,8 @@
 # 菜单页把第 4 关锁死那次的 bug 落在 index.html，而钩子只跑 check.js，
 # 那支脚本根本不看菜单页——于是它一路进了库，直到 levelcheck 才发现。
 #
-# 现在：引擎/数据/工具一动就跑到全量（实测约 50 秒），只改文档跑快照一致性（<1 秒）。
-# 别让"写一段 README"也等 50 秒——等两次之后人就会开始用 --no-verify，
+# 现在：引擎/数据/工具一动就跑到全量（实测约 70 秒），只改文档跑快照一致性（<1 秒）。
+# 别让"写一段 README"也等 70 秒——等两次之后人就会开始用 --no-verify，
 # 而 --no-verify 一用，这道闸就等于没有。
 #
 # 装/更新：node tools/install-hooks.js
@@ -18,8 +18,11 @@ if [ -n "$NODE" ]; then
 elif command -v node >/dev/null 2>&1; then
   NODE=node
 else
-  echo "[pre-commit] ⚠ 找不到 node，跳过校验（设置 NODE 环境变量或把 node 加入 PATH）"
-  exit 0
+  # 以前这里是 exit 0("跳过校验")。那比没装钩子更危险：输出一行警告就放行，
+  # 提交者以为过了闸。找不到 node 就该红，并告诉人怎么修。
+  echo "[pre-commit] ✗ 找不到 node，无法校验。设 NODE=/path/to/node，或把 node 加进 PATH；" >&2
+  echo "             真要跳过就 git commit --no-verify（并在 PR 里说明原因）。" >&2
+  exit 1
 fi
 
 # jsdom 装在项目 node_modules 里（npm ci / npm install 都会装）。
@@ -34,7 +37,7 @@ CHANGED=$(git diff --cached --name-only)
 run() {
   label=$1
   shift
-  printf '[pre-commit]   %-16s' "$label"
+  printf '[pre-commit]   %-18s' "$label"
   if out=$("$@" 2>&1); then
     echo '✓'
   else
@@ -45,17 +48,17 @@ run() {
   fi
 }
 
-# 快照一致性：任何改动都跑。它只比一份生成文件的指纹，几乎不花时间，
-# 而"改了引擎忘了重新导出"是本项目最高频的遗漏。
-run '快照一致性' $NODE tools/export-levels.js --check
+# ── 快路径：任何改动都跑。三支都不跑测试、只读生成物与锚点，合计 <1 秒。──
+# 它们守的是同一类问题：**生成物 / 锚点悄悄过期**，而这类过期不会让别的测试变红。
+run '快照一致性'   $NODE tools/export-levels.js --check
+run '文案表一致性' $NODE tools/copy-report.js --check
+run '变异锚点'     $NODE tools/mutcheck.js --check-anchors
 
-if echo "$CHANGED" | grep -qE '^(game/|data/|index\.html|tools/|package\.json)'; then
-  echo '[pre-commit] 引擎/数据/工具有改动 → 跑全量校验（约 50 秒）'
-  run 'selftest'   $NODE tools/selftest.js
-  run 'check'      $NODE tools/check.js game/campaign.html
-  run 'levelcheck' $NODE tools/levelcheck.js
-  run 'briefcheck' $NODE tools/briefcheck.js
-  run 'orgcheck'   $NODE tools/orgcheck.js
+if echo "$CHANGED" | grep -qE '^(game/|data/|index\.html|cards\.html|tools/|package\.json|www/|android/)'; then
+  echo '[pre-commit] 引擎/数据/工具有改动 → 跑全量校验（约 70 秒）'
+  # 步骤表只在 tools/gate.js 里写一次：钩子、npm test、CI 都调它。
+  # 以前这里是三份拷贝，任何一份漏一步就是"本地全绿、CI 红"。
+  run '全套校验'   $NODE tools/gate.js
 else
   echo '[pre-commit] 只有文档类改动 → 跳过全量'
 fi

@@ -1,13 +1,13 @@
-# 苍屿战役
+﻿# 苍屿战役
 
 架空兵棋推演，一个菜单页 + 一个引擎：
 
 | 版本 | 文件 | 粒度 | 状态 |
 |---|---|---|---|
 | **菜单页（唯一入口）** | `index.html` | — | 封面、战役进度、关卡直达、存档管理；点一关就进 |
-| **引擎** | `game/campaign.html` | 六角格，营级，单格 1.5 km（全图 30×21 km） | v4.22 可玩，实装十关全部调过平衡 |
+| **引擎** | `game/campaign.html` | 六角格，营级，单格 1.5 km（全图 30×21 km） | **v5.4** 可玩，已实装 **18 关**（序章 + 第 1 章 9 关 + 第 2 章 8 关） |
 | **样式** | `game/campaign.css` | — | v4.9 从引擎的 `<style>` 整块搬出来，引擎里只剩一个 `<link>` |
-| **敌方 AI** | `game/ai.js` | — | v4.21 从引擎整块搬出来（1,125 行 / 55 个顶层符号，v4.22 加了三条决策机制）。**改敌方脾气只改这个文件**，见 `docs/08` §一 |
+| **敌方 AI** | `game/ai.js` | — | v4.21 从引擎整块搬出来（现 **1,669 行** / 64 个函数，v4.22 起陆续加了止损、引力、重心、战术调度）。**改敌方脾气只改这个文件**，见 `docs/08` §一 |
 
 > 老的两个原型页（战术级 `game/index.html`、战役级 v1 方格版 `game/campaign-v1-square.html`）
 > 已经删除：内容都翻新进了战役级，留着只会多出两套要同步维护的界面。需要对照的话在 git 历史里。
@@ -55,8 +55,8 @@
 | 章 | 名称 | 时间跨度 | 已实装 |
 |---|---|---|---|
 | 序 | 战前演习 | 1207.08 | 1 / 1 |
-| 1 | **艰难时刻** | 1207.09 – 1208.08 | 5 / 9 |
-| 2 | **兵临城下** | 1208.09 – 1208.12 | 0 / 9 |
+| 1 | **艰难时刻** | 1207.09 – 1208.08 | 9 / 9 |
+| 2 | **兵临城下** | 1208.09 – 1208.12 | 8 / 9 |
 | 3 | **一步不退** | 1209.01 – 1209.05 | 0 / 8 |
 | 4 | **破灭神话** | 1209.06 – 1209.10 | 0 / 9 |
 | 5 | **战略决战** | 1209.11 – 1210.03 | 0 / 8 |
@@ -64,7 +64,7 @@
 | 7 | **决胜一击** | 1210.09 – 1210.12 | 0 / 8 |
 | 8 | **伟大胜利** | 1211.01 – 1211.03 | 0 / 7 |
 
-已实装的 5 个正篇关卡（其余是 `ready:false` 的占位关，只有元信息）：
+已实装 **18 关**（其余 49 个入口是 `ready:false` 的占位关，只有元信息）。下表只列前 6 关做示例，完整关卡表见 `docs/01-战役设定.md` 第五节：
 
 | 关 | 名称 | 类型 | 时间 | 胜负条件 |
 |---|---|---|---|---|
@@ -82,7 +82,7 @@
 
 **封版评估**：离"能发出去的游戏"还差什么，见 `docs/09-封版评估.md`（三档：可玩 / 可发 / 可卖）。
 **综合体检**：代码质量 / 可访问性 / 安全 / 测试覆盖的完整度量与分级问题表，
-最新一份是 `docs/21-综合体检报告-v4.21.md`（v4.21 体检基线；断言数为 938 + 84 + 298 = 1320，变异 194 条全部真会红，三支合并字节覆盖 98.0%。无 P0，债在版本号记账与安卓真机验收）。
+战役故事与分支设计见 **`docs/34-战役叙事总纲与分支剧本-v5.4.md`**；体检报告最新一份是 **`docs/30-全维度体检报告-v5.3.md`**（2026-11-11：断言 **1,653** 项、变异 **248** 条里 245 条真会红、字节覆盖 95.4%，两条 P0 已修）；上一份是 `docs/27`（内容）+ `docs/28`（代码）。
 上一份 `docs/17`（v4.15）的 P1/P2 销项情况见 `docs/21` 第二、三节；
 `docs/13`（v4.8 章节结构改造）的 P1/P2 已收口；`docs/11` 的 P0–P2 已于 v4.6.1–v4.6.3 清空，
 只剩其中的 P3 结构性条目仍有效。
@@ -805,22 +805,31 @@ tools/
   load.js               Node 中加载 HTML 内脚本的公共模块
 ```
 
-`.github/workflows/test.yml` 跑 `npm ci` + `npm test` + `cov.js --min=85`，
+`.github/workflows/test.yml` 跑 `npm ci` + `npm test`（= `tools/gate.js`）+ `cov.js --min=85`，
 是唯一不依赖本机状态的闸门（钩子只装在装过它的那台机器上）。
 
 ## 工具
 
 ```bash
-npm test                                           # 一键跑完全套回归（selftest + check + levelcheck + briefcheck + export-levels --check + orgcheck + www --check）
+npm test                                           # = node tools/gate.js，12 步全套（见下）
+# 本机没有装 npm（node 用的是 DSH 自带的运行时），所以直接跑 node tools/gate.js；
+# 装了 Node.js 的机器上 `npm test` 等价，CI 走的就是那一套。
+
+# 闸门的唯一入口（v5.4）：npm test / pre-commit / CI 都调它，步骤表只在这里写一次：
+node tools/gate.js                                 # 全套：三支测试 + 四支一致性 + 两支自战冒烟（约 30 秒）
+node tools/gate.js --fast                          # 跳过自战冒烟（约 20 秒）
+node tools/gate.js --list                          # 只看步骤表
+node tools/gate.js --only=selftest,copy-report     # 只跑指定几步
 
 # 单独跑某一项：
-node tools/selftest.js                             # 机制回归（570 项断言，改规则后必跑）
+node tools/selftest.js                             # 机制回归（1,255 项断言，改规则后必跑）
 node tools/build-www.js                            # 生成安卓打包用的 www/（白名单+指纹）；--check 只校验
 node tools/mutcheck.js                             # 变异自检：确认断言在被改坏时**真会红**（防假绿）
 node tools/check.js game/campaign.html             # 校验战役级（含部署重叠 / 指挥链）
 node tools/levelcheck.js                           # 多关框架回归（切关 / 解锁 / 进度 / 地图重置）
 node tools/briefcheck.js                           # 开局流程回归（进关→简报→对话→战场）
 node tools/export-levels.js --check                # 快照一致性（改了引擎 LEVELS 后必跑）
+node tools/copy-report.js --check                  # 文案总表 docs/24 是否过期
 node tools/orgcheck.js                             # 编制跨关审计
 node tools/cov.js                                  # 覆盖率：按字节 + 列出从未执行的函数
 node tools/cov.js --min=85                         # 低于门槛退出码 1（CI 用）
@@ -828,6 +837,8 @@ node tools/install-hooks.js                        # 把 tools/hooks/ 装进 .gi
 node tools/autoplay-campaign.js game/campaign.html 200
 node tools/autoplay-campaign.js game/campaign.html 1 --verbose   # 单局战报
 node tools/roster.js                               # 重新生成编制表
+python tools/terrain-tiles.py                      # 重出 12 张地块贴图（固定种子，产物进 game/assets/terrain/）
+python tools/terrain-tiles.py --winter             # 重出 8 张冬季贴图（game/assets/terrain/winter/）
 node tools/shot.js "http://127.0.0.1:8899/game/campaign.html?demo=brief" out.png 390 844 --mobile
                                                    # 精确截图（CDP 指定视口，别用 --window-size）
                                                    # 加 --eval='(()=>{...})()' 可量真实 rect

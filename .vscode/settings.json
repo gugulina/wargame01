@@ -1,0 +1,46 @@
+{
+  // 这个项目的工作台配置（v5.4）。改这里不影响游戏本身，只影响编辑器行为。
+  //
+  // 关于 dsh.node：本机的 node 不在 PATH 里（DSH 自带的运行时在 profile 目录下），
+  // 所以任务与终端统一用这个变量，别处不要写死路径。
+  "dsh.node": "C:\\Users\\ASUS\\.dsh\\dsh-runtimes\\dsh-primary-runtime\\dependencies\\node\\bin\\node.exe",
+
+  "files.encoding": "utf8",
+  "files.eol": "\n",
+  "files.insertFinalNewline": true,
+  // 引擎是手写对齐的，行尾空格有时是有意的（比如对齐的表格），不自动删
+  "files.trimTrailingWhitespace": false,
+
+  // 这些目录要么是生成物、要么是工具链缓存，全量搜索会很慢
+  "search.exclude": {
+    "node_modules": true,
+    "www": true,
+    "android": true,
+    "dist": true,
+    "docs/ui": true,
+    ".tools": true,
+    "**/*.apk": true,
+    "**/package-lock.json": true
+  },
+  "files.watcherExclude": {
+    "**/node_modules/**": true,
+    "**/www/**": true,
+    "**/android/**": true,
+    "**/.tools/**": true,
+    "**/dist/**": true
+  },
+
+  // 在编辑器里开终端时，node 是现成的
+  "terminal.integrated.env.windows": {
+    "PATH": "C:\\Users\\ASUS\\.dsh\\dsh-runtimes\\dsh-primary-runtime\\dependencies\\node\\bin;${env:PATH}"
+  },
+  "terminal.integrated.defaultProfile.windows": "PowerShell",
+
+  // campaign.html 是单文件引擎（1.4 万行），大文件别做全量语义高亮之外的自动格式化
+  "editor.formatOnSave": false,
+  "editor.rulers": [{ "column": 110, "color": "#00000010" }],
+  "[json][jsonc]": { "editor.defaultFormatter": "vscode.json-language-features" },
+
+  // 搜到就跳过去，别在预览里渲染 800KB 的 HTML
+  "workbench.editorAssociations": { "*.apk": "default" }
+}

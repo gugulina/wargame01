@@ -1,7 +1,11 @@
-import io, subprocess, sys, os
+import io, subprocess, sys, os, shutil
 
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-node = r"C:\Users\泽宇\.workbuddy\binaries\node\versions\22.22.2-6\node.exe"
+
+# node 从环境里找，不写死绝对路径：写死的那一版换台机器就报
+# FileNotFoundError，而报错信息指向的是一个不存在的文件，很难看出是"路径硬编码"。
+# 优先级：$NODE（显式指定）→ PATH 里的 node → 直接叫 node 让它去 PATH 找。
+node = os.environ.get("NODE") or shutil.which("node") or "node"
 
 out = subprocess.run([node, os.path.join(root, "tools", "roster.js")],
                      capture_output=True, text=True, encoding="utf-8")

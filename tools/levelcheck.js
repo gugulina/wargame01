@@ -2,7 +2,7 @@
    地图重置、前情衔接、下一关按钮、三种胜负条件。
 
    跑法（jsdom 装在托管 node 的 workspace 里，不在本仓库）：
-     NODE_PATH="C:/Users/泽宇/.workbuddy/binaries/node/workspace/node_modules" \
+     NODE_PATH="C:/Users/<用户名>/.workbuddy/binaries/node/workspace/node_modules" \
      node tools/levelcheck.js
 
    为什么要有这个文件：多关框架的 bug 全都是"状态没跟着关卡走"这一类，
@@ -333,6 +333,22 @@ function skip(name, why) {
     }
     ok('首页各关的关名 / 时间 / 地点 / 状态与引擎一致', drift.length === 0, drift.join('；'));
 
+  /* 关卡条目的语义（v5.3 UI 轮）：以前整行 li 挂 role=button + tabindex，
+     读屏把整张战役线念成"列表 0 项"，章节与关卡序数一起丢。
+     现在 li 保持 listitem，行内放一个铺满整行的真按钮。 */
+  {
+    const rows = homeDom.window.document.querySelectorAll('#levels li.lv');
+    const goBtns = homeDom.window.document.querySelectorAll('#levels li.lv > button.lv-go');
+    const badRole = homeDom.window.document.querySelectorAll('#levels li[role="button"]').length;
+    ok('关卡条目是 listitem + 内嵌真按钮（不再整行 role=button）',
+       rows.length > 0 && goBtns.length === rows.length && badRole === 0,
+       rows.length + ' 行 / ' + goBtns.length + ' 个按钮 / ' + badRole + ' 个 role=button');
+    const lockedBtn = [...goBtns].find(b => b.getAttribute('aria-disabled') === 'true');
+    ok('锁住的关按钮标 aria-disabled 且说明原因',
+       !!lockedBtn && /未解锁|制作中/.test(lockedBtn.getAttribute('aria-label') || ''),
+       lockedBtn ? lockedBtn.getAttribute('aria-label') : '没有锁住的关');
+  }
+
     ok('首页用的存档 key 与引擎一致',
        homeEmpty.data.storage.save === api.SAVE_KEY &&
        homeEmpty.data.storage.progress === api.PROGRESS_KEY &&
@@ -458,6 +474,32 @@ function skip(name, why) {
     }
     try { window.localStorage.removeItem(api.PROGRESS_KEY); } catch (e) {}
   }
+
+  /* ── 首页的存档卡片（v5.3 全维度体检 P0）──
+     首页把 `save.turn` 直接拼进按钮的 innerHTML（index.html 的 btn()）。
+     "校验"那一半在 selftest [31]；这里测**渲染端**：就算有人绕过校验，
+     页面也不该多出标签。顺带守一条正例——正常存档仍然要能出「继续推演」，
+     否则"修 XSS"会退化成"把续关功能关掉"，而那是个更难发现的问题。 */
+  const EVIL_TURN = '"><img src=x id=pwnTurn onerror=alert(1)>';
+  function loadHomeWithSave(saveObj) {
+    return loadHome('try{localStorage.setItem(' + JSON.stringify(api.SAVE_KEY) + ',' +
+      JSON.stringify(JSON.stringify(saveObj)) + ')}catch(e){}');
+  }
+
+  const evilDoc = loadHomeWithSave({ v: 3, lv: 'C1', turn: EVIL_TURN }).window.document;
+  const evilActs = evilDoc.getElementById('acts');
+  ok('恶意 turn 的存档不会在首页生成注入节点',
+     !evilDoc.querySelector('#pwnTurn') && !evilDoc.querySelector('#acts img'),
+     evilActs ? evilActs.innerHTML.slice(0, 140) : '找不到 #acts');
+  ok('恶意 turn 的存档被整份拒绝（首页不出「继续推演」）',
+     !/继续推演/.test(evilActs.textContent), evilActs.textContent.slice(0, 80));
+
+  const goodDoc = loadHomeWithSave({ v: 3, lv: 'C1', turn: 3 }).window.document;
+  const goodActs = goodDoc.getElementById('acts');
+  ok('正常存档仍然出「继续推演」（防"修 XSS 顺手关掉续关"）',
+     /继续推演/.test(goodActs.textContent), goodActs.textContent.slice(0, 80));
+  ok('正常存档的回合数照常显示',
+     /第 3 \//.test(goodActs.textContent), goodActs.textContent.slice(0, 80));
 
   console.log('[10] 章节结构（8 章 × 5–6 主关 + 2–3 附属关）');
   const CHS = api.CHAPTERS || [];

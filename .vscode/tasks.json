@@ -1,0 +1,87 @@
+{
+  // 在 VS Code 里按 Ctrl+Shift+B（或“终端 → 运行任务”）就能跑这些。
+  // 全部走 tools/gate.js —— 步骤表只在那个文件里写一次，和 npm test / pre-commit 同源。
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "闸门：全套（12 步）",
+      "type": "shell",
+      "command": "\"${config:dsh.node}\"",
+      "args": ["tools/gate.js"],
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true }
+    },
+    {
+      "label": "闸门：快速（跳过自战）",
+      "type": "shell",
+      "command": "\"${config:dsh.node}\"",
+      "args": ["tools/gate.js", "--fast"],
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true }
+    },
+    {
+      "label": "只跑：selftest",
+      "type": "shell",
+      "command": "\"${config:dsh.node}\"",
+      "args": ["tools/selftest.js"],
+      "problemMatcher": []
+    },
+    {
+      "label": "只跑：briefcheck（玩家可见文案）",
+      "type": "shell",
+      "command": "\"${config:dsh.node}\"",
+      "args": ["tools/briefcheck.js"],
+      "problemMatcher": []
+    },
+    {
+      "label": "自战：指定关卡 ×N 局",
+      "type": "shell",
+      "command": "\"${config:dsh.node}\"",
+      "args": ["tools/autoplay-campaign.js", "game/campaign.html", "${input:games}", "--level=${input:level}", "--seed=1234", "--diag"],
+      "problemMatcher": []
+    },
+    {
+      "label": "生成：关卡快照 data/levels.js",
+      "type": "shell",
+      "command": "\"${config:dsh.node}\"",
+      "args": ["tools/export-levels.js"],
+      "problemMatcher": []
+    },
+    {
+      "label": "生成：文案总表 docs/24",
+      "type": "shell",
+      "command": "\"${config:dsh.node}\"",
+      "args": ["tools/copy-report.js"],
+      "problemMatcher": []
+    },
+    {
+      "label": "构建：发布物 www/",
+      "type": "shell",
+      "command": "\"${config:dsh.node}\"",
+      "args": ["tools/build-www.js"],
+      "problemMatcher": []
+    },
+    {
+      "label": "打开：菜单页（默认浏览器）",
+      "type": "shell",
+      "command": "Start-Process '${workspaceFolder}/index.html'",
+      "problemMatcher": [],
+      "presentation": { "reveal": "silent" }
+    }
+  ],
+  "inputs": [
+    {
+      "id": "level",
+      "type": "promptString",
+      "description": "关卡 id（C1 / C2 / C7B / C11B …）",
+      "default": "C1"
+    },
+    {
+      "id": "games",
+      "type": "promptString",
+      "description": "跑几局",
+      "default": "20"
+    }
+  ]
+}
